@@ -1,10 +1,10 @@
 # 01 · Architecture
 
-Part of the [Sentinela specification](README.md). IDs such as D13 and P7 refer to the decision log there.
+Part of the [Sentinela specification](README.md). IDs such as G2 and P10 refer to the decision log there.
 
 ## 1. Shape
 
-Firebase holds identity and data access. One FastAPI service holds everything that has consequences: phone calls, timers, watch intake and the status matrix. Apps talk to Firebase for sign-in and data, and to FastAPI for a short list of commands. Apps never talk to each other, to Twilio or to the model.
+One FastAPI service holds all data and everything that has consequences: phone calls, timers, events from the senior's phone, the rules and the matrix (G2). Every app, the DAS web dashboard included, talks only to FastAPI. Firebase does two narrow jobs: it proves that a person owns a phone number, and it delivers pushes. Apps never talk to each other, to Twilio or to the model. The watch talks only to the senior's phone.
 
 ## 2. System overview
 
@@ -18,176 +18,157 @@ flowchart TB
         SA["Android app<br/>senior role, optional"]
         CA["Android app<br/>caregiver role"]
         MA["Android app<br/>medic role, tablet"]
-        DD["DAS dashboard<br/>React web"]
-        DP["On-duty DAS phone"]
+        DA["Android app<br/>DAS role, red incidents"]
+        WD["Web dashboard<br/>DAS desk, React"]
+        DP["On-duty DAS phone<br/>also runs the DAS role"]
     end
 
-    subgraph FB["Firebase on Google Cloud"]
-        AUTH["Firebase sign-in<br/>email and password"]
-        SQLC["SQL Connect<br/>generated app libraries"]
-        PG[("PostgreSQL<br/>Cloud SQL")]
+    subgraph FB["Firebase"]
+        AUTH["Phone sign-in<br/>SMS code"]
         FCM["Firebase push"]
     end
 
-    subgraph SVC["FastAPI service, always on, public HTTPS"]
-        API["Command and intake API"]
-        CORE["Dialer, call session,<br/>status engine, notifier"]
+    subgraph RW["Railway, EU West"]
+        API["FastAPI: reads, data entry,<br/>commands, event intake"]
+        CORE["Dialer, call session,<br/>rules and status engine, notifier"]
+        PG[("PostgreSQL")]
     end
 
-    TW["Twilio<br/>Voice and ConversationRelay"]
+    TW["Twilio<br/>Voice, ConversationRelay, SMS"]
     LLM["Model provider"]
 
-    SA & CA & MA & DD -->|"1 sign in"| AUTH
-    SA & CA & MA & DD <-->|"2 read, plain data entry"| SQLC
-    SQLC <--> PG
-    SA & CA & MA & DD -->|"3 commands"| API
-    W -->|"4 events, check-ins, pairing"| API
+    W <-->|"1 events, check-ins"| SA
+    SA & CA & MA & DA & WD -->|"2 sign in"| AUTH
+    SA & CA & MA & DA & WD <-->|"3 HTTPS, JSON"| API
     API --> CORE
-    CORE -->|"5 wake-up"| FCM
-    FCM --> SA & CA & MA
-    CORE -->|"6 place call"| TW
-    TW -->|"7 callbacks"| API
-    TW <-->|"8 WebSocket, text both ways"| CORE
-    CORE -->|"9 conversation turns"| LLM
-    CORE <-->|"10 direct SQL"| PG
-    TW <-->|"11 phone network"| SP
-    TW <-->|"11 phone network"| DP
-    API -->|"12 verify tokens, set roles"| AUTH
+    CORE -->|"4 alert, refresh"| FCM
+    FCM --> SA & CA & MA & DA
+    CORE -->|"5 place call, SMS"| TW
+    TW -->|"6 callbacks"| API
+    TW <-->|"7 WebSocket, text both ways"| CORE
+    CORE -->|"8 conversation turns"| LLM
+    API & CORE <-->|"9 SQL"| PG
+    TW <-->|"10 phone network"| SP
+    TW <-->|"10 phone network"| DP
+    API -->|"11 verify identity tokens"| AUTH
 ```
 
 ## 3. Parts
 
 | Part | Role | Notes |
 |---|---|---|
-| Firebase sign-in | Accounts for every person | Email and password. The account carries a role: `das`, `medic`, `caregiver` or `senior` |
-| SQL Connect | The apps' door to the database | Table definitions, named queries and mutations, and per-operation permission rules live here. It generates the libraries the Android app (Kotlin) and the dashboard (web, React) use |
-| PostgreSQL | The single store | A Cloud SQL instance. Reached by apps only through SQL Connect, and by FastAPI directly |
-| Firebase push | Wakes closed Android apps | Delivery only. No health details in the message (P18) |
-| FastAPI service | Calls, scheduling, watch intake, the matrix | The only part that changes a code or makes a phone ring |
-| Android app | One app, three roles | The role on the account decides which screens appear. Medic layout targets a tablet; the same medic login works on a phone |
-| Wear OS app | Senior's watch | One screen and one background job. Talks only to FastAPI |
-| DAS dashboard | Web app for DAS employees | React |
-| Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), bridges the hand-over |
+| Firebase phone sign-in | Proves a person owns a phone number | Holds no roles and no application data. A Firebase account is created automatically at first sign-in |
+| Firebase push | Delivers alerts and refresh signals to Android apps | No health details in any message (P18) |
+| FastAPI service | All reads and writes, calls, scheduling, event intake, the rules and the matrix | The only part that changes a code, makes a phone ring or touches the database |
+| PostgreSQL | The single store | Reached only by FastAPI, over Railway's private network |
+| Android app | One app, four roles | The roles granted to the signed-in number decide which screens appear. The medic layout targets a tablet and also works on a phone. The DAS role shows only red incidents (G15) |
+| Web dashboard | DAS at the desk | React, built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
+| Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
+| Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over, sends the caregiver notice SMS |
 | Model provider | The language model behind the agent | Not yet chosen; see [04-interfaces.md](04-interfaces.md) section 5 |
 
 ## 4. Channels
 
 | # | From → to | Means | Carries | Caller proves identity with |
 |---|---|---|---|---|
-| 1 | Apps → Firebase sign-in | Firebase sign-in library | Sign-up, login, session renewal | Email and password |
-| 2 | Apps ↔ SQL Connect | Generated libraries; subscribed queries on a timed refresh | Reading codes, seniors, requests, history. Plain data entry | Identity token from channel 1 |
-| 3 | Apps → FastAPI | Web requests, JSON over HTTPS | Five commands with consequences | Identity token from channel 1 |
-| 4 | Watch → FastAPI | Web requests, JSON over HTTPS | Pairing, anomaly events, check-ins | Device token issued at pairing |
-| 5 | FastAPI → Firebase push → Android app | Firebase server library for Python | Generic wake-up | Service credentials |
-| 6 | FastAPI → Twilio | Twilio Voice API | "Call this number" | Twilio account credentials |
-| 7 | Twilio → FastAPI | Web callbacks | Call answered, call status, voicemail detection, hand-over, hand-over result | Twilio request signature |
-| 8 | Twilio ↔ FastAPI | WebSocket (ConversationRelay) | Senior's words as text in; agent's words as text out | Twilio request signature on connect, plus a one-time call id in the address |
-| 9 | FastAPI → model provider | Streaming API with tool calls | Conversation turns and tool results | Provider API key |
-| 10 | FastAPI ↔ PostgreSQL | Direct database connection | Codes, calls, events, transcripts | Database credentials, private connection |
-| 11 | Twilio ↔ phones | Ordinary phone network | Voice | n/a |
-| 12 | FastAPI → Firebase sign-in | Firebase server library for Python | Checking identity tokens, setting an account's role | Service credentials |
+| 1 | Watch ↔ senior's phone app | Wear OS Data Layer messages | Anomaly events, check-ins, acknowledgements | Same app, same signing key, paired devices |
+| 2 | Apps and dashboard → Firebase sign-in | Firebase sign-in library, phone provider (with reCAPTCHA in the browser) | Phone number, SMS code, token renewal | The SMS code |
+| 3 | Apps and dashboard → FastAPI | Web requests, JSON over HTTPS. The API accepts browser requests only from the dashboard's own address | Reads, data entry, commands, the senior's events and check-ins | Firebase identity token |
+| 4 | FastAPI → Firebase push → Android app | Firebase server library for Python | Alert or refresh, with a senior id | Service credentials |
+| 5 | FastAPI → Twilio | Twilio Voice and Messaging APIs | "Call this number", the caregiver notice SMS | Twilio account credentials |
+| 6 | Twilio → FastAPI | Web callbacks | Call answered, call status, voicemail detection, welcome-call answers, hand-over, hand-over result | Twilio request signature |
+| 7 | Twilio ↔ FastAPI | WebSocket (ConversationRelay) | Senior's words as text in; agent's words as text out | Twilio request signature on connect, plus a one-time call id in the address |
+| 8 | FastAPI → model provider | Streaming API with tool calls | Conversation turns and tool results | Provider API key |
+| 9 | FastAPI ↔ PostgreSQL | Private network | Everything | Database credentials |
+| 10 | Twilio ↔ phones | Ordinary phone network | Voice | n/a |
+| 11 | FastAPI → Firebase sign-in | Firebase server library for Python | Checking identity tokens | Service credentials |
 
-## 5. The routing rule (P7, proposed)
+## 5. One door (G2)
 
-> **Apps read and enter plain data through SQL Connect. Anything that makes a phone ring or changes a code goes to FastAPI. Only FastAPI writes codes.**
+> **Every read and every write goes through FastAPI. Firebase never holds application data.**
 
-An app developer deciding where a new action belongs asks one question: does this have a consequence beyond storing what the user typed? If yes, it is a FastAPI command.
-
-| Action | Channel | Why |
-|---|---|---|
-| Read a senior's code, history, enrollment requests | 2 | Read |
-| Fill in the registration form, save the consent signature | 2 | Plain data entry |
-| Create an invite (the QR content) | 2 | Plain data entry; the row's generated id is the token |
-| Submit an enrollment to DAS | 2 | A state change with no side effect |
-| Acknowledge a red | 2 | Records who saw it; does not change the code |
-| Register a DAS employee's phone, set who is on duty | 2 | Plain data entry |
-| Save the device's push token | 2 | Plain data entry |
-| Redeem an invite | 3 | Sets a role on an account, which needs server privileges |
-| Pair a watch | 3 | Issues a device token |
-| Accept a patient | 3 | Starts the welcome call |
-| Start a weather campaign | 3 | Starts calls |
-| "Check on me" | 3 | Starts a call |
-
-**Who writes what in the database**
-
-| Data | Written by |
-|---|---|
-| Registration details, consent, invites, enrollment state up to `submitted` | Medic's app, through SQL Connect |
-| Acknowledgement of a red, DAS employees, on-duty flag | DAS dashboard, through SQL Connect |
-| Push tokens | Each signed-in app, through SQL Connect |
-| Account rows and roles, caregiver links, devices, enrollment state `active` | FastAPI |
-| Calls, transcripts, status reports, watch events, the current code | FastAPI only |
+There is no second path to the database, so there is one place that checks permissions, one schema and one writer. A change of code, a new call or a new grant is written by FastAPI, which therefore knows the moment to send a refresh (section 7).
 
 ## 6. Identity and permissions
 
-**People.** Every person has a Firebase account with email and password. The app stays signed in. The account's role is set by FastAPI (channel 12) and travels inside the identity token.
+**People** sign in with their phone number and an SMS code (G6), in the Android app or the dashboard. The Firebase library on Android reads the code automatically when it can. The client then sends its Firebase identity token with every request to FastAPI. FastAPI verifies the token, reads the phone number from it, and looks it up.
 
-- DAS employees and medics get their accounts from a setup script before the event **(P13, proposed)**.
-- Caregivers and seniors create their own by scanning the medic's QR (D12). A freshly created account has no role and can read nothing until the invite is redeemed.
-- After FastAPI sets a role, the app must renew its identity token before the role takes effect.
+Nobody chooses a role. A role is a **grant** made by someone allowed to make it, by entering the person's phone number:
 
-**The watch** is a device, not a person. It holds a device token issued when it is paired, uses channel 4 only, and never touches Firebase.
+| Who grants | Grants | How |
+|---|---|---|
+| The setup script, run by the team | DAS employees | Name and phone number |
+| A DAS employee | Medics, and other DAS employees | Name, phone number, practice (for a medic) |
+| A medic | A senior, and the senior's caregivers | The registration form: the senior's own number, and each caregiver's name, relation and number |
+
+A grant creates the person's user row immediately, before they ever sign in. At first sign-in FastAPI attaches the Firebase account to that row.
+
+| When a number signs in | Result |
+|---|---|
+| It has one grant | The app opens the screens for that role. The dashboard accepts DAS grants only |
+| It has several grants (for example a caregiver who is also a medic, or a senior who uses a relative's phone) | The app asks which role to use, listing only the granted ones |
+| It has none | „Numărul nu este înregistrat. Contactați medicul de familie." Nothing is stored |
+
+Phone numbers are normalized to the international format (+40…) on every write and every lookup, so "0722 123 456" typed by a medic matches the number Firebase reports.
+
+**The watch** has no identity of its own. Its messages reach FastAPI only through the senior's phone app, which is signed in as that senior (G5).
 
 **Twilio** signs every callback; FastAPI rejects unsigned or wrongly signed requests.
 
-**Two places enforce permissions, with a clean split:**
-
-| Place | Enforces | Based on |
-|---|---|---|
-| SQL Connect rules, one per query and mutation | Who may read or enter which rows | Role and account id in the identity token |
-| FastAPI | Who may run each command | Role and account id in the identity token, checked through channel 12 |
+**One place enforces permissions: FastAPI.** Every endpoint checks the caller's grants and, where a senior is involved, that the grant covers that senior. The app's role screens are a convenience, not a protection.
 
 **Who sees which seniors**
 
 | Role | Sees |
 |---|---|
 | Medic | Seniors they registered |
-| Caregiver | Seniors they are linked to |
+| Caregiver | Seniors whose registration lists their number |
 | Senior | Themselves |
-| DAS | All seniors that are submitted or active |
+| DAS | All seniors that are submitted or further along |
 
-**Who sees how much** (kept from v3 §11.4)
+**Who sees how much** (kept from v3 §11.4, extended)
 
 | Information | Caregiver | Medic | DAS |
 |---|---|---|---|
 | Code and reason | Yes | Yes | Yes |
 | Call history, short form | Yes | Yes | Yes |
 | Full transcript | No | Yes | Yes |
+| Address and access details | Yes | Yes | Yes |
+| Location attached to an event **(proposed)** | Yes | No | Yes |
 | Watch state (worn, battery, last check-in) | Yes | Yes | No |
+| Consent record | No | Yes | Yes |
 
-## 7. Live updates and push
+## 7. Live updates and push (G4)
 
-Two mechanisms, for two situations.
+One mechanism serves open and closed Android apps. When FastAPI writes something a person can see in the app, it sends a Firebase push to every device of every account that can see it.
 
-| Situation | Mechanism | Used by |
+The web dashboard receives no pushes. A dispatcher's dashboard is always open, so it re-reads every few seconds (interval in [06-operations.md](06-operations.md) section 3). A new red plays an audible cue; browsers allow sound only after a click on the page, so the dashboard asks for one click after sign-in („Pornește alertele sonore”).
+
+| Kind | Sent when | What the app does |
 |---|---|---|
-| The screen is open | Subscribed SQL Connect query on a timed refresh **(P6, proposed)** | Android app, dashboard |
-| The app is closed | Firebase push | Android app |
+| Alert | A code changes into yellow or red (recipients in [03-status-model.md](03-status-model.md) section 7) | Shows a system notification with generic text; tapping it opens the senior's page. If the app is open, it also re-reads |
+| Refresh | Any other visible change: a code into green, a call starting or ending, an enrollment state, a watch state, a new grant | Silent. If the app is open, it re-reads the screen; if closed, nothing |
 
-The dashboard needs no push: a dispatcher's dashboard is open, and a red also rings the on-duty phone.
-
-**Why timed refresh.** SQL Connect refreshes a subscribed query when a change is made through SQL Connect, or on a timer. In Sentinela the codes are written by FastAPI over a direct database connection, which SQL Connect does not observe, and the documented server library for SQL Connect is for Node.js only. A timer works regardless of who wrote the change. The interval is short in demo mode; see [06-operations.md](06-operations.md) section 3. Spike S2 there tests whether an instant refresh is reachable.
+A slow timed re-read while a screen is open is the backstop for a lost push. Its interval is in [06-operations.md](06-operations.md) section 3.
 
 ```mermaid
 sequenceDiagram
     participant F as FastAPI
     participant DB as PostgreSQL
-    participant SC as SQL Connect
-    participant A as Open app or dashboard
     participant P as Firebase push
-    participant C as Closed Android app
+    participant O as Open app
+    participant C as Closed app
 
     F->>DB: write the new code
-    loop every refresh interval while the screen is open
-        SC->>DB: re-run the subscribed query
-        SC-->>A: fresh result
+    F->>P: alert or refresh, with the senior id, to every device that can see it
+    P-->>O: message arrives
+    O->>F: re-read the open screen
+    P-->>C: alert shown as a system notification
+    C->>F: when opened, read the senior's page
+    loop every backstop interval while a screen is open
+        O->>F: re-read
     end
-    F->>P: generic wake-up for the accounts concerned
-    P-->>C: system notification
-    C->>SC: when opened, read the current code
 ```
-
-**When a push is sent.** On a change of code into yellow or red, not on every report during a call. Recipients are fixed per code; see [03-status-model.md](03-status-model.md) section 7.
 
 ## 8. Inside the FastAPI service
 
@@ -196,37 +177,43 @@ One process, several modules with narrow jobs. They are separate so that the dia
 ```mermaid
 flowchart LR
     subgraph INB["Inbound"]
-        CMD["Command API<br/>apps, identity token"]
-        INT["Watch intake<br/>device token"]
+        AUTHM["Identity<br/>verify token, resolve grants"]
+        API["Reads, data entry, commands"]
+        INT["Senior event intake<br/>from the phone app"]
         HOOK["Twilio callbacks<br/>signed"]
         WS["Relay WebSocket"]
     end
 
     subgraph LOGIC["Logic"]
-        SCHED["Scheduler<br/>due calls, redials, watchdog"]
+        SCHED["Scheduler<br/>due calls, redials, silent watches"]
         DIAL["Dialer"]
-        SESS["Call session<br/>agent loop"]
-        ENG["Status engine<br/>matrix lookup"]
+        WEL["Welcome call<br/>fixed script"]
+        SESS["Call session<br/>agent loop, alarm phrases"]
+        ENG["Rules and status engine<br/>answers, matrix"]
     end
 
     subgraph OUTB["Outbound"]
         NOTIF["Notifier"]
-        STORE["Store<br/>direct SQL"]
+        STORE["Store"]
     end
 
     TWILIO["Twilio"]
     MODEL["Model provider"]
     PUSH["Firebase push"]
 
-    CMD --> SCHED
+    AUTHM --> API
+    AUTHM --> INT
+    API --> SCHED
     INT --> SCHED
     SCHED --> DIAL
     DIAL -->|"Voice API"| TWILIO
     HOOK --> DIAL
+    HOOK --> WEL
     HOOK --> SESS
     WS <--> SESS
     SESS -->|"streaming, tool calls"| MODEL
-    SESS -->|"status reports"| ENG
+    SESS -->|"answers, alarm matches"| ENG
+    WEL -->|"identity, consent"| STORE
     DIAL -->|"unanswered"| ENG
     ENG --> STORE
     ENG --> NOTIF
@@ -237,31 +224,41 @@ flowchart LR
 
 | Module | Job | Depends on |
 |---|---|---|
-| Command API | Receives the five commands, checks role, turns them into queued work | Firebase sign-in (to check tokens), Store |
-| Watch intake | Receives pairing, events and check-ins; drops duplicates; applies the cooldown | Store |
-| Scheduler | On a short tick: finds calls that are due, watches for silent watches. All timers are rows with a due time, so a restart loses nothing | Store |
+| Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store |
+| Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store |
+| Senior event intake | Receives events and check-ins forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule | Store |
+| Scheduler | On a short tick: finds calls that are due, marks silent watches. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store |
 | Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store |
-| Call session | One per live call. Holds the WebSocket, checks alarm words, runs the conversation with the model, executes hand-over | Twilio, model provider |
-| Status engine | Takes status reports and unanswered outcomes, applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing |
-| Notifier | Sends pushes through interchangeable channels. One channel in the MVP | Firebase push |
-| Store | All reads and writes to PostgreSQL | PostgreSQL |
+| Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store |
+| Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider |
+| Rules and status engine | Turns answers into severity and certainty, applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing |
+| Notifier | Sends alerts and refreshes through Firebase push; the caregiver notice SMS through Twilio | Firebase push, Twilio |
+| Store | All reads and writes to PostgreSQL, asynchronous | PostgreSQL |
 
-The status engine has no dependencies on purpose: every cell of the matrix can be tested without a phone, a model or a database.
+The rules and status engine has no dependencies on purpose: every rule and every cell of the matrix can be tested without a phone, a model or a database.
 
-## 9. Hosting (P17, proposed)
+**The agent loop is written directly against the model provider's library (proposed)**, not inside an agent framework. The server refuses tool calls, matches alarm phrases before the model sees a sentence, and cuts the model's reply short on an interruption; a framework's own loop would be in the way.
+
+**Everything in the request path is asynchronous.** One blocking database call or web request in this process would pause every live conversation.
+
+## 9. Hosting (G9)
 
 | Part | Where | Requirement |
 |---|---|---|
-| FastAPI service | Google Cloud Run, EU region | At least one instance kept running with CPU always available, because open calls and the scheduler live in the process. Public HTTPS and secure WebSocket address for Twilio |
-| PostgreSQL | Cloud SQL, same region, created through SQL Connect | Private connection from the FastAPI service |
-| DAS dashboard | Firebase Hosting | Static site |
+| FastAPI service | Railway, EU West, built from a Dockerfile | Exactly one replica; sleeping when idle turned off; a health check at `/health`. Railway's public HTTPS address also serves the secure WebSocket Twilio needs |
+| PostgreSQL | Railway, same project and region | Reached over the private network |
+| Web dashboard | Railway, a separate static-site service in the same project | Its own service, so that changing the dashboard never redeploys FastAPI and drops live calls. The API allows browser requests from this address only |
 | Android and Wear OS apps | Installed directly on the demo devices | n/a |
 
-A public address is needed during development as well, since Twilio must reach channels 7 and 8. A tunnel to a laptop is enough before deployment.
+A new deploy starts before the old one stops, so for a few seconds two copies run. The scheduler's database lock keeps one of them idle. Calls live on the old copy drop, so nothing is deployed after the Sunday-morning freeze.
+
+During development Twilio must still reach channels 6 and 7: a tunnel to a laptop, or a Railway environment per branch.
 
 ## 10. Deliberately absent
 
 - **No message broker or worker pool.** Nothing in the MVP needs one. The module boundaries in section 8 keep that door open.
-- **No file storage.** With document upload deferred, the only binary is the consent signature, which is stored in the database (P15).
-- **No app-to-app channel.** The medic's tablet and the caregiver's phone never connect directly; the QR is read by a camera.
+- **One web client only**, for DAS at the desk. Seniors, caregivers and medics use the Android app.
+- **No second path to the database.** No SQL Connect, no Firestore, no live queries.
+- **No file storage.** The only image-like item, the optional signature, is stored as strokes on a consent record.
+- **No app-to-app channel** between people's devices. The watch talks to the senior's phone, which is one person's two devices.
 - **No audio anywhere in our systems.** Twilio handles speech in both directions; FastAPI sees and stores text only.

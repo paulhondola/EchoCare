@@ -2,32 +2,35 @@
 
 Part of the [Sentinela specification](README.md). Each use case names who is involved, what starts it, the steps, and what is true afterwards. The channels and interface names used here are defined in [01-architecture.md](01-architecture.md) and [04-interfaces.md](04-interfaces.md); how a call becomes a code is in [03-status-model.md](03-status-model.md).
 
-In the sequence diagrams, "Database" stands for PostgreSQL. Apps reach it through SQL Connect; FastAPI reaches it directly.
+In the sequence diagrams, "Database" stands for PostgreSQL, which only FastAPI reaches.
 
 ## 1. Actors
 
 | Actor | Uses | Role in the system |
 |---|---|---|
-| Senior | Any phone. Optionally a Wear OS watch and the Android app | Receives calls and talks with the agent |
+| Senior | Any phone. Optionally a Wear OS watch and the Android app on an Android phone | Receives calls and talks with the agent |
 | Caregiver | Android app on a phone | Follows one or more seniors; is notified at yellow and red |
-| Medic | Android app on a tablet (and optionally a phone) | Registers seniors; follows their own patients; is notified at red |
-| DAS employee | Web dashboard; a phone when on duty | Accepts patients, starts campaigns, takes over reds |
-| Watch | Device actor | Detects anomalies, reports check-ins |
+| Medic | Android app on a tablet (and optionally a phone) | Registers seniors and their caregivers; follows their own patients; is notified at red |
+| DAS employee | Web dashboard at the desk; the Android app's DAS role on a phone, which is also the hand-over phone when on duty | Grants medics, accepts patients, starts campaigns, takes and resolves red incidents |
+| Team admin | The setup script | Grants the first DAS employees |
+| Watch | Device actor, through the senior's phone | Detects anomalies, reports check-ins |
 
 ## 2. Overview
 
 ```mermaid
 flowchart LR
+    ADM(["Team admin"])
     SEN(["Senior"])
     WAT(["Watch"])
     CAR(["Caregiver"])
     MED(["Medic"])
     DAS(["DAS employee"])
 
-    subgraph ENR["Enrollment"]
+    subgraph ENR["Access and enrollment"]
+        UC14("UC-14 Grant staff access")
         UC01("UC-01 Register a senior")
-        UC02("UC-02 Join by QR invite")
-        UC03("UC-03 Pair a watch")
+        UC02("UC-02 Sign in by phone")
+        UC03("UC-03 Connect a watch")
         UC04("UC-04 Accept a patient, welcome call")
     end
 
@@ -41,26 +44,31 @@ flowchart LR
     end
 
     subgraph FOLLOW["Following and responding"]
-        UC11("UC-11 Acknowledge a red")
+        UC11("UC-11 Handle a red incident")
         UC12("UC-12 Follow codes")
         UC13("UC-13 Watch goes silent")
     end
 
+    ADM --- UC14
+    DAS --- UC14
     MED --- UC01
-    MED --- UC03
-    MED --- UC12
+    MED --- UC02
     CAR --- UC02
-    CAR --- UC12
     SEN --- UC02
+    DAS --- UC02
+    SEN --- UC03
+    WAT --- UC03
+    DAS --- UC04
+    SEN --- UC04
     SEN --- UC05
     SEN --- UC10
-    WAT --- UC03
     WAT --- UC09
     WAT --- UC13
-    DAS --- UC04
     DAS --- UC05
     DAS --- UC07
     DAS --- UC11
+    MED --- UC12
+    CAR --- UC12
     DAS --- UC12
 
     UC05 -.-> UC06
@@ -72,141 +80,155 @@ flowchart LR
 
 Dotted arrows mean "continues as": a watch anomaly or a senior's request starts the same call a campaign does, and that call ends in one of three ways.
 
-## 3. Enrollment
+## 3. Access and enrollment
 
 ```mermaid
 sequenceDiagram
     autonumber
+    actor A as Team admin
+    actor D as DAS employee on the dashboard
     actor M as Medic on tablet
     actor C as Caregiver on phone
-    participant W as Watch
     participant AU as Firebase sign-in
-    participant DB as Database
     participant F as FastAPI
-    actor D as DAS employee
+    participant DB as Database
     participant T as Twilio
     actor S as Senior
 
+    Note over A,DB: UC-14 Grant staff access
+    A->>DB: setup script grants DAS numbers
+    D->>AU: phone number, SMS code
+    D->>F: first request with identity token
+    F->>DB: find the number, attach the account
+    D->>F: grant a medic (name, phone, practice)
+    M->>AU: phone number, SMS code
+    M->>F: first request, role medic
+
     Note over M,DB: UC-01 Register a senior
-    M->>DB: save registration form as a draft
-    S->>M: signs consent on the tablet
-    M->>DB: save consent signature
-    M->>DB: create caregiver invite
-    Note over M: tablet shows the invite id as a QR code
+    M->>F: save registration as a draft
+    M->>F: add caregiver (name, relation, phone)
+    F->>DB: user row and caregiver grant
+    F->>T: notice SMS to the caregiver (proposed)
+    M->>F: submit
 
-    Note over C,F: UC-02 Join by QR invite
-    C->>C: scan the QR, enter email and password
-    C->>AU: create account
-    AU-->>C: identity token, no role yet
-    C->>F: redeem invite
-    F->>DB: check the invite is unused and not expired
-    F->>AU: set role caregiver
-    F->>DB: create account row and caregiver link, mark invite used
-    F-->>C: done
-    C->>AU: renew identity token, now carrying the role
+    Note over C,F: UC-02 Sign in by phone
+    C->>AU: phone number, SMS code
+    C->>F: first request with identity token
+    F->>DB: find the number, attach the account
+    F-->>C: role caregiver, senior doamna Maria
 
-    opt UC-03 Pair a watch
-        W->>F: request pairing
-        F-->>W: short code
-        Note over W: watch shows the code
-        M->>F: pair watch with this senior and code
-        F->>DB: bind the device to the senior
-        W->>F: poll pairing
-        F-->>W: device token
-    end
-
-    Note over M,S: UC-04 Accept a patient, welcome call
-    M->>DB: submit enrollment
-    D->>DB: sees the request on the next refresh
+    Note over D,S: UC-04 Accept a patient, welcome call
     D->>F: accept patient
-    F->>DB: senior active, code green, queue the welcome call
+    F->>DB: senior accepted, queue the welcome call
     F->>T: place call to the senior's number
-    T->>S: phone rings, the agent introduces itself
-    F->>DB: record whether the number was confirmed
+    T->>S: phone rings: identity, then consent
+    S-->>T: presses 1, then 1
+    F->>DB: consent given, senior active, code green
 ```
+
+### UC-14 Grant staff access
+
+| | |
+|---|---|
+| Actors | Team admin, DAS employee |
+| Starts when | Before the event (team admin), or a DAS employee opens "Personal" on the dashboard |
+| Before | For a DAS employee: they are signed in |
+| After | A user row with a DAS or medic grant exists for the number; that person can sign in |
+
+1. The setup script grants the first DAS employees: name and phone number for each.
+2. A DAS employee signs in to the dashboard (UC-02) and opens "Personal".
+3. They add a medic (name, phone number, practice) or another DAS employee (name, phone number).
+4. The person signs in with that number and sees the screens for their role.
+
+A DAS employee's phone number is also their hand-over number when they are on duty (D8, P10).
 
 ### UC-01 Register a senior
 
 | | |
 |---|---|
-| Actors | Medic, senior (present in the cabinet) |
+| Actors | Medic; the senior or a caregiver, if present |
 | Starts when | The medic opens "Pacient nou" on the tablet |
 | Before | The medic is signed in |
-| After | A senior exists in state `submitted`, with consent, waiting for DAS |
+| After | A senior exists in state `submitted`, with caregiver grants, waiting for DAS |
 
-1. The medic enters the senior's name, form of address („doamna Maria”), phone number (mobile or landline), address and preferred call window.
-2. The medic enters one or two caregiver contacts: name, relation, phone.
-3. The senior reads the consent text and signs on the tablet. Consent covers the calls, the processing of what is said, and sharing the code with the caregiver, the medic and DAS.
-4. The medic creates an invite for each caregiver, and one for the senior if the senior will use the app. The tablet shows each as a QR code.
-5. Optionally, the medic pairs a watch (UC-03).
+1. The medic enters the senior's name, form of address („doamna Maria”), phone number and preferred call window. Whether the number is a landline is worked out from the number itself.
+2. The medic enters the address with access details: street and number, block, staircase, floor, apartment, intercom code, who has a key, and a landmark (G13).
+3. The medic enters one or two caregivers: name, relation, phone number. Each number becomes a caregiver grant for this senior. If the senior's own number is a mobile, it becomes the senior's grant.
+4. If a caregiver is present, they sign in on the spot (UC-02); seeing doamna Maria on their phone confirms the number. Otherwise FastAPI sends a short notice SMS to the number **(proposed)**, so that a wrong number is noticed.
+5. If the senior is present, they may sign on the tablet. This is optional: consent is recorded on the welcome call (G7).
 6. The medic submits. The senior moves from `draft` to `submitted`.
 
 Variations:
-- **Caregiver not present.** The invite stays valid for its validity period; the medic can show the QR again from the patient's page.
+- **The senior cannot come to the practice.** A caregiver comes alone, or the medic fills the form on a home visit. Nothing changes: consent is the senior's own, given on the welcome call.
 - **Form left unfinished.** The draft is saved and visible only to that medic.
 
-Everything in this use case is plain data entry through SQL Connect. Nothing rings and no code exists yet.
+Nothing rings and no code exists yet.
 
-### UC-02 Join by QR invite
+### UC-02 Sign in by phone
 
 | | |
 |---|---|
-| Actors | Caregiver, or senior |
-| Starts when | They tap "Am o invitație" in the Android app and scan the medic's QR **(P14, proposed)** |
-| Before | The app is installed; the invite is unused and not expired |
-| After | An account exists with the invite's role, linked to the senior; the app is signed in |
+| Actors | Any person: senior, caregiver, medic, DAS employee |
+| Starts when | They open the Android app for the first time, or after signing out. A DAS employee does the same on the dashboard |
+| Before | The app is installed, or the dashboard is open in a browser |
+| After | The app or dashboard is signed in and shows the screens for a granted role |
 
-1. The app reads the invite id from the QR.
-2. The person chooses an email and a password. Firebase sign-in creates the account. It has no role yet and can read nothing.
-3. The app sends "redeem invite" to FastAPI.
-4. FastAPI checks the invite, sets the role on the account, creates the link to the senior (a caregiver link, or the senior-account link), and marks the invite used.
-5. The app renews its identity token and opens the screens for its role.
+1. The person enters their phone number.
+2. Firebase sends an SMS code. The app reads it automatically when it can; otherwise the person types it.
+3. The app calls FastAPI with its identity token.
+4. FastAPI normalizes the number, finds its user row, attaches the Firebase account on first sign-in, and returns the grants.
+5. One grant: the app opens that role's screens. Several: the app asks which role, listing only the granted ones.
 6. The app saves the device's push token.
 
 Variations:
-- **Invite already used or expired.** FastAPI refuses; the app shows why. The account remains without a role and can try another invite.
-- **Person already has an account with a role.** Refused in the MVP: one account, one role, and a caregiver's further seniors are a later extension.
+- **Number not granted.** „Numărul nu este înregistrat. Contactați medicul de familie." Nothing is stored.
+- **The code does not arrive.** The app offers to resend after a short wait. The demo uses Firebase test numbers, which need no SMS.
+- **Sign out.** The app removes its push token. Signing in again is this same flow.
 
-DAS employees and medics do not use this flow; their accounts are created before the event **(P13, proposed)**.
-
-### UC-03 Pair a watch
+### UC-03 Connect a watch
 
 | | |
 |---|---|
-| Actors | Medic, watch |
-| Starts when | The Wear OS app is opened for the first time |
-| Before | The senior is registered (any enrollment state); the watch has a connection |
-| After | The watch holds a device token and reports for that senior |
+| Actors | Senior, or a caregiver helping |
+| Starts when | The Wear OS app is installed on a watch paired with the senior's phone |
+| Before | The senior's Android phone has the app, signed in as the senior (UC-02) |
+| After | The watch reports through the phone app |
 
-1. The watch asks FastAPI for a pairing. FastAPI creates a pending device and returns a short code, which the watch displays.
-2. The medic types the code on the senior's page **(P11, proposed)**.
-3. FastAPI binds the device to the senior.
-4. The watch, which has been polling, receives its device token and starts monitoring.
+1. The watch is paired with the senior's phone through Wear OS's own companion app. This is the operating system's pairing, not ours.
+2. The Sentinela Wear OS app finds the phone app over the Data Layer and starts monitoring.
+3. The phone app shows „Ceas conectat” and the latest pulse.
 
 Variations:
-- **Code expired.** The watch requests a new one.
-- **Senior already has a watch.** The new one replaces it; the old device token stops working.
+- **Watch replaced.** Pair the new watch with the phone; there is nothing to unbind.
 
-The watch is bound to the senior's record, not to the medic. Typing the code only tells the system whose wrist it is on. A watch has no camera, which is why it cannot use the QR.
+There are no pairing codes and no device tokens (G5). The watch belongs to whoever's phone it is paired with.
 
 ### UC-04 Accept a patient, welcome call
 
 | | |
 |---|---|
 | Actors | DAS employee, senior |
-| Starts when | A DAS employee opens "Cereri de înrolare" |
+| Starts when | A DAS employee opens "Cereri de înrolare" on the dashboard |
 | Before | The senior is `submitted` |
-| After | The senior is `active` with code green, and has been called once |
+| After | The senior is `active` with code green, `refused`, `wrong_number` or `unreachable` |
 
-1. The DAS employee reviews the registration and presses "Acceptă".
-2. FastAPI sets the senior to `active`, creates the code (green), and queues the welcome call.
-3. The agent calls, greets the senior by their form of address, says it is the DAS assistant, says it never asks for money or personal data, and asks them to save the number.
-4. FastAPI records whether the number was confirmed.
+1. The DAS employee reviews the registration and presses "Acceptă". The senior becomes `accepted` and the welcome call is queued.
+2. **Identity.** „Bună ziua. Sunt asistentul automat al DAS Timișoara. Vorbesc cu doamna Maria Popescu? Dacă da, apăsați 1 sau spuneți «da». Dacă doamna nu poate veni acum la telefon, apăsați 2. Dacă ați primit acest apel din greșeală, apăsați 3.”
+3. **Consent.** A fixed text, approved by DAS and versioned: what the calls are for, who sees what is said (medic, family, DAS), that the senior can stop at any time. „Dacă sunteți de acord, apăsați 1 sau spuneți «da». Dacă nu, apăsați 2 sau spuneți «nu». Ca să ascultați din nou, apăsați 0.”
+4. **Anti-scam close.** „Vă rugăm să salvați acest număr. Nu vă vom cere niciodată bani sau date.”
 
-Variations:
-- **Welcome call not answered.** One redial. If still unanswered, the senior stays active with "number not confirmed" shown to the medic and DAS.
+| Answer | Result |
+|---|---|
+| Identity 1, consent 1 | Consent given, senior `active`, code green |
+| Identity 1, consent 2 | Consent refused, senior `refused`; the medic sees it |
+| Identity 1, consent unclear twice | One more welcome call later; if still unclear, `unreachable` and the medic follows up in person |
+| Identity 2 (not available now) | One more welcome call after the redial delay |
+| Identity 3 (wrong number) | Senior `wrong_number`; the medic corrects the number and presses "Sună din nou" |
+| Not answered, or silent twice | One redial; if still unanswered, `unreachable` |
 
-A welcome call never changes the code.
+The call is a fixed script whose answers are keys or short spoken words (G7). If a dedicated agent runs it instead, the server still records consent only on key 1 or an exact „da” / „sunt de acord” in the transcript.
+
+A welcome call never changes a code; the code is created when consent is given.
 
 ## 4. Wellbeing calls
 
@@ -215,9 +237,9 @@ A welcome call never changes the code.
 | | |
 |---|---|
 | Actors | DAS employee, senior |
-| Starts when | A DAS employee presses "Simulează cod roșu" |
+| Starts when | A DAS employee presses "Simulează avertizare" on the dashboard and chooses heat or cold |
 | Before | At least one active senior |
-| After | Every active senior has been called once; each has a fresh code |
+| After | Every active senior has been called once; each has a fresh code. A warning is active for the campaign's period |
 
 ```mermaid
 sequenceDiagram
@@ -228,9 +250,9 @@ sequenceDiagram
     participant T as Twilio
     actor S as Senior
     participant L as Model provider
-    participant A as Apps and dashboard
+    participant A as Apps
 
-    D->>F: start campaign (heat, red warning)
+    D->>F: start campaign (cold, red warning)
     F->>DB: create campaign, queue one call per active senior
     loop each queued call, a few at a time
         F->>T: place call to the senior's number
@@ -242,27 +264,27 @@ sequenceDiagram
         loop until the three questions are covered
             S->>T: speaks
             T->>F: prompt, her words as text
-            F->>F: alarm-word check
+            F->>F: alarm-phrase check
             F->>L: conversation so far
-            L-->>F: reply text, streamed
+            L-->>F: reply text, streamed, and record_answer calls
+            F->>F: rules: severity and certainty
             F-->>T: text, piece by piece
             T-->>S: speaks the reply
         end
-        L-->>F: tool call report_status(green, high)
         F->>DB: code green, reason, transcript
         L-->>F: tool call end_call(summary)
         F-->>T: close session
         T->>F: status callback, call completed
+        F->>A: refresh
     end
-    A->>DB: timed refresh shows green
 ```
 
-1. FastAPI creates the campaign and queues one wellbeing call per active senior, with starting severity green. Seniors with an unacknowledged red, or with a call already queued or live, are skipped. The campaign is one round, started immediately **(P16, proposed)**.
+1. FastAPI creates the campaign, marks a warning active for its period, and queues one wellbeing call per active senior, with starting severity green. Seniors with an open or in-progress incident, or with a call already queued or live, are skipped. The campaign is one round, started immediately **(P16, proposed)**.
 2. The dialer places a few calls at a time.
-3. When the senior answers, Twilio connects the call to the agent. The greeting names the senior and the reason for the call.
-4. Each thing the senior says arrives as text. FastAPI checks it against the alarm words, then passes the conversation to the model, and streams the reply back to be spoken.
-5. The agent covers the three questions: how they feel, what day it is, whether they have water and a cool place.
-6. The model reports green with high certainty. FastAPI writes the code.
+3. When the senior answers, Twilio connects the call to the agent. The greeting names the senior and the warning: „…azi e cod roșu de ger”.
+4. Each thing the senior says arrives as text. FastAPI checks it for alarm phrases, then passes the conversation to the model, and streams the reply back to be spoken.
+5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer.
+6. The rules give green with high certainty. FastAPI writes the code.
 7. The agent closes the call with a short piece of advice.
 
 The other endings are UC-06, UC-07 and UC-08.
@@ -272,13 +294,13 @@ The other endings are UC-06, UC-07 and UC-08.
 | | |
 |---|---|
 | Actors | Senior, caregiver, medic |
-| Starts when | During a wellbeing call, the model reports yellow, or the call ends uncertain |
+| Starts when | During a wellbeing call, the rules give yellow, or the call ends uncertain |
 | After | Code yellow; caregiver notified; medic sees a warning |
 
-1. The model reports yellow (one worrying answer), or reports green without high certainty.
-2. If certainty is not high and the re-ask has not been used, the agent re-asks the unclear question once.
-3. FastAPI writes code yellow with the reason and the senior's words. For a reported yellow this happens at the report; for an uncertain green it happens when the call ends.
-4. The notifier pushes to the caregiver's devices. The medic's app shows a warning on that patient, with no push.
+1. The rules give yellow (one worrying answer), or green without high certainty, or the model raises a yellow concern.
+2. If certainty is not high and the re-ask has not been used, the agent re-asks the question whose answer was unclear, once.
+3. FastAPI writes code yellow with the reason and the senior's words. For a worrying answer this happens when it is recorded; for an uncertain green it happens when the call ends.
+4. The notifier sends an alert to the caregivers' devices. The medic's app shows a warning on that patient, with no alert.
 5. The call continues to its normal close.
 
 Nothing follows up if the caregiver does not open the app **(P5, proposed)**.
@@ -288,9 +310,9 @@ Nothing follows up if the caregiver does not open the app **(P5, proposed)**.
 | | |
 |---|---|
 | Actors | Senior, on-duty DAS employee, caregiver, medic |
-| Starts when | An alarm word is heard, or the model reports red |
-| Before | A DAS employee is marked on duty, with a phone number |
-| After | Code red; senior connected to a person at DAS; red at the top of the DAS list until acknowledged |
+| Starts when | A tier 1 alarm phrase is heard; a tier 2 phrase is confirmed or its confirmation goes unanswered; the rules give red; or the model raises a red concern |
+| Before | A DAS employee is marked on duty |
+| After | Code red; an incident is open or in progress; senior connected to a person at DAS |
 
 ```mermaid
 sequenceDiagram
@@ -298,17 +320,15 @@ sequenceDiagram
     actor S as Senior
     participant T as Twilio
     participant F as FastAPI
-    participant L as Model provider
     participant DB as Database
     participant P as Firebase push
     actor O as On-duty DAS employee
 
-    S->>T: says she feels unwell and cannot name the day
+    S->>T: „am căzut și nu mă pot ridica”
     T->>F: prompt
-    F->>L: conversation so far
-    L-->>F: tool call report_status(red, medium)
-    F->>DB: code red, reason, her words
-    F->>P: wake-up for caregiver and medic
+    F->>F: tier 1 alarm phrase
+    F->>DB: code red, reason, her words, incident open
+    F->>P: alert to caregivers, medic and DAS phones
     F-->>T: text „Vă conectez acum cu un operator, rămâneți pe fir.”
     F-->>T: close session with hand-over data
     T->>F: hand-over callback
@@ -317,26 +337,30 @@ sequenceDiagram
     T->>O: phone rings
     alt DAS employee answers
         O-->>T: answers
+        T->>F: the dialed number answered
+        F->>DB: incident in progress, taken by the on-duty employee
         Note over S,O: senior and DAS employee are connected
-        O->>DB: acknowledge on the dashboard
+        O->>F: resolve the incident in the app, with an outcome
     else nobody answers within the ring time
         T->>F: hand-over result callback
         F-->>T: say „Un coleg vă va suna înapoi în cel mai scurt timp.”
-        Note over DB: red stays unacknowledged at the top of the list
+        Note over DB: incident stays open at the top of the dashboard
     end
 ```
 
-1. Red is established, by an alarm word (before the model sees the sentence) or by the model's report.
-2. FastAPI writes code red immediately and pushes to the caregiver and the medic.
-3. The agent tells the senior they are being connected to a person.
+1. Red is established by one of the four routes above. A tier 1 phrase acts before the model sees the sentence.
+2. FastAPI writes code red immediately, opens an incident, and sends alerts to the caregivers, the medic and the DAS role's phones. The dashboard shows the incident at the top on its next re-read, with an audible cue.
+3. The agent tells the senior they are being connected to a person. For a self-harm phrase the wording is „Vă fac legătura acum cu cineva cu care puteți vorbi.”
 4. FastAPI closes the agent session with hand-over data. Twilio asks FastAPI what to do next; FastAPI answers "dial the on-duty number".
-5. The on-duty phone rings. On answer, the senior and the DAS employee are talking directly. The dashboard already shows the senior at the top with the reason, the senior's words and the transcript so far.
+5. The on-duty phone rings. On answer, the incident is taken by the on-duty employee automatically, and the senior and the DAS employee are talking directly. The DAS app on that same phone already shows the incident: the reason, the senior's words, the transcript so far, the address with access details, a landline badge or the last known location, "Deschide în Hărți", and buttons to call the senior or a caregiver.
+
+**A tier 2 phrase** („am leșinat”, „mi-e rău de tot”, „tremur tot”) does not act at once. The server, not the model, asks a fixed question naming what was said: „Ați spus că v-ați simțit leșinată. Aveți nevoie de ajutor acum? Spuneți «da» sau apăsați 1. Dacă nu, spuneți «nu» sau apăsați 2.” Yes, silence, an unclear answer or a hang-up means red and the steps above. A clear no returns the conversation to the model, with the phrase stored for review.
 
 Variations:
 - **Senior asks for a person, or presses 9.** Same hand-over; the code becomes at least yellow.
-- **On-duty phone not answered.** The senior hears that someone will call back. The red stays at the top of the list, unacknowledged, with its audible cue.
-- **Nobody is on duty.** No dial is attempted; same message to the senior; the dashboard shows the red with a "nobody on duty" warning.
-- **Red with no call left to hand over.** Under the defaults this happens only if the line drops between the red and the hand-over. The red appears on the list and DAS phones the senior. (It would become a regular case if open question 1 in the README is resolved as red.)
+- **On-duty phone not answered.** The senior hears that someone will call back. The incident stays open at the top of the dashboard, with its audible cue, until someone takes it.
+- **Nobody is on duty.** No dial is attempted; same message to the senior; the dashboard shows the open incident with a "nobody on duty" warning.
+- **Red with no call left to hand over.** Happens if the line drops between the red and the hand-over. The incident opens as usual and DAS phones the senior.
 
 ### UC-08 Nobody answers
 
@@ -361,19 +385,19 @@ sequenceDiagram
     F->>DB: attempt 1 unanswered
     opt starting severity yellow (watch or senior request)
         F->>DB: code yellow
-        F->>P: wake-up for caregiver
+        F->>P: alert to caregivers
     end
     F->>DB: queue attempt 2 after the redial delay
     F->>T: place call, attempt 2
     T->>F: status callback, no answer
     opt starting severity green (campaign)
         F->>DB: code yellow, reason no answer twice
-        F->>P: wake-up for caregiver
+        F->>P: alert to caregivers
     end
 ```
 
 1. Twilio reports the outcome. Voicemail detection runs in the background so that a person who answers does not hear silence; if a machine answered, the call is ended and counted as unanswered.
-2. If the trigger carried a starting severity of yellow, the code becomes yellow now and the caregiver is pushed.
+2. If the trigger carried a starting severity of yellow, the code becomes yellow now and the caregivers are alerted.
 3. One redial is queued after the redial delay.
 4. If the redial is also unanswered and the code is still green, it becomes yellow with the reason "no answer twice".
 
@@ -383,9 +407,9 @@ If the redial is answered, the call proceeds as UC-05, UC-06 or UC-07, and its r
 
 | | |
 |---|---|
-| Actors | Senior, watch |
-| Starts when | The watch detects a pulse well above the wearer's resting level while they are not moving, or the senior taps "Nu mă simt bine" **(P12, proposed)** |
-| Before | The watch is paired and worn |
+| Actors | Senior, watch, senior's phone app |
+| Starts when | The watch detects a pulse well above the wearer's resting level while they are not moving, or no steps for longer than the inactivity limit, or the senior taps "Nu mă simt bine" (G14) |
+| Before | The watch is connected (UC-03) and worn |
 | After | A wellbeing call has been queued with starting severity yellow |
 
 ```mermaid
@@ -393,36 +417,41 @@ sequenceDiagram
     autonumber
     actor S as Senior
     participant W as Watch
+    participant PA as Senior's phone app
     participant F as FastAPI
     participant DB as Database
     participant T as Twilio
 
-    W->>W: pulse high at rest, above the wearer's own baseline
+    W->>W: pulse high at rest, or no steps past the limit
     W->>S: vibrates and asks „Sunteți bine?”
     alt taps Da
         S-->>W: Da
         Note over W: nothing is sent
     else taps Nu, or no reply before the prompt times out
-        W->>F: anomaly event with a unique id
+        W->>PA: anomaly event with a unique id
+        PA->>PA: attach last known location
+        PA->>F: send event
         F->>DB: record event, queue call with starting severity yellow
         F->>T: place call to the senior's number
         Note over F,T: from here the call runs as UC-05, UC-06, UC-07 or UC-08
     end
 ```
 
-1. The watch compares the pulse with the wearer's own resting level and with movement. A high pulse during a walk is ignored.
+1. The watch compares the pulse with the wearer's own resting level and with movement. A high pulse during a walk is ignored. It also counts steps; a long stretch without any is an inactivity anomaly.
 2. The watch vibrates and asks „Sunteți bine?” with Da and Nu.
-3. Da ends it. Nu, or no reply before the prompt times out, sends an anomaly event.
+3. Da ends it. Nu, or no reply before the prompt times out, sends an anomaly event to the phone app.
 4. The "Nu mă simt bine" button skips the prompt and sends the event at once.
-5. FastAPI records the event and queues a wellbeing call. The code does not change yet (P8).
-6. The senior's phone rings. If the watch is paired to that phone, the call also shows on the wrist, which Wear OS does without any work from us.
+5. The phone app attaches its last known location and forwards the event to FastAPI.
+6. FastAPI records the event and queues a wellbeing call. The code does not change yet (P8).
+7. The senior's phone rings, and the call also shows on the wrist, which Wear OS does without any work from us.
 
 Variations:
-- **No connection.** The event waits on the watch and is sent when the connection returns. An event older than the stale limit is recorded and starts no call.
+- **Inactivity outside an active warning.** Recorded, and starts no call. Inactivity counts only while a heat or cold warning is active.
+- **No connection.** The watch keeps the event until it reaches the phone; the phone keeps it until it reaches FastAPI. Both send the time it was measured. An event older than the stale limit is recorded and starts no call.
 - **A call is already queued or live for this senior, or one just ended.** The event is attached to that call; no second call is started.
 - **Same event delivered twice.** Ignored by its id.
 
-The watch never places a call. It sends a small message over the internet (through its paired phone, home Wi-Fi, or its own mobile data), and FastAPI asks Twilio to ring the senior's phone number.
+The watch never places a call. It tells the phone app, the phone app tells FastAPI over the internet, and FastAPI asks Twilio to ring the senior's phone number.
 
 ### UC-10 Senior asks to be checked on
 
@@ -430,46 +459,61 @@ The watch never places a call. It sends a small message over the internet (throu
 |---|---|
 | Actors | Senior |
 | Starts when | The senior taps "Sunați-mă" in the Android app |
-| Before | The senior has an account (UC-02) |
+| Before | The senior is signed in (UC-02) |
 | After | A wellbeing call has been queued with starting severity yellow |
 
-1. The app sends "check on me" to FastAPI.
-2. FastAPI records it as an event and queues a wellbeing call, exactly as for a watch anomaly.
+1. The app sends a `manual_request` event, with its last known location, to FastAPI.
+2. FastAPI records it and queues a wellbeing call, exactly as for a watch anomaly.
 3. The call proceeds as UC-05, UC-06, UC-07 or UC-08.
 
-This is also the demo fallback for UC-09: it enters the same path, so it exercises the same code (D9).
+This is also the demo trigger and the fallback for UC-09: it enters the same path, so it exercises the same code (D9).
 
 ## 5. Following and responding
 
-### UC-11 Acknowledge a red
+### UC-11 Handle a red incident
 
 | | |
 |---|---|
-| Actors | DAS employee |
-| Starts when | A red appears at the top of the list |
-| After | The red is marked as seen, with who and when |
+| Actors | DAS employee, at the dashboard or in the DAS app |
+| Starts when | A red opens an incident (UC-07) |
+| After | The incident is resolved with an outcome and a note; the senior is back in campaigns |
 
-1. The dashboard shows the senior first, with the reason, the senior's words, the transcript, and whether the hand-over was answered.
-2. The DAS employee handles it by phone, then presses "Am preluat".
-3. The acknowledgement is stored. The audible cue stops. The senior stays shown as red, marked seen, until the next wellbeing call gives a new result (P9).
+```mermaid
+stateDiagram-v2
+    [*] --> Open: a red is established
+    Open --> InProgress: taken, or the hand-over is answered
+    InProgress --> Resolved: resolved with an outcome and a note
+    Resolved --> [*]
+```
 
-Acknowledging is plain data entry through SQL Connect; it does not change the code.
+1. The incident appears at the top of the dashboard with an audible cue, and in the DAS app's list on every DAS phone. Both show the reason, the senior's words, the transcript, whether the hand-over was answered, the address with access details, and the location if one came with the event.
+2. A DAS employee presses "Preiau" (take). The incident becomes `in_progress`, showing who took it. Answering the hand-over does this automatically. The audible cue stops.
+3. They handle it: talk to the senior, call a caregiver, send a team, or, as the dispatcher, call 112.
+4. They press "Rezolvat" and choose an outcome (senior OK, team sent, 112 called, could not reach, false alarm) and add a short note.
+5. The incident becomes `resolved`. The senior stays shown as red, marked resolved, until the next wellbeing call gives a new result (P9), and campaigns include them again.
+
+Variations:
+- **Someone else already took it.** "Preiau" is refused and shows who has it.
+- **A new red while an incident is still open or in progress.** No second incident: the new call and its reason are added to the existing one.
+
+Taking and resolving record what DAS did; neither changes the code.
 
 ### UC-12 Follow codes
 
 | | |
 |---|---|
 | Actors | Caregiver, medic, DAS employee |
-| Starts when | They open the app or dashboard, or tap a push |
+| Starts when | They open the app or the dashboard, or tap a notification |
 | After | They have seen the current code and its reason |
 
 | Role | Sees |
 |---|---|
 | Caregiver | Their senior's code, the reason in a sentence, short call history, the watch's state |
-| Medic | A panel of all their patients with codes, yellow and red highlighted; per patient: registration details, call history, full transcripts, the watch's state |
-| DAS employee | All active seniors, red first; enrollment requests; per senior: code, reason, call history, full transcripts |
+| Medic | A panel of all their patients with codes, yellow and red highlighted; per patient: registration details, enrollment and consent state, call history, full transcripts, the watch's state |
+| DAS employee, dashboard | All active seniors, red first; incidents by status; enrollment requests; staff and who is on duty; the campaign button; per senior: code, reason, call history, full transcripts, address and access details |
+| DAS employee, Android app | Red incidents only, open and in progress first, each with its status and who took it; per incident: full senior data, address and access details, location, the call and its transcript, "Deschide în Hărți", call buttons |
 
-Open screens update on the timed refresh. A call that is ringing or live shows a "call in progress" badge.
+Open Android screens update when a refresh arrives, with a slow timed re-read as the backstop. The dashboard re-reads every few seconds. A call that is ringing or live shows a "call in progress" badge.
 
 ### UC-13 Watch goes silent
 
@@ -479,8 +523,8 @@ Open screens update on the timed refresh. A call that is ringing or live shows a
 | Starts when | No check-in has arrived for longer than the silence limit, or a check-in says the watch is not worn |
 | After | The watch's state is `offline` or `not_worn`, visible as a device warning |
 
-1. The scheduler notices the missing check-ins and marks the device `offline`. A check-in that reports "not worn" marks it `not_worn`.
-2. The caregiver and the medic see a device warning beside the senior. There is no push and the code does not change.
+1. The scheduler notices the missing check-ins and marks the watch `offline`. This also happens when the phone app, not the watch, has lost its connection. A check-in that reports "not worn" marks it `not_worn`.
+2. The caregiver and the medic see a device warning beside the senior. There is no alert and the code does not change.
 3. The next normal check-in sets the state back to `ok`.
 
 A silent watch is not evidence about the senior; it is evidence about the watch. Weather campaigns still reach that senior by phone.

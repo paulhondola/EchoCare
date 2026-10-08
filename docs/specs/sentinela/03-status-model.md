@@ -1,62 +1,116 @@
 # 03 · Status model
 
-Part of the [Sentinela specification](README.md). This file defines the three codes, the two axes behind them, and the fixed table that turns a call into actions.
+Part of the [Sentinela specification](README.md). This file defines the three codes, how a conversation becomes severity and certainty, the alarm phrases, and the fixed table that turns a call into actions.
+
+The principle, kept from v3: **the model converses and extracts facts; fixed rules decide** (G10). The model can raise the level, never lower it.
 
 ## 1. The code
 
 Every active senior has exactly one **code**: `green`, `yellow` or `red`. The caregiver, the medic and DAS all see the same code (D6). What differs per role is the reaction, in section 7.
 
-A newly accepted senior starts at green **(proposed)**.
+A senior becomes active, at green, when consent is given on the welcome call ([02-use-cases.md](02-use-cases.md) UC-04).
 
 ## 2. Two axes
 
 | Axis | Values | Comes from |
 |---|---|---|
-| Severity | green, yellow, red | The trigger (starting severity), the model during a call, and the alarm-word check |
-| Certainty | high, medium, low | The model, and only when a call was answered (D7) |
+| Severity | green, yellow, red | The trigger (starting severity), the rules applied to the answers, the alarm phrases, and the model's `raise_concern` |
+| Certainty | high, medium, low | Computed by the server from how many answers were unclear, and only when a call was answered (D7) |
 
 **Starting severity by trigger**
 
 | Trigger | Starting severity |
 |---|---|
 | Weather campaign | green |
-| Watch anomaly or watch button | yellow |
-| Senior pressed "check on me" | yellow |
+| Watch: high pulse at rest, inactivity during a warning, or the button | yellow |
+| Senior pressed "Sunați-mă" | yellow |
 | Welcome call | none; a welcome call never changes the code |
 
-**The starting severity is provisional (P8, proposed).** When a watch event arrives, the code does not change yet. It changes when the model reports during the call, when the call ends, or when the call goes unanswered. A pulse that rose on the stairs therefore never turns a card yellow or notifies anyone, provided the senior picks up and says so clearly. While the phone is ringing or the call is live, apps show a "call in progress" badge, which is not a code.
+**The starting severity is provisional (P8, proposed).** When a watch event arrives, the code does not change yet. It changes when the rules give a result during the call, when the call ends, or when the call goes unanswered. A pulse that rose on the stairs therefore never turns a card yellow or notifies anyone, provided the senior picks up and says so clearly. While the phone is ringing or the call is live, apps show a "call in progress" badge, which is not a code.
 
-**Certainty when nobody answers (P1, proposed).** No answered call means no certainty from the model. That case is treated as `low`.
+**Certainty when nobody answers (P1, proposed).** No answered call means no answers. That case is treated as `low`.
 
-## 3. What the model reports
+## 3. What the model extracts, and what the server decides (G10)
 
-The model does not choose recipients and does not send alerts. It reports, through one tool, a severity, a certainty, a short reason and the senior's exact words. It may report more than once in a call; the engine keeps the **highest severity the model has reported in that call**.
+The model does not choose a severity, a certainty or recipients. During the conversation it records what the senior said about each of the three questions, through one tool.
 
-**Severity guide given to the model** (from v3 §9.2)
+| Field | Question | Values the model records |
+|---|---|---|
+| `feeling` | How do you feel right now? | `ok` or `unwell` |
+| `orientation` | What day of the week is it? | The day the senior named, or `unknown` if they said they do not know |
+| `shelter` | Do you have water and a cool place (heat), or a warm place (cold)? | `yes` or `no` |
+
+Each record also carries `clear` (true when the answer was unambiguous) and the senior's exact words.
+
+**The server checks the orientation answer itself.** It compares the named day with today's weekday in `Europe/Bucharest`. A different day, or `unknown`, is a wrong answer. The model is never asked to judge whether the day is correct.
+
+**Rules for severity** (from v3 §9.2)
 
 | Severity | When |
 |---|---|
-| red | Signs of danger: unwell and also disoriented; unwell and without water or a cool place (a warm place in cold weather); anything that sounds like an emergency |
-| yellow | One worrying answer on its own: unwell, wrong answer to the orientation question, no water or cool place |
-| green | Feels fine, oriented, has water and a cool place |
+| red | `feeling` unwell, and also either `orientation` wrong or `shelter` no |
+| yellow | Any one worrying answer on its own: unwell, wrong day, no water or no cool (warm) place |
+| green | All three recorded and fine |
 
-**Certainty guide given to the model**
+**Rule for certainty**
 
 | Certainty | When |
 |---|---|
-| high | All three questions were answered and each answer was clear |
-| medium | One answer was vague, contradictory or needed re-asking |
-| low | Two or more answers were unclear, or the person was barely responsive or hard to understand |
+| high | All three answers clear |
+| medium | One answer unclear |
+| low | Two or more unclear |
 
-**The three questions** the conversation must cover: how the person feels right now; what day of the week it is; whether they have water and a cool place (a warm place during cold warnings).
+**Overwriting an answer.** A field may be recorded again only if its earlier record was unclear; that is what the re-ask is for. A clear worrying answer („cam amețită”) is never replaced by a later „acum mi-e mai bine”. Severity therefore never falls within a call, as in v3 §9.3.
 
-## 4. The alarm-word check (P4, proposed)
+**Raising a concern.** For something that sounds serious but falls outside the three questions („de două zile nu-mi găsesc pastilele de inimă”), the model calls `raise_concern` with yellow or red, a reason and the senior's words. It can only raise the call's severity. A red acts at once.
 
-Before a transcribed sentence reaches the model, the server compares it with a fixed list: „am căzut”, „durere în piept”, „nu pot respira”, „leșin”. A match forces red immediately, whatever the model says. This is a plain text match and is the one severity source that does not depend on the model.
+The three questions the conversation must cover are the three fields above.
+
+## 4. Alarm phrases (G11, G12)
+
+Before a transcribed sentence reaches the model, the server checks it against a fixed list of phrases. This is the one severity source that does not depend on the model, so it keeps working if the model is slow, wrong or down.
+
+**Normalization.** The sentence is lowercased; diacritics are removed (ă and â become a, î becomes i, ș and ş become s, ț and ţ become t, since transcriptions use both forms); punctuation is removed except hyphens, which carry meaning in „n-am”, „mi-e”, „nu-mi”; spaces are collapsed. Phrases are matched on word stems, so „leșin”, „leșinat” and „lesinat” all match.
+
+**Tier 1: red and hand-over at once, no confirmation.**
+
+| Condition | Examples of what seniors say |
+|---|---|
+| Breathing | „nu pot respira”, „nu mai pot respira”, „mă sufoc”, „n-am aer”, „mă înec” |
+| Chest and heart | „durere în piept”, „mă doare pieptul”, „mă apasă pe piept”, „mă strânge în piept”, „mă arde în piept”, „mă doare mâna stângă” |
+| Stroke signs | „nu-mi simt mâna / piciorul / fața”, „mi-a amorțit o parte”, „nu pot mișca mâna”, „mi s-a strâmbat gura”, „văd dublu”, „nu mai văd” |
+| A call for an ambulance | „chemați salvarea”, „sunați la 112”, „vreau ambulanța”, „trimiteți pe cineva” |
+| Heavy bleeding | „sângerez”, „îmi curge sânge” |
+| Falls | „am căzut”, „am căzut din picioare”, „nu mă pot ridica”, „stau pe jos”, „sunt pe podea”, „mi-am rupt…” |
+| Self-harm | „vreau să mor”, „nu mai vreau să trăiesc”, „să se termine odată”, „mă omor” |
+
+For self-harm the agent's only words before the hand-over are „Vă fac legătura acum cu cineva cu care puteți vorbi.” Whether DAS needs its own script for these calls is open question 8 in the README.
+
+**Tier 2: confirm first.**
+
+| Condition | Examples of what seniors say |
+|---|---|
+| Fainting | „am leșinat”, „mi s-a făcut negru în fața ochilor”, „am picat”, „mi-am pierdut cunoștința” |
+| Heat | „ard tot”, „nu mai transpir”, „am febră mare”, „nu mai pot de cald” |
+| Cold | „nu-mi simt degetele”, „tremur tot”, „nu am căldură”, „s-a oprit căldura”, „înghețăm” |
+| Strong dizziness, vomiting | „se învârte camera”, „mă învârt”, „vomit”, „am vărsat de mai multe ori” |
+| A general call for help | „ajutor”, „mi-e foarte rău”, „mi-e rău de tot”, „mor” |
+
+Common everyday words sit in tier 2 on purpose: „nu am nevoie de ajutor” and „mor de cald” are ordinary speech.
+
+On a tier 2 match the server, not the model, asks a fixed question that names what was said: „Ați spus că [...]. Aveți nevoie de ajutor acum? Spuneți «da» sau apăsați 1. Dacă nu, spuneți «nu» sau apăsați 2.”
+
+| Reply | Result |
+|---|---|
+| 1, or „da” | Red, hand-over |
+| Silence, an unclear answer, or a hang-up | Red, hand-over |
+| 2, or a clear „nu” | No forced change. The sentence and the reply go to the model, which continues and may still raise a concern. The match is stored for review |
+
+**How the list is built and kept honest.** The examples above are a draft for a medical mentor to review. The final variants come from real transcriptions (spike S2 in [06-operations.md](06-operations.md)): every phrase must match its recorded transcripts, and a list of harmless sentences („n-am căzut azi”, „mor de cald”, „nu am nevoie de ajutor”) must not reach tier 1. Indicative patterns are in the appendix.
 
 ## 5. The matrix
 
-The server looks up the action from the pair (severity, certainty). This is the hand-drawn "Coduri" grid, with "retry" given an exit.
+The server looks up the action from the pair (severity, certainty), both now computed by the rules in section 3. This is the hand-drawn "Coduri" grid, with "retry" given an exit.
 
 | Severity ↓ / Certainty → | High | Medium | Low, or nobody answered |
 |---|---|---|---|
@@ -68,12 +122,12 @@ The server looks up the action from the pair (severity, certainty). This is the 
 
 | Situation | Retry is |
 |---|---|
-| The call was answered | The agent re-asks the unclear question once, more slowly |
+| The call was answered | The agent re-asks the question whose answer was unclear, once, more slowly. The server names that question in the tool result |
 | Nobody answered | One redial after the redial delay |
 
 Each call gets one retry of each kind at most. An uncertain green that survives its retry becomes yellow: unclear never counts as fine.
 
-**What "alert" means.** A change of code into yellow or red, with the pushes listed in section 7. The red column ignores certainty by design.
+**What "alert" means.** A change of code into yellow or red, with the alerts listed in section 7. The red row ignores certainty by design.
 
 ## 6. Combining the sources
 
@@ -81,16 +135,18 @@ The final severity of a call is decided when the call ends or goes unanswered fo
 
 | Case | Final severity |
 |---|---|
-| Alarm word at any point | red |
-| Answered, final certainty high | The highest severity the model reported in that call **(P3, proposed)**. This is how a clear "sunt bine, am urcat scările" cancels a watch trigger's starting yellow |
-| Answered, final certainty medium or low after the re-ask | The higher of the starting severity and the model's severity. If that is green, yellow |
+| Tier 1 alarm phrase at any point | red |
+| Tier 2 phrase confirmed, or its confirmation not answered | red |
+| `raise_concern` during the call | At least the level raised |
+| Answered, final certainty high | The rules' severity for that call **(P3, proposed)**. This is how a clear „sunt bine, am urcat scările” cancels a watch trigger's starting yellow |
+| Answered, final certainty medium or low after the re-ask | The higher of the starting severity and the rules' severity. If that is green, yellow |
 | Never answered, redial used up | The starting severity. If that is green, yellow |
 | Senior hung up early, or the connection dropped | Treated as answered with low certainty |
 | Senior asked for a person, or pressed 9 | Hand over; at least yellow |
 
 Two orderings matter:
 
-- **Red acts immediately.** The moment red is reported or an alarm word matches, the code becomes red, pushes go out and the hand-over starts. Nothing waits for the end of the call.
+- **Red acts immediately.** The moment red is established by any route, the code becomes red, alerts go out and the hand-over starts. Nothing waits for the end of the call.
 - **A trigger's yellow acts on the first unanswered attempt.** A watch or manual trigger whose first call is not answered sets the code to yellow and alerts at once, then redials. A campaign's green waits for the redial before becoming yellow.
 
 ```mermaid
@@ -108,14 +164,14 @@ flowchart TD
     UG -->|yes| YU["Code YELLOW, alert<br/>reason: no answer twice"]
     UG -->|no| KY["Code stays YELLOW"]
 
-    A -->|yes| C["Conversation<br/>model reports severity and certainty"]
-    C --> AW{"Alarm word,<br/>or model reports red?"}
+    A -->|yes| C["Conversation<br/>model records answers,<br/>rules derive severity and certainty"]
+    C --> AW{"Tier 1 phrase, tier 2 confirmed,<br/>rules red, or concern red?"}
     AW -->|yes| RED["Code RED now, alert,<br/>hand over to DAS"]
     AW -->|no| H{"Certainty high?"}
-    H -->|yes| FM["Final = model's severity"]
+    H -->|yes| FM["Final = rules' severity"]
     H -->|no| RA{"Re-ask left?"}
     RA -->|yes| C
-    RA -->|no| MX["Final = higher of starting<br/>and model severity"]
+    RA -->|no| MX["Final = higher of starting<br/>and rules' severity"]
     MX --> G{"Green?"}
     G -->|yes| YC["Code YELLOW, alert<br/>reason: unclear answers"]
     G -->|no| YK["Code YELLOW, alert"]
@@ -124,7 +180,7 @@ flowchart TD
     FG -->|no| YF["Code YELLOW, alert"]
 ```
 
-The diagram shows where the final code is settled. A yellow that the model reports takes effect at the moment of the report, as the matrix says, and from then on that call can only stay yellow or become red.
+The diagram shows where the final code is settled. A yellow from a worrying answer or a raised concern takes effect at the moment it is recorded, as the matrix says, and from then on that call can only stay yellow or become red.
 
 ## 7. Reaction per role
 
@@ -133,36 +189,37 @@ The code is shared; the reaction is fixed per role and per code. Nothing here is
 | Code | Caregiver | Medic | DAS |
 |---|---|---|---|
 | Green | Shown | Shown | Shown |
-| Yellow | Push **(P5, proposed: no timer, no follow-up)** | Warning in the app, no push (D5) | Shown |
-| Red | Push | Push (D5) | Senior moves to the top of the red-first list with an audible cue in the dashboard; a connected call is handed to the on-duty phone (D8) |
+| Yellow | Alert **(P5, proposed: no timer, no follow-up)** | Warning in the app, no alert (D5) | Shown |
+| Red | Alert | Alert (D5) | An incident opens (G16): at the top of the dashboard with an audible cue, and an alert to the DAS app on DAS phones; a connected call is handed to the on-duty phone (D8) |
 
-Pushes go to every device where the account is signed in. Nothing in the flow waits for the medic or the caregiver to react.
+Alerts go to every device where the account is signed in. Nothing in the flow waits for the medic or the caregiver to react.
 
 ## 8. Lifecycle of a code
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Green: patient accepted
+    [*] --> Green: consent given on the welcome call
     Green --> Yellow: call ends yellow, or uncertain after retry
-    Green --> Red: red reported, or alarm word
+    Green --> Red: red established
     Yellow --> Green: later call ends green with high certainty
-    Yellow --> Red: red reported, or alarm word
-    Red --> RedAcknowledged: DAS employee acknowledges
-    RedAcknowledged --> Green: later call ends green with high certainty
-    RedAcknowledged --> Yellow: later call ends yellow
-    RedAcknowledged --> Red: red reported again
+    Yellow --> Red: red established
+    Red --> RedResolved: DAS resolves the incident
+    RedResolved --> Green: later call ends green with high certainty
+    RedResolved --> Yellow: later call ends yellow
+    RedResolved --> Red: red established again, new incident
     note right of Red
         Never overwritten by a lower code
-        until a DAS employee acknowledges
+        while its incident is open or in progress
     end note
 ```
 
-Rules **(P9, proposed)**:
+Rules **(P9, proposed; G16)**:
 
 - A yellow is replaced by the result of the next wellbeing call.
-- A red stays red until a DAS employee acknowledges it. A later call cannot lower it before that.
-- An acknowledged red is still displayed as red, marked as seen, until the next wellbeing call produces a new result.
-- Campaigns skip seniors whose red is not yet acknowledged; DAS is already dealing with them.
+- A red opens an incident. The red stays red while the incident is open or in progress; a later call cannot lower it before the incident is resolved.
+- A resolved red is still displayed as red, marked resolved, until the next wellbeing call produces a new result.
+- Campaigns skip seniors with an open or in-progress incident; DAS is already dealing with them.
+- The incident lifecycle (open, in progress, resolved) is in [02-use-cases.md](02-use-cases.md) UC-11. It records what DAS did and never changes the code.
 
 ## 9. Lifecycle of a call
 
@@ -187,7 +244,7 @@ stateDiagram-v2
 
 | End state | Counts as |
 |---|---|
-| Completed | Answered, with the certainty the model last reported |
+| Completed | Answered, with the certainty the rules last computed |
 | HandedOver | Answered; code already set when the hand-over began |
 | Dropped | Answered with low certainty |
 | Unanswered, Failed | Nobody answered |
@@ -196,20 +253,42 @@ stateDiagram-v2
 
 | # | Trigger | What happens | Outcome |
 |---|---|---|---|
-| 1 | Campaign | Answers clearly: fine, names the day, has water | Green, high. Code green, nobody notified |
-| 2 | Campaign | „Cam amețită”; other answers fine and clear | Yellow, high. Code yellow, caregiver push, medic warning |
-| 3 | Campaign | Vague answers, still vague after the re-ask, nothing worrying said | Green, low. Code yellow, reason "unclear answers" |
-| 4 | Campaign | Unwell and cannot say what day it is | Red. Code red, pushes, hand-over |
-| 5 | Any | Says „am căzut” | Alarm word. Red at once, before the model sees the sentence |
-| 6 | Watch | Answers „am urcat scările, sunt bine”, clear on all three questions | Starting yellow, model green and high. Code stays green, nobody notified |
-| 7 | Watch | First call not answered | Code yellow and caregiver push at once; one redial |
+| 1 | Campaign | Answers clearly: fine, names today's day, has water and a warm place | Rules green, high. Code green, nobody notified |
+| 2 | Campaign | „Cam amețită”; other answers fine and clear | Rules yellow, high. Code yellow, caregiver alert, medic warning |
+| 3 | Campaign | Vague answers, still vague after the re-ask, nothing worrying said | Rules green, low. Code yellow, reason "unclear answers" |
+| 4 | Campaign | Unwell, and says „luni” on a Thursday | Rules red. Code red, alerts, hand-over |
+| 5 | Any | Says „am căzut și nu mă pot ridica” | Tier 1. Red at once, before the model sees the sentence |
+| 6 | Watch | Answers „am urcat scările, sunt bine”, clear on all three questions | Starting yellow, rules green and high. Code stays green, nobody notified |
+| 7 | Watch | First call not answered | Code yellow and caregiver alert at once; one redial |
 | 8 | Campaign | Two calls not answered | Code yellow after the second, reason "no answer twice" |
 | 9 | Any | Presses 9 or asks for a person | Hand-over; code at least yellow |
-| 10 | Campaign | Senior's red from this morning is not acknowledged | No call is placed |
+| 10 | Campaign | Senior's red from this morning still has an open or in-progress incident | No call is placed |
+| 11 | Campaign, heat | „Mor de cald!” Tier 2 confirmation; answers „nu, sunt bine, doar e cald” | No forced change; the call continues and ends green if the answers are fine |
+| 12 | Campaign, cold | „Tremur tot.” Tier 2 confirmation; no reply | Red, hand-over |
+| 13 | Campaign | Answers fine, then „de două zile nu-mi găsesc pastilele de inimă” | `raise_concern(yellow)`. Code yellow, caregiver alert |
 
 ## 11. What is not in the model
 
 - No blue "task" status and no white "unclear" status (D6). Unclear outcomes become yellow.
 - No timer on yellow and no automated call to the caregiver (P5).
 - No comparison with previous days.
-- No risk score; a campaign calls active seniors in a plain order.
+- No risk score; a campaign calls active seniors in a plain order (open question 5 in the README).
+
+## Appendix: indicative patterns
+
+Matched on normalized text. These fix the approach; the final patterns are built from the transcripts collected in spike S2.
+
+| Condition | Tier | Patterns |
+|---|---|---|
+| Breathing | 1 | `nu (mai )?pot (sa )?respir` · `ma sufoc` · `n(-\| )?am aer` · `ma inec` |
+| Chest and heart | 1 | `(dure\w*\|doare\|dor\|apasa\|strange\|arde\|junghi).{0,15}piept` · `piept\w*.{0,10}(doare\|dor\|apasa\|strange)` · `(mana\|bratul) stang` |
+| Stroke signs | 1 | `nu-?mi simt (mana\|bratul\|piciorul\|fata)` · `amort\w*.{0,15}(parte\|mana\|fata\|piciorul)` · `nu pot misca` · `stramb\w*.{0,10}gura` · `vad dublu` · `nu (mai )?vad` |
+| Ambulance | 1 | `salvare\w*` · `ambulant\w*` · `112` · `unu unu doi` · `trimite\w* pe cineva` |
+| Heavy bleeding | 1 | `sanger\w*` · `curge sange` |
+| Falls | 1 | `am cazut` · `nu ma pot (ridica\|scula)` · `(stau\|sunt) (pe jos\|pe podea)` · `mi-?am rupt` |
+| Self-harm | 1 | `vreau sa mor` · `nu (mai )?vreau sa (mai )?traiesc` · `sa se termine` · `ma omor` |
+| Fainting | 2 | `lesin\w*` · `negru in fata ochilor` · `am picat` · `pierdut cunostint` |
+| Heat | 2 | `ard tot` · `nu (mai )?transpir` · `febra mare` · `nu (mai )?pot de cald` |
+| Cold | 2 | `nu-?mi simt degetele` · `tremur tot` · `n(-\| )?am caldura` · `oprit caldura` · `inghet` |
+| Dizziness, vomiting | 2 | `se invarte` · `ma invart` · `vom\w*` · `varsat` |
+| Call for help | 2 | `ajutor` · `(mi-?e\|imi e) (foarte\|tare\|asa de) rau` · `rau de tot` · `\bmor\b` |

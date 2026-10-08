@@ -11,17 +11,25 @@ One principle covers most rows: **a failure is treated as uncertainty, and uncer
 | Twilio cannot place the call | The attempt is marked failed and counts as unanswered; the redial rule applies | Same as "nobody answers" |
 | No answer, busy, or voicemail | Redial rule ([03-status-model.md](03-status-model.md) section 5) | Yellow per the matrix |
 | Senior hangs up, or the connection to Twilio drops mid-call | The call is marked dropped and counts as answered with low certainty | Usually yellow |
-| Model provider fails or is too slow during a call | The agent says a fixed apology, the call is closed and counts as dropped | Usually yellow; the failure is logged |
-| Red, but nobody is marked on duty | No dial is attempted; the senior hears a fixed message; the red stays unacknowledged | Red at the top of the dashboard with a "nobody on duty" warning |
-| On-duty phone does not answer the hand-over | After the ring time the senior hears that someone will call back; the red stays unacknowledged | Red at the top of the dashboard, audible cue continues |
-| A push cannot be delivered | An invalid token is removed; there is no retry | The code is still correct on any open screen |
+| Model provider fails or is too slow during a call | The agent says a fixed apology, the call is closed and counts as dropped. Alarm phrases and their confirmation do not depend on the model and keep working until then | Usually yellow; the failure is logged |
+| A tier 2 confirmation gets no reply | Red and hand-over | Red, as for any red |
+| Red, but nobody is marked on duty | No dial is attempted; the senior hears a fixed message; the incident stays open | Open incident at the top of the dashboard with a "nobody on duty" warning; alerts to DAS phones |
+| On-duty phone does not answer the hand-over | After the ring time the senior hears that someone will call back; the incident stays open | Open incident at the top of the dashboard, audible cue continues |
+| Two DAS employees take the same incident | The first take wins; the second is refused | The second sees who has it |
+| The dashboard's browser blocks sound | Browsers play sound only after a click on the page | The dashboard asks for one click after sign-in („Pornește alertele sonore”) and shows a warning until it gets it |
+| A push cannot be delivered | An invalid token is removed; there is no retry | Open screens catch up at the next backstop re-read |
 | FastAPI restarts | Queued calls and redials are database rows with a due time, so they resume. Live calls drop and count as dropped | A short gap; affected calls usually end yellow |
-| Database unreachable | No new calls are placed. Twilio callbacks get a safe answer: a polite message, then hang up. The health check fails | Dashboards stop updating |
-| A callback or watch event arrives twice | Ignored by its id | Nothing |
-| Watch has no connection | Events wait on the watch and are sent later with their measured time. Stale ones start no call. Missed check-ins mark the device offline | A device warning, no push |
-| Watch is not worn | The check-in says so; thresholds are not evaluated | A device warning, no push |
-| A command arrives with an expired identity token | Refused | The app renews the token and retries once |
-| An invite is scanned a second time | The second redeem is refused | "Invitația a fost deja folosită" |
+| A deploy runs two copies for a few seconds | The scheduler's database lock lets only one copy place calls. Live calls on the old copy drop. No deploys after the freeze | As for a restart |
+| Database unreachable | No new calls are placed. Twilio callbacks get a safe answer: a polite message, then hang up. The health check fails | Apps show the last data with a „Fără conexiune” banner |
+| A callback or event arrives twice | Ignored by its id | Nothing |
+| The watch cannot reach the phone | The watch keeps events and resends them; missed check-ins mark the watch offline | A device warning, no alert |
+| The phone app has no connection | The app keeps events and sends them later with their measured time. Stale ones start no call | A device warning if check-ins stop |
+| Watch is not worn | The check-in says so; thresholds are not evaluated | A device warning, no alert |
+| An identity token has expired | The Firebase library renews it; a refused request is retried once with the new token | Nothing |
+| The SMS code does not arrive | The app offers to resend after a short wait. The demo uses Firebase test numbers | A short delay at sign-in |
+| A number signs in with no grant | Refused; nothing is stored | „Numărul nu este înregistrat. Contactați medicul de familie.” |
+| The medic mistyped a caregiver's number | The caregiver present cannot sign in, or the notice SMS does not arrive; the medic corrects the number. Removing the grant cuts access at once | Noticed at the practice |
+| An inactivity event arrives with no active warning | Recorded; no call | Nothing |
 
 ## 2. The scheduler
 
@@ -29,16 +37,15 @@ Every timer in the system is a row with a due time. The scheduler is a short loo
 
 ```mermaid
 flowchart TD
-    TICK["Scheduler tick<br/>every few seconds"] --> DUE{"Any queued call due,<br/>and a free line?"}
+    TICK["Scheduler tick<br/>every few seconds"] --> LOCK{"Database lock<br/>taken?"}
+    LOCK -->|"no, another copy holds it"| SLEEP["Sleep until the next tick"]
+    LOCK -->|yes| DUE{"Any queued call due,<br/>and a free line?"}
     DUE -->|yes| PLACE["Dialer places the call"]
     DUE -->|no| WD
     PLACE --> WD{"Any watch silent<br/>past the limit?"}
-    WD -->|yes| OFF["Mark the device offline<br/>device warning, no push"]
-    WD -->|no| PEND
-    OFF --> PEND{"Any pending device past<br/>its pairing window?"}
-    PEND -->|yes| CLEAN["Remove it"]
-    PEND -->|no| SLEEP["Sleep until the next tick"]
-    CLEAN --> SLEEP
+    WD -->|yes| OFF["Mark the watch offline<br/>device warning, refresh, no alert"]
+    WD -->|no| SLEEP
+    OFF --> SLEEP
 ```
 
 "A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow.
@@ -49,28 +56,31 @@ Demo mode is one setting on FastAPI and one on each client. It shortens waits so
 
 | Timer | Normal | Demo mode |
 |---|---|---|
-| Redial delay | 20 minutes | 20 seconds |
+| Redial delay, and the welcome-call retry | 20 minutes | 20 seconds |
 | Call length limit | 3 minutes | 3 minutes |
+| Tier 2 confirmation wait | 8 seconds | 8 seconds |
 | Wrist prompt timeout | 2 minutes | 15 seconds |
-| Watch check-in interval | 15 minutes | 30 seconds, with the watch app's monitoring screen open |
+| Inactivity limit during a warning **(proposed)** | 4 hours | 60 seconds |
+| Watch check-in interval | 15 minutes | 30 seconds |
 | Watch counted as silent after | 45 minutes | 90 seconds |
-| Screen refresh interval | 10 seconds | 2 seconds |
+| Backstop re-read of an open Android screen | 30 seconds | 10 seconds |
+| Dashboard re-read | 5 seconds | 2 seconds |
 | Cooldown between calls to one senior | 10 minutes | 30 seconds |
 | Stale event limit | 30 minutes | 30 minutes |
-| Pairing code validity | 10 minutes | 10 minutes |
-| Invite validity | 24 hours | 24 hours |
+| Active warning after a campaign | 24 hours | 24 hours |
 | On-duty phone ring time | 30 seconds | 15 seconds |
 | Calls in progress at once | 3 | 3 |
 
-All values are proposals. The 20-minute redial and the 3-minute call limit come from v3.
+All values are proposals. The 20-minute redial and the 3-minute call limit come from v3; the inactivity limit is within v3's 4–6 hours.
 
 **Demo controls**
 
 | Control | Where | Stands in for |
 |---|---|---|
-| "Simulează cod roșu" | DAS dashboard | A real weather warning |
-| "Sunați-mă" | Senior's Android app | A watch anomaly, if the watch misbehaves on stage (D9) |
-| A hidden "force anomaly" action | Wear OS app | Waiting for a real pulse spike |
+| "Simulează avertizare", heat or cold | DAS dashboard | A real weather warning |
+| "Sunați-mă" | Senior's phone app | A watch anomaly, if the watch misbehaves on stage (D9) |
+| A hidden "force anomaly" action, for pulse and for inactivity | Wear OS app | Waiting for a real reading |
+| Firebase test phone numbers | Every demo device and the dashboard | A real SMS at sign-in |
 
 ## 4. Security and privacy
 
@@ -78,26 +88,28 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 
 | Measure | Detail |
 |---|---|
-| Every caller is identified | People by identity token, the watch by device token, Twilio by request signature. Nothing is open |
-| Roles are set only by the server | An account cannot give itself a role; a new account can read nothing until an invite is redeemed |
-| Every SQL Connect operation has a rule | No query or mutation is public; each is scoped by role and by the caller's own account |
-| Device tokens and invites | Device tokens are stored hashed. Invites are single-use and expire |
-| Secrets | Twilio, model provider and Firebase service credentials live in the hosting platform's secret store, never in an app |
-| The on-duty number | Read from the database at hand-over time; only a DAS account can change it |
+| Every caller is identified | People by a Firebase identity token that FastAPI verifies; the watch only through the senior's signed-in phone app; Twilio by request signature. Nothing is open |
+| Roles are granted, never chosen | A number gets a role only when someone allowed to grant it enters the number (G6). A number with no grant can do nothing and leaves nothing stored |
+| One place checks permissions | Every FastAPI endpoint checks the caller's grants and that the grant covers the senior concerned |
+| Phone numbers normalized | One international format everywhere, so a lookup cannot miss or mismatch |
+| Secrets | Twilio, model provider and Firebase service credentials live in Railway's variables, never in an app or the dashboard |
+| Browser requests | The API accepts browser requests only from the dashboard's own address |
+| The on-duty number | The on-duty DAS employee's own phone, read at hand-over time; only a DAS user can change who is on duty |
 
 **Data**
 
 | Measure | Detail |
 |---|---|
-| Consent | Signed at registration; covers calls, processing of what is said, and sharing the code with caregiver, medic and DAS |
-| Minimum per role | The caregiver sees the code and a reason, not the transcript ([01-architecture.md](01-architecture.md) section 6) |
+| Consent | The senior's own, given on the welcome call by key or voice, against a versioned text; a signature is optional when present. A withdrawal is recorded by the medic in the MVP |
+| Minimum per role | The caregiver sees the code, a reason and the address, not the transcript ([01-architecture.md](01-architecture.md) section 6) |
 | No audio stored | Speech stays inside Twilio; FastAPI handles text only |
 | Minimal watch data | Only the latest check-in is kept; there is no pulse history |
+| Location only with events | The phone attaches its last known location when it sends an event; there is no tracking |
 | Push carries no health details | Generic text and an id (P18) |
-| Region | Database and FastAPI in an EU region |
+| Region | Database and FastAPI on Railway, EU West |
 | Demo data | Fictitious people only |
 
-**Honest limits for a real pilot.** Transcripts pass through the model provider, speech passes through Twilio, and the database sits on Google Cloud. A pilot needs data-processing agreements with all three and a named data controller (v3 §14 assigns this to the medic and DAS). None of that is needed to demo with fictitious data.
+**Honest limits for a real pilot.** Transcripts pass through the model provider, speech passes through Twilio, phone numbers pass through Firebase, and the database sits on Railway. A pilot needs data-processing agreements with all four and a named data controller (v3 §14 assigns this to the medic and DAS). DAS must also confirm that a recorded spoken „da” counts as explicit consent for health data (README open question 7). None of that is needed to demo with fictitious data.
 
 **Telephony constraints** are unchanged from v3 §12: a US Twilio number for the hackathon, Romania enabled in geographic permissions, the AI features addendum accepted, and a test on each mobile network for how the number is displayed and whether it is flagged as spam.
 
@@ -105,12 +117,16 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 
 | What | How | Needs |
 |---|---|---|
-| Status engine | A table of cases: every cell of the matrix, every row of the combining table, every lifecycle rule, every worked example in [03-status-model.md](03-status-model.md) section 10 | Nothing outside the module |
-| Call session | A scripted stand-in for Twilio's messages and a scripted stand-in for the model. Scripts: green, yellow, red, alarm word, key 9, interruption, hang-up, model failure, call length limit | No phone, no model |
-| Twilio callbacks | Recorded real requests replayed against FastAPI, including one with a bad signature | Recordings from spike S4 |
-| Commands | Each command called as each role, and signed out | A local FastAPI |
-| SQL Connect rules | Each query and mutation run as each role in Firebase's local emulator; the refused combinations are asserted | The emulator |
-| Watch | The threshold logic fed synthetic readings: high at rest, high while walking, not worn. Pairing run end to end against a local FastAPI | An emulator or the watch |
+| Rules and status engine | A table of cases: every severity and certainty rule, the orientation check against a fixed date, the overwrite rule, every cell of the matrix, every row of the combining table, every lifecycle rule, every worked example in [03-status-model.md](03-status-model.md) section 10 | Nothing outside the module |
+| Alarm phrases | Every phrase against its recorded transcripts from spike S2; a list of harmless sentences that must not reach tier 1 | The transcripts |
+| Call session | A scripted stand-in for Twilio's messages and a scripted stand-in for the model. Scripts: green, yellow, red by rules, tier 1, tier 2 confirmed, tier 2 denied, tier 2 silent, raised concern, key 9, interruption, hang-up, model failure, call length limit | No phone, no model |
+| Welcome call | Each answer combination in UC-04 replayed against the welcome callbacks | Recordings from spike S1 |
+| Twilio callbacks | Recorded real requests replayed against FastAPI, including one with a bad signature | Recordings from spike S1 |
+| Endpoints and permissions | Each endpoint called as each role, as a number with no grant, and signed out; the refused combinations are asserted. Identity tokens are replaced by a stand-in verifier | A local FastAPI and database |
+| Database constraints | Two live calls for one senior, two on-duty employees, a duplicate event, two unresolved incidents for one senior, two takes of one incident: each must be refused | A local database |
+| Incident lifecycle | Open on red; taken by hand or by an answered hand-over; resolved with each outcome; a campaign skipping and then including the senior | A local FastAPI and database |
+| Watch | The threshold logic fed synthetic readings: high at rest, high while walking, no steps, not worn | An emulator or the watch |
+| Watch to phone to FastAPI | An event from the watch reaches FastAPI with the phone's location, with the phone app in the background | The watch and a phone |
 | Whole system | A rehearsal of the demo with real phones on each network, with the latency of every agent turn logged (v3 §8.9) | Everything deployed |
 
 The first two rows cover the logic that decides a person's code. They run without any outside service, so they can run on every change.
@@ -121,25 +137,27 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 
 | ID | Question | If the answer is no |
 |---|---|---|
-| S1 | Can FastAPI connect directly to the SQL Connect database and read and write its tables, while SQL Connect owns the table definitions? | The routing rule (P7) cannot hold as written. Fallback: FastAPI owns its own tables for calls and codes, and apps read those through FastAPI |
-| S2 | Can a write made by the server trigger an instant refresh of subscribed queries? | Keep timed refresh (P6). Nothing else changes |
-| S3 | Is a 2-second timed refresh smooth on the tablet and the dashboard, and what does it cost in operations over two days? | Lengthen the interval, or send a "re-read now" push to open Android apps |
-| S4 | Does a first ConversationRelay call in `ro-RO` with the chosen voice work end to end from our service? | Fall back to v3's question-by-question call flow |
-| S5 | On the team's actual watch, how often does background pulse sampling deliver readings, and what does continuous monitoring cost in battery? | Demo with the monitoring screen open; treat the background case as best-effort |
-| S6 | Does a push reach the demo phones when the app is closed, including after the phone has been idle? | Exempt the app from battery saving on the demo phones; note the limit |
-| S7 | Does the FastAPI service hold a WebSocket for a full call on the chosen host, and stay running between calls? | Host it on an ordinary virtual machine |
-| S8 | Which model gives natural Romanian with the shortest wait before the first word? | Use more fixed sentences for the routine turns |
-| S9 | How does the US number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
+| S1 | Does a first ConversationRelay call in `ro-RO` with the chosen voice work end to end from our service? Record the callbacks for replay tests | Fall back to v3's question-by-question call flow |
+| S2 | How does Twilio transcribe each alarm phrase, said by three different people? | Not a yes-or-no spike: the transcripts become the test fixtures and the source of the final patterns |
+| S3 | Does `<Gather>` with speech in `ro-RO` reliably hear „da” and „nu” on the welcome call? | Keys only on the welcome call |
+| S4 | Which model gives natural Romanian with the shortest wait before the first word, and how much do an EU and a US region add? | Use more fixed sentences for routine turns; consider a US region for the demo |
+| S5 | On the team's watch, how often does background sampling deliver heart rate and step counts, and what does it cost in battery? | Demo with the monitoring screen open; treat the background case as best-effort |
+| S6 | Does a watch event reach the phone app and FastAPI while the phone app is in the background, and can the app read its location then? | Keep the phone app in the foreground on the demo phone; send events without location |
+| S7 | Does a push reach the demo phones and tablets when the app is closed, including after idle, and how fast does a refresh arrive when the app is open? | Exempt the app from battery saving on the demo devices; shorten the backstop re-read |
+| S8 | Does Railway hold a WebSocket for a full call, stay running between calls, and keep the scheduler single during a deploy? | Host on a small EU virtual machine |
+| S9 | Does Firebase phone sign-in deliver SMS codes to Romanian numbers on each network, and do test numbers work on the demo devices and in the dashboard's browser, reCAPTCHA included? | Test numbers only for the demo; the medic's practice signs people in |
+| S10 | Does an SMS from the project's Twilio number reach Orange, Vodafone and Digi phones? | Drop the caregiver notice; the caregiver signs in on the spot |
+| S11 | How does the US number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
 
 ## 7. Demo walk-through
 
-Adapted from v3 §16 to the MVP's scope.
+Adapted from v3 §16 to the MVP's scope. It leads with cold, since the event is in November (G14).
 
 | Step | On the table | Use cases |
 |---|---|---|
-| 1 | The medic registers a fictitious patient on the tablet; the "caregiver" scans the QR with a phone; DAS accepts on the laptop; the senior's phone rings with the welcome call | UC-01, UC-02, UC-04 |
-| 2 | DAS presses "Simulează cod roșu"; the senior's phone, on speaker, has a natural conversation and ends green on all three screens | UC-05, UC-12 |
-| 3 | The watch detects an anomaly and the wrist prompt is ignored; the phone rings; the "senior" is dizzy and cannot name the day; all screens turn red; the caregiver's and medic's phones buzz; the on-duty phone rings and the two are connected; DAS acknowledges | UC-09, UC-07, UC-11 |
+| 1 | The medic registers a fictitious patient on the tablet, with address, floor and intercom code, and a caregiver's number. The "caregiver" signs in on a phone with that number and sees doamna Maria at once. DAS accepts on the laptop dashboard; the senior's phone rings with the welcome call; the "senior" presses 1 and 1; every screen shows green | UC-01, UC-02, UC-04 |
+| 2 | DAS presses "Simulează avertizare", cold, on the dashboard. The senior's phone, on speaker, has a natural conversation and ends green on every screen | UC-05, UC-12 |
+| 3 | The watch reports inactivity and the wrist prompt is ignored. The phone rings; the "senior" says „am căzut și nu mă pot ridica”. Every screen turns red, the caregiver's and medic's phones buzz, the dashboard sounds with a new incident on top. The on-duty phone rings; answering connects the two and takes the incident. The DAS app on that phone shows the floor, the intercom code and the location; tap "Deschide în Hărți"; resolve with "team sent" | UC-09, UC-07, UC-11 |
 | 4 | A second patient does not answer; after the short redial the card turns yellow and the caregiver's phone buzzes | UC-08, UC-06 |
 | Fallback | If the watch misbehaves, the "senior" taps "Sunați-mă" and step 3 continues from the phone ringing | UC-10 |
 
@@ -149,9 +167,12 @@ v3's backups still apply: a team phone as the senior's phone, and a recorded vid
 
 | Risk | Why it matters | Mitigation |
 |---|---|---|
-| Three client codebases in 48 hours | v3 cut native apps for this reason | Four people with Android experience (D11); the Wear OS app is one screen and one job; all logic sits in FastAPI |
-| SQL Connect is new, and its live queries are about six months old | The demo's key moment is every screen changing together | Spikes S1 to S3 before the event; timed refresh as the default |
-| Delay between the senior speaking and the agent answering | Long pauses confuse an elderly listener; the international route adds to it | Short replies, streaming, fixed sentences for routine turns, measured in the rehearsal |
-| Background pulse sampling on Wear OS | The watch trigger depends on it | Spike S5; the "Sunați-mă" fallback |
-| A caregiver on an iPhone has no channel | The automated family call was deferred | Stated as a known gap; first item to restore after the MVP |
-| The model misjudges severity | The model now sets severity, unlike v3 | Alarm words force red; uncertainty moves codes up; every report is stored with the senior's words for review |
+| Three client codebases and a backend in 48 hours | v3 cut native apps for this reason | One owner each among four people (Android, Wear OS, dashboard, backend); one Android app for four roles; the Wear OS app is one screen and one job; the dashboard is another client of the same JSON API; all logic sits in FastAPI; code written before the event (G1) |
+| Delay between the senior speaking and the agent answering | Long pauses confuse an elderly listener; the international route adds to it | Short replies, streaming, fixed sentences for routine turns, measured in the rehearsal (S4) |
+| Background sensors and messaging on Wear OS and Android | The watch trigger depends on them | Spikes S5 and S6; the "Sunați-mă" fallback |
+| SMS at sign-in on stage | A late code stalls the demo | Firebase test numbers on every demo device |
+| Phone number as identity | A mistyped number shows a senior to a stranger | The caregiver signs in at the practice, or the notice SMS reveals the mistake; removing a grant cuts access at once |
+| A caregiver on an iPhone has no channel | The automated family call was deferred | Stated as a known gap; README open question 6 |
+| The model misreads an answer | Answers drive the code | The model only extracts; rules decide; the server checks orientation; alarm phrases do not depend on the model; uncertainty moves codes up; every answer is stored with the senior's words |
+| False reds from alarm phrases | Dispatchers learn to ignore a noisy queue | Everyday words sit in tier 2 behind a confirmation; tier 1 is a short list reviewed by a medical mentor |
+| A deploy during the demo | Live calls drop | No deploys after the Sunday-morning freeze; the scheduler lock prevents double dialing |
