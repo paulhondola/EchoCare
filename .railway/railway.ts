@@ -33,7 +33,7 @@ export default defineRailway((ctx) => {
     // watch paths: only backend changes redeploy the API and drop live calls
     build: { builder: "DOCKERFILE", watchPatterns: ["/backend/**"] },
     preDeploy: "alembic upgrade head",
-    healthcheck: "/health",
+    healthcheck: "/api/health",
     replicas: { [REGION]: 1 },
     // drainingSeconds: an old copy keeps its calls (3 min limit) after SIGTERM
     deploy: { sleepApplication: false, drainingSeconds: 200 },

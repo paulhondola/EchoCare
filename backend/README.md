@@ -22,7 +22,7 @@ Then run the API yourself, from `backend/`. It reads `backend/.env`, whose `DATA
 uv run uvicorn app.main:app --reload
 ```
 
-Either way the API is at http://localhost:8000 (`/health`, `/docs`).
+Either way the API is at http://localhost:8000 (`/api/health`, `/api/docs`).
 
 ## Set up for development
 
@@ -38,7 +38,7 @@ cp .env.example .env
 
 | Variable | Local value | What it does |
 |---|---|---|
-| `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/health` |
+| `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
 | `DATABASE_URL` | `postgresql://sentinela:sentinela@localhost:5432/sentinela` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
 | `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
