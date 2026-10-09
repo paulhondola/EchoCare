@@ -1,4 +1,0 @@
-# Railway service "dashboard": root directory /dashboard, config path /dashboard/railway.toml (ADR-001)
-[build]
-builder = "DOCKERFILE"
-watchPatterns = ["/dashboard/**"]

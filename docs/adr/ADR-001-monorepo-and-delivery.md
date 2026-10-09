@@ -44,14 +44,12 @@ sentinela/
 │   ├── tests/
 │   ├── openapi.json             committed snapshot of the contract
 │   ├── Dockerfile
-│   ├── pyproject.toml, uv.lock
-│   └── railway.toml
+│   └── pyproject.toml, uv.lock
 ├── dashboard/                   React + Vite. Railway root directory /dashboard
 │   ├── src/api/schema.d.ts      generated from backend/openapi.json, committed
 │   ├── package.json
 │   ├── Dockerfile               Node build stage, Caddy serve stage
-│   ├── Caddyfile
-│   └── railway.toml
+│   └── Caddyfile
 ├── android/                     ONE Gradle build for phone and watch
 │   ├── settings.gradle.kts      include(":app", ":wear", ":shared")
 │   ├── gradle/libs.versions.toml
@@ -60,6 +58,7 @@ sentinela/
 │   └── shared/                  plain Kotlin: Data Layer paths, event and check-in types,
 │                                watch threshold logic (no Android imports)
 ├── docs/
+├── .railway/                    railway.ts: every Railway service, setting and variable (IaC); its own package.json
 ├── compose.yaml                 local Postgres, API, dashboard dev server, tunnel; Railway ignores it
 ├── .github/
 │   ├── CODEOWNERS
@@ -117,13 +116,21 @@ Three choices in this layout are deliberate:
 
 Each Railway service is one folder of the repository:
 
-| Service | Root directory | Watch paths | Config file |
-|---|---|---|---|
-| `api` | `/backend` | `/backend/**` | `/backend/railway.toml` |
-| `dashboard` | `/dashboard` | `/dashboard/**` | `/dashboard/railway.toml` |
-| `postgres` | n/a (Railway's database) | n/a | n/a |
+| Service | Root directory | Watch paths |
+|---|---|---|
+| `api` | `/backend` | `/backend/**` |
+| `dashboard` | `/dashboard` | `/dashboard/**` |
+| `Postgres` | n/a (Railway's database) | n/a |
 
-Watch paths are what make the monorepo safe for live calls (force 4). Without them, any commit, including an Android one or a change to a `.md` file, redeploys the API and drops every call in progress. Two details matter. Watch paths match from the repository root even when a root directory is set. The config file path must be absolute, because it does not follow the root directory.
+Watch paths are what make the monorepo safe for live calls (force 4). Without them, any commit, including an Android one or a change to a `.md` file, redeploys the API and drops every call in progress. Watch paths match from the repository root even when a root directory is set.
+
+**Every Railway setting is code, in `.railway/railway.ts`.** Railway deprecated Config as Code (`railway.toml`, `railway.json`): new services cannot use it, and existing files stop being read on 2026-12-01. Its replacement, Infrastructure as Code, describes the whole project in one file: each service's GitHub source, branch, root directory, watch paths, builder, pre-deploy command, health check, draining, Wait for CI (`checkSuites`) and variables, plus the database. One file serves both environments; it picks the branch and `APP_ENV` from the environment it is applied to.
+
+- **TypeScript, Railway's generally available IaC language.** Python and Go authoring are in beta, and a Python version was tried first and dropped for that reason. `.railway/` has its own `package.json` with the `railway` SDK, so the SDK stays out of `dashboard/package-lock.json`, where a change would match `/dashboard/**` and redeploy the dashboard.
+- **Applied by a person, never by a deploy.** Railway does not read `.railway/` when it deploys. From `.railway/`, after `npm ci`, run `railway config plan --environment staging`, read the plan, then `railway config apply --environment staging`. `config` has no `-e` short flag, and without `--environment` it targets whichever environment the folder is linked to. A change merged to `main` is not live on Railway until someone applies it. Railway's GitHub Action (`railwayapp/config`) could apply on merge, but it needs a Railway token in GitHub, which this setup avoids.
+- **A resource missing from the file is deleted on apply.** Destructive changes are marked in the plan, and apply refuses them unless confirmed.
+- **Variables are managed by the file** (Railway's default): apply deletes any variable the file does not declare. Secrets (Twilio, Firebase admin, model provider) are therefore declared as `preserve()`, which keeps the value set in Railway's variables and never writes it into Git.
+- **Not in the file:** the generated public domains (`railway domain -s api -e staging`, once per service and environment).
 
 **Environments.**
 
@@ -147,7 +154,7 @@ Revisit after the hackathon, if needed, with "Focused PR environments" so that o
 
 | Variable | On | Value |
 |---|---|---|
-| `DATABASE_URL` | `api` | `${{postgres.DATABASE_URL}}`, private network |
+| `DATABASE_URL` | `api` | `${{Postgres.DATABASE_URL}}`, private network. Railway names the service `Postgres`, and references are case-sensitive |
 | `ALLOWED_ORIGIN` | `api` | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` (the single CORS origin, 01 §4 channel 3) |
 | `PUBLIC_BASE_URL` | `api` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`, used for Twilio addresses and for checking Twilio's signature |
 | `VITE_API_URL` | `dashboard` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`. Vite writes it into the bundle at build time, so changing it means rebuilding |
@@ -163,13 +170,14 @@ Two services are built from this repository and one is not:
 |---|---|---|---|
 | `api` | GitHub repository, root directory `/backend` | `backend/Dockerfile` | One container: uvicorn on `$PORT`, public domain, `/health` |
 | `dashboard` | GitHub repository, root directory `/dashboard` | `dashboard/Dockerfile`: a Node stage builds, a Caddy stage serves | One container: Caddy serving `dist/` on `$PORT`, public domain |
-| `postgres` | **Not the repository.** Railway's PostgreSQL database service (canvas: New → Database → PostgreSQL, or `railway add -d postgres`) | Nothing: Railway runs its Postgres image on a volume | Private only, `postgres.railway.internal`. Railway generates the credentials and `DATABASE_URL` |
+| `Postgres` | **Not the repository.** Railway's PostgreSQL database service (Postgres 18), declared in `.railway/railway.ts` as `postgres("Postgres")` | Nothing: Railway runs its Postgres image on a volume | Private only, `postgres.railway.internal`. Railway generates the credentials and `DATABASE_URL` |
 
 ```mermaid
 flowchart LR
     subgraph REPO["GitHub repository"]
-        B["/backend<br/>Dockerfile, railway.toml"]
-        D["/dashboard<br/>Dockerfile, Caddyfile, railway.toml"]
+        B["/backend<br/>Dockerfile"]
+        D["/dashboard<br/>Dockerfile, Caddyfile"]
+        R["/.railway<br/>railway.ts"]
     end
 
     subgraph ENV["One Railway environment, staging or production"]
@@ -183,6 +191,7 @@ flowchart LR
     API -->|"pre-deploy: alembic upgrade head"| PG
     API <-->|"DATABASE_URL, private network"| PG
     DASH -.->|"browser calls VITE_API_URL, public HTTPS"| API
+    R -.->|"railway config apply, by hand"| ENV
 ```
 
 Railway looks for a file named `Dockerfile` in the root directory and uses it, so setting the root directory is enough; no `RAILWAY_DOCKERFILE_PATH` is needed. **The root directory is also the build context:** Railway pulls only that folder, so a Dockerfile cannot `COPY ../anything`. Each part must build from its own folder alone. This is the same reason the dashboard's generated types are committed.
@@ -207,20 +216,30 @@ CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --pro
 
 The start command lives only in `CMD`, so a local `docker run` behaves the same as Railway. `alembic` is on `PATH` through the virtual environment, and the pre-deploy command runs it in this same image.
 
-**`backend/railway.toml`** (indicative; check field names against Railway's config reference):
+**`.railway/railway.ts`**, the `api` service (the `dashboard` service has the same source and build lines, with `/dashboard`, and only `VITE_API_URL`):
 
-```toml
-[build]
-builder = "DOCKERFILE"
-watchPatterns = ["/backend/**"]
-
-[deploy]
-preDeployCommand = ["alembic upgrade head"]
-healthcheckPath = "/health"
-numReplicas = 1
-sleepApplication = false
-drainingSeconds = 200
+```ts
+const api = service("api", {
+  // checkSuites: Wait for CI, so a red workflow never deploys
+  source: github(REPO, { branch, rootDirectory: "/backend", checkSuites: true }),
+  // watch paths: only backend changes redeploy the API and drop live calls
+  build: { builder: "DOCKERFILE", watchPatterns: ["/backend/**"] },
+  preDeploy: "alembic upgrade head",
+  healthcheck: "/health",
+  replicas: { [REGION]: 1 },
+  // drainingSeconds: an old copy keeps its calls (3 min limit) after SIGTERM
+  deploy: { sleepApplication: false, drainingSeconds: 200 },
+  env: {
+    APP_ENV: env,
+    DATABASE_URL: db.env.DATABASE_URL,
+    // ${{...}} is Railway's own reference syntax, resolved at deploy time
+    PUBLIC_BASE_URL: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
+    ALLOWED_ORIGIN: "https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}",
+  },
+});
 ```
+
+`build`, `deploy`, `checkSuites` and `drainingSeconds` are typed in the SDK but not shown in Railway's IaC reference page. The reference strings use plain quotes, not a template literal, so TypeScript leaves `${{...}}` for Railway.
 
 **`dashboard/Dockerfile`** (indicative):
 
@@ -290,14 +309,6 @@ Railway builds the **last** stage of a multi-stage Dockerfile, so the Caddy stag
         respond "{err.status_code} {err.status_text}" {err.status_code}
     }
 }
-```
-
-**`dashboard/railway.toml`:**
-
-```toml
-[build]
-builder = "DOCKERFILE"
-watchPatterns = ["/dashboard/**"]
 ```
 
 Four details of the dashboard build matter:
@@ -383,13 +394,14 @@ Compose Watch keeps the inner loop fast inside containers. It copies each saved 
 # compose.yaml (indicative)
 services:
   db:
-    image: postgres:17            # match the major version of Railway's Postgres service
+    image: postgres:18            # match the major version of Railway's Postgres service
     environment:
       POSTGRES_USER: sentinela
       POSTGRES_PASSWORD: sentinela
       POSTGRES_DB: sentinela
     ports: ["5432:5432"]          # for pytest, alembic and a database client on the host
-    volumes: [pgdata:/var/lib/postgresql/data]
+    # 18+ keeps data in /var/lib/postgresql/18/docker and refuses a mount at .../data
+    volumes: [pgdata:/var/lib/postgresql]
     configs:
       # second database so pytest never wipes development data; runs only on a fresh volume
       - source: create-test-db
@@ -508,7 +520,7 @@ Occasionally a bug shows only on the data a teammate's phone is showing. Then:
 
 Do not run migrations this way; the `env.py` check refuses anyway. Expect about 30–50 ms per query to EU West, so do not measure call latency in this setup. **Production is never reached this way.**
 
-CI uses a `postgres:17` service container in `backend.yml`, the same image as Compose. The engine and alarm-phrase tests need no database at all (06 §5).
+CI uses a `postgres:18` service container in `backend.yml`, the same image as Compose. The engine and alarm-phrase tests need no database at all (06 §5).
 
 #### Deploys on Railway
 
@@ -644,19 +656,21 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 - The API has to stay additive, which requires discipline the moment the Android app ships.
 - One shared keystore to look after. If it is lost, every device needs an uninstall and a new install, and the new fingerprints must be registered in Firebase.
 - Two Railway environments cost about twice as much as one; still small at this scale.
+- Railway's settings are applied by hand from `.railway/`. A merged change to `railway.ts` does nothing until someone runs `railway config apply` for each environment.
 
 **To revisit**
 - PR environments, once the Firebase domain issue has a fix (a wildcard custom domain) and Twilio has a dry-run mode.
 - `oasdiff` in CI, once anyone outside the team uses the API.
 - Whether live calls survive a deploy (S8 addition above). If they do, update 01 §9 and 06 §1.
 - A Kotlin client generated from `openapi.json`, if the hand-written data classes start drifting from the API.
+- Applying `.railway/railway.ts` from GitHub Actions on merge, if infrastructure changes become frequent enough that forgetting to apply them is a real risk. It needs a Railway token per environment in GitHub.
 
 ## Action items
 
 1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config.
 2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments. Each backend developer puts their ngrok authtoken in the root `.env`.
 3. [ ] Generate the shared keystore, store it in the team's password manager, add it to GitHub secrets, and register its SHA-1 and SHA-256 in Firebase.
-4. [ ] Railway: one project, EU West, environments `staging` (follows `main`) and `production` (follows `release`). Services `api`, `dashboard` and `postgres` in each. Root directories, absolute config paths, watch paths, Wait for CI.
+4. [ ] Railway: one project, EU West, environments `staging` (follows `main`) and `production` (follows `release`). Apply `.railway/railway.ts` to each (services `api`, `dashboard` and `Postgres`, root directories, watch paths, Wait for CI, variables), then generate each service's public domain.
 5. [ ] Add both dashboard domains to Firebase Auth's authorized domains.
 6. [ ] Add `backend.yml`, `dashboard.yml` and `android.yml` with `paths:` filters, and `android-release.yml` on pushes to `main` and `release`.
 7. [ ] Add `.github/CODEOWNERS` with `backend/openapi.json` assigned to the Android and dashboard owners.
