@@ -1,2 +1,11 @@
 .DS_Store
 Icon?
+
+# local environment
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
