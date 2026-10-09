@@ -47,8 +47,8 @@ docker compose up --watch
 
 | Address | What |
 |---|---|
-| http://localhost:8000/health | API health check: `{"status":"ok","env":"local"}` |
-| http://localhost:8000/docs | API docs |
+| http://localhost:8000/api/health | API health check: `{"status":"ok","env":"local"}` |
+| http://localhost:8000/api/docs | API docs |
 | http://localhost:5173 | Dashboard, showing "API: ok (local)" |
 | localhost:5432 | Postgres: user, password and database `sentinela`; `sentinela_test` for tests |
 

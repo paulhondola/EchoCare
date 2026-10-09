@@ -245,7 +245,7 @@ The rules and status engine has no dependencies on purpose: every rule and every
 
 | Part | Where | Requirement |
 |---|---|---|
-| FastAPI service | Railway, EU West, built from a Dockerfile | Exactly one replica; sleeping when idle turned off; a health check at `/health`. Railway's public HTTPS address also serves the secure WebSocket Twilio needs |
+| FastAPI service | Railway, EU West, built from a Dockerfile | Exactly one replica; sleeping when idle turned off; a health check at `/api/health`. Railway's public HTTPS address also serves the secure WebSocket Twilio needs |
 | PostgreSQL | Railway, same project and region | Reached over the private network |
 | Web dashboard | Railway, a separate static-site service in the same project | Its own service, so that changing the dashboard never redeploys FastAPI and drops live calls. The API allows browser requests from this address only |
 | Android and Wear OS apps | Installed directly on the demo devices | n/a |
