@@ -168,7 +168,7 @@ Two services are built from this repository and one is not:
 
 | Service | Source | Railway builds it with | Runs as |
 |---|---|---|---|
-| `api` | GitHub repository, root directory `/backend` | `backend/Dockerfile` | One container: uvicorn on `$PORT`, public domain, `/health` |
+| `api` | GitHub repository, root directory `/backend` | `backend/Dockerfile` | One container: uvicorn on `$PORT`, public domain, `/api/health` |
 | `dashboard` | GitHub repository, root directory `/dashboard` | `dashboard/Dockerfile`: a Node stage builds, a Caddy stage serves | One container: Caddy serving `dist/` on `$PORT`, public domain |
 | `Postgres` | **Not the repository.** Railway's PostgreSQL database service (Postgres 18), declared in `.railway/railway.ts` as `postgres("Postgres")` | Nothing: Railway runs its Postgres image on a volume | Private only, `postgres.railway.internal`. Railway generates the credentials and `DATABASE_URL` |
 
@@ -225,7 +225,7 @@ const api = service("api", {
   // watch paths: only backend changes redeploy the API and drop live calls
   build: { builder: "DOCKERFILE", watchPatterns: ["/backend/**"] },
   preDeploy: "alembic upgrade head",
-  healthcheck: "/health",
+  healthcheck: "/api/health",
   replicas: { [REGION]: 1 },
   // drainingSeconds: an old copy keeps its calls (3 min limit) after SIGTERM
   deploy: { sleepApplication: false, drainingSeconds: 200 },
