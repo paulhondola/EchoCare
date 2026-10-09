@@ -1,0 +1,70 @@
+# Local environment (ADR-001): docker compose up --watch
+# Railway never reads this file; each Railway service builds from its own folder.
+services:
+  db:
+    image: postgres:18 # match the major version of Railway's Postgres service
+    environment:
+      POSTGRES_USER: sentinela
+      POSTGRES_PASSWORD: sentinela
+      POSTGRES_DB: sentinela
+    ports: ["5432:5432"] # for pytest, alembic and a database client on the host
+    # 18+ keeps data in /var/lib/postgresql/18/docker and refuses a mount at .../data
+    volumes: [pgdata:/var/lib/postgresql]
+    configs:
+      # second database so pytest never wipes development data; runs only on a fresh volume
+      - source: create-test-db
+        target: /docker-entrypoint-initdb.d/10-test-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinela"]
+      interval: 2s
+      retries: 15
+
+  api:
+    build: ./backend # the same Dockerfile Railway builds
+    env_file:
+      - path: backend/.env # Twilio, Firebase, model provider keys; not committed
+        required: false
+    environment:
+      DATABASE_URL: postgresql://sentinela:sentinela@db:5432/sentinela
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'"
+    volumes:
+      # bind mount, not sync: migrations generated inside the container must land on the host
+      - ./backend/alembic:/app/alembic
+    develop:
+      watch:
+        - { action: sync, path: ./backend/app, target: /app/app }
+        - { action: rebuild, path: ./backend/uv.lock }
+
+  dashboard:
+    build: { context: ./dashboard, target: dev }
+    env_file:
+      - path: dashboard/.env # VITE_FIREBASE_* web config; not committed
+        required: false
+    environment:
+      # read by the browser on the host, so it is localhost, not the service name "api"
+      VITE_API_URL: http://localhost:8000
+    ports: ["5173:5173"]
+    develop:
+      watch:
+        - { action: sync, path: ./dashboard/src, target: /app/src }
+        - { action: rebuild, path: ./dashboard/package-lock.json }
+
+  tunnel:
+    profiles: [tunnel] # only with --profile tunnel
+    image: ngrok/ngrok:3.39.11-alpine
+    # the account's free dev domain is assigned automatically and stays the same across restarts
+    command: http api:8000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-} # from the root .env, not committed
+    ports: ["4040:4040"] # request inspector at http://localhost:4040
+    depends_on: [api]
+
+configs:
+  create-test-db:
+    content: "CREATE DATABASE sentinela_test;"
+
+volumes:
+  pgdata:

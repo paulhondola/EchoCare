@@ -1,0 +1,35 @@
+{
+	admin off
+	persist_config off
+	# Railway terminates TLS at its edge
+	auto_https off
+	servers {
+		trusted_proxies static 0.0.0.0/0 ::/0
+	}
+}
+
+:{$PORT:3000} {
+	root * /srv
+	encode gzip
+
+	# Vite puts a content hash in these names, so a changed file gets a new URL: cache for a year.
+	# No fallback here: a missing asset is a 404, never index.html cached under a script's URL.
+	@assets path /assets/*
+	handle @assets {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Everything else, index.html included, is revalidated on every load, so a deploy shows at once.
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Never cache an error: during a deploy's overlap, an asset can 404 on the old copy for a moment.
+	handle_errors {
+		header Cache-Control "no-store"
+		respond "{err.status_code} {err.status_text}" {err.status_code}
+	}
+}

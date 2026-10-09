@@ -1,0 +1,32 @@
+# Checks for the api service (ADR-001). Railway's "Wait for CI" holds a deploy until this passes,
+# so it must also run on pushes to main (staging) and release (production), not only on PRs.
+# Do not mark it as a required check: path-filtered workflows never report on other PRs.
+name: backend
+
+on:
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  push:
+    branches: [main, release]
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes no moving major tag (v10), only full versions
+      - uses: astral-sh/setup-uv@v10.2.0 # installs the Python in backend/.python-version
+        with:
+          working-directory: backend
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
