@@ -132,7 +132,7 @@ Watch paths are what make the monorepo safe for live calls (force 4). Without th
 | `staging` | `main` | Developers, team test calls, Android debug builds | Its own Postgres, test data |
 | `production` | `release` | The demo, Android release builds | Its own Postgres, the demo's fictitious seniors |
 
-Promoting is a fast-forward: `git push origin main:release`. The Sunday-morning freeze (06 §8) becomes a rule on the `release` branch: nobody pushes to it after the freeze, and a GitHub ruleset can enforce that.
+Promoting is a pull request from `main` into `release`, which anyone on the team may open and merge. A GitHub ruleset on `release` blocks direct pushes, force-pushes and deletion, needs no approval, and allows only merge commits: squash or rebase would give `release` commits that `main` never has, and the next promotion would conflict. The merge commit is new, so `backend.yml` and `dashboard.yml` also run on pushes to `release`, giving Wait for CI a result for it. The Sunday-morning freeze (06 §8) becomes one more rule in that ruleset: nobody merges after the freeze.
 
 **Why not Railway PR environments, for now.** They would give each pull request its own API, dashboard and empty database. Three things get in the way:
 - The dashboard's Firebase phone sign-in only works on domains authorized in Firebase, and PR environments get a new random domain each time.
@@ -350,7 +350,7 @@ flowchart LR
     FB["Firebase<br/>one project"]
 
     L -->|"git push origin main"| S
-    S -->|"git push origin main:release"| P
+    S -->|"PR main → release"| P
     TW -->|"callbacks to the address<br/>each call was placed with"| TUN & SAPI & PAPI
     LAPI & SAPI & PAPI --> FB
 ```
@@ -483,7 +483,7 @@ The tunnel also makes local behave like Railway. A public HTTPS edge terminates 
 
 1. **local.** Write the change and its migration. Iterate freely: `alembic downgrade -1`, edit, `upgrade`, or `down -v`. Test with pytest and with a real call to your phone through the tunnel.
 2. **staging.** `git push origin main`. With one or two backend developers, push straight to `main`. CI still runs, and Wait for CI keeps a red build off staging. Switch to pull requests once the Android app depends on staging every day. The pre-deploy command applies the migration.
-3. **production.** `git push origin main:release`, when staging is good. The same commit is built again for production, and its pre-deploy command applies the same migrations.
+3. **production.** A pull request from `main` into `release`, merged with a merge commit, when staging is good. The same code is built again for production, and its pre-deploy command applies the same migrations.
 
 Two migration rules follow from this:
 - **A migration is frozen once it is pushed to `main`.** Fix it with a new migration, never by editing the old one. Staging has already recorded the old one as applied.
@@ -531,7 +531,7 @@ The API and the dashboard are delivered *continuously*. The Android apps are del
 flowchart LR
     subgraph GIT["GitHub, one repository"]
         PR["Pull request"] --> MAIN["main"]
-        MAIN -->|"fast-forward, promote"| REL["release"]
+        MAIN -->|"PR, merge commit, promote"| REL["release"]
     end
 
     subgraph ACT["GitHub Actions, path-filtered"]
