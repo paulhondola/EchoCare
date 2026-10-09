@@ -19,6 +19,7 @@ There are four deliverables, in three ecosystems, reaching people by three diffe
 | Wear OS app | Kotlin, Gradle | An APK installed on the watch by a person | G5 |
 
 The forces at play:
+
 1. **One contract, three clients.** The dashboard and the Android app call the same JSON API (04 §0). A change to the API affects both.
 2. **Two delivery speeds.** Railway redeploys the API minutes after a merge. An Android device keeps running its old APK until someone installs the new one. For a few hours or days, an old app will be talking to a new API.
 3. **The phone and the watch must match.** The Wear OS Data Layer (channel 1) delivers messages only between apps with the **same package name and the same signing certificate**. Firebase phone sign-in on Android checks the **SHA fingerprints of the signing key**. Installing a new build over an old one also needs the same key.
@@ -257,6 +258,7 @@ Railway builds the **last** stage of a multi-stage Dockerfile, so the Caddy stag
 {
     admin off
     persist_config off
+    # Railway terminates TLS at its edge
     auto_https off
     servers {
         trusted_proxies static 0.0.0.0/0 ::/0
@@ -266,8 +268,27 @@ Railway builds the **last** stage of a multi-stage Dockerfile, so the Caddy stag
 :{$PORT:3000} {
     root * /srv
     encode gzip
-    try_files {path} /index.html
-    file_server
+
+    # Vite puts a content hash in these names, so a changed file gets a new URL: cache for a year.
+    # No fallback here: a missing asset is a 404, never index.html cached under a script's URL.
+    @assets path /assets/*
+    handle @assets {
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server
+    }
+
+    # Everything else, index.html included, is revalidated on every load, so a deploy shows at once.
+    handle {
+        header Cache-Control "no-cache"
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Never cache an error: during a deploy's overlap, an asset can 404 on the old copy for a moment.
+    handle_errors {
+        header Cache-Control "no-store"
+        respond "{err.status_code} {err.status_text}" {err.status_code}
+    }
 }
 ```
 
@@ -279,10 +300,11 @@ builder = "DOCKERFILE"
 watchPatterns = ["/dashboard/**"]
 ```
 
-Three details of the dashboard build matter:
+Four details of the dashboard build matter:
 - **`ARG` is required.** Vite reads `VITE_*` variables while it builds, and Railway passes service variables into a Docker build only when the Dockerfile declares them with `ARG`. Without the `ARG` lines, the bundle is built with an empty API address.
 - **`auto_https off`** because Railway terminates TLS at its edge.
 - **`try_files … /index.html`** so a reload on a client-side route such as `/incidents/42` does not return 404.
+- **Cache headers.** Hashed files under `/assets/` are cached for a year, because a changed file gets a new name. Everything else, `index.html` included, is `no-cache`, so a deploy shows on the next load. Errors are `no-store`, so a 404 during a deploy's overlap is never remembered.
 
 Railpack, Railway's builder without a Dockerfile, can detect a Vite project and serve it without either file. The Dockerfile is proposed anyway because it makes the build-time variables explicit and runs the same way on a laptop.
 
@@ -392,7 +414,6 @@ services:
     develop:
       watch:
         - { action: sync, path: ./backend/app, target: /app/app }
-        - { action: sync, path: ./backend/tests, target: /app/tests }
         - { action: rebuild, path: ./backend/uv.lock }
 
   dashboard:
@@ -409,10 +430,12 @@ services:
 
   tunnel:
     profiles: [tunnel]            # only with --profile tunnel
-    image: ngrok/ngrok            # pin a version tag
-    command: http --url=${NGROK_DOMAIN} api:8000
+    image: ngrok/ngrok:3.39.11-alpine
+    # the account's free dev domain is assigned automatically and stays the same across restarts
+    command: http api:8000
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}   # both from the root .env, not committed
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}  # from the root .env, not committed
+    ports: ["4040:4040"]          # request inspector at http://localhost:4040
     depends_on: [api]
 
 configs:
@@ -429,7 +452,7 @@ volumes:
 | `docker compose --profile tunnel up --watch` | The same, plus the ngrok tunnel to the API, for Twilio and real phones |
 | `docker compose exec api alembic upgrade head` | Applies a new migration without restarting. `--reload` restarts uvicorn, not the migration step |
 | `docker compose exec api alembic revision --autogenerate -m "…"` | Writes the migration into `backend/alembic/versions` on the host, through the bind mount |
-| `docker compose exec -e DATABASE_URL=postgresql://sentinela:sentinela@db:5432/sentinela_test api pytest` | Tests against `sentinela_test`, which they may wipe freely |
+| `DATABASE_URL=postgresql://sentinela:sentinela@localhost:5432/sentinela_test uv run pytest`, in `backend/` | Tests on the host against `sentinela_test`, which they may wipe freely. The image has no dev dependencies, so pytest is not run inside it |
 | `docker compose up --watch db dashboard`, then `uv run uvicorn app.main:app --reload` on the host | **For debugging:** the API outside Docker, with breakpoints in the IDE. Postgres and the dashboard stay in Compose |
 | `docker compose down -v` | Wipes both databases, for a clean start |
 
@@ -442,7 +465,9 @@ Three details of this file are easy to get wrong:
 - `PUBLIC_BASE_URL` in `backend/.env` stays the same from one session to the next.
 - An Android teammate can point a debug build at your laptop through `local.properties`, and it keeps working tomorrow.
 
-ngrok's free plan includes one static domain. Cloudflare's quick tunnels need no account but give a new random address every run. Its named tunnels are stable, but need a domain of your own on Cloudflare. Each backend developer reserves their own ngrok domain and keeps `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` in a root `.env`, which Compose reads automatically.
+ngrok's free plan includes one static domain. Cloudflare's quick tunnels need no account but give a new random address every run. Its named tunnels are stable, but need a domain of your own on Cloudflare. Each backend developer uses their own ngrok account, whose dev domain ngrok assigns automatically. They keep `NGROK_AUTHTOKEN` in a root `.env`, which Compose reads automatically.
+
+ngrok runs in Compose, not on the host, so one command brings up the whole local environment, and nobody installs ngrok. It targets `api:8000` over Compose's network. It stays behind a profile because only backend developers have an ngrok account, and two tunnels cannot claim the same domain at once.
 
 The tunnel also makes local behave like Railway. A public HTTPS edge terminates TLS and forwards plain HTTP, so the signature check built from `PUBLIC_BASE_URL` (spike S1) is exercised on the laptop too.
 
@@ -470,8 +495,8 @@ The three databases can only be mixed up by a person with a laptop. Three small 
 
 | Mistake | Check |
 |---|---|
-| Running `alembic upgrade` from a laptop against staging or production | `alembic/env.py` refuses any database host other than `localhost` and `db`, unless it runs on Railway (`RAILWAY_ENVIRONMENT_NAME` is set). The cloud databases are migrated only by their own pre-deploy command |
-| A local API on a cloud database, competing with that environment's scheduler for the lock (G9) and dialing its queue with the tunnel's address | The API refuses to start when `APP_ENV=local`, the `DATABASE_URL` host is not `localhost` or the Compose service `db`, and `SCHEDULER_ENABLED` is `true` |
+| Running `alembic upgrade` from a laptop against staging or production | `alembic/env.py` refuses any database host other than `localhost` and `db`, unless it runs inside a Railway deployment (`RAILWAY_DEPLOYMENT_ID` is set; `railway run` on a laptop can copy `RAILWAY_ENVIRONMENT_NAME`, but not a deployment id). The cloud databases are migrated only by their own pre-deploy command |
+| A local API on a cloud database, competing with that environment's scheduler for the lock (G9) and dialing its queue with the tunnel's address | The API refuses to start when the `DATABASE_URL` host is not `localhost` or the Compose service `db`, `SCHEDULER_ENABLED` is `true`, and it is not inside a Railway deployment. It does not rely on `APP_ENV`, which `railway run` would set to the cloud environment's value |
 | pytest wiping the development database | The test settings require a database name ending in `_test` |
 
 #### Debugging against staging data
@@ -629,13 +654,14 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 ## Action items
 
 1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config.
-2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments. Each backend developer reserves an ngrok static domain.
+2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments. Each backend developer puts their ngrok authtoken in the root `.env`.
 3. [ ] Generate the shared keystore, store it in the team's password manager, add it to GitHub secrets, and register its SHA-1 and SHA-256 in Firebase.
 4. [ ] Railway: one project, EU West, environments `staging` (follows `main`) and `production` (follows `release`). Services `api`, `dashboard` and `postgres` in each. Root directories, absolute config paths, watch paths, Wait for CI.
 5. [ ] Add both dashboard domains to Firebase Auth's authorized domains.
 6. [ ] Add `backend.yml`, `dashboard.yml` and `android.yml` with `paths:` filters, and `android-release.yml` on pushes to `main` and `release`.
 7. [ ] Add `.github/CODEOWNERS` with `backend/openapi.json` assigned to the Android and dashboard owners.
-8. [ ] Add to spike S1: Twilio's signature check passes behind Railway's proxy.
-9. [ ] Add to spike S8: open WebSockets survive the traffic switch during a deploy with `drainingSeconds = 200`.
-10. [ ] Add a ruleset to `release` that blocks pushes after the Sunday-morning freeze.
-11. [ ] Once accepted, add it to the decision log in the [spec README](../specs/sentinela/README.md) as G17.
+8. [ ] On the first staging deploy, confirm `RAILWAY_DEPLOYMENT_ID` is set during the pre-deploy command. If it is not, staging's migrations will be refused by `alembic/env.py`.
+9. [ ] Add to spike S1: Twilio's signature check passes behind Railway's proxy.
+10. [ ] Add to spike S8: open WebSockets survive the traffic switch during a deploy with `drainingSeconds = 200`.
+11. [ ] Add a ruleset to `release` that blocks pushes after the Sunday-morning freeze.
+12. [ ] Once accepted, add it to the decision log in the [spec README](../specs/sentinela/README.md) as G17.
