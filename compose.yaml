@@ -2,13 +2,14 @@
 # Railway never reads this file; each Railway service builds from its own folder.
 services:
   db:
-    image: postgres:17 # match the major version of Railway's Postgres service
+    image: postgres:18 # match the major version of Railway's Postgres service
     environment:
       POSTGRES_USER: sentinela
       POSTGRES_PASSWORD: sentinela
       POSTGRES_DB: sentinela
     ports: ["5432:5432"] # for pytest, alembic and a database client on the host
-    volumes: [pgdata:/var/lib/postgresql/data]
+    # 18+ keeps data in /var/lib/postgresql/18/docker and refuses a mount at .../data
+    volumes: [pgdata:/var/lib/postgresql]
     configs:
       # second database so pytest never wipes development data; runs only on a fresh volume
       - source: create-test-db
