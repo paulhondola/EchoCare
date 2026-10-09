@@ -22,7 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10 # installs the Python in backend/.python-version
+      # setup-uv publishes no moving major tag (v10), only full versions
+      - uses: astral-sh/setup-uv@v10.2.0 # installs the Python in backend/.python-version
         with:
           working-directory: backend
       - run: uv sync --locked
