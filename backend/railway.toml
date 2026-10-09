@@ -1,0 +1,11 @@
+# Railway service "api": root directory /backend, config path /backend/railway.toml (ADR-001)
+[build]
+builder = "DOCKERFILE"
+watchPatterns = ["/backend/**"]
+
+[deploy]
+preDeployCommand = ["alembic upgrade head"]
+healthcheckPath = "/health"
+numReplicas = 1
+sleepApplication = false
+drainingSeconds = 200
