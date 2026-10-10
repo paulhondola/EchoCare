@@ -9,3 +9,7 @@ __pycache__/
 .ruff_cache/
 node_modules/
 dist/
+
+# Claude Code: personal settings and the remember plugin's session notes
+.claude/settings.local.json
+.remember/

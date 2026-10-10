@@ -1,0 +1,62 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-code-skills": { "source": { "source": "github", "repo": "alirezarezvani/claude-skills" } },
+    "ponytail": { "source": { "source": "github", "repo": "DietrichGebert/ponytail" } }
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "mattpocock-skills@claude-plugins-official": true,
+    "engineering-advanced-skills@claude-code-skills": true,
+    "docker-development@claude-code-skills": true,
+    "ponytail@ponytail": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "remember@claude-plugins-official": true,
+    "self-improving-agent@claude-code-skills": true
+  },
+  "permissions": {
+    "ask": [
+      "Bash(railway config apply:*)",
+      "Bash(railway up:*)",
+      "Bash(railway redeploy:*)",
+      "Bash(railway down:*)",
+      "Bash(railway variable set:*)",
+      "Bash(railway variable delete:*)",
+      "Bash(railway environment new:*)",
+      "Bash(docker compose down -v:*)",
+      "mcp__railway__set-variables",
+      "mcp__railway__redeploy",
+      "mcp__railway__restart-service",
+      "mcp__railway__accept-deploy",
+      "mcp__railway__create-deployment",
+      "mcp__railway__update-service",
+      "mcp__railway__delete-service",
+      "mcp__railway__delete-volume",
+      "mcp__railway__delete-domain"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/frozen-migration.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
