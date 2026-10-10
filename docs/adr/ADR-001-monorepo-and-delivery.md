@@ -488,7 +488,7 @@ The tunnel also makes local behave like Railway. A public HTTPS edge terminates 
 | Client | Address |
 |---|---|
 | Dashboard | Already in Compose, at `localhost:5173`. `localhost` is authorized in Firebase by default |
-| Android emulator | `http://10.0.2.2:8000` |
+| Android emulator | `http://10.0.2.2:8000`, set as `sentinela.apiUrl` in `local.properties`. Android 17 blocks apps from private addresses without the runtime permission `ACCESS_LOCAL_NETWORK`, which debug builds declare; grant it once per install with `adb shell pm grant bia.sentinela android.permission.ACCESS_LOCAL_NETWORK`. Without it the request times out rather than being refused |
 | A real phone, yours or a teammate's | The tunnel's static domain |
 
 #### Moving a change through the environments
@@ -590,7 +590,15 @@ flowchart LR
 | Firebase phone sign-in checks the key's SHA-1 and SHA-256 | Sign-in falls back to reCAPTCHA or fails, only for builds from an unregistered key |
 | Installing over an existing build | `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: the app must be uninstalled first, which signs the person out and drops the push token |
 
-So both the `debug` and `release` build types, in `:app` and `:wear`, use one keystore. Its SHA fingerprints are registered once in Firebase. The apps never go to the Play Store, so the key has no store identity to protect. Keep it out of Git anyway: share it among the four developers through a password manager, and give it to CI as a base64 secret. Each developer points `local.properties` at their copy.
+So both the `debug` and `release` build types, in `:app` and `:wear`, use one keystore. Its SHA fingerprints are registered once in Firebase. The apps never go to the Play Store, so the key has no store identity to protect. Keep it out of Git anyway: share it among the four developers through a password manager, and give it to CI as a base64 secret. Each developer points `local.properties` at their copy:
+
+```properties
+sentinela.keystore=/path/to/sentinela.jks
+sentinela.keystore.password=…
+sentinela.key.password=…
+```
+
+The keystore is PKCS12 with alias `key0`, and the key password equals the store password. Android Studio's "New Key Store" dialog asks for the two separately; a different key password builds nothing ("Given final block not properly padded"). `keytool -genkeypair -storetype PKCS12 -alias key0 …` cannot make that mistake. CI writes the same three lines from the secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`, so the build scripts have no CI branch and no fallback to a per-machine debug key.
 
 #### 2.2 Builds are tied to an environment when they are built
 
@@ -632,13 +640,14 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 
 | Runs on every Android pull request | Why it is in CI |
 |---|---|
-| `./gradlew lint testDebugUnitTest assembleDebug` | Fast enough with Gradle caching (`gradle/actions/setup-gradle`, JDK 17) |
+| `./gradlew lint testDebugUnitTest assembleDebug` | Fast enough with Gradle caching (`gradle/actions/setup-gradle`, JDK 25: the Gradle daemon JVM Android Studio pinned in `android/gradle/gradle-daemon-jvm.properties`) |
 | Unit tests of `:shared`: message encoding and decoding round trips, the watch threshold cases from 06 §5 | Plain Kotlin, no device needed |
 
 | Does not run in CI | Why |
 |---|---|
 | Emulator and instrumented tests | Slow, flaky on hosted runners, and the risky behaviour (background sensors S5, background delivery S6, push after idle S7) only shows on the real hardware |
 | End-to-end runs with Twilio | Real calls cost money and need real phones. Covered by the rehearsal in 06 §5 |
+| Launching a release build | Only release builds run R8, and R8 bugs appear at run time, not at build time. The wizard's partial mode (`optimization { packageScope = … }`) crashed every release build at startup with an `IllegalAccessError`, so R8 now processes the whole app. Before a release build reaches the demo devices, someone launches it on an emulator or a phone |
 
 **Secrets in GitHub:** the keystore with its passwords, and a Firebase service account for App Distribution. That is all. Twilio, model provider and Firebase admin credentials stay in Railway's variables (06 §4). Railway pulls from GitHub itself, so GitHub never needs a Railway token.
 
@@ -667,12 +676,12 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 
 ## Action items
 
-1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config.
+1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config. *`android/` done in PR #6: `applicationId` `bia.sentinela`.*
 2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments. Each backend developer puts their ngrok authtoken in the root `.env`.
-3. [ ] Generate the shared keystore, store it in the team's password manager, add it to GitHub secrets, and register its SHA-1 and SHA-256 in Firebase.
+3. [ ] Generate the shared keystore, store it in the team's password manager, add it to GitHub secrets, and register its SHA-1 and SHA-256 in Firebase. *Generated and in GitHub secrets; password manager and Firebase still to do.*
 4. [ ] Railway: one project, EU West, environments `staging` (follows `main`) and `production` (follows `release`). Apply `.railway/railway.ts` to each (services `api`, `dashboard` and `Postgres`, root directories, watch paths, Wait for CI, variables), then generate each service's public domain.
 5. [ ] Add both dashboard domains to Firebase Auth's authorized domains.
-6. [ ] Add `backend.yml`, `dashboard.yml` and `android.yml` with `paths:` filters, and `android-release.yml` on pushes to `main` and `release`.
+6. [ ] Add `backend.yml`, `dashboard.yml` and `android.yml` with `paths:` filters, and `android-release.yml` on pushes to `main` and `release`. *All but `android-release.yml` done.*
 7. [ ] Add `.github/CODEOWNERS` with `backend/openapi.json` assigned to the Android and dashboard owners.
 8. [ ] On the first staging deploy, confirm `RAILWAY_DEPLOYMENT_ID` is set during the pre-deploy command. If it is not, staging's migrations will be refused by `alembic/env.py`.
 9. [ ] Add to spike S1: Twilio's signature check passes behind Railway's proxy.
