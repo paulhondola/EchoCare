@@ -42,7 +42,6 @@ android {
             signingConfig = signingConfigs.getByName("shared")
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }
     }

@@ -43,14 +43,13 @@ android {
         debug {
             signingConfig = signingConfigs.getByName("shared")
             buildConfigField("String", "API_URL",
-                "\"${localProps.getProperty("sentinela.apiUrl") ?: "https://STAGING-API-DOMAIN"}\"")
+                "\"${localProps.getProperty("sentinela.apiUrl") ?: "https://api-staging-11c9.up.railway.app"}\"")
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
-            buildConfigField("String", "API_URL", "\"https://PRODUCTION-API-DOMAIN\"")
+            buildConfigField("String", "API_URL", "\"https://api-production-ac97.up.railway.app\"")
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }
     }

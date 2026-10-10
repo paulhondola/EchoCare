@@ -22,7 +22,8 @@ object Api {
     private val json = Json { ignoreUnknownKeys = true }
 
     val sentinela: SentinelaApi = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_URL + "/") // Retrofit requires the trailing slash
+        // Every FastAPI route is under /api; API_URL is the bare origin. Retrofit requires the trailing slash.
+        .baseUrl(BuildConfig.API_URL + "/api/")
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create()
