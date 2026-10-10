@@ -1,0 +1,43 @@
+# AGENTS.md: android/app
+
+The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it is the skeleton: one screen showing whether the API answers. Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+
+## Layout
+
+```
+app/src/
+├── main/java/bia/sentinela/
+│   ├── MainActivity.kt    Compose entry; ApiStatus screen
+│   ├── Api.kt             SentinelaApi (Retrofit): one function per endpoint of 04-interfaces.md
+│   └── ui/theme/          Material 3 theme
+├── main/keepRules/        R8 keep rules for release
+├── debug/AndroidManifest.xml   debug only: ACCESS_LOCAL_NETWORK, cleartext HTTP to 10.0.2.2
+├── test/                  JVM unit tests
+└── androidTest/           instrumented tests, not run in CI
+```
+
+## Scope
+
+- Becomes: sign-in and role picker (UC-02), the senior's „Sunați-mă” and the watch relay, caregiver alerts, the medic's tablet layout (UC-01, UC-12), DAS red incidents, Firebase push (G4, 04 §6).
+- The phone is the watch's only route to the API (G5). Watch messages arrive over the Data Layer on the paths in `:shared`.
+- Permissions are enforced by FastAPI. The app hides screens; it does not guard data.
+
+## Commands
+
+From `android/`.
+
+| Task | Command |
+|---|---|
+| Debug APK | `./gradlew :app:assembleDebug` |
+| Unit tests | `./gradlew :app:testDebugUnitTest` |
+| Lint | `./gradlew :app:lint` |
+| Install and launch | `android run --device=emulator-5554 --apks=app/build/outputs/apk/debug/app-debug.apk --install-options=-g` |
+| Grant local-network after a Studio install | `adb shell pm grant bia.sentinela android.permission.ACCESS_LOCAL_NETWORK` |
+
+## Rules
+
+- **The base URL is `BuildConfig.API_URL + "/api/"`**; endpoint paths in `SentinelaApi` use the spec's names without `/api`. `debug` → staging (or `sentinela.apiUrl`), `release` → production.
+- **Decode leniently.** `Json { ignoreUnknownKeys = true }` stays. Spec enumerations (trigger, incident outcome, push `type`) are decoded as strings with a fallback, never a plain Kotlin `enum`, which crashes on a value the server adds later (ADR-001 §2.3).
+- **The Firebase token goes in one OkHttp interceptor**, not per call.
+- **UI strings are Romanian**, in `res/values/strings.xml`.
+- Cleartext HTTP and local-network access belong in `src/debug/` only; release talks to Railway over HTTPS.

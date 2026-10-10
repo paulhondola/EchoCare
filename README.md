@@ -78,3 +78,19 @@ PR main → release, merged with a merge commit → Railway production
 - **Watch paths** keep a docs, dashboard or Android change from redeploying the API, which would drop live calls.
 - **`release`** accepts changes only through a pull request merged with a merge commit; anyone on the team can open and merge one.
 - **Railway's settings** live in [.railway/railway.ts](.railway/railway.ts) and are applied by hand; see [.railway/README.md](.railway/README.md).
+
+## Claude Code and other agents
+
+Each folder has an `AGENTS.md` (layout, scope, commands, rules), which the `CLAUDE.md` beside it imports. The team's Claude Code setup is committed:
+
+| File | What |
+|---|---|
+| [.claude/settings.json](.claude/settings.json) | Shared plugins and their marketplaces; a hook that refuses edits to migrations already on `main`; asks before Railway changes and `docker compose down -v` |
+| [.mcp.json](.mcp.json) | The Railway MCP server, signed in through your own `railway login`; Playwright, for driving the dashboard in a browser |
+| [.claude/skills/](.claude/skills/) | `use-railway` and `archify` (diagrams; needs Node) |
+
+On the first session in this folder, Claude Code asks you to trust the marketplaces, install the plugins and approve the MCP server. To turn a shared plugin off for yourself only, set it to `false` in `.claude/settings.local.json`, which is not committed:
+
+```json
+{ "enabledPlugins": { "explanatory-output-style@claude-plugins-official": false } }
+```
