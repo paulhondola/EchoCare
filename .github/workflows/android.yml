@@ -1,0 +1,43 @@
+# Checks for the phone and watch apps (ADR-001 §2.5): lint, JVM unit tests (:shared included), debug APKs.
+# No emulator tests: background sensors and delivery only show on real hardware (S5, S6, S7).
+# Do not mark it as a required check: path-filtered workflows never report on other PRs.
+name: android
+
+on:
+  pull_request:
+    paths: ["android/**", ".github/workflows/android.yml"]
+  push:
+    branches: [main, release]
+    paths: ["android/**", ".github/workflows/android.yml"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: android
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25 # the Gradle daemon JVM pinned in android/gradle/gradle-daemon-jvm.properties
+      - uses: gradle/actions/setup-gradle@v6 # caches Gradle, validates the wrapper
+      # Debug builds are signed with the shared key too (ADR-001 §2.1), so the build needs it.
+      # The build scripts read it from local.properties, exactly as on a laptop.
+      - name: Shared signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sentinela.jks"
+          {
+            echo "sentinela.keystore=$RUNNER_TEMP/sentinela.jks"
+            echo "sentinela.keystore.password=$KEYSTORE_PASSWORD"
+            echo "sentinela.key.password=$KEYSTORE_PASSWORD"
+          } > local.properties
+      - run: ./gradlew lint testDebugUnitTest assembleDebug

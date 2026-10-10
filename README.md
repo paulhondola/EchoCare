@@ -6,6 +6,7 @@ Sentinela checks on seniors living alone with automated phone calls, a Wear OS w
 |---|---|---|
 | [backend/](backend/) | FastAPI service (`api` on Railway), Python, uv, Alembic | [backend/README.md](backend/README.md) |
 | [dashboard/](dashboard/) | DAS web dashboard, React + Vite, served by Caddy | [dashboard/README.md](dashboard/README.md) |
+| [android/](android/) | Android app (four roles) and Wear OS app, one Gradle build | [android/README.md](android/README.md) |
 | [.railway/](.railway/) | Railway infrastructure as code for staging and production | [.railway/README.md](.railway/README.md) |
 | [docs/](docs/) | Specification and architecture decisions | |
 
@@ -14,6 +15,8 @@ Sentinela checks on seniors living alone with automated phone calls, a Wear OS w
 | Tool | Needed for | Install (macOS) |
 |---|---|---|
 | Docker Desktop (Compose v2.24+) | The whole local environment | [docker.com](https://www.docker.com/products/docker-desktop/) |
+| Android Studio | The Android and Wear OS apps | [developer.android.com/studio](https://developer.android.com/studio) |
+| Android CLI (`android`) | Emulators, installing and inspecting the apps from the terminal; agent skills | [developer.android.com/tools/agents](https://developer.android.com/tools/agents) |
 | uv | Backend development outside Docker (IDE, pytest, ruff) | `brew install uv` |
 | Node.js 26 + npm | Dashboard development outside Docker; `.railway/` | `brew install node` |
 | Railway CLI | Applying `.railway/`, logs, SSH into deployments | `brew install railway` |
@@ -67,7 +70,7 @@ docker compose down -v
 ## How changes ship
 
 ```
-pull request → CI (backend.yml, dashboard.yml) → merge to main → Railway staging
+pull request → CI (backend.yml, dashboard.yml, android.yml) → merge to main → Railway staging
 PR main → release, merged with a merge commit → Railway production
 ```
 
