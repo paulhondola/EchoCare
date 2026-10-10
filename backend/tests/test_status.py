@@ -115,85 +115,85 @@ def test_matrix(severity, certainty, action):
     [
         # Tier 1, or tier 2 confirmed or unanswered
         (
-            dict(
-                starting=Severity.green,
-                answered=True,
-                certainty=Certainty.high,
-                forced_red=True,
-            ),
+            {
+                "starting": Severity.green,
+                "answered": True,
+                "certainty": Certainty.high,
+                "forced_red": True,
+            },
             Severity.red,
         ),
         # Never answered: the starting severity, green becomes yellow
-        (dict(starting=Severity.green, answered=False), Severity.yellow),
-        (dict(starting=Severity.yellow, answered=False), Severity.yellow),
+        ({"starting": Severity.green, "answered": False}, Severity.yellow),
+        ({"starting": Severity.yellow, "answered": False}, Severity.yellow),
         # Answered, high: the rules decide, cancelling a watch's yellow (P3)
         (
-            dict(
-                starting=Severity.yellow,
-                answered=True,
-                rules=Severity.green,
-                certainty=Certainty.high,
-            ),
+            {
+                "starting": Severity.yellow,
+                "answered": True,
+                "rules": Severity.green,
+                "certainty": Certainty.high,
+            },
             Severity.green,
         ),
         # Answered, not high: the higher of starting and rules, never green
         (
-            dict(
-                starting=Severity.green,
-                answered=True,
-                rules=Severity.green,
-                certainty=Certainty.low,
-            ),
+            {
+                "starting": Severity.green,
+                "answered": True,
+                "rules": Severity.green,
+                "certainty": Certainty.low,
+            },
             Severity.yellow,
         ),
         (
-            dict(
-                starting=Severity.yellow,
-                answered=True,
-                rules=Severity.green,
-                certainty=Certainty.medium,
-            ),
+            {
+                "starting": Severity.yellow,
+                "answered": True,
+                "rules": Severity.green,
+                "certainty": Certainty.medium,
+            },
             Severity.yellow,
         ),
         (
-            dict(
-                starting=Severity.green,
-                answered=True,
-                rules=Severity.red,
-                certainty=Certainty.low,
-            ),
+            {
+                "starting": Severity.green,
+                "answered": True,
+                "rules": Severity.red,
+                "certainty": Certainty.low,
+            },
             Severity.red,
         ),
         # raise_concern raises, never lowers
         (
-            dict(
-                starting=Severity.green,
-                answered=True,
-                rules=Severity.green,
-                certainty=Certainty.high,
-                concern=Severity.yellow,
-            ),
+            {
+                "starting": Severity.green,
+                "answered": True,
+                "rules": Severity.green,
+                "certainty": Certainty.high,
+                "concern": Severity.yellow,
+            },
             Severity.yellow,
         ),
         (
-            dict(
-                starting=Severity.green,
-                answered=True,
-                rules=Severity.yellow,
-                certainty=Certainty.high,
-                concern=Severity.red,
-            ),
+            {
+                "starting": Severity.green,
+                "answered": True,
+                "rules": Severity.yellow,
+                "certainty": Certainty.high,
+                "concern": Severity.red,
+            },
             Severity.red,
         ),
         # Asked for a person or pressed 9: at least yellow
         (
-            dict(
-                starting=Severity.green,
-                answered=True,
-                rules=Severity.green,
-                certainty=Certainty.high,
-                asked_for_person=True,
-            ),
+            {
+                "starting": Severity.green,
+                "answered": True,
+                "rules": Severity.green,
+                "certainty": Certainty.high,
+                "asked_for_person": True,
+            },
             Severity.yellow,
         ),
     ],
