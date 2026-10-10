@@ -6,15 +6,15 @@
 
 ## What Sentinela is
 
-An early-warning system for heat and cold illness in seniors who live alone. During a weather warning (heatwave or frost) the system phones each enrolled senior, an AI agent talks with them in Romanian, and the server turns what they said into one of three codes (green, yellow, red) that the caregiver, the medic and DAS all see. A red hands the call to a person at DAS. A senior who also wears a Wear OS watch gets a second trigger: an abnormal reading on the wrist, relayed by their phone, starts the same call.
+An early-warning system for heat and cold illness in seniors who live alone. During a weather warning (heatwave or frost) the system phones each enrolled senior, an AI agent talks with them in Romanian, and the server turns what they said into one of three codes (green, yellow, red) that the caregiver, the medic and DAS all see. A red hands the call to a person at DAS. A senior who also wears a Wear OS watch gets a second trigger: an abnormal reading on the wrist, relayed by their phone, starts the same call. A senior with the optional home node, a small sensor box on a shelf, gets a third: a room that stays too cold or too hot, no movement in the house during a warning, or its SOS button. The room temperature it measures also checks what the senior says on the call: „am căldură” in a room at 14°C does not count as fine **(P19–P22, proposed)**.
 
-The senior needs nothing but a phone, landline included. The watch and the senior's role in the Android app are optional layers.
+The senior needs nothing but a phone, landline included. The watch, the home node and the senior's role in the Android app are optional layers.
 
 ```mermaid
 flowchart LR
     subgraph TRIG["What starts a call"]
         T1["Weather campaign, heat or cold<br/>DAS button"]
-        T2["Watch anomaly<br/>relayed by the senior's phone"]
+        T2["Watch or home node anomaly<br/>relayed by the senior's phone"]
         T3["Senior taps Sunați-mă"]
     end
 
@@ -56,7 +56,7 @@ flowchart LR
 
 | Topic | v3 | Sentinela MVP |
 |---|---|---|
-| Call triggers | Weather warning campaign | Campaign (DAS button, heat or cold), watch event, senior request, welcome call |
+| Call triggers | Weather warning campaign | Campaign (DAS button, heat or cold), watch event, home node event (proposed), senior request, welcome call |
 | Clients | One React project with three zones | One Android app with four roles (senior, caregiver, medic, DAS on duty), a Wear OS app, and a React web dashboard for DAS |
 | Medic's and DAS's device | iPad and desktop, web | Medic: Android tablet. DAS: web dashboard at the desk, and the Android app's red-incident view on the on-duty phone |
 | Family | Passwordless, QR token opens a web page | Caregiver signs in with phone number and SMS code; the medic's entry of that number is the grant |
@@ -135,6 +135,10 @@ Each is marked **(proposed)** where it is specified.
 | P16 | A campaign is one round of calls, started immediately | Kept |
 | P17 | FastAPI is hosted on Google Cloud Run | Replaced by G9 |
 | P18 | Push messages carry generic text and a senior id, no health details | Kept |
+| P19 | The watch also detects falls: free fall, impact, then stillness, followed by the wrist prompt. A fall is one more watch event type | Proposed |
+| P20 | An optional home node (ESP32 with a room temperature sensor, a motion sensor and an SOS button) talks over Bluetooth Low Energy to the senior's phone app only, never to FastAPI directly. Like the watch, it has no identity of its own. It serves the two courses that require a mobile app using hardware sensors (G1) | Proposed |
+| P21 | FastAPI owns the room temperature thresholds. A room reading that stays out of range for the hold time, no movement in the house during an active warning, or the node's SOS button starts a wellbeing call with starting severity yellow | Proposed |
+| P22 | A fresh room reading out of range overrides a "yes" to the shelter question: the server records the shelter answer as worrying. Sensors can only raise the level, like the model | Proposed |
 
 ## Deferred past the MVP
 
@@ -163,6 +167,8 @@ Each is marked **(proposed)** where it is specified.
 8. **Self-harm hand-over.** Ask DAS whether the on-duty employee needs a separate script, or a referral to a support line.
 9. **Falls in the past.** „am căzut ieri, dar sunt bine" now forces red. A medical mentor may want time words (ieri, săptămâna trecută) to move a fall to tier 2.
 10. **Caregiver notice by SMS.** Depends on spike S10. Fallback: a caregiver who is present signs in on the spot, which confirms the number.
+11. **Room temperature thresholds (P21, P22).** The proposed limits (below 16°C, above 30°C) are orientative and have no medical value. A medical mentor should set them, and say whether an extreme room (below 12°C, above 34°C) should go straight to red. Default: yellow, like every other sensor trigger.
+12. **A detected fall, or the home SOS button, and an unanswered call.** Like question 1: both argue for red. Default: yellow.
 
 ## Glossary
 
@@ -173,9 +179,11 @@ Each is marked **(proposed)** where it is specified.
 | Certainty | How solid the conversation's result is: high, medium or low. Computed by the server from how many answers were unclear. Exists only for an answered call |
 | Answer | A fact the model extracts during a call: how the person feels, the day they named, whether they have water and a cool (or warm) place, each with a clarity flag |
 | Alarm phrase | A phrase matched by the server on the senior's words. Tier 1 forces red at once; tier 2 asks a confirmation first |
-| Trigger | What caused a call: campaign, watch, manual (senior request) or welcome |
-| Starting severity | The severity a trigger carries before anyone has spoken: green for campaign, yellow for watch and manual |
-| Active warning | The period a campaign marks as under a heat or cold warning. Watch inactivity counts only during one |
+| Trigger | What caused a call: campaign, watch, home node, manual (senior request) or welcome |
+| Starting severity | The severity a trigger carries before anyone has spoken: green for campaign, yellow for watch, home node and manual |
+| Active warning | The period a campaign marks as under a heat or cold warning. Inactivity, from the watch or the home node, counts only during one |
+| Home node | Optional sensor box in the senior's home: room temperature and humidity, motion, an SOS button, a status light. Talks only to the senior's phone app, over Bluetooth Low Energy (P20) |
+| Room reading | The home node's periodic report (temperature, humidity, last motion), relayed by the phone. Only the latest is kept |
 | Wellbeing call | An agent call that checks on the senior. Every call except the welcome call |
 | Welcome call | The first call after DAS accepts a senior: confirms identity and records consent |
 | Check-in | The watch's periodic report (battery, worn or not, last pulse), relayed by the phone. Not a call |

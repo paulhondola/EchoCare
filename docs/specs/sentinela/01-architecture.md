@@ -4,7 +4,7 @@ Part of the [Sentinela specification](README.md). IDs such as G2 and P10 refer t
 
 ## 1. Shape
 
-One FastAPI service holds all data and everything that has consequences: phone calls, timers, events from the senior's phone, the rules and the matrix (G2). Every app, the DAS web dashboard included, talks only to FastAPI. Firebase does two narrow jobs: it proves that a person owns a phone number, and it delivers pushes. Apps never talk to each other, to Twilio or to the model. The watch talks only to the senior's phone.
+One FastAPI service holds all data and everything that has consequences: phone calls, timers, events from the senior's phone, the rules and the matrix (G2). Every app, the DAS web dashboard included, talks only to FastAPI. Firebase does two narrow jobs: it proves that a person owns a phone number, and it delivers pushes. Apps never talk to each other, to Twilio or to the model. The watch and the home node talk only to the senior's phone.
 
 ## 2. System overview
 
@@ -15,6 +15,7 @@ flowchart TB
     subgraph EDGE["People and devices"]
         SP["Senior's phone<br/>any phone, landline included"]
         W["Wear OS app<br/>senior, optional"]
+        HN["Home node, ESP32<br/>senior's home, optional"]
         SA["Android app<br/>senior role, optional"]
         CA["Android app<br/>caregiver role"]
         MA["Android app<br/>medic role, tablet"]
@@ -38,6 +39,7 @@ flowchart TB
     LLM["Model provider"]
 
     W <-->|"1 events, check-ins"| SA
+    HN <-->|"12 readings, button, light"| SA
     SA & CA & MA & DA & WD -->|"2 sign in"| AUTH
     SA & CA & MA & DA & WD <-->|"3 HTTPS, JSON"| API
     API --> CORE
@@ -64,6 +66,7 @@ flowchart TB
 | Android app | One app, four roles | The roles granted to the signed-in number decide which screens appear. The medic layout targets a tablet and also works on a phone. The DAS role shows only red incidents (G15) |
 | Web dashboard | DAS at the desk | React, built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
+| Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
 | Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over, sends the caregiver notice SMS |
 | Model provider | The language model behind the agent | Not yet chosen; see [04-interfaces.md](04-interfaces.md) section 5 |
 
@@ -82,6 +85,7 @@ flowchart TB
 | 9 | FastAPI ↔ PostgreSQL | Private network | Everything | Database credentials |
 | 10 | Twilio ↔ phones | Ordinary phone network | Voice | n/a |
 | 11 | FastAPI → Firebase sign-in | Firebase server library for Python | Checking identity tokens | Service credentials |
+| 12 | Home node ↔ senior's phone app **(P20, proposed)** | Bluetooth Low Energy, the node as a GATT server and the phone app as the client | Room readings, motion, the SOS button; the status light and the buzzer back to the node | Bonded once from the phone app; the phone accepts only its bonded node |
 
 ## 5. One door (G2)
 
@@ -113,6 +117,8 @@ Phone numbers are normalized to the international format (+40…) on every write
 
 **The watch** has no identity of its own. Its messages reach FastAPI only through the senior's phone app, which is signed in as that senior (G5).
 
+**The home node** has no identity of its own either (P20). It is bonded once to the senior's phone over Bluetooth, and its readings reach FastAPI only through that phone's app. It holds no Wi-Fi password, no address of the API and no key, so a lost or opened box gives nothing away.
+
 **Twilio** signs every callback; FastAPI rejects unsigned or wrongly signed requests.
 
 **One place enforces permissions: FastAPI.** Every endpoint checks the caller's grants and, where a senior is involved, that the grant covers that senior. The app's role screens are a convenience, not a protection.
@@ -136,6 +142,7 @@ Phone numbers are normalized to the international format (+40…) on every write
 | Address and access details | Yes | Yes | Yes |
 | Location attached to an event **(proposed)** | Yes | No | Yes |
 | Watch state (worn, battery, last check-in) | Yes | Yes | No |
+| Home node state and latest room reading (temperature, humidity, last motion) **(proposed)** | Yes | Yes | Yes |
 | Consent record | No | Yes | Yes |
 
 ## 7. Live updates and push (G4)
@@ -147,7 +154,7 @@ The web dashboard receives no pushes. A dispatcher's dashboard is always open, s
 | Kind | Sent when | What the app does |
 |---|---|---|
 | Alert | A code changes into yellow or red (recipients in [03-status-model.md](03-status-model.md) section 7) | Shows a system notification with generic text; tapping it opens the senior's page. If the app is open, it also re-reads |
-| Refresh | Any other visible change: a code into green, a call starting or ending, an enrollment state, a watch state, a new grant | Silent. If the app is open, it re-reads the screen; if closed, nothing |
+| Refresh | Any other visible change: a code into green, a call starting or ending, an enrollment state, a watch or home node state, a new grant | Silent. If the app is open, it re-reads the screen; if closed, nothing |
 
 A slow timed re-read while a screen is open is the backstop for a lost push. Its interval is in [06-operations.md](06-operations.md) section 3.
 
@@ -185,7 +192,7 @@ flowchart LR
     end
 
     subgraph LOGIC["Logic"]
-        SCHED["Scheduler<br/>due calls, redials, silent watches"]
+        SCHED["Scheduler<br/>due calls, redials, silent devices,<br/>no motion at home"]
         DIAL["Dialer"]
         WEL["Welcome call<br/>fixed script"]
         SESS["Call session<br/>agent loop, alarm phrases"]
@@ -226,12 +233,12 @@ flowchart LR
 |---|---|---|
 | Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store |
 | Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store |
-| Senior event intake | Receives events and check-ins forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule | Store |
-| Scheduler | On a short tick: finds calls that are due, marks silent watches. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store |
+| Senior event intake | Receives events, check-ins and room readings forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule; turns a room reading that stays out of range into an event (P21) | Store |
+| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store |
 | Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store |
 | Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store |
 | Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider |
-| Rules and status engine | Turns answers into severity and certainty, applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing |
+| Rules and status engine | Turns answers into severity and certainty, checks the shelter answer against the latest room reading (P22), applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing |
 | Notifier | Sends alerts and refreshes through Firebase push; the caregiver notice SMS through Twilio | Firebase push, Twilio |
 | Store | All reads and writes to PostgreSQL, asynchronous | PostgreSQL |
 
@@ -260,5 +267,45 @@ During development Twilio must still reach channels 6 and 7: a tunnel to a lapto
 - **One web client only**, for DAS at the desk. Seniors, caregivers and medics use the Android app.
 - **No second path to the database.** No SQL Connect, no Firestore, no live queries.
 - **No file storage.** The only image-like item, the optional signature, is stored as strokes on a consent record.
-- **No app-to-app channel** between people's devices. The watch talks to the senior's phone, which is one person's two devices.
+- **No app-to-app channel** between people's devices. The watch and the home node talk to the senior's phone, which are one person's devices.
+- **No device on the internet except phones.** The home node has no Wi-Fi connection and never reaches FastAPI on its own.
 - **No audio anywhere in our systems.** Twilio handles speech in both directions; FastAPI sees and stores text only.
+
+## 11. Home node hardware (P20, proposed)
+
+One box per senior, on a shelf in the room where they spend the day, within about ten metres of the phone. It is plugged in, so it has no battery to charge and no deep sleep.
+
+| Part | Job | Approximate cost |
+|---|---|---|
+| ESP32 DevKit (WROOM-32 or S3) | The controller; Bluetooth Low Energy built in | 30–45 lei |
+| SHT31 module, I2C | Room temperature and humidity. Chosen over the DHT22 for accuracy, since the readings decide a code | 20–40 lei |
+| HC-SR501 PIR | Motion in the room | 8–15 lei |
+| Large push button | SOS, on a long press | 5–10 lei |
+| Active buzzer module | Confirms a press, and the phone's acknowledgement | 3–5 lei |
+| RGB LED and three 220 Ω resistors, or one WS2812 | Shows the senior's code | 2–5 lei |
+| 5 V USB phone charger and cable | Power | n/a |
+| **Total** | Plus a spare ESP32 and a spare SHT31 for the demo | **about 90–140 lei** |
+
+**Wiring**
+
+| Part | Pin | ESP32 |
+|---|---|---|
+| SHT31 | VCC, GND | 3V3, GND |
+| | SDA, SCL | GPIO21, GPIO22 (I2C address `0x44`) |
+| PIR | VCC, GND | VIN (5 V), GND |
+| | OUT | GPIO27 (the output is 3.3 V, safe to connect directly) |
+| SOS button | one leg, the other | GPIO32 with the internal pull-up, GND |
+| Buzzer module | signal, VCC, GND | GPIO25, 3V3, GND |
+| RGB LED | R, G, B | GPIO16, GPIO17, GPIO18, each through 220 Ω |
+
+The PIR needs 30 to 60 seconds to settle after power-on; its jumper is set to repeat trigger.
+
+**What the node does**
+
+- Advertises one Sentinela GATT service and accepts a connection only from its bonded phone. The characteristics are in [04-interfaces.md](04-interfaces.md) section 3.
+- Reads the SHT31 every reading interval, smooths it with a short moving average, and notifies the phone. A value outside a plausible range (−10 to 50°C) is not sent.
+- Notifies motion when it starts, and keeps the time of the last motion for the next reading.
+- On a long press of the button (two seconds), beeps once and notifies the phone with an id it generates; beeps twice when the phone says FastAPI recorded it. Until then it keeps the press and sends it again after a reconnection.
+- Lights the LED in the colour the phone writes: the senior's code, blue while a call is in progress. A slow white blink means "not connected to the phone".
+
+The node decides nothing. The thresholds, the hold time and the inactivity limit live in FastAPI (P21), so changing them needs no firmware update.

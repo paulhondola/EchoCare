@@ -14,6 +14,7 @@ erDiagram
     SENIOR ||--o{ GRANT : "is followed through"
     SENIOR ||--o{ CONSENT : "gives or refuses"
     SENIOR ||--o| WATCH_STATE : "wears"
+    SENIOR ||--o| HOME_NODE_STATE : "has at home"
     SENIOR ||--o| SENIOR_STATUS : "has current, once active"
     SENIOR ||--o{ INCIDENT : "has, one per red"
     CALL |o--o{ INCIDENT : "opened or added to"
@@ -84,10 +85,21 @@ erDiagram
         boolean worn
         int last_pulse
     }
+    HOME_NODE_STATE {
+        uuid senior_id PK
+        string state "ok, offline"
+        datetime last_reading_at
+        float temperature_c
+        float humidity_pct
+        datetime last_motion_at
+        datetime out_of_range_since "empty while in range"
+        boolean out_of_range_event_sent "one room event per stretch"
+    }
     EVENT {
         uuid id PK "generated on the device"
         uuid senior_id FK
-        string type "high_pulse_at_rest, inactivity, sos_button, manual_request"
+        string type "high_pulse_at_rest, inactivity, sos_button, fall, room_cold, room_heat, manual_request"
+        string source "watch, home_node, phone"
         datetime measured_at
         datetime received_at
         json snapshot
@@ -108,7 +120,7 @@ erDiagram
     CALL {
         uuid id PK
         uuid senior_id FK
-        string trigger "campaign, watch, manual, welcome"
+        string trigger "campaign, watch, home_node, manual, welcome"
         uuid campaign_id FK "optional"
         uuid previous_call_id FK "set on a redial"
         int attempt
@@ -147,7 +159,7 @@ erDiagram
     STATUS_REPORT {
         uuid id PK
         uuid call_id FK
-        string source "rules, raise_concern, alarm_tier1, alarm_tier2, request_human, trigger, unanswered"
+        string source "rules, raise_concern, alarm_tier1, alarm_tier2, request_human, trigger, unanswered, home_temperature"
         string severity
         string certainty
         string reason
@@ -192,7 +204,8 @@ erDiagram
 | Senior | The enrolled person, registration details, structured address and enrollment state |
 | Consent | Every consent decision as a history: given or refused on the welcome call, an optional signature, a withdrawal recorded by the medic |
 | WatchState | The watch's latest check-in, one row per senior |
-| Event | A watch anomaly, a button press, or a "Sunați-mă" request, with the phone's last known location if it had one |
+| HomeNodeState | The home node's latest room reading and when the room went out of range, one row per senior with a node **(P20, proposed)** |
+| Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
 | Campaign | One press of the weather-warning button, and the active-warning period it opens |
 | Call | One attempt to reach a senior, with its outcome. Also the scheduler's queue: a queued call with a due time is a pending timer |
 | CallTurn | The transcript, one row per utterance or key press |
@@ -214,6 +227,7 @@ Several rules from the other files are enforced by the database itself, so they 
 | At most one DAS employee on duty (P10) | A unique index over `user` limited to rows where `on_duty` is true |
 | Never two live calls for one senior | A unique index over `call.senior_id` limited to rows in `queued`, `ringing` or `in_progress`. A command that hits it returns the existing call |
 | An event is processed once | `event.id` is the primary key; inserts ignore a duplicate |
+| One room event per out-of-range stretch | `home_node_state.out_of_range_event_sent` is set in the same transaction that inserts the event, only where it was false |
 | One grant per role and senior | Unique (`user_id`, `role`, `senior_id`) |
 | One current code per senior | `senior_status.senior_id` is the primary key |
 | At most one unresolved incident per senior | A unique index over `incident.senior_id` limited to rows in `open` or `in_progress` |
@@ -235,7 +249,7 @@ Several rules from the other files are enforced by the database itself, so they 
 
 **Consent is a history, not a field.** A withdrawal is a new row, and the text version shows exactly what was agreed to.
 
-**Only the latest check-in is kept (proposed).** There is no history of pulse readings; the system stores the minimum health data that serves its purpose.
+**Only the latest check-in is kept (proposed).** There is no history of pulse readings; the system stores the minimum health data that serves its purpose. The same holds for the home node: only the latest room reading is kept, and a room event keeps the reading that caused it as its snapshot.
 
 **Location is stored only with an event.** There is no location history apart from the moments the senior's phone reported an event.
 
@@ -252,7 +266,7 @@ Several rules from the other files are enforced by the database itself, so they 
 | Consent records | Kept | Proof of what was agreed and when |
 | Incidents | Kept | What DAS did about each red, by whom, and the outcome |
 | Events, with any location | Kept | They explain why a call was placed and where the senior was |
-| Check-ins | Latest only | Data minimisation |
+| Check-ins and room readings | Latest only | Data minimisation |
 | Grants | Removed when revoked | A removed caregiver loses access at once |
 
 The demo uses fictitious people only. Retention periods for a real pilot are out of scope here and need a decision with DAS as data controller.

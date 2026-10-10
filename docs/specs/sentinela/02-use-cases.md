@@ -8,12 +8,13 @@ In the sequence diagrams, "Database" stands for PostgreSQL, which only FastAPI r
 
 | Actor | Uses | Role in the system |
 |---|---|---|
-| Senior | Any phone. Optionally a Wear OS watch and the Android app on an Android phone | Receives calls and talks with the agent |
+| Senior | Any phone. Optionally a Wear OS watch, a home node and the Android app on an Android phone | Receives calls and talks with the agent |
 | Caregiver | Android app on a phone | Follows one or more seniors; is notified at yellow and red |
 | Medic | Android app on a tablet (and optionally a phone) | Registers seniors and their caregivers; follows their own patients; is notified at red |
 | DAS employee | Web dashboard at the desk; the Android app's DAS role on a phone, which is also the hand-over phone when on duty | Grants medics, accepts patients, starts campaigns, takes and resolves red incidents |
 | Team admin | The setup script | Grants the first DAS employees |
 | Watch | Device actor, through the senior's phone | Detects anomalies, reports check-ins |
+| Home node **(P20, proposed)** | Device actor, through the senior's phone over Bluetooth | Reports room readings and motion, carries an SOS button, shows the code on a light |
 
 ## 2. Overview
 
@@ -22,6 +23,7 @@ flowchart LR
     ADM(["Team admin"])
     SEN(["Senior"])
     WAT(["Watch"])
+    NOD(["Home node"])
     CAR(["Caregiver"])
     MED(["Medic"])
     DAS(["DAS employee"])
@@ -31,6 +33,7 @@ flowchart LR
         UC01("UC-01 Register a senior")
         UC02("UC-02 Sign in by phone")
         UC03("UC-03 Connect a watch")
+        UC15("UC-15 Connect a home node")
         UC04("UC-04 Accept a patient, welcome call")
     end
 
@@ -41,12 +44,13 @@ flowchart LR
         UC08("UC-08 Nobody answers")
         UC09("UC-09 Watch anomaly starts a call")
         UC10("UC-10 Senior asks to be checked on")
+        UC16("UC-16 Home node starts a call")
     end
 
     subgraph FOLLOW["Following and responding"]
         UC11("UC-11 Handle a red incident")
         UC12("UC-12 Follow codes")
-        UC13("UC-13 Watch goes silent")
+        UC13("UC-13 Watch or home node goes silent")
     end
 
     ADM --- UC14
@@ -58,12 +62,16 @@ flowchart LR
     DAS --- UC02
     SEN --- UC03
     WAT --- UC03
+    SEN --- UC15
+    NOD --- UC15
     DAS --- UC04
     SEN --- UC04
     SEN --- UC05
     SEN --- UC10
     WAT --- UC09
     WAT --- UC13
+    NOD --- UC16
+    NOD --- UC13
     DAS --- UC05
     DAS --- UC07
     DAS --- UC11
@@ -76,9 +84,10 @@ flowchart LR
     UC05 -.-> UC08
     UC09 -.-> UC05
     UC10 -.-> UC05
+    UC16 -.-> UC05
 ```
 
-Dotted arrows mean "continues as": a watch anomaly or a senior's request starts the same call a campaign does, and that call ends in one of three ways.
+Dotted arrows mean "continues as": a watch or home node anomaly, or a senior's request, starts the same call a campaign does, and that call ends in one of three ways.
 
 ## 3. Access and enrollment
 
@@ -202,6 +211,28 @@ Variations:
 - **Watch replaced.** Pair the new watch with the phone; there is nothing to unbind.
 
 There are no pairing codes and no device tokens (G5). The watch belongs to whoever's phone it is paired with.
+
+### UC-15 Connect a home node
+
+**(P20, proposed)**
+
+| | |
+|---|---|
+| Actors | Senior, or a caregiver helping |
+| Starts when | The home node is plugged in at the senior's home and its light blinks slowly |
+| Before | The senior's Android phone has the app, signed in as the senior (UC-02), with Bluetooth on |
+| After | The node reports through the phone app; its light shows the senior's code |
+
+1. In the senior's role, the app's settings offer „Conectează senzorul din casă”.
+2. The app scans for devices advertising the Sentinela service and lists them by the last four characters of their address, which are also printed on the box.
+3. The senior or the caregiver picks the box. The phone bonds with it; the node accepts one bonded phone at a time.
+4. The app shows „Senzor din casă conectat” with the room temperature, and starts relaying readings.
+
+Variations:
+- **Node replaced, or a new phone.** Holding the node's button while plugging it in clears its bond; then bond again from the app.
+- **Phone out of range or off.** The node keeps its last SOS press and resends it on reconnection; readings are simply missed. FastAPI marks the node `offline` (UC-13).
+
+There are no pairing codes typed by the medic and no device tokens, as for the watch. The node belongs to whoever's phone it is bonded with.
 
 ### UC-04 Accept a patient, welcome call
 
@@ -383,7 +414,7 @@ sequenceDiagram
     T->>S: phone rings
     T->>F: status callback, no answer or voicemail
     F->>DB: attempt 1 unanswered
-    opt starting severity yellow (watch or senior request)
+    opt starting severity yellow (watch, home node or senior request)
         F->>DB: code yellow
         F->>P: alert to caregivers
     end
@@ -408,7 +439,7 @@ If the redial is answered, the call proceeds as UC-05, UC-06 or UC-07, and its r
 | | |
 |---|---|
 | Actors | Senior, watch, senior's phone app |
-| Starts when | The watch detects a pulse well above the wearer's resting level while they are not moving, or no steps for longer than the inactivity limit, or the senior taps "Nu mă simt bine" (G14) |
+| Starts when | The watch detects a pulse well above the wearer's resting level while they are not moving, or no steps for longer than the inactivity limit, or a fall **(P19, proposed)**, or the senior taps "Nu mă simt bine" (G14) |
 | Before | The watch is connected (UC-03) and worn |
 | After | A wellbeing call has been queued with starting severity yellow |
 
@@ -422,7 +453,7 @@ sequenceDiagram
     participant DB as Database
     participant T as Twilio
 
-    W->>W: pulse high at rest, or no steps past the limit
+    W->>W: pulse high at rest, no steps past the limit, or a fall
     W->>S: vibrates and asks „Sunteți bine?”
     alt taps Da
         S-->>W: Da
@@ -438,12 +469,13 @@ sequenceDiagram
 ```
 
 1. The watch compares the pulse with the wearer's own resting level and with movement. A high pulse during a walk is ignored. It also counts steps; a long stretch without any is an inactivity anomaly.
-2. The watch vibrates and asks „Sunteți bine?” with Da and Nu.
-3. Da ends it. Nu, or no reply before the prompt times out, sends an anomaly event to the phone app.
-4. The "Nu mă simt bine" button skips the prompt and sends the event at once.
-5. The phone app attaches its last known location and forwards the event to FastAPI.
-6. FastAPI records the event and queues a wellbeing call. The code does not change yet (P8).
-7. The senior's phone rings, and the call also shows on the wrist, which Wear OS does without any work from us.
+2. The watch also watches the accelerometer for a fall **(P19, proposed)**: free fall (the total acceleration below 0.4 g for a few tens of milliseconds), then an impact above 2.5 g within a second, then 10 to 20 seconds with almost no movement. Sitting down hard, walking and climbing stairs must not match; the false-alarm rate is measured ([06-operations.md](06-operations.md) section 5).
+3. The watch vibrates and asks „Sunteți bine?” with Da and Nu. After a fall the prompt times out sooner and also beeps.
+4. Da ends it. Nu, or no reply before the prompt times out, sends an anomaly event to the phone app.
+5. The "Nu mă simt bine" button skips the prompt and sends the event at once.
+6. The phone app attaches its last known location and forwards the event to FastAPI.
+7. FastAPI records the event and queues a wellbeing call. The code does not change yet (P8).
+8. The senior's phone rings, and the call also shows on the wrist, which Wear OS does without any work from us.
 
 Variations:
 - **Inactivity outside an active warning.** Recorded, and starts no call. Inactivity counts only while a heat or cold warning is active.
@@ -467,6 +499,63 @@ The watch never places a call. It tells the phone app, the phone app tells FastA
 3. The call proceeds as UC-05, UC-06, UC-07 or UC-08.
 
 This is also the demo trigger and the fallback for UC-09: it enters the same path, so it exercises the same code (D9).
+
+### UC-16 Home node starts a call
+
+**(P21, proposed)**
+
+| | |
+|---|---|
+| Actors | Senior, home node, senior's phone app |
+| Starts when | The room stays below the cold limit or above the heat limit for the hold time, or the node sees no motion for longer than the inactivity limit during an active warning, or the senior holds the node's SOS button |
+| Before | The node is connected (UC-15) |
+| After | A wellbeing call has been queued with starting severity yellow |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Senior
+    participant N as Home node
+    participant PA as Senior's phone app
+    participant F as FastAPI
+    participant DB as Database
+    participant T as Twilio
+
+    loop every reading interval
+        N->>PA: room reading: temperature, humidity, last motion
+        PA->>F: send room reading
+        F->>DB: keep as the latest reading
+    end
+    alt room out of range for the hold time
+        F->>DB: record a room event, queue call with starting severity yellow
+    else no motion past the limit during a warning
+        F->>DB: scheduler records an inactivity event, queue call
+    else SOS held for two seconds
+        S->>N: long press
+        N->>S: one beep
+        N->>PA: SOS press with a unique id
+        PA->>F: send event, with the last known location
+        F->>DB: record event, queue call with starting severity yellow
+        F-->>PA: recorded
+        PA->>N: recorded
+        N->>S: two beeps
+    end
+    F->>T: place call to the senior's number
+    Note over F,T: from here the call runs as UC-05, UC-06, UC-07 or UC-08
+```
+
+1. The phone app relays every room reading to FastAPI. FastAPI keeps only the latest one, and notes when the temperature first went out of range.
+2. If the temperature is still out of range after the hold time, FastAPI records a `room_cold` or `room_heat` event and queues a wellbeing call. Unlike inactivity, this needs no active warning: a cold room is itself the warning.
+3. During an active warning, the scheduler records an `inactivity` event from the node when the last motion is older than the inactivity limit, as for the watch.
+4. A two-second press of the SOS button sends an `sos_button` event through the phone, like the watch's button. The node beeps once on the press and twice when FastAPI has recorded it.
+5. The call proceeds as for a watch anomaly. The code does not change yet (P8). On the call, the latest room reading is also checked against the senior's answer about a warm or cool place ([03-status-model.md](03-status-model.md) section 3).
+
+Variations:
+- **A senior with both a watch and a node.** Each sends its own events; the cooldown attaches the second to the call the first one started.
+- **Room back in range before the hold time.** Nothing is recorded.
+- **Phone out of range.** Readings are missed and the node is marked `offline` (UC-13). An SOS press waits on the node until the phone is back.
+
+The node never places a call and never reaches the internet. It tells the phone app, the phone app tells FastAPI, and FastAPI decides.
 
 ## 5. Following and responding
 
@@ -508,23 +597,24 @@ Taking and resolving record what DAS did; neither changes the code.
 
 | Role | Sees |
 |---|---|
-| Caregiver | Their senior's code, the reason in a sentence, short call history, the watch's state |
-| Medic | A panel of all their patients with codes, yellow and red highlighted; per patient: registration details, enrollment and consent state, call history, full transcripts, the watch's state |
+| Caregiver | Their senior's code, the reason in a sentence, short call history, the watch's state, the home node's state and latest room reading |
+| Medic | A panel of all their patients with codes, yellow and red highlighted; per patient: registration details, enrollment and consent state, call history, full transcripts, the watch's state, the home node's state and latest room reading |
 | DAS employee, dashboard | All active seniors, red first; incidents by status; enrollment requests; staff and who is on duty; the campaign button; per senior: code, reason, call history, full transcripts, address and access details |
 | DAS employee, Android app | Red incidents only, open and in progress first, each with its status and who took it; per incident: full senior data, address and access details, location, the call and its transcript, "Deschide în Hărți", call buttons |
 
 Open Android screens update when a refresh arrives, with a slow timed re-read as the backstop. The dashboard re-reads every few seconds. A call that is ringing or live shows a "call in progress" badge.
 
-### UC-13 Watch goes silent
+### UC-13 Watch or home node goes silent
 
 | | |
 |---|---|
-| Actors | Watch, caregiver, medic |
-| Starts when | No check-in has arrived for longer than the silence limit, or a check-in says the watch is not worn |
-| After | The watch's state is `offline` or `not_worn`, visible as a device warning |
+| Actors | Watch, home node, caregiver, medic |
+| Starts when | No check-in has arrived for longer than the silence limit, or a check-in says the watch is not worn. For a home node: no room reading for longer than its silence limit |
+| After | The watch's state is `offline` or `not_worn`, or the home node's state is `offline`, visible as a device warning |
 
 1. The scheduler notices the missing check-ins and marks the watch `offline`. This also happens when the phone app, not the watch, has lost its connection. A check-in that reports "not worn" marks it `not_worn`.
 2. The caregiver and the medic see a device warning beside the senior. There is no alert and the code does not change.
 3. The next normal check-in sets the state back to `ok`.
+4. A home node with no room reading past its silence limit is marked `offline` the same way, and the next reading sets it back to `ok`. An offline node's last reading is not used on calls (P22).
 
-A silent watch is not evidence about the senior; it is evidence about the watch. Weather campaigns still reach that senior by phone.
+A silent watch or node is not evidence about the senior; it is evidence about the device. Weather campaigns still reach that senior by phone.
