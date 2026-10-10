@@ -8,7 +8,10 @@ The DAS web dashboard (spec G15): a React + Vite single-page app that calls the 
 dashboard/
 ├── src/
 │   ├── main.tsx       React root
-│   └── App.tsx        the app; today a single API health check
+│   ├── App.tsx        header with the API health check, then the board
+│   ├── IncidentBoard.tsx  incidents by status, re-read every 15 s (04 §6)
+│   ├── api.ts         typed API calls
+│   └── styles.css     Tailwind v4 + DaisyUI 5 entry, light and dark themes
 ├── index.html         Vite entry
 ├── vite.config.ts     dev server on 5173
 ├── tsconfig.json
@@ -21,7 +24,8 @@ dashboard/
 
 - The DAS team's screens: incidents, the red hand-over, live updates. What they show and do is in [02-use-cases.md](../docs/specs/sentinela/02-use-cases.md) and [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md).
 - All data comes from the API at `import.meta.env.VITE_API_URL`. No database access and no business rules here; permissions are enforced by FastAPI.
-- No router, state library or UI kit yet. Add one with the first feature that needs it, and say so.
+- Styling is Tailwind v4 (`@tailwindcss/vite`) with DaisyUI 5 components (`btn`, `card`, `badge`, `alert`). Use DaisyUI's semantic colours (`error`, `warning`, `success`, `base-*`) so both themes work, and write full class names: Tailwind only finds classes it can read in the source.
+- No router or state library yet. Add one with the first feature that needs it, and say so.
 
 ## Commands
 

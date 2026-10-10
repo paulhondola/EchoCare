@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import IncidentBoard from "./IncidentBoard";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -14,9 +15,12 @@ export default function App() {
   }, []);
 
   return (
-    <main>
-      <h1>Sentinela DAS</h1>
-      <p>API: {health}</p>
+    <main className="mx-auto max-w-7xl p-4">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 pb-2">
+        <h1 className="text-2xl font-bold">Sentinela DAS</h1>
+        <span className="text-sm text-base-content/60">API: {health}</span>
+      </header>
+      <IncidentBoard />
     </main>
   );
 }
