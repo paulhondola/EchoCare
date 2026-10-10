@@ -9,7 +9,12 @@ backend/
 ├── app/
 │   ├── main.py        FastAPI app; every route on the /api router, docs at /api/docs
 │   ├── settings.py    pydantic-settings from env / .env; check_environment() guard
-│   └── db.py          async engine (asyncpg), declarative Base for models
+│   ├── db.py          async engine (asyncpg), declarative Base for models
+│   ├── alarms.py      alarm phrases: normalization and tier 1 / tier 2 patterns (03 §4)
+│   ├── status.py      status engine: severity, certainty, matrix, combining (03 §3, §5, §6)
+│   ├── calls.py       call lifecycle: states and allowed transitions (03 §9)
+│   ├── incidents.py   incident lifecycle: open, in progress, resolved (G16, UC-11)
+│   └── models.py      SQLAlchemy tables and the constraints the database enforces (05)
 ├── alembic/
 │   ├── env.py         refuses to migrate any non-local database off Railway
 │   └── versions/      migrations, frozen once on main
