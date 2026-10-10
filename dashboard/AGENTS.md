@@ -8,7 +8,10 @@ The DAS web dashboard (spec G15): a React + Vite single-page app that calls the 
 dashboard/
 ├── src/
 │   ├── main.tsx       React root
-│   └── App.tsx        the app; today a single API health check
+│   ├── App.tsx        header with the API health check, then the board
+│   ├── IncidentBoard.tsx  incidents by status, re-read every 15 s (04 §6)
+│   ├── api.ts         typed API calls
+│   └── styles.css     plain CSS, light and dark
 ├── index.html         Vite entry
 ├── vite.config.ts     dev server on 5173
 ├── tsconfig.json
