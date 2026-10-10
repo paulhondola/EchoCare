@@ -43,4 +43,3 @@ def opens_incident(result: Severity, unresolved: bool) -> bool:
     A later red while one is open or in progress is added to that one, through the call.
     """
     return result is Severity.red and not unresolved
-
