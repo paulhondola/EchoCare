@@ -14,17 +14,26 @@ This is the skeleton: the phone app shows whether the API answers, and the watch
 
 | Tool | Needed for | Install |
 |---|---|---|
-| Android Studio, current stable | Everything here | [developer.android.com/studio](https://developer.android.com/studio) |
+| Android Studio, current stable | Editing, debugging, Compose previews | [developer.android.com/studio](https://developer.android.com/studio) |
+| [Android CLI](https://developer.android.com/tools/agents) (`android`) | Emulators, installing and launching, reading the screen, SDK packages, agent skills, from the terminal | Download from [developer.android.com/tools/agents](https://developer.android.com/tools/agents); it installs to `~/.local/bin/android`. Then `android update` |
 | Android SDK Platform 37 | Compiling both apps | Studio → Settings → Languages & Frameworks → Android SDK |
 | System images: Google Play phone (API 37), Wear OS 7.0 (API 37) | The emulators below | Same place, *SDK Platforms* tab, *Show Package Details* |
 | Docker Desktop | The local API, from the repository root | See the [root README](../README.md) |
 
 No separate JDK is needed. Gradle runs on JDK 25, which `gradle/gradle-daemon-jvm.properties` pins and Gradle downloads on its own. In Studio, leave **Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK** on the embedded JDK.
 
-`adb` and `emulator` come with the SDK but are not on the shell's path. Add them once:
+Check that the Android CLI found the SDK Studio installed:
 
 ```bash
-echo 'export PATH="$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/emulator:$PATH"' >> ~/.zshrc && source ~/.zshrc
+android info
+```
+
+It should print `sdk: /Users/you/Library/Android/sdk`. Android CLI sends basic usage data (command names, never output, paths or project names); add `--no-metrics` to a command to turn that off.
+
+`adb` is still needed for a few things the CLI does not cover (uninstalling, `logcat`, waking the screen). It comes with the SDK but is not on the shell's path. Add it once:
+
+```bash
+echo 'export PATH="$HOME/Library/Android/sdk/platform-tools:$PATH"' >> ~/.zshrc && source ~/.zshrc
 ```
 
 ## Set up once
@@ -55,7 +64,9 @@ sentinela.apiUrl=http://10.0.2.2:8000
 | `Senior_Phone` | Medium Phone, 1080 × 2400 | API 37, Google Play | The senior's phone: runs `app`, and later relays the watch |
 | `Senior_Watch` | Wear OS Large Round, 454 × 454 | Wear OS 7.0, API 37 | The senior's watch: runs `wear` |
 
-Emulators live in `~/.android/avd/` on each machine, so everyone creates their own. Create them in **Device Manager → +**, and name them by the role they play, so a multi-device test reads clearly. The next ones follow the same pattern:
+Emulators live in `~/.android/avd/` on each machine, so everyone creates their own. Create them in **Device Manager → +**, and name them by the role they play, so a multi-device test reads clearly. (`android emulator create` takes only a hardware profile, such as `medium_phone`; it cannot set the name or the system image yet.)
+
+The next ones follow the same pattern:
 
 | AVD | For |
 |---|---|
@@ -63,41 +74,93 @@ Emulators live in `~/.android/avd/` on each machine, so everyone creates their o
 | `Caregiver_Phone` | Receiving yellow and red alerts |
 | `DAS_Phone` | The DAS role's red incidents and the hand-over |
 
+Start, list and stop them from the terminal. `start` returns only once the device has finished booting, so the next command can use it straight away:
+
+```bash
+android emulator start Senior_Phone
+```
+
+```bash
+android emulator start Senior_Watch
+```
+
+```bash
+android emulator list --long
+```
+
+```bash
+android emulator stop Senior_Watch
+```
+
+`list --long` shows each emulator's serial (`emulator-5554`), which `--device` takes below. Add `--headless` to `start` to run without a window, or `--cold` to skip the saved snapshot.
+
 Keep the senior's phone on a **Google Play** image: pairing a watch emulator needs the Wear OS companion app from the Play Store. Pairing is in Device Manager → ⋮ next to the watch → *Pair Wearable*. The skeleton does not need it yet; the Data Layer will (UC-03).
 
-If Studio's Edit dialog only changes the name it shows, `emulator -list-avds` keeps the old ID. A full rename means renaming `<id>.avd/` and `<id>.ini`, then the ID in `<id>.ini`, `config.ini` and `snapshots/default_boot/hardware.ini`, with the emulator stopped.
+`android emulator list` shows each AVD's ID (what `start` takes) and its name in Studio. If Studio's Edit dialog changes only the name, the ID stays. A full rename means renaming `<id>.avd/` and `<id>.ini`, then the ID in `<id>.ini`, `config.ini` and `snapshots/default_boot/hardware.ini`, with the emulator stopped.
 
 ## Run it
 
-**Against the local API.** From the repository root, start the stack:
+Start the local stack from the repository root:
 
 ```bash
 docker compose up --watch
 ```
 
-In Studio, choose the run configuration `app` with the device **Senior Phone**, and press Run. Android 17 blocks apps from private addresses such as `10.0.2.2` unless they hold the runtime permission `ACCESS_LOCAL_NETWORK`. Debug builds declare it, so grant it once after each fresh install:
+### From Android Studio
+
+Choose the run configuration `app` with the device **Senior Phone**, or `wear` with **Senior Watch**, and press Run. Android 17 blocks apps from private addresses such as `10.0.2.2` unless they hold the runtime permission `ACCESS_LOCAL_NETWORK`. Debug builds declare it, but Studio's install does not grant it, so after a fresh install from Studio grant it once:
 
 ```bash
 adb shell pm grant bia.sentinela android.permission.ACCESS_LOCAL_NETWORK
 ```
 
-Reopen the app. It shows **API ok (local)**. With the stack stopped, it shows **API unreachable: …**.
+### From the terminal, with Android CLI
 
-**Against staging.** Remove `sentinela.apiUrl` from `local.properties`, sync, and run. It shows **API ok (staging)**. Staging is public HTTPS, so no permission is needed.
-
-**Against production.** Switch the variant to `release` (View → Tool Windows → Build Variants) and run. It shows **API ok (production)**.
-
-**The watch.** Choose the run configuration `wear` with the device **Senior Watch**.
-
-From the command line, with one device connected (add `-s <serial>` from `adb devices` when there are several):
+`android run` installs and launches APKs; it does not compile them, so build first. From `android/`:
 
 ```bash
-./gradlew :app:installDebug
+./gradlew :app:assembleDebug
 ```
 
 ```bash
-./gradlew :wear:installDebug
+android run --device=emulator-5554 --apks=app/build/outputs/apk/debug/app-debug.apk --install-options=-g
 ```
+
+`-g` grants every runtime permission at install, `ACCESS_LOCAL_NETWORK` included, so this path needs no `pm grant`. The watch is the same with its own APK and serial:
+
+```bash
+./gradlew :wear:assembleDebug
+```
+
+```bash
+android run --device=emulator-5556 --apks=wear/build/outputs/apk/debug/wear-debug.apk
+```
+
+`android describe --project_dir=.` lists every module's variants and APK paths, and whether each has been built. `android install` takes the same flags as `run` but does not launch the app.
+
+### Check what is on the screen
+
+Read the screen's text as JSON, without a screenshot:
+
+```bash
+android layout --device=emulator-5554 --flat
+```
+
+Or save a screenshot:
+
+```bash
+android screen capture --device=emulator-5554 -o phone.png
+```
+
+An emulator's screen goes to sleep after a while. `layout` then shows only the status bar and `screen capture` a black image, although the app is running. Wake it with `adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP`.
+
+### What you should see
+
+| Variant | API | Screen | How |
+|---|---|---|---|
+| `debug` | local Compose, through `sentinela.apiUrl` | **API ok (local)**, or **API unreachable: …** with the stack down | As above |
+| `debug` | staging | **API ok (staging)** | Remove `sentinela.apiUrl` from `local.properties` and rebuild. Staging is public HTTPS, so no permission is needed |
+| `release` | production | **API ok (production)** | `./gradlew :app:assembleRelease`, then `android run` with `app/build/outputs/apk/release/app-release.apk`, or the `release` variant in Studio (View → Tool Windows → Build Variants) |
 
 | Variant | API | R8 | Cleartext HTTP, local network |
 |---|---|---|---|
@@ -105,6 +168,38 @@ From the command line, with one device connected (add `-s <serial>` from `adb de
 | `release` | production | On | Not allowed |
 
 Both variants are signed with the shared key, so a release build installs over a debug build and the other way round.
+
+## Working with an AI agent
+
+Android CLI is built for coding agents as much as for people: the commands above are what an agent uses to build, install, look at the screen and check its work. Two more things make agents better at Android:
+
+**Skills.** Set up Android CLI for agents. This installs the `android-cli` skill, which teaches an agent how to use the CLI:
+
+```bash
+android init
+```
+
+Then add the skills that match this project, one per command. Each is a set of official instructions the agent loads when the task fits. Without `--agent`, a skill is installed for every agent Android CLI detects:
+
+```bash
+for skill in wear-compose-m3 navigation-3 adaptive edge-to-edge r8-analyzer testing-setup android-permissions-security; do android skills add --agent=claude-code "$skill"; done
+```
+
+| Skill | Why it fits Sentinela |
+|---|---|
+| `wear-compose-m3` | The watch app's Compose for Wear OS, Material 3 |
+| `navigation-3` | The role screens, when Navigation arrives |
+| `adaptive` | The medic's tablet layout and list-detail panes |
+| `edge-to-edge` | Android 15+ draws behind the system bars; the app already calls `enableEdgeToEdge()` |
+| `r8-analyzer` | Release-only R8 problems, like the one that crashed the first release build |
+| `testing-setup` | Unit tests for `:shared` and the app |
+| `android-permissions-security` | Runtime permissions: local network now; location, sensors and notifications later |
+
+`android skills list` shows every available skill; `--agent=claude-code` shows the ones installed. `--project=<path>` installs a skill into a project instead of for your user.
+
+**Documentation.** `android docs search "<keywords>"` searches the official Android documentation, and `android docs fetch kb://…` reads an article it found, so an agent can check an API instead of guessing.
+
+**Android Studio.** With Studio open on this project, `android studio render-compose-preview <file> <composable> --output-image-file=preview.png` renders a `@Preview` to an image, and `android studio find-usages <symbol>` and `find-declaration` answer code questions from Studio's index.
 
 ## Test and lint
 
@@ -145,13 +240,15 @@ CI signs with the keystore from the GitHub secrets `ANDROID_KEYSTORE_BASE64` and
 
 | Symptom | Cause and fix |
 |---|---|
-| `INSTALL_FAILED_UPDATE_INCOMPATIBLE: … signatures do not match` | The device has a build signed with another key, typically from before the shared keystore. Uninstall once: `adb uninstall bia.sentinela` |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE: … signatures do not match`, from Studio, `android run` or `adb` | The device has a build signed with another key, typically from before the shared keystore. Uninstall once: `adb -s <serial> uninstall bia.sentinela` |
 | `Failed to read key key0 … Given final block not properly padded` | `sentinela.key.password` is wrong. Studio's New Key Store dialog lets the key password differ from the store password, which PKCS12 does not support. Recreate the keystore with `keytool -genkeypair -storetype PKCS12 -alias key0 …` |
 | The build fails at signing and names the signing config `shared` | The three keystore lines are missing from `local.properties`, or the path is wrong |
-| `API unreachable: failed to connect to /10.0.2.2 … after 10000ms` | `ACCESS_LOCAL_NETWORK` is not granted (see [Run it](#run-it)), or the Compose stack is down. A timeout rather than "connection refused" usually means the permission |
+| `API unreachable: failed to connect to /10.0.2.2 … after 10000ms` | `ACCESS_LOCAL_NETWORK` is not granted, or the Compose stack is down. A timeout rather than "connection refused" usually means the permission: install with `android run … --install-options=-g`, or grant it with `adb shell pm grant` (see [Run it](#run-it)) |
 | `API unreachable: HTTP 404` | The API image is older than the `/api` prefix. Start it with `docker compose up --watch`, or rebuild with `docker compose up -d --build api` |
-| A release build closes as soon as it opens | An R8 problem. Read the crash with `adb logcat -b crash`, and map obfuscated names back through `app/build/outputs/mapping/release/mapping.txt` |
-| `adb: more than one device/emulator` | Add `-s emulator-5554` (from `adb devices`), or set `ANDROID_SERIAL` |
+| A release build closes as soon as it opens | An R8 problem. Read the crash with `adb logcat -b crash`, and map obfuscated names back through `app/build/outputs/mapping/release/mapping.txt`. The `r8-analyzer` skill helps an agent with this |
+| `android layout` shows only the clock, or `android screen capture` is black | The emulator's screen is asleep; the app is still running. `adb -s <serial> shell input keyevent KEYCODE_WAKEUP` |
+| `adb: more than one device/emulator` | Name the device: `--device=emulator-5554` for `android`, `-s emulator-5554` for `adb`. `android emulator list --long` shows the serials |
+| `zsh: command not found: android` | `~/.local/bin` is not on the path. Add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` |
 | `zsh: command not found: adb` | The SDK tools are not on the path; see [Tools](#tools) |
 
 ## What is not built yet

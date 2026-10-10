@@ -16,6 +16,7 @@ Sentinela checks on seniors living alone with automated phone calls, a Wear OS w
 |---|---|---|
 | Docker Desktop (Compose v2.24+) | The whole local environment | [docker.com](https://www.docker.com/products/docker-desktop/) |
 | Android Studio | The Android and Wear OS apps | [developer.android.com/studio](https://developer.android.com/studio) |
+| Android CLI (`android`) | Emulators, installing and inspecting the apps from the terminal; agent skills | [developer.android.com/tools/agents](https://developer.android.com/tools/agents) |
 | uv | Backend development outside Docker (IDE, pytest, ruff) | `brew install uv` |
 | Node.js 26 + npm | Dashboard development outside Docker; `.railway/` | `brew install node` |
 | Railway CLI | Applying `.railway/`, logs, SSH into deployments | `brew install railway` |
