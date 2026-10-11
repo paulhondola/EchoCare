@@ -68,6 +68,39 @@ Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's
 docker compose exec db createdb -U sentinela sentinela_test
 ```
 
+## Sign in by hand
+
+Every client signs in with a phone number ([auth-layer.md](../docs/specs/auth-layer.md)). With the laptop key in `.env` as `FIREBASE_SERVICE_ACCOUNT`, these Firebase test numbers need no SMS:
+
+| Number | Code | Granted as |
+|---|---|---|
+| `+40700000001` | `111111` | DAS |
+| `+40700000002` | `222222` | medic |
+| `+40700000003` | `333333` | DAS and medic |
+| `+40700000009` | `999999` | nothing |
+
+Grants live in each environment's database. Locally, grant DAS with the setup script (on Railway, run the same inside `railway ssh -s api -e staging`):
+
+```bash
+docker compose exec api python scripts/grant_das.py "DAS Test" +40700000001
+```
+
+A real token for any number, valid for an hour. Paste it into Authorize at http://localhost:8000/api/docs, or use it with curl:
+
+```bash
+TOKEN=$(uv run python scripts/dev_token.py +40700000001)
+```
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/me
+```
+
+A DAS grants medics through the API:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"display_name": "Medic Test", "phone": "+40700000002", "role": "medic", "practice": "CMI Test"}' localhost:8000/api/staff
+```
+
 ## Migrations
 
 Run inside the Compose container. Files written there land in `alembic/versions/` on the host through a bind mount.
