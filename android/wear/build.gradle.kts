@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ktlint)
 }
 
 val localProps = Properties().apply {
@@ -31,7 +32,6 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
-
     }
 
     buildTypes {
