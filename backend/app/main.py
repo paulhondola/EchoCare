@@ -8,11 +8,11 @@ from pydantic import BaseModel, StringConstraints, field_validator, model_valida
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import Caller, current_caller, init_firebase, refuse, require_roles
+from app.auth import Caller, current_caller, refuse, require_roles
 from app.db import engine, get_session
 from app.models import Role
 from app.phones import is_mobile, normalize
-from app.settings import check_environment, check_firebase, get_settings
+from app.settings import check_environment, get_settings
 from app.staff import grant_staff
 
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
@@ -21,8 +21,6 @@ logging.getLogger("sentinela").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
-check_firebase(settings)
-init_firebase(settings.firebase_service_account)
 
 # Everything under /api, docs included, so the API and the dashboard can share one domain.
 app = FastAPI(

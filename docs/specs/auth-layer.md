@@ -28,8 +28,8 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | AL7 | At most one `senior` grant per user. When a couple shares one mobile, the second senior has no app role and still receives every call | The rule is recorded now; the seniors migration adds its index |
 | AL8 | A senior outside the caller's reach answers 404 `not_found` | Applies to later endpoints; shows a stranger and a revoked caregiver the same thing |
 | AL9 | The refusal contract in §3.2 | Extends 04 §0 |
-| AL10 | `firebase-admin` with a service account. No revocation check. The `phone_number` claim is required. Any sign-in provider is accepted when the token carries `phone_number` | Grants give instant revocation. Accepting any provider lets `dev_token.py`'s custom tokens work, and minting them needs the private key |
-| AL11 | The service account's JSON lives in `FIREBASE_SERVICE_ACCOUNT`. There are two keys: one for Railway and one for laptops, kept in the team password manager. On Railway the API refuses to start without it; a laptop starts with a warning and answers 503 | §9 gives the order |
+| AL10 | `firebase-admin`, verifying against Google's public keys. No revocation check. The `phone_number` claim is required. Any sign-in provider is accepted when the token carries `phone_number` | Grants give instant revocation |
+| AL11 | No service account key anywhere. The API starts the Admin SDK with the project id `sentinela-8f474` and a placeholder credential, because verifying needs nothing more. `dev_token.py` signs a test number in through Firebase's REST API with the public web key | The organisation policy `iam.disableServiceAccountKeyCreation` blocks keys, and a key is a secret that never expires |
 | AL12 | `phonenumbers` with region `RO`, stored as E.164. Staff numbers must be mobiles | Staff sign in by SMS |
 | AL13 | Every environment uses the real Firebase project and its test numbers. Pytest replaces the token verifier through a dependency override; production code has a single verification path | §5 |
 | AL14 | `grant_das.py` grants DAS only. Medics are granted through `POST /api/staff` | G6 |
@@ -69,7 +69,7 @@ The body is FastAPI's own shape: `{"detail": {"reason": "<reason>"}}`. A 401 als
 | 403 | `not_allowed` | The caller has grants, but none permits this request | Shows a generic error and stays signed in |
 | 404 | `not_found` | The thing does not exist, or a senior outside the caller's reach (AL8) | Shows "not found" |
 | 409 | `already_done` | `POST /api/staff` for a grant the number already holds | Shows "already granted" |
-| 503 | `auth_unavailable` | No service account configured (laptop only), or Google's public keys cannot be fetched | Shows „Autentificarea nu este disponibilă acum. Încercați din nou.” and stays signed in |
+| 503 | `auth_unavailable` | Google's public keys cannot be fetched | Shows „Autentificarea nu este disponibilă acum. Încercați din nou.” and stays signed in |
 
 ### 3.3 `GET /api/me`
 
@@ -194,18 +194,18 @@ Test numbers suit staff and caregivers. A **senior's** number must be a real tea
 | `app/phones.py` | `normalize()`, `is_mobile()` (§3.5) |
 | `app/models.py` | `Role`, `User`, `Grant` (§4) |
 | `app/db.py` | adds an `async_sessionmaker` and a `get_session` dependency next to the existing `engine` |
-| `app/settings.py` | `firebase_service_account: str \| None = None`, plus a startup check that refuses to run on Railway without it |
 | `app/auth.py` | Firebase initialisation; `verify_token`, a plain `def` dependency that returns the claims; `Caller` (the user, the grants, a `roles` set); the `current_caller` and `require_roles(*roles)` dependencies; the refusals of §3.2; the logging of AL15 |
 | `app/staff.py` | `grant_staff(session, display_name, phone_e164, role, practice, granted_by) -> created: bool`, shared by the route and the script |
 | `app/main.py` | `GET /api/me` and `POST /api/staff` on the `api` router; an `HTTPBearer(auto_error=False)` scheme so Swagger shows *Authorize* |
 | `scripts/grant_das.py` | `python scripts/grant_das.py "<name>" <phone>`: validates like §3.4, grants `das` with no `granted_by`, prints `granted` or `already granted`, exits 0; an invalid number exits 2 |
-| `scripts/dev_token.py` | `python scripts/dev_token.py <phone>`: finds or creates the Firebase user for the number (`auth.get_user_by_phone_number`, `auth.create_user`), mints a custom token, exchanges it at `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=<web API key>` with `{"token": …, "returnSecureToken": true}` using stdlib `urllib`, and prints the `idToken`. The web API key is the public `VITE_FIREBASE_API_KEY` from `.railway/railway.ts` |
+| `scripts/dev_token.py` | `python scripts/dev_token.py <phone> <code>`, for a test number of §5: calls `https://identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=<web API key>` with `{"phoneNumber": …, "recaptchaToken": "dev"}`, then `accounts:signInWithPhoneNumber` with the `sessionInfo` and the code, using stdlib `urllib`, and prints the `idToken`. The web API key is the public `VITE_FIREBASE_API_KEY` from `.railway/railway.ts` |
 | `alembic/versions/<rev>_users_and_grants.py` | the migration (§4) |
 | `tests/conftest.py` and `tests/test_*.py` | §6.4 |
 
 ### 6.2 Facts that are hard to find by looking
 
-- **`verify_id_token` needs a credential.** With only a project id it raises `DefaultCredentialsError`; this was probed with firebase-admin 7.7.0 on Python 3.14, where it installs cleanly. Initialise with `credentials.Certificate(json.loads(settings.firebase_service_account))`, at startup and only when the setting is present.
+- **`verify_id_token` loads a credential it never uses.** With only a project id it raises `DefaultCredentialsError`, because the SDK's auth client calls `get_credential()` when it is built. A `credentials.Base` subclass that returns `google.auth.credentials.AnonymousCredentials()` satisfies it; verification itself needs only the project id and Google's public keys. Probed with firebase-admin 7.7.0 on Python 3.14.
+- **Test numbers sign in over REST.** For a test number, `accounts:sendVerificationCode` accepts any `recaptchaToken` string, so `dev_token.py` needs no service account.
 - **Exception mapping.** `CertificateFetchError` maps to 503 `auth_unavailable`. Every other error from `verify_id_token`, and a `ValueError` from a malformed token, maps to 401 `not_signed_in`. The returned claims carry the Firebase user id as `uid`.
 - **firebase-admin is synchronous.** A plain `def` dependency runs in FastAPI's thread pool, which keeps the live-call WebSockets responsive (01 §8). Google's public keys are cached by the SDK.
 - **Alembic only sees imported models.** `alembic/env.py` imports `app.db.Base` alone. Add `import app.models  # noqa: F401` there, so autogenerate sees the tables.
@@ -223,13 +223,13 @@ Each step is done when its criterion holds.
 1. **Dependencies.** `uv add firebase-admin phonenumbers`, and `uv add --dev pytest-asyncio httpx`. *Done:* `uv sync --locked` succeeds and `uv.lock` is committed.
 2. **`app/phones.py`.** *Done:* a test asserts every row of the table in §3.5.
 3. **Models and migration.** Write the models and add the import to `alembic/env.py`. Then generate the migration inside Compose, as `backend/AGENTS.md` says, and review it against §4. *Done:* `alembic upgrade head` on a fresh `sentinela_test` creates exactly `users` and `grants` with every constraint in §4, and `alembic downgrade base` removes them.
-4. **Settings and startup.** *Done:* tests in `tests/test_settings.py`, next to the existing guard tests, show three things. The startup check refuses to run on Railway without the key. It starts off Railway without the key. And `verify_token` then answers 503 `auth_unavailable`.
+4. **Keyless startup.** *Done:* a test in `tests/test_verify.py` shows that, with no credential on the machine, `verify_token` answers a malformed token with 401 `not_signed_in`.
 5. **`app/auth.py`.** *Done:* the refusal matrix in §6.4 passes.
 6. **`app/staff.py` and both routes.** *Done:* the `/me` and `/staff` tests in §6.4 pass, and `/api/docs` shows *Authorize*.
 7. **Scripts.** *Done:* a test runs `grant_das.py`'s entry function twice against the test database and sees `granted`, then `already granted`. `dev_token.py` is checked in step 10.
 8. **CI.** Add a `postgres:18` service to `.github/workflows/backend.yml` with user and password `sentinela` and database `sentinela_test`, and set `DATABASE_URL` for the test step. *Done:* the workflow passes on the branch.
 9. **Docs.** Make the changes in §6.6. *Done:* every row of §6.6 is changed.
-10. **Real-token check.** This needs the laptop key in `backend/.env`. Start Compose, grant `+40700000001` with `grant_das.py`, run `dev_token.py +40700000001`, then `curl -H "Authorization: Bearer <token>" localhost:8000/api/me`. *Done:* the response is 200 with a `das` grant. If the response is 401 because the token has no `phone_number` claim, stop and report it with the token's decoded claims, and leave the verifier unchanged. If the laptop key is not available yet, report that this step is waiting on it.
+10. **Real-token check.** Start Compose, grant `+40700000001` with `grant_das.py`, run `dev_token.py +40700000001 111111`, then `curl -H "Authorization: Bearer <token>" localhost:8000/api/me`. *Done:* the response is 200 with a `das` grant. If the response is 401 because the token has no `phone_number` claim, stop and report it with the token's decoded claims, and leave the verifier unchanged.
 
 ### 6.4 Test checklist
 
@@ -297,9 +297,6 @@ The contract and the docs move together (root `AGENTS.md`).
 | `docs/specs/sentinela/02-use-cases.md` UC-02 step 5 | "Several roles" instead of "several grants" |
 | `docs/specs/sentinela/05-data-model.md` §3 and §4 | At most one senior grant per user (enforced with the seniors migration); the `firebase_uid` overwrite rule |
 | `docs/specs/sentinela/06-operations.md` §4 | The logging rule (AL15) |
-| `docs/adr/ADR-001-monorepo-and-delivery.md`, the `api` variables table | A `FIREBASE_SERVICE_ACCOUNT` row |
-| `.railway/railway.ts` | `FIREBASE_SERVICE_ACCOUNT: preserve()` in the `api` service's `env` (check the SDK's export name). A person applies it (§9) |
-| `backend/.env.example` | `FIREBASE_SERVICE_ACCOUNT=`, with a comment: the laptop key from the password manager, as JSON on one line in single quotes |
 | `backend/AGENTS.md` | The layout gains the new modules and `scripts/` |
 | `backend/README.md` | The test numbers (§5); how to grant locally; how to use `dev_token.py` with Swagger's *Authorize* and with curl |
 
@@ -307,9 +304,9 @@ The contract and the docs move together (root `AGENTS.md`).
 
 **Branch:** `auth-dashboard`, in its own worktree, cut from `main` after slice 1 has merged. **Read first:** [dashboard/AGENTS.md](../../dashboard/AGENTS.md), then §1 to §5 of this file.
 
-**Local setup.** Compose's API needs the laptop key in `backend/.env`; without it every protected request answers 503. Grant the test numbers locally:
+**Local setup.** Grant the test numbers locally:
 - DAS: `docker compose exec api python scripts/grant_das.py "DAS Test" +40700000001`, and the same for `…003`.
-- Medic: make `…002` and `…003` medics through `POST /api/staff`, with a token from `dev_token.py +40700000001` (`backend/README.md`).
+- Medic: make `…002` and `…003` medics through `POST /api/staff`, with a token from `dev_token.py +40700000001 111111` (`backend/README.md`).
 
 ### 7.1 Behaviour
 
@@ -463,15 +460,12 @@ Report each of these observations, with screenshots from `android screen capture
 
 Steps marked *person* are done by a team member; agents leave cloud environments alone (root `AGENTS.md`).
 
-1. *Person.* In the Firebase console (Project settings → Service accounts), generate two keys for the Admin SDK service account. Put one in the team password manager as the laptop key.
-2. *Person.* Set the other key on staging with `railway variable set FIREBASE_SERVICE_ACCOUNT --stdin -s api -e staging`. Do this before slice 1 merges. Without it, staging's new deploy refuses to start, its health check fails, and Railway keeps the old deploy running.
-3. *Person.* Register the Android app `bia.sentinela` in Firebase and download `google-services.json` for slice 3. Registering the SHA-1 and SHA-256 of the shared keystore (ADR-001 action item 3) is needed for real numbers on real devices, but not for test numbers on debug builds.
-4. Slice 1 merges to `main`. Staging migrates in its pre-deploy step.
-5. *Person.* From a checkout that includes slice 1's `preserve()` line, run `railway config plan --environment staging` from `.railway/`. Confirm it removes no variables, then apply. Between steps 2 and 5, an apply from an older checkout deletes `FIREBASE_SERVICE_ACCOUNT`, because the file manages every variable.
-6. *Person.* Inside staging's `api` container (`railway ssh`), run `python scripts/grant_das.py "DAS Test" +40700000001`, and the same for `+40700000003`.
-7. With the laptop key, `dev_token.py +40700000001` gives a token for staging's `POST /api/staff`. Use it to grant `+40700000002` and `+40700000003` as medics.
-8. Slices 2 and 3 run in parallel, each in its own worktree and PR.
-9. *Person.* Before promoting `main` to `release`, repeat steps 2, 5 and 6 for production.
+1. *Person.* Register the Android app `bia.sentinela` in Firebase and download `google-services.json` for slice 3. Registering the SHA-1 and SHA-256 of the shared keystore (ADR-001 action item 3) is needed for real numbers on real devices, but not for test numbers on debug builds.
+2. Slice 1 merges to `main`. Staging migrates in its pre-deploy step.
+3. *Person.* Inside staging's `api` container (`railway ssh`), run `python scripts/grant_das.py "DAS Test" +40700000001`, and the same for `+40700000003`.
+4. `dev_token.py +40700000001 111111` gives a token for staging's `POST /api/staff`. Use it to grant `+40700000002` and `+40700000003` as medics.
+5. Slices 2 and 3 run in parallel, each in its own worktree and PR.
+6. *Person.* Before promoting `main` to `release`, repeat step 3 for production.
 
 ## 10. Later, outside this layer
 
@@ -482,7 +476,7 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |
 | The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7; the senior-scoped helper for §3.6; `/me`'s senior names | The seniors work (UC-01) |
 | `warning_active` on `/me` | The campaign work (UC-05) |
-| Narrowing the service account's rights, App Check, rate limits | Before a pilot |
+| App Check, rate limits | Before a pilot |
 
 ## 11. Facts still to confirm
 

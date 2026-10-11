@@ -8,7 +8,7 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 backend/
 ├── app/
 │   ├── main.py        FastAPI app; every route on the /api router, docs at /api/docs
-│   ├── settings.py    pydantic-settings from env / .env; check_environment(), check_firebase()
+│   ├── settings.py    pydantic-settings from env / .env; check_environment()
 │   ├── db.py          async engine (asyncpg), Session and get_session, declarative Base
 │   ├── models.py      tables (05), only those the built features use
 │   ├── auth.py        Firebase token check, the caller and their grants, refusals (auth-layer §3)
@@ -16,7 +16,7 @@ backend/
 │   └── phones.py      phone numbers to E.164
 ├── scripts/
 │   ├── grant_das.py   the setup script (G6), run inside the api container
-│   └── dev_token.py   a real sign-in token for a phone number, for curl and Swagger
+│   └── dev_token.py   a real sign-in token for a test number, for curl and Swagger
 ├── alembic/
 │   ├── env.py         refuses to migrate any non-local database off Railway
 │   └── versions/      migrations, frozen once on main

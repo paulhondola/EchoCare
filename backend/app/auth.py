@@ -3,12 +3,12 @@
 The refusals and their reasons are auth-layer §3.2; the steps are auth-layer §3.1.
 """
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Annotated, Any
 
 import firebase_admin
+import google.auth.credentials
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
@@ -25,35 +25,25 @@ log = logging.getLogger("sentinela.auth")
 # gives Swagger its Authorize button.
 bearer = HTTPBearer(auto_error=False)
 
-_firebase: firebase_admin.App | None = None
+# One Firebase project serves every environment (auth-layer AL13).
+FIREBASE_PROJECT_ID = "sentinela-8f474"
+
+
+class _NoKey(credentials.Base):
+    """No service account (auth-layer AL11). Verifying a token needs only the project id
+    and Google's public keys, but the Admin SDK loads a credential before it verifies."""
+
+    def get_credential(self) -> google.auth.credentials.Credentials:
+        return google.auth.credentials.AnonymousCredentials()
+
+
+_firebase = firebase_admin.initialize_app(_NoKey(), {"projectId": FIREBASE_PROJECT_ID})
 
 
 def refuse(status: int, reason: str) -> HTTPException:
     """A refusal in the shape every client parses: {"detail": {"reason": ...}}."""
     headers = {"WWW-Authenticate": "Bearer"} if status == 401 else None
     return HTTPException(status, {"reason": reason}, headers=headers)
-
-
-def init_firebase(service_account: str | None) -> None:
-    """Starts the Admin SDK once, when this machine has the key (auth-layer AL11)."""
-    global _firebase
-    if not service_account:
-        log.warning(
-            "FIREBASE_SERVICE_ACCOUNT is not set: protected requests answer 503"
-        )
-        return
-    if _firebase is not None:
-        return
-    try:
-        # JSONDecodeError and a malformed key are ValueErrors; a JSON string makes
-        # Certificate look for a file, an OSError.
-        cert = credentials.Certificate(json.loads(service_account))
-    except ValueError, OSError:
-        raise SystemExit(
-            "FIREBASE_SERVICE_ACCOUNT is not a service account key: paste the key "
-            "file's JSON on one line, in single quotes"
-        ) from None
-    _firebase = firebase_admin.initialize_app(cert)
 
 
 def verify_token(
@@ -67,8 +57,6 @@ def verify_token(
     if creds is None:
         log.info("refused not_signed_in: no bearer token")
         raise refuse(401, "not_signed_in")
-    if _firebase is None:
-        raise refuse(503, "auth_unavailable")
     try:
         return auth.verify_id_token(creds.credentials, app=_firebase)
     except auth.CertificateFetchError:

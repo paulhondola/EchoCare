@@ -157,7 +157,6 @@ Revisit after the hackathon, if needed, with "Focused PR environments" so that o
 | `DATABASE_URL` | `api` | `${{Postgres.DATABASE_URL}}`, private network. Railway names the service `Postgres`, and references are case-sensitive |
 | `ALLOWED_ORIGIN` | `api` | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` (the single CORS origin, 01 §4 channel 3) |
 | `PUBLIC_BASE_URL` | `api` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`, used for Twilio addresses and for checking Twilio's signature |
-| `FIREBASE_SERVICE_ACCOUNT` | `api` | Secret: the Firebase Admin SDK service account's JSON, set with `railway variable set` and declared with `preserve()` ([auth-layer.md](../specs/auth-layer.md) AL11, §9) |
 | `VITE_API_URL` | `dashboard` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`. Vite writes it into the bundle at build time, so changing it means rebuilding |
 | `DEMO_MODE` | `api` | On in every environment for the hackathon (06 §3); per-environment values are in "Three environments" below |
 
@@ -378,7 +377,7 @@ flowchart LR
 | `SCHEDULER_ENABLED` | `true` | `true` | `true` |
 | `DEMO_MODE` | `true` | `true` | `true` for the demo; `false` is the pilot setting |
 | Twilio credentials and number | Same account and number in all three | ← | ← |
-| Firebase service account | Same project in all three | ← | ← |
+| Firebase project | Same project in all three | ← | ← |
 | Model provider key | A personal key, so local spending shows separately | Team key | Team key |
 
 **The external services are shared, and that is safe:**
@@ -650,7 +649,7 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 | End-to-end runs with Twilio | Real calls cost money and need real phones. Covered by the rehearsal in 06 §5 |
 | Launching a release build | Only release builds run R8, and R8 bugs appear at run time, not at build time. The wizard's partial mode (`optimization { packageScope = … }`) crashed every release build at startup with an `IllegalAccessError`, so R8 now processes the whole app. Before a release build reaches the demo devices, someone launches it on an emulator or a phone |
 
-**Secrets in GitHub:** the keystore with its passwords, and a Firebase service account for App Distribution. That is all. Twilio, model provider and Firebase admin credentials stay in Railway's variables (06 §4). Railway pulls from GitHub itself, so GitHub never needs a Railway token.
+**Secrets in GitHub:** the keystore with its passwords, and a Firebase service account for App Distribution. That is all. Twilio and model provider credentials stay in Railway's variables (06 §4). The API holds no Firebase credential ([auth-layer.md](../specs/auth-layer.md) AL11). Railway pulls from GitHub itself, so GitHub never needs a Railway token.
 
 `google-services.json` is committed. It holds identifiers, not secrets, and access is protected by the registered SHA fingerprints and by FastAPI checking every token.
 

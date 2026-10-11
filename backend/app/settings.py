@@ -25,9 +25,6 @@ class Settings(BaseSettings):
     allowed_origin: str = "http://localhost:5173"
     scheduler_enabled: bool = True
     demo_mode: bool = True
-    # The Firebase Admin SDK service account: the key file's JSON on one line
-    # (auth-layer AL11). Without it a laptop starts, and protected requests answer 503.
-    firebase_service_account: str | None = None
 
     @field_validator("database_url")
     @classmethod
@@ -69,15 +66,6 @@ def check_environment(settings: Settings) -> None:
             f"{db_host(settings.database_url)}. Set SCHEDULER_ENABLED=false to debug "
             "against a cloud database."
         )
-
-
-def check_firebase(settings: Settings) -> None:
-    """On Railway, refuse to start without the service account (auth-layer AL11).
-
-    The health check then fails and Railway keeps the previous deploy serving.
-    """
-    if on_railway() and not settings.firebase_service_account:
-        raise SystemExit("Refusing to start: FIREBASE_SERVICE_ACCOUNT is not set.")
 
 
 @lru_cache

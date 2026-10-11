@@ -44,7 +44,6 @@ cp .env.example .env
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
-| `FIREBASE_SERVICE_ACCOUNT` | the laptop key from the team password manager, its JSON on one line in single quotes | Verifies sign-in tokens. Without it the API starts and protected requests answer 503; on Railway the API refuses to start |
 
 ## Test and lint
 
@@ -70,7 +69,7 @@ docker compose exec db createdb -U sentinela sentinela_test
 
 ## Sign in by hand
 
-Every client signs in with a phone number ([auth-layer.md](../docs/specs/auth-layer.md)). With the laptop key in `.env` as `FIREBASE_SERVICE_ACCOUNT`, these Firebase test numbers need no SMS:
+Every client signs in with a phone number ([auth-layer.md](../docs/specs/auth-layer.md)). No key or account setup is needed: the API checks tokens against Firebase's public keys. These Firebase test numbers need no SMS:
 
 | Number | Code | Granted as |
 |---|---|---|
@@ -85,10 +84,10 @@ Grants live in each environment's database. Locally, grant DAS with the setup sc
 docker compose exec api python scripts/grant_das.py "DAS Test" +40700000001
 ```
 
-A real token for any number, valid for an hour. Paste it into Authorize at http://localhost:8000/api/docs, or use it with curl:
+A real token for a test number and its code, valid for an hour. Paste it into Authorize at http://localhost:8000/api/docs, or use it with curl:
 
 ```bash
-TOKEN=$(uv run python scripts/dev_token.py +40700000001)
+TOKEN=$(uv run python scripts/dev_token.py +40700000001 111111)
 ```
 
 ```bash
