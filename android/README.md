@@ -255,7 +255,7 @@ CI signs with the keystore from the GitHub secrets `ANDROID_KEYSTORE_BASE64` and
 
 | Piece | Spec |
 |---|---|
-| Firebase phone sign-in, `GET /me` and the role picker; `google-services.json` and the key's SHA fingerprints in Firebase | G6, UC-02 |
+| The shared key's SHA-1 and SHA-256 in Firebase, for real numbers on real devices. Debug builds sign test numbers in without them | ADR-001 action item 3, auth-layer §9 |
 | Firebase push: alerts, silent refresh, the timed re-read backstop | G4, 04 §6 |
 | The four roles' screens, with Navigation; the medic's tablet layout | UC-01, UC-11, UC-12 |
 | Watch monitoring, the „Sunteți bine?” prompt, check-ins, the Data Layer relay through the phone | G14, UC-03, UC-09, UC-13 |

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "994957703097",
+    "project_id": "sentinela-8f474",
+    "storage_bucket": "sentinela-8f474.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:994957703097:android:1b3979102037b6feaf6868",
+        "android_client_info": {
+          "package_name": "bia.sentinela"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ4nqFeJThNevVMm5AbVev5JCk2cZZ2Dc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
