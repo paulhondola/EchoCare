@@ -17,7 +17,8 @@ backend/
 │   ├── alarms.py      alarm phrases: normalization and tier 1 / tier 2 patterns (03 §4)
 │   ├── status.py      status engine: severity, certainty, matrix, combining (03 §3, §5, §6)
 │   ├── calls.py       call lifecycle: states and allowed transitions (03 §9)
-│   └── incidents.py   incident lifecycle: open, in progress, resolved (G16, UC-11)
+│   ├── incidents.py   incident lifecycle: open, in progress, resolved (G16, UC-11)
+│   └── incident_view.py  GET /incidents/{id}: the senior, caregivers, event and calls (04 §1)
 ├── scripts/
 │   ├── grant_das.py   the setup script (G6), run inside the api container
 │   └── dev_token.py   a real sign-in token for a test number, for curl and Swagger

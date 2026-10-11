@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchIncidents, type Incident, type IncidentStatus } from "./api";
-import IncidentCard, { time } from "./IncidentCard";
+import IncidentCard from "./IncidentCard";
+import { time } from "./labels";
 
 // The dashboard gets no pushes and re-reads on a timer instead (04 §6).
 const REFRESH_MS = 15_000;

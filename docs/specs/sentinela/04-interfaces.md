@@ -27,7 +27,7 @@ Each read is scoped by the caller's grants as in [01-architecture.md](01-archite
 | Calls | `GET /seniors/{id}/calls` | Same scoping | Per call: time, trigger, final severity and certainty, reason, summary |
 | Transcript | `GET /calls/{id}/transcript` | Medic for their own seniors; DAS | The turns, answers and status reports of one call |
 | Incidents | `GET /incidents?status=open,in_progress` | DAS | Per incident: senior's name and form of address, status, who took it and when, reason, when it opened, whether the hand-over was answered. The DAS app asks for open and in progress; the dashboard for any status |
-| One incident | `GET /incidents/{id}` | DAS | The incident, the senior's full data with address and access details and landline or not, the location from the triggering event if any, the latest room reading if there is a home node **(proposed)**, the calls with their transcripts, the caregivers' names and numbers |
+| One incident | `GET /incidents/{id}` | DAS | The incident, the senior's full data with address and access details and landline or not, the location from the triggering event if any, the latest room reading if there is a home node **(proposed)**, the calls with their transcripts, the caregivers' names and numbers. The calls are the senior's calls from the first attempt behind the opening call until the incident was resolved, so redials and a later red added to it are included. Served without the home node fields until their tables exist |
 | Enrollment requests | `GET /enrollments` | DAS | Seniors in `submitted` |
 | Staff | `GET /staff` | DAS | DAS employees and medics: name, phone, practice, on duty or not |
 

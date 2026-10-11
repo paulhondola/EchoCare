@@ -106,3 +106,71 @@ export function resolveIncident(
 ): Promise<Incident> {
   return incidentCommand(`/api/incidents/${id}/resolve`, { outcome, note });
 }
+
+// GET /incidents/{id} (04 §1), DAS only. Mirrors backend/app/incident_view.py.
+export interface IncidentDetail {
+  id: string;
+  status: IncidentStatus;
+  reason: string;
+  opened_at: string;
+  taken_by_name: string | null;
+  taken_at: string | null;
+  resolved_by_name: string | null;
+  resolved_at: string | null;
+  outcome: IncidentOutcome | null;
+  note: string | null;
+  handover_answered: boolean;
+  senior: {
+    id: string;
+    full_name: string;
+    form_of_address: string;
+    phone_e164: string;
+    phone_is_landline: boolean;
+    street: string | null;
+    street_number: string | null;
+    block: string | null;
+    staircase: string | null;
+    floor: string | null;
+    apartment: string | null;
+    intercom_code: string | null;
+    key_holder: string | null;
+    landmark: string | null;
+  };
+  caregivers: { display_name: string; phone_e164: string; relation: string | null }[];
+  event: {
+    type: string;
+    measured_at: string;
+    latitude: number | null;
+    longitude: number | null;
+    location_accuracy_m: number | null;
+    located_at: string | null;
+  } | null;
+  calls: {
+    id: string;
+    trigger: string;
+    attempt: number;
+    state: string;
+    started_at: string | null;
+    ended_at: string | null;
+    final_severity: string | null;
+    final_certainty: string | null;
+    reason: string | null;
+    summary: string | null;
+    handover_answered: boolean | null;
+    reports: {
+      source: string;
+      severity: string;
+      certainty: string | null;
+      reason: string;
+      quote: string | null;
+      at: string;
+    }[];
+    turns: { speaker: string; kind: string; content: string; at: string }[];
+  }[];
+}
+
+export async function fetchIncident(id: string, signal?: AbortSignal): Promise<IncidentDetail> {
+  const r = await apiFetch(`/api/incidents/${id}`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as IncidentDetail;
+}

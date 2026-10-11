@@ -6,22 +6,13 @@ import {
   type Incident,
   type IncidentOutcome,
 } from "./api";
-
-export const time = new Intl.DateTimeFormat("ro-RO", { dateStyle: "short", timeStyle: "short" });
+import IncidentDetails from "./IncidentDetails";
+import { OUTCOMES, time } from "./labels";
 
 function minutesSince(iso: string, now: number): string {
   const m = Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));
   return m < 60 ? `acum ${m} min` : `acum ${Math.floor(m / 60)} h ${m % 60} min`;
 }
-
-// The five outcomes of 04 §2, in the order a dispatcher thinks of them
-const OUTCOMES: { value: IncidentOutcome; label: string }[] = [
-  { value: "senior_ok", label: "Seniorul este bine" },
-  { value: "team_sent", label: "Echipă trimisă" },
-  { value: "called_112", label: "Apel la 112" },
-  { value: "not_reached", label: "Nu a putut fi contactat" },
-  { value: "false_alarm", label: "Alarmă falsă" },
-];
 
 /** What to tell the dispatcher about a refused take or resolve (04 §0, §2). */
 function refusalMessage(e: unknown, action: "take" | "resolve"): string {
@@ -57,6 +48,7 @@ export default function IncidentCard({ incident: i, now, border, onChanged, onSt
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<IncidentOutcome | "">("");
   const [note, setNote] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
 
   const send = (action: "take" | "resolve", command: () => Promise<Incident>) => {
     setBusy(true);
@@ -75,7 +67,12 @@ export default function IncidentCard({ incident: i, now, border, onChanged, onSt
   return (
     <article className={`card card-sm mb-3 border-l-4 bg-base-100 shadow-sm ${border}`}>
       <div className="card-body gap-1">
-        <h3 className="card-title text-base">{i.senior_full_name}</h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="card-title text-base">{i.senior_full_name}</h3>
+          <button className="btn btn-ghost btn-xs" onClick={() => setShowDetails(true)}>
+            Detalii
+          </button>
+        </div>
         <p className="text-sm text-base-content/60">{i.senior_form_of_address}</p>
         <p>{i.reason}</p>
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
@@ -150,6 +147,8 @@ export default function IncidentCard({ incident: i, now, border, onChanged, onSt
             </button>
           </form>
         )}
+
+        {showDetails && <IncidentDetails id={i.id} onClose={() => setShowDetails(false)} />}
 
         {error && (
           <p role="alert" className="mt-1 text-sm text-error">

@@ -12,6 +12,7 @@ from sqlalchemy.orm import aliased
 
 from app.auth import Caller, current_caller, refuse, require_roles
 from app.db import engine, get_session
+from app.incident_view import IncidentDetail, load_incident
 from app.incidents import IncidentStatus, resolve_refusal, take_refusal
 from app.models import Call, Incident, IncidentOutcome, Role, Senior, User
 from app.phones import is_mobile, normalize
@@ -205,6 +206,19 @@ async def list_incidents(
     async with engine.connect() as conn:
         rows = (await conn.execute(query)).mappings().all()
     return [IncidentSummary.model_validate(dict(row)) for row in rows]
+
+
+@api.get("/incidents/{incident_id}")
+async def get_incident(
+    incident_id: uuid.UUID,
+    _: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IncidentDetail:
+    """One incident with the senior's address, caregivers, event and calls (04 §1)."""
+    detail = await load_incident(session, incident_id)
+    if detail is None:
+        raise refuse(404, "not_found")
+    return detail
 
 
 async def incident_summary(
