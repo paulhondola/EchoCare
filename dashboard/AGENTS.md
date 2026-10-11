@@ -11,8 +11,9 @@ dashboard/
 │   ├── App.tsx        what to show, from the Firebase user and GET /api/me (auth-layer §7.1)
 │   ├── SignIn.tsx     phone step, then code step; invisible reCAPTCHA
 │   ├── IncidentBoard.tsx  incidents by status, re-read every 15 s (04 §6)
+│   ├── IncidentCard.tsx   one incident: Preiau and Rezolvă (04 §2)
 │   ├── firebase.ts    the Firebase app and `auth`
-│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, fetchIncidents
+│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, the incident calls
 │   ├── phone.ts       typed number → E.164, with phone.test.ts
 │   └── styles.css     Tailwind v4 + DaisyUI 5 entry, light and dark themes
 ├── index.html         Vite entry

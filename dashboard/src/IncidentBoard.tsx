@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchIncidents, type Incident, type IncidentStatus } from "./api";
+import IncidentCard, { time } from "./IncidentCard";
 
 // The dashboard gets no pushes and re-reads on a timer instead (04 §6).
 const REFRESH_MS = 15_000;
@@ -11,13 +12,6 @@ const COLUMNS: { status: IncidentStatus; title: string; border: string; badge: s
   { status: "resolved", title: "Rezolvate", border: "border-success", badge: "badge-success" },
 ];
 
-const time = new Intl.DateTimeFormat("ro-RO", { dateStyle: "short", timeStyle: "short" });
-
-function minutesSince(iso: string, now: number): string {
-  const m = Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));
-  return m < 60 ? `acum ${m} min` : `acum ${Math.floor(m / 60)} h ${m % 60} min`;
-}
-
 type Load =
   | { kind: "loading" }
   | { kind: "ok"; incidents: Incident[]; at: number }
@@ -26,6 +20,8 @@ type Load =
 export default function IncidentBoard() {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [now, setNow] = useState(Date.now());
+  // Re-reads at once, for a card whose command was refused
+  const reload = useRef(() => {});
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -45,6 +41,7 @@ export default function IncidentBoard() {
         });
     // read() catches its own errors
     void read();
+    reload.current = () => void read();
     const timer = setInterval(read, REFRESH_MS);
     return () => {
       ctrl.abort();
@@ -83,39 +80,23 @@ export default function IncidentBoard() {
                 <p className="text-sm text-base-content/60">Niciun incident.</p>
               )}
               {items.map((i) => (
-                <article
+                <IncidentCard
                   key={i.id}
-                  className={`card card-sm mb-3 border-l-4 bg-base-100 shadow-sm ${border}`}
-                >
-                  <div className="card-body gap-1">
-                    <h3 className="card-title text-base">{i.senior_full_name}</h3>
-                    <p className="text-sm text-base-content/60">{i.senior_form_of_address}</p>
-                    <p>{i.reason}</p>
-                    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-                      <dt className="text-base-content/60">Deschis</dt>
-                      <dd title={time.format(Date.parse(i.opened_at))}>
-                        {minutesSince(i.opened_at, now)}
-                      </dd>
-                      {i.taken_by_name && (
-                        <>
-                          <dt className="text-base-content/60">Preluat de</dt>
-                          <dd>
-                            {i.taken_by_name}
-                            {i.taken_at && `, ${time.format(Date.parse(i.taken_at))}`}
-                          </dd>
-                        </>
-                      )}
-                      <dt className="text-base-content/60">Transfer apel</dt>
-                      <dd>
-                        <span
-                          className={`badge badge-xs badge-soft ${i.handover_answered ? "badge-success" : "badge-error"}`}
-                        >
-                          {i.handover_answered ? "preluat" : "nepreluat"}
-                        </span>
-                      </dd>
-                    </dl>
-                  </div>
-                </article>
+                  incident={i}
+                  now={now}
+                  border={border}
+                  onChanged={(changed) =>
+                    setLoad((l) =>
+                      l.kind === "ok"
+                        ? {
+                            ...l,
+                            incidents: l.incidents.map((x) => (x.id === changed.id ? changed : x)),
+                          }
+                        : l,
+                    )
+                  }
+                  onStale={() => reload.current()}
+                />
               ))}
             </div>
           );

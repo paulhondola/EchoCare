@@ -4,6 +4,7 @@ The values are what the `incident.status` column stores (05 §1). The incident r
 DAS did; it never changes the code (03 §8).
 """
 
+import uuid
 from enum import StrEnum
 
 from app.calls import InvalidTransition
@@ -43,3 +44,39 @@ def opens_incident(result: Severity, unresolved: bool) -> bool:
     A later red while one is open or in progress is added to that one, through the call.
     """
     return result is Severity.red and not unresolved
+
+
+def take_refusal(
+    status: IncidentStatus, taken_by: uuid.UUID | None, caller: uuid.UUID
+) -> str | None:
+    """Why POST /incidents/{id}/take is refused, once its update changed nothing (04 §2).
+
+    None for the person who already has it: a repeated command has no second effect
+    (04 §0). Anyone else is told who has it.
+    """
+    if status is IncidentStatus.resolved:
+        return "wrong_state"
+    if status is IncidentStatus.in_progress and taken_by != caller:
+        return "already_done"
+    return None
+
+
+def resolve_refusal(
+    status: IncidentStatus,
+    resolved_by: uuid.UUID | None,
+    outcome: str | None,
+    caller: uuid.UUID,
+    wanted: str,
+) -> str | None:
+    """Why POST /incidents/{id}/resolve is refused, once its update changed nothing.
+
+    An open incident is taken first (UC-11). Any DAS employee may resolve one in
+    progress, so a shift change needs no hand-back. None for an exact repeat.
+    """
+    if status is IncidentStatus.open:
+        return "wrong_state"
+    if status is IncidentStatus.resolved and (
+        resolved_by != caller or outcome != wanted
+    ):
+        return "already_done"
+    return None

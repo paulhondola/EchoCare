@@ -50,15 +50,59 @@ export interface Incident {
   handover_answered: boolean;
 }
 
+/** A refused request; `reason` and the extra fields come from the refusal body (04 §0). */
 export class ApiError extends Error {
-  constructor(readonly status: number) {
-    super(`HTTP ${status}`);
+  constructor(
+    readonly status: number,
+    readonly reason?: string,
+    readonly takenByName?: string | null,
+  ) {
+    super(reason ? `HTTP ${status} ${reason}` : `HTTP ${status}`);
   }
+}
+
+type Refusal = { detail?: { reason?: string; taken_by_name?: string | null } };
+
+async function refused(res: Response): Promise<ApiError> {
+  const body = (await res.json().catch(() => null)) as Refusal | null;
+  return new ApiError(res.status, body?.detail?.reason, body?.detail?.taken_by_name);
 }
 
 // The dashboard asks for any status, unlike the DAS app (04 §1).
 export async function fetchIncidents(signal?: AbortSignal): Promise<Incident[]> {
   const r = await apiFetch("/api/incidents?status=open,in_progress,resolved", { signal });
-  if (!r.ok) throw new ApiError(r.status);
+  if (!r.ok) throw await refused(r);
   return (await r.json()) as Incident[];
+}
+
+export type IncidentOutcome =
+  | "senior_ok"
+  | "team_sent"
+  | "called_112"
+  | "not_reached"
+  | "false_alarm";
+
+async function incidentCommand(path: string, body?: unknown): Promise<Incident> {
+  const res = await apiFetch(path, {
+    method: "POST",
+    ...(body === undefined
+      ? {}
+      : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
+  if (!res.ok) throw await refused(res);
+  return (await res.json()) as Incident;
+}
+
+/** Preiau: open → in_progress (04 §2). Someone else's incident: `already_done`. */
+export function takeIncident(id: string): Promise<Incident> {
+  return incidentCommand(`/api/incidents/${id}/take`);
+}
+
+/** in_progress → resolved, with an outcome and a short note (04 §2). */
+export function resolveIncident(
+  id: string,
+  outcome: IncidentOutcome,
+  note: string,
+): Promise<Incident> {
+  return incidentCommand(`/api/incidents/${id}/resolve`, { outcome, note });
 }

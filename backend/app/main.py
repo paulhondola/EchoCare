@@ -6,14 +6,14 @@ from typing import Annotated, Any, Literal, Self
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints, field_validator, model_validator
-from sqlalchemy import Select, false, func, select, text
+from sqlalchemy import Select, false, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.auth import Caller, current_caller, refuse, require_roles
 from app.db import engine, get_session
-from app.incidents import IncidentStatus
-from app.models import Call, Incident, Role, Senior, User
+from app.incidents import IncidentStatus, resolve_refusal, take_refusal
+from app.models import Call, Incident, IncidentOutcome, Role, Senior, User
 from app.phones import is_mobile, normalize
 from app.settings import check_environment, get_settings
 from app.staff import grant_staff
@@ -21,6 +21,7 @@ from app.staff import grant_staff
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
 logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("sentinela").setLevel(logging.INFO)
+log = logging.getLogger("sentinela.incidents")
 
 settings = get_settings()
 check_environment(settings)
@@ -166,7 +167,9 @@ def parse_statuses(status: str | None) -> set[IncidentStatus] | None:
         raise HTTPException(422, "unknown status") from None
 
 
-def incidents_query(statuses: set[IncidentStatus] | None) -> Select:
+def incidents_query(
+    statuses: set[IncidentStatus] | None, incident_id: uuid.UUID | None = None
+) -> Select:
     taker = aliased(User)
     query = (
         select(
@@ -188,6 +191,8 @@ def incidents_query(statuses: set[IncidentStatus] | None) -> Select:
     )
     if statuses is not None:
         query = query.where(Incident.status.in_(statuses))
+    if incident_id is not None:
+        query = query.where(Incident.id == incident_id)
     return query
 
 
@@ -200,6 +205,109 @@ async def list_incidents(
     async with engine.connect() as conn:
         rows = (await conn.execute(query)).mappings().all()
     return [IncidentSummary.model_validate(dict(row)) for row in rows]
+
+
+async def incident_summary(
+    session: AsyncSession, incident_id: uuid.UUID
+) -> IncidentSummary:
+    row = (await session.execute(incidents_query(None, incident_id))).mappings().one()
+    return IncidentSummary.model_validate(dict(row))
+
+
+async def current_incident(session: AsyncSession, incident_id: uuid.UUID) -> Incident:
+    incident = await session.get(Incident, incident_id, populate_existing=True)
+    if incident is None:
+        raise refuse(404, "not_found")
+    return incident
+
+
+@api.post("/incidents/{incident_id}/take")
+async def take_incident(
+    incident_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IncidentSummary:
+    """Preiau: open -> in_progress, with who and when; nothing else changes (04 §2).
+
+    Only where the incident is still open, so of two takers at once one wins (05 §3).
+    """
+    taken = await session.execute(
+        update(Incident)
+        .where(Incident.id == incident_id, Incident.status == IncidentStatus.open)
+        .values(
+            status=IncidentStatus.in_progress,
+            taken_by=caller.user.id,
+            taken_at=func.now(),
+        )
+        .returning(Incident.id)
+    )
+    if taken.first() is None:
+        incident = await current_incident(session, incident_id)
+        reason = take_refusal(incident.status, incident.taken_by, caller.user.id)
+        if reason is not None:
+            log.info(
+                "refused %s: user %s, incident %s", reason, caller.user.id, incident_id
+            )
+            taker = incident.taken_by and await session.get(User, incident.taken_by)
+            raise refuse(
+                409, reason, taken_by_name=taker.display_name if taker else None
+            )
+    await session.commit()
+    return await incident_summary(session, incident_id)
+
+
+Note = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)
+]
+
+
+class Resolution(BaseModel):
+    """POST /incidents/{id}/resolve's body (04 §2)."""
+
+    outcome: IncidentOutcome
+    note: Note
+
+
+@api.post("/incidents/{incident_id}/resolve")
+async def resolve_incident(
+    incident_id: uuid.UUID,
+    body: Resolution,
+    caller: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> IncidentSummary:
+    """in_progress -> resolved with an outcome and a note. The code is unchanged and
+    the senior returns to campaigns (04 §2, 03 §8)."""
+    resolved = await session.execute(
+        update(Incident)
+        .where(
+            Incident.id == incident_id,
+            Incident.status == IncidentStatus.in_progress,
+        )
+        .values(
+            status=IncidentStatus.resolved,
+            resolved_by=caller.user.id,
+            resolved_at=func.now(),
+            outcome=body.outcome,
+            note=body.note,
+        )
+        .returning(Incident.id)
+    )
+    if resolved.first() is None:
+        incident = await current_incident(session, incident_id)
+        reason = resolve_refusal(
+            incident.status,
+            incident.resolved_by,
+            incident.outcome,
+            caller.user.id,
+            body.outcome,
+        )
+        if reason is not None:
+            log.info(
+                "refused %s: user %s, incident %s", reason, caller.user.id, incident_id
+            )
+            raise refuse(409, reason)
+    await session.commit()
+    return await incident_summary(session, incident_id)
 
 
 # after every route is declared: include_router copies the routes it has at this point

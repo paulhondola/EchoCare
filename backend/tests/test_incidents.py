@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 from app.calls import InvalidTransition
@@ -7,6 +9,8 @@ from app.incidents import (
     IncidentStatus,
     advance,
     opens_incident,
+    resolve_refusal,
+    take_refusal,
 )
 from app.status import Severity
 
@@ -58,3 +62,33 @@ def test_unresolved_are_the_statuses_that_can_still_move():
 )
 def test_opens_incident(result, unresolved, opens):
     assert opens_incident(result, unresolved) is opens
+
+
+ME, OTHER = uuid.uuid4(), uuid.uuid4()
+
+
+@pytest.mark.parametrize(
+    ("status", "taken_by", "reason"),
+    [
+        (IN_PROGRESS, ME, None),  # a repeat has no second effect (04 §0)
+        (IN_PROGRESS, OTHER, "already_done"),  # told who has it (04 §2)
+        (IN_PROGRESS, None, "already_done"),  # taken by answering the hand-over
+        (RESOLVED, ME, "wrong_state"),
+        (RESOLVED, OTHER, "wrong_state"),
+    ],
+)
+def test_take_refusal(status, taken_by, reason):
+    assert take_refusal(status, taken_by, ME) == reason
+
+
+@pytest.mark.parametrize(
+    ("status", "resolved_by", "outcome", "reason"),
+    [
+        (OPEN, None, None, "wrong_state"),  # taken first (UC-11)
+        (RESOLVED, ME, "senior_ok", None),  # an exact repeat
+        (RESOLVED, ME, "team_sent", "already_done"),
+        (RESOLVED, OTHER, "senior_ok", "already_done"),
+    ],
+)
+def test_resolve_refusal(status, resolved_by, outcome, reason):
+    assert resolve_refusal(status, resolved_by, outcome, ME, "senior_ok") == reason

@@ -40,10 +40,13 @@ class _NoKey(credentials.Base):
 _firebase = firebase_admin.initialize_app(_NoKey(), {"projectId": FIREBASE_PROJECT_ID})
 
 
-def refuse(status: int, reason: str) -> HTTPException:
-    """A refusal in the shape every client parses: {"detail": {"reason": ...}}."""
+def refuse(status: int, reason: str, **extra: Any) -> HTTPException:
+    """A refusal in the shape every client parses: {"detail": {"reason": ...}}.
+
+    `extra` adds fields next to the reason, such as who has an incident (04 §2).
+    """
     headers = {"WWW-Authenticate": "Bearer"} if status == 401 else None
-    return HTTPException(status, {"reason": reason}, headers=headers)
+    return HTTPException(status, {"reason": reason, **extra}, headers=headers)
 
 
 def verify_token(
