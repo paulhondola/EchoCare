@@ -51,21 +51,22 @@ fun WearApp(greetingName: String) {
                     EdgeButton(
                         onClick = { /*TODO*/ },
                         colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            ),
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     ) {
                         Text("More")
                     }
-                },
-            ) { contentPadding -> // ScreenScaffold provides default padding; adjust as needed
+                }
+            ) { contentPadding ->
+                // ScreenScaffold provides default padding; adjust as needed
                 TransformingLazyColumn(contentPadding = contentPadding, state = listState) {
                     item {
                         ListHeader(
                             modifier =
-                                Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
-                            transformation = SurfaceTransformation(transformationSpec),
+                            Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                            transformation = SurfaceTransformation(transformationSpec)
                         ) {
                             Text(text = stringResource(R.string.hello_world, greetingName))
                         }
@@ -75,7 +76,7 @@ fun WearApp(greetingName: String) {
                             onClick = { /*TODO*/ },
                             modifier = Modifier.fillMaxWidth()
                                 .transformedHeight(this, transformationSpec),
-                            transformation = SurfaceTransformation(transformationSpec),
+                            transformation = SurfaceTransformation(transformationSpec)
                         ) {
                             Text("Button A")
                         }
@@ -85,7 +86,7 @@ fun WearApp(greetingName: String) {
                             onClick = { /*TODO*/ },
                             modifier = Modifier.fillMaxWidth()
                                 .transformedHeight(this, transformationSpec),
-                            transformation = SurfaceTransformation(transformationSpec),
+                            transformation = SurfaceTransformation(transformationSpec)
                         ) {
                             Text("Button B")
                         }
@@ -95,12 +96,11 @@ fun WearApp(greetingName: String) {
                             onClick = { /*TODO*/ },
                             modifier = Modifier.fillMaxWidth()
                                 .transformedHeight(this, transformationSpec),
-                            transformation = SurfaceTransformation(transformationSpec),
+                            transformation = SurfaceTransformation(transformationSpec)
                         ) {
                             Text("Button C")
                         }
                     }
-
                 }
             }
         }

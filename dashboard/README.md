@@ -41,7 +41,11 @@ The same Firebase values are set for staging and production in [.railway/railway
 
 ## Build and check
 
-`build` type-checks with `tsc` and then builds with Vite. CI runs it ([dashboard.yml](../.github/workflows/dashboard.yml)):
+The toolchain is [Vite+](https://viteplus.dev/guide): `vp check` formats (oxfmt), lints (oxlint) and type-checks. `--fix` applies the formatting and the safe lint fixes. CI runs it, then the build ([dashboard.yml](../.github/workflows/dashboard.yml)):
+
+```bash
+npx vp check
+```
 
 ```bash
 npm run build

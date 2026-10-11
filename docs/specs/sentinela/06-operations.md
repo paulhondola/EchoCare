@@ -30,6 +30,9 @@ One principle covers most rows: **a failure is treated as uncertainty, and uncer
 | A number signs in with no grant | Refused; nothing is stored | „Numărul nu este înregistrat. Contactați medicul de familie.” |
 | The medic mistyped a caregiver's number | The caregiver present cannot sign in, or the notice SMS does not arrive; the medic corrects the number. Removing the grant cuts access at once | Noticed at the practice |
 | An inactivity event arrives with no active warning | Recorded; no call | Nothing |
+| The home node cannot reach the phone (out of range, unplugged, phone off) | Readings are missed; past the silence limit the node is marked offline and its last reading is no longer used on calls. An SOS press waits on the node and is resent on reconnection | A device warning, no alert; the node's light blinks slowly |
+| The room sensor gives an implausible value | The node smooths readings and drops values outside −10 to 50°C; FastAPI ignores any that still arrive | A device warning if it persists |
+| The fall detector fires on an ordinary movement | The wrist prompt catches it: „Da” ends it. If the senior does not answer, the call does | Usually nothing; a needless call at worst |
 
 ## 2. The scheduler
 
@@ -42,10 +45,13 @@ flowchart TD
     LOCK -->|yes| DUE{"Any queued call due,<br/>and a free line?"}
     DUE -->|yes| PLACE["Dialer places the call"]
     DUE -->|no| WD
-    PLACE --> WD{"Any watch silent<br/>past the limit?"}
-    WD -->|yes| OFF["Mark the watch offline<br/>device warning, refresh, no alert"]
-    WD -->|no| SLEEP
-    OFF --> SLEEP
+    PLACE --> WD{"Any watch or home node<br/>silent past the limit?"}
+    WD -->|yes| OFF["Mark it offline<br/>device warning, refresh, no alert"]
+    WD -->|no| NM
+    OFF --> NM{"Any home node without motion<br/>past the limit, during a warning?"}
+    NM -->|yes| INA["Record an inactivity event<br/>queue a call"]
+    NM -->|no| SLEEP
+    INA --> SLEEP
 ```
 
 "A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow.
@@ -63,6 +69,12 @@ Demo mode is one setting on FastAPI and one on each client. It shortens waits so
 | Inactivity limit during a warning **(proposed)** | 4 hours | 60 seconds |
 | Watch check-in interval | 15 minutes | 30 seconds |
 | Watch counted as silent after | 45 minutes | 90 seconds |
+| Wrist prompt timeout after a fall **(P19, proposed)** | 30 seconds | 15 seconds |
+| Home node reading interval **(P20, proposed)** | 1 minute | 5 seconds |
+| Home node counted as silent after | 5 minutes | 30 seconds |
+| Room cold limit **(P21, proposed)** | below 16°C | below 16°C |
+| Room heat limit | above 30°C | above 30°C |
+| Room hold time before a call | 30 minutes | 30 seconds |
 | Backstop re-read of an open Android screen | 30 seconds | 10 seconds |
 | Dashboard re-read | 5 seconds | 2 seconds |
 | Cooldown between calls to one senior | 10 minutes | 30 seconds |
@@ -71,7 +83,7 @@ Demo mode is one setting on FastAPI and one on each client. It shortens waits so
 | On-duty phone ring time | 30 seconds | 15 seconds |
 | Calls in progress at once | 3 | 3 |
 
-All values are proposals. The 20-minute redial and the 3-minute call limit come from v3; the inactivity limit is within v3's 4–6 hours.
+All values are proposals. The 20-minute redial and the 3-minute call limit come from v3; the inactivity limit is within v3's 4–6 hours. The room limits are orientative, have no medical value, and await a medical mentor (README open question 11); the inactivity limit applies to the home node's motion as to the watch's steps.
 
 **Demo controls**
 
@@ -79,7 +91,9 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 |---|---|---|
 | "Simulează avertizare", heat or cold | DAS dashboard | A real weather warning |
 | "Sunați-mă" | Senior's phone app | A watch anomaly, if the watch misbehaves on stage (D9) |
-| A hidden "force anomaly" action, for pulse and for inactivity | Wear OS app | Waiting for a real reading |
+| A hidden "force anomaly" action, for pulse, for inactivity and for a fall | Wear OS app | Waiting for a real reading, or a real fall |
+| An ice pack or a hair dryer next to the home node's sensor | On the table | A cold or hot room; the temperature moves live on every screen |
+| The home node's SOS button | On the table | Its own trigger; also a fallback if the watch misbehaves |
 | Firebase test phone numbers | Every demo device and the dashboard | A real SMS at sign-in |
 
 ## 4. Security and privacy
@@ -88,7 +102,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 
 | Measure | Detail |
 |---|---|
-| Every caller is identified | People by a Firebase identity token that FastAPI verifies; the watch only through the senior's signed-in phone app; Twilio by request signature. Nothing is open |
+| Every caller is identified | People by a Firebase identity token that FastAPI verifies; the watch and the home node only through the senior's signed-in phone app, the node over a bonded Bluetooth link; Twilio by request signature. Nothing is open |
 | Roles are granted, never chosen | A number gets a role only when someone allowed to grant it enters the number (G6). A number with no grant can do nothing and leaves nothing stored |
 | One place checks permissions | Every FastAPI endpoint checks the caller's grants and that the grant covers the senior concerned |
 | Phone numbers normalized | One international format everywhere, so a lookup cannot miss or mismatch |
@@ -104,6 +118,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Minimum per role | The caregiver sees the code, a reason and the address, not the transcript ([01-architecture.md](01-architecture.md) section 6) |
 | No audio stored | Speech stays inside Twilio; FastAPI handles text only |
 | Minimal watch data | Only the latest check-in is kept; there is no pulse history |
+| Minimal home data | Only the latest room reading is kept; there is no history of temperature or motion. The node has no camera and no microphone |
 | Location only with events | The phone attaches its last known location when it sends an event; there is no tracking |
 | Push carries no health details | Generic text and an id (P18) |
 | Region | Database and FastAPI on Railway, EU West |
@@ -127,6 +142,10 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Incident lifecycle | Open on red; taken by hand or by an answered hand-over; resolved with each outcome; a campaign skipping and then including the senior | A local FastAPI and database |
 | Watch | The threshold logic fed synthetic readings: high at rest, high while walking, no steps, not worn | An emulator or the watch |
 | Watch to phone to FastAPI | An event from the watch reaches FastAPI with the phone's location, with the phone app in the background | The watch and a phone |
+| Fall detection **(P19)** | Recorded accelerometer traces replayed against the detector; then 20 to 30 controlled trials each of a fall onto a mattress, sitting down hard, walking and climbing stairs. The false-alarm and missed-fall rates are written down | The watch |
+| Room reading rules **(P21, P22)** | Part of the rules engine's table: in range, out of range shorter and longer than the hold time, back in range, offline node, implausible value, a "yes" to the shelter question with a cold room | Nothing outside the module |
+| Home node to phone to FastAPI | Readings and an SOS press reach FastAPI with the phone app in the background; the press survives the phone going out of range and coming back | The node and a phone |
+| Home node measurements | The SHT31 against a reference thermometer at three temperatures; the time from an SOS press to the alert on a caregiver's phone (target under 5 seconds); readings lost at the edge of Bluetooth range | The node, a phone, a thermometer |
 | Whole system | A rehearsal of the demo with real phones on each network, with the latency of every agent turn logged (v3 §8.9) | Everything deployed |
 
 The first two rows cover the logic that decides a person's code. They run without any outside service, so they can run on every change.
@@ -148,6 +167,8 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 | S9 | Does Firebase phone sign-in deliver SMS codes to Romanian numbers on each network, and do test numbers work on the demo devices and in the dashboard's browser, reCAPTCHA included? | Test numbers only for the demo; the medic's practice signs people in |
 | S10 | Does an SMS from the project's Twilio number reach Orange, Vodafone and Digi phones? | Drop the caregiver notice; the caregiver signs in on the spot |
 | S11 | How does the US number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
+| S12 | Does the phone app keep its Bluetooth connection to the home node, and relay readings, while it is in the background for an hour? | Keep the phone app in the foreground on the demo phone; a foreground service in the app |
+| S13 | Can the Wear OS app read the accelerometer fast enough (about 50 readings a second) in the background to see a fall, and what does it cost in battery? | Fall detection only while the monitoring screen is open; the hidden "force fall" action for the demo |
 
 ## 7. Demo walk-through
 
@@ -157,6 +178,7 @@ Adapted from v3 §16 to the MVP's scope. It leads with cold, since the event is 
 |---|---|---|
 | 1 | The medic registers a fictitious patient on the tablet, with address, floor and intercom code, and a caregiver's number. The "caregiver" signs in on a phone with that number and sees doamna Maria at once. DAS accepts on the laptop dashboard; the senior's phone rings with the welcome call; the "senior" presses 1 and 1; every screen shows green | UC-01, UC-02, UC-04 |
 | 2 | DAS presses "Simulează avertizare", cold, on the dashboard. The senior's phone, on speaker, has a natural conversation and ends green on every screen | UC-05, UC-12 |
+| 2b **(proposed)** | An ice pack goes on the home node; the room temperature drops live on the caregiver's phone and the dashboard. After the short hold time the senior's phone rings. The "senior" says „sunt bine, am căldură”, but the node reads 14°C: the server does not believe the "yes", and every screen turns yellow with the reason „spune că are căldură, senzorul arată 14°C”. The node's light turns yellow | UC-16, UC-06 |
 | 3 | The watch reports inactivity and the wrist prompt is ignored. The phone rings; the "senior" says „am căzut și nu mă pot ridica”. Every screen turns red, the caregiver's and medic's phones buzz, the dashboard sounds with a new incident on top. The on-duty phone rings; answering connects the two and takes the incident. The DAS app on that phone shows the floor, the intercom code and the location; tap "Deschide în Hărți"; resolve with "team sent" | UC-09, UC-07, UC-11 |
 | 4 | A second patient does not answer; after the short redial the card turns yellow and the caregiver's phone buzzes | UC-08, UC-06 |
 | Fallback | If the watch misbehaves, the "senior" taps "Sunați-mă" and step 3 continues from the phone ringing | UC-10 |
@@ -170,6 +192,7 @@ v3's backups still apply: a team phone as the senior's phone, and a recorded vid
 | Three client codebases and a backend in 48 hours | v3 cut native apps for this reason | One owner each among four people (Android, Wear OS, dashboard, backend); one Android app for four roles; the Wear OS app is one screen and one job; the dashboard is another client of the same JSON API; all logic sits in FastAPI; code written before the event (G1) |
 | Delay between the senior speaking and the agent answering | Long pauses confuse an elderly listener; the international route adds to it | Short replies, streaming, fixed sentences for routine turns, measured in the rehearsal (S4) |
 | Background sensors and messaging on Wear OS and Android | The watch trigger depends on them | Spikes S5 and S6; the "Sunați-mă" fallback |
+| Bluetooth between the home node and the phone | The room trigger and the room check depend on it | Spike S12; the node and the phone side by side on the demo table; the "Sunați-mă" fallback |
 | SMS at sign-in on stage | A late code stalls the demo | Firebase test numbers on every demo device |
 | Phone number as identity | A mistyped number shows a senior to a stranger | The caregiver signs in at the practice, or the notice SMS reveals the mistake; removing a grant cuts access at once |
 | A caregiver on an iPhone has no channel | The automated family call was deferred | Stated as a known gap; README open question 6 |

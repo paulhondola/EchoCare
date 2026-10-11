@@ -14,7 +14,7 @@ A senior becomes active, at green, when consent is given on the welcome call ([0
 
 | Axis | Values | Comes from |
 |---|---|---|
-| Severity | green, yellow, red | The trigger (starting severity), the rules applied to the answers, the alarm phrases, and the model's `raise_concern` |
+| Severity | green, yellow, red | The trigger (starting severity), the rules applied to the answers, the latest room reading where there is a home node (P22), the alarm phrases, and the model's `raise_concern` |
 | Certainty | high, medium, low | Computed by the server from how many answers were unclear, and only when a call was answered (D7) |
 
 **Starting severity by trigger**
@@ -22,7 +22,8 @@ A senior becomes active, at green, when consent is given on the welcome call ([0
 | Trigger | Starting severity |
 |---|---|
 | Weather campaign | green |
-| Watch: high pulse at rest, inactivity during a warning, or the button | yellow |
+| Watch: high pulse at rest, inactivity during a warning, a fall (P19), or the button | yellow |
+| Home node: room out of range for the hold time, no motion during a warning, or the SOS button (P21, proposed) | yellow |
 | Senior pressed "Sunați-mă" | yellow |
 | Welcome call | none; a welcome call never changes the code |
 
@@ -43,6 +44,10 @@ The model does not choose a severity, a certainty or recipients. During the conv
 Each record also carries `clear` (true when the answer was unambiguous) and the senior's exact words.
 
 **The server checks the orientation answer itself.** It compares the named day with today's weekday in `Europe/Bucharest`. A different day, or `unknown`, is a wrong answer. The model is never asked to judge whether the day is correct.
+
+**The server checks the shelter answer against the room (P22, proposed).** When the senior has a home node whose latest reading is fresh (the node is not `offline`), and the temperature is below the cold limit or above the heat limit, a `shelter` answer of `yes` is recorded as worrying, as if it were `no`. The senior's words are kept unchanged, and a status report with source `home_temperature` names the reading, for example „spune că are căldură, senzorul arată 14°C”. This is the same rule as for the model: a sensor can make an answer worrying, never make a worrying answer fine. A `shelter` of `no` stays `no` whatever the room shows.
+
+The limits are in [06-operations.md](06-operations.md) section 3. They are orientative, not medical (README open question 11).
 
 **Rules for severity** (from v3 §9.2)
 
@@ -266,6 +271,10 @@ stateDiagram-v2
 | 11 | Campaign, heat | „Mor de cald!” Tier 2 confirmation; answers „nu, sunt bine, doar e cald” | No forced change; the call continues and ends green if the answers are fine |
 | 12 | Campaign, cold | „Tremur tot.” Tier 2 confirmation; no reply | Red, hand-over |
 | 13 | Campaign | Answers fine, then „de două zile nu-mi găsesc pastilele de inimă” | `raise_concern(yellow)`. Code yellow, caregiver alert |
+| 14 | Campaign, cold | Fine, names today's day, „da, am căldură”, all clear; the home node reads 14°C | Shelter recorded as worrying (P22). Rules yellow, high. Code yellow, reason names the reading |
+| 15 | Campaign, cold | Unwell and „am căldură”; the home node reads 14°C | Unwell plus shelter worrying: rules red. Code red, hand-over |
+| 16 | Home node | The room stays at 14°C for the hold time; the senior answers „s-a stricat centrala, dar sunt bine” clearly | Starting yellow; shelter worrying by the reading. Code yellow, caregiver alert |
+| 17 | Watch | A fall, no reply to the wrist prompt; on the call the senior says „am căzut” | Tier 1. Red at once, hand-over |
 
 ## 11. What is not in the model
 
