@@ -8,12 +8,15 @@ The DAS web dashboard (spec G15): a React + Vite single-page app that calls the 
 dashboard/
 ├── src/
 │   ├── main.tsx       React root
-│   ├── App.tsx        header with the API health check, then the board
+│   ├── App.tsx        what to show, from the Firebase user and GET /api/me (auth-layer §7.1)
+│   ├── SignIn.tsx     phone step, then code step; invisible reCAPTCHA
 │   ├── IncidentBoard.tsx  incidents by status, re-read every 15 s (04 §6)
-│   ├── api.ts         typed API calls
+│   ├── firebase.ts    the Firebase app and `auth`
+│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, fetchIncidents
+│   ├── phone.ts       typed number → E.164, with phone.test.ts
 │   └── styles.css     Tailwind v4 + DaisyUI 5 entry, light and dark themes
 ├── index.html         Vite entry
-├── vite.config.ts     dev server on 5173
+├── vite.config.ts     Vite+: dev server on 5173, lint (with type check), fmt
 ├── tsconfig.json
 ├── Dockerfile         stages: deps → dev (Compose) → build → Caddy (Railway; keep it last)
 ├── Caddyfile          SPA fallback to index.html, cache headers
@@ -29,17 +32,18 @@ dashboard/
 
 ## Commands
 
-From `dashboard/`. CI ([dashboard.yml](../.github/workflows/dashboard.yml)) runs `npm ci` and `npm run build`.
+From `dashboard/`. CI ([dashboard.yml](../.github/workflows/dashboard.yml)) runs `npm ci`, `npx vp check` and `npm run build`.
 
 | Task | Command |
 |---|---|
 | Install | `npm ci` |
 | Dev server, http://localhost:5173 (API from Compose) | `npm run dev` |
-| Type-check and build to `dist/` | `npm run build` |
+| Format, lint and type-check / fix | `npx vp check` / `npx vp check --fix` |
+| Build to `dist/` | `npm run build` |
 | Serve the built `dist/` | `npm run preview` |
 | Build the production image (from the repo root) | `docker build -t sentinela-dashboard --build-arg VITE_API_URL=http://localhost:8000 dashboard` |
 
-`npm run build` is the only check: `tsc --noEmit`, then `vite build`. There is no linter or test runner yet.
+The toolchain is Vite+ ([ADR-002](../docs/adr/ADR-002-git-hooks.md)): `vp check` runs oxfmt, oxlint and a type check through tsgolint, all configured in `vite.config.ts`. `npm run build` no longer type-checks. Vitest is bundled (`npx vp test`); CI does not run it yet.
 
 ## Rules
 
@@ -47,4 +51,6 @@ From `dashboard/`. CI ([dashboard.yml](../.github/workflows/dashboard.yml)) runs
 - **`VITE_API_URL` is read by the browser**, so locally it is `http://localhost:8000`, never Compose's `api`.
 - **Firebase web config is public**, not a secret. Phone sign-in works only on authorized domains; test with Firebase test numbers, never real SMS.
 - **The Caddy stage stays last** in the Dockerfile; Railway builds the last stage.
+- **Lefthook owns the Git hooks**, for the whole repository. Run `vp config` and `vp migrate` only with `--no-hooks`: Vite+'s hooks set `core.hooksPath`, which silently turns lefthook off. To undo that, run `npx vp hooks disable`, then `lefthook install`.
+- **`vite` is Vite+'s build of it** (`npm:@voidzero-dev/vite-plus-core`), forced by `overrides` in `package.json`. Keep both entries on the same version as `vite-plus`.
 - Any change under `dashboard/`, this file included, redeploys staging's `dashboard` after merge.

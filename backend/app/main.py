@@ -1,16 +1,26 @@
+import logging
 import uuid
 from datetime import datetime
+from typing import Annotated, Any, Literal, Self
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints, field_validator, model_validator
 from sqlalchemy import Select, false, func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db import engine
+from app.auth import Caller, current_caller, refuse, require_roles
+from app.db import engine, get_session
 from app.incidents import IncidentStatus
-from app.models import Call, Incident, Senior, User
+from app.models import Call, Incident, Role, Senior, User
+from app.phones import is_mobile, normalize
 from app.settings import check_environment, get_settings
+from app.staff import grant_staff
+
+# Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
+logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
+logging.getLogger("sentinela").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
@@ -38,6 +48,98 @@ async def health() -> dict[str, str]:
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     return {"status": "ok", "env": settings.app_env}
+
+
+class GrantView(BaseModel):
+    role: str
+    senior_id: uuid.UUID | None
+
+
+class Me(BaseModel):
+    """GET /me (auth-layer §3.3). Fields are only ever added: old apps read new servers."""
+
+    display_name: str
+    phone_e164: str
+    grants: list[GrantView]
+
+
+@api.get("/me")
+async def me(caller: Annotated[Caller, Depends(current_caller)]) -> Me:
+    return Me(
+        display_name=caller.user.display_name,
+        phone_e164=caller.user.phone_e164,
+        grants=[GrantView(role=g.role, senior_id=g.senior_id) for g in caller.grants],
+    )
+
+
+Name = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)
+]
+Practice = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+]
+
+
+class StaffGrant(BaseModel):
+    """POST /staff's body (auth-layer §3.4)."""
+
+    display_name: Name
+    phone: str
+    role: Literal["das", "medic"]
+    practice: Practice | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def practice_only_for_medics(cls, data: Any) -> Any:
+        # Ignored for das (§3.4), so a form's empty practice field refuses nothing.
+        if isinstance(data, dict) and data.get("role") != "medic":
+            return {**data, "practice": None}
+        return data
+
+    @field_validator("phone")
+    @classmethod
+    def mobile_e164(cls, raw: str) -> str:
+        e164 = normalize(raw)
+        if not is_mobile(e164):
+            raise ValueError("staff sign in by SMS: the number must be a mobile")
+        return e164
+
+    @model_validator(mode="after")
+    def medic_has_practice(self) -> Self:
+        if self.role == "medic" and self.practice is None:
+            raise ValueError("a medic needs a practice")
+        return self
+
+
+class StaffMember(BaseModel):
+    display_name: str
+    phone_e164: str
+    role: str
+    practice: str | None
+
+
+@api.post("/staff", status_code=201)
+async def grant_staff_member(
+    body: StaffGrant,
+    caller: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> StaffMember:
+    user = await grant_staff(
+        session,
+        body.display_name,
+        body.phone,
+        Role(body.role),
+        body.practice,
+        caller.user.id,
+    )
+    if user is None:
+        raise refuse(409, "already_done")
+    return StaffMember(
+        display_name=user.display_name,
+        phone_e164=user.phone_e164,
+        role=body.role,
+        practice=user.practice,
+    )
 
 
 # One row of GET /incidents (04 §1). Names follow the incidents and seniors tables (05 §1)
@@ -90,7 +192,10 @@ def incidents_query(statuses: set[IncidentStatus] | None) -> Select:
 
 
 @api.get("/incidents")
-async def list_incidents(status: str | None = None) -> list[IncidentSummary]:
+async def list_incidents(
+    _: Annotated[Caller, Depends(require_roles(Role.das))],
+    status: str | None = None,
+) -> list[IncidentSummary]:
     query = incidents_query(parse_statuses(status))
     async with engine.connect() as conn:
         rows = (await conn.execute(query)).mappings().all()

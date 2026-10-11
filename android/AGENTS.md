@@ -14,6 +14,7 @@ One Gradle build, two APKs: the phone app for the senior, caregiver, medic and D
 android/
 ├── settings.gradle.kts           includes :app, :wear, :shared
 ├── build.gradle.kts              plugins only
+├── .editorconfig                 ktlint: android_studio style, Composable names allowed (ADR-002)
 ├── gradle/libs.versions.toml     every dependency and plugin version
 ├── gradle/gradle-daemon-jvm.properties   pins JDK 25
 ├── local.properties              git-ignored: sdk.dir, keystore, optional sentinela.apiUrl
@@ -26,7 +27,8 @@ From `android/`. CI ([android.yml](../.github/workflows/android.yml)) runs the f
 
 | Task | Command |
 |---|---|
-| Lint, JVM unit tests, debug APKs (CI) | `./gradlew lint testDebugUnitTest assembleDebug` |
+| ktlint, lint, JVM unit tests, debug APKs (CI) | `./gradlew ktlintCheck lint testDebugUnitTest :shared:test assembleDebug` |
+| Format Kotlin / check formatting | `./gradlew ktlintFormat` / `./gradlew ktlintCheck` |
 | Build one APK | `./gradlew :app:assembleDebug` / `./gradlew :wear:assembleDebug` |
 | Release APK (R8 on) | `./gradlew :app:assembleRelease` |
 | Test only the shared logic | `./gradlew :shared:test` |
@@ -43,7 +45,8 @@ From `android/`. CI ([android.yml](../.github/workflows/android.yml)) runs the f
 
 - **Every build needs the shared keystore.** Debug and release, phone and watch, are signed with one key from `local.properties`. Without it the build fails at signing; ask the user rather than inventing a debug key or disabling signing. Never commit `*.jks` or `local.properties`.
 - **Dependencies go through `libs.versions.toml`**, never as inline coordinates.
+- **Kotlin is formatted by ktlint** (`android_studio` style, set in `.editorconfig`). The pre-commit hook runs `ktlintFormat`; CI runs `ktlintCheck`.
 - **The phone and watch stay in lockstep.** Same `applicationId`, same signing block, same version, or the Data Layer silently drops messages (ADR-001 §2.1).
 - **Release builds use R8.** A release-only crash is an R8 problem; launch a release build before calling one done. Keep rules go in `<module>/src/main/keepRules/`.
-- **No DI framework, Navigation or Room yet.** Each arrives with the first feature that needs it. Data lives in FastAPI, not on the device.
+- **Hilt is the DI framework** (auth-layer AL16), with its compiler through KSP. Navigation and Room still arrive with the first feature that needs them. Data lives in FastAPI, not on the device.
 - **CI has no emulator tests.** Sensors and delivery only show on real hardware (spikes S5–S7); say so when a change can't be verified on the JVM.

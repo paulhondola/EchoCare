@@ -2,7 +2,7 @@
 
 One Gradle build that produces two APKs: the Android app for the senior, caregiver, medic and DAS roles (spec G3, G15), and the Wear OS app for the senior's watch (G5). Kotlin, Jetpack Compose, AGP 9.4, Gradle 9.6. The apps are installed on the demo devices by hand, never through the Play Store ([ADR-001](../docs/adr/ADR-001-monorepo-and-delivery.md) §2).
 
-This is the skeleton: the phone app shows whether the API answers, and the watch app shows one screen. The features in [What is not built yet](#what-is-not-built-yet) come next.
+This is the skeleton: the phone app signs in and shows a placeholder per role, and the watch app shows one screen. The features in [What is not built yet](#what-is-not-built-yet) come next.
 
 | Module | What | Becomes |
 |---|---|---|
@@ -227,10 +227,10 @@ CI signs with the keystore from the GitHub secrets `ANDROID_KEYSTORE_BASE64` and
 | **The watch is not standalone** | G5. It has no identity and never calls the API: events go through the senior's signed-in phone. The manifest says `standalone=false` |
 | **Started from the Studio wizard, then trimmed** | Empty Activity, Empty Wear App and Kotlin Library templates. The watch's example tile and complication are removed: the spec asks for one screen and one job |
 | **Compose with Material 3; Wear Compose with Material 3 on the watch** | Studio's default for new projects, and the team's toolkit |
-| **Retrofit and kotlinx.serialization** | [Api.kt](app/src/main/java/bia/sentinela/Api.kt) holds one interface, `SentinelaApi`, with one function per endpoint of [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md). The base URL is `API_URL + "/api/"`, so endpoints keep the spec's names. The Firebase token will be attached in one OkHttp interceptor |
+| **Retrofit and kotlinx.serialization** | [Api.kt](app/src/main/java/bia/sentinela/Api.kt) holds one interface, `SentinelaApi`, with one function per endpoint of [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md). The base URL is `API_URL + "/api/"`, so endpoints keep the spec's names. The Firebase token is attached in one OkHttp interceptor, in [Modules.kt](app/src/main/java/bia/sentinela/Modules.kt) |
 | **`ignoreUnknownKeys = true`** | An installed APK keeps talking to a newer API (ADR-001 §2.3). Spec enumerations will also be decoded as strings with a fallback, never as plain enums, which crash on an unknown value |
 | **API address fixed per build type** | `debug` → staging, `release` → production (ADR-001 §2.2), as a `BuildConfig` field. Only `local.properties` can override debug |
-| **No DI framework, no Navigation, no Room yet** | Each comes with the first feature that needs it. Navigation will arrive with the role screens. A local database is unlikely: all data lives in FastAPI (01 §5) |
+| **Hilt; no Navigation, no Room yet** | Hilt arrived with sign-in (auth-layer AL16). The others come with the first feature that needs them. Navigation will arrive with the role screens. A local database is unlikely: all data lives in FastAPI (01 §5) |
 | **One signing key for every build** | ADR-001 §2.1. Without it, watch messages are silently dropped, Firebase phone sign-in fails for unregistered keys, and installing over another build fails. The keystore is PKCS12, alias `key0`, one password |
 | **R8 on the whole app in release** | The wizard's `optimization { packageScope = … }` split `kotlin.sequences` classes across packages and crashed every release build at startup with an `IllegalAccessError` |
 | **`minSdk` 37 on the phone, 36 on the watch** | The newest platforms, for now. To be lowered once the demo devices are known |
@@ -255,7 +255,7 @@ CI signs with the keystore from the GitHub secrets `ANDROID_KEYSTORE_BASE64` and
 
 | Piece | Spec |
 |---|---|
-| Firebase phone sign-in, `GET /me` and the role picker; `google-services.json` and the key's SHA fingerprints in Firebase | G6, UC-02 |
+| The shared key's SHA-1 and SHA-256 in Firebase, for real numbers on real devices. Debug builds sign test numbers in without them | ADR-001 action item 3, auth-layer §9 |
 | Firebase push: alerts, silent refresh, the timed re-read backstop | G4, 04 §6 |
 | The four roles' screens, with Navigation; the medic's tablet layout | UC-01, UC-11, UC-12 |
 | Watch monitoring, the „Sunteți bine?” prompt, check-ins, the Data Layer relay through the phone | G14, UC-03, UC-09, UC-13 |

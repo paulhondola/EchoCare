@@ -232,10 +232,11 @@ Several rules from the other files are enforced by the database itself, so they 
 | One current code per senior | `senior_status.senior_id` is the primary key |
 | At most one unresolved incident per senior | A unique index over `incident.senior_id` limited to rows in `open` or `in_progress` |
 | An incident is taken once | Taking updates the row only where `status` is still `open`; a second taker changes nothing and is told who has it |
+| At most one senior grant per user ([auth-layer.md](../auth-layer.md) AL7) | A unique index over `grant.user_id` limited to rows with role `senior`, added with the seniors migration |
 
 ## 4. Notes on specific choices
 
-**The user row exists before sign-in.** Signing in is a lookup by phone number that fills `firebase_uid` the first time. A number with no row is refused and nothing is stored.
+**The user row exists before sign-in.** Signing in is a lookup by phone number that fills `firebase_uid` the first time. A number with no row is refused and nothing is stored. The phone number stays the lookup key; if a different Firebase account later signs in with the number, `firebase_uid` is replaced and a warning logged ([auth-layer.md](../auth-layer.md) AL4).
 
 **The current code is its own row.** Apps read `SeniorStatus` constantly and `Call` rarely. Keeping the code separate makes the most frequent read a single-row lookup.
 

@@ -1,18 +1,23 @@
-"""The schema, compiled for PostgreSQL without a database (05 §3)."""
+"""The schema (05 §3): compiled for PostgreSQL without a database, then against one."""
 
+import subprocess
+import sys
 import uuid
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.calls import LIVE
 from app.db import Base
 from app.incidents import UNRESOLVED
-from app.models import SENIOR_ROLES, Call, Event, new_id
+from app.models import SENIOR_ROLES, Call, Event, Grant, Role
 from app.status import Severity
 
+BACKEND = Path(__file__).parent.parent
 DIALECT = postgresql.dialect()
 
 
@@ -99,7 +104,8 @@ def test_one_grant_per_role_and_senior_even_without_a_senior():
 
 def test_only_caregiver_and_senior_grants_name_a_senior():
     sql = create_table("grants")
-    assert "CONSTRAINT ck_grants_senior_only_for_senior_roles CHECK" in sql
+    # Named before the naming convention, in 5d0c8c3a7f21.
+    assert "CONSTRAINT senior_only_for_senior_roles CHECK" in sql
     for role in SENIOR_ROLES:
         assert f"'{role.name}'" in sql
 
@@ -111,8 +117,22 @@ def test_one_current_code_and_watch_state_per_senior():
 
 def test_event_id_comes_from_the_device():
     # A resent event hits the primary key instead of getting a fresh id (05 §3).
-    assert Event.__table__.c.id.default is None
-    assert Call.__table__.c.id.default is not None
+    assert Event.__table__.c.id.server_default is None
+    assert "id UUID DEFAULT uuidv7() NOT NULL" in create_table("calls")
+
+
+def test_at_most_one_senior_grant_per_user():
+    # AL7: a couple sharing one mobile gives the second senior no app role.
+    sql = create_index("grants", "uq_grants_one_senior_per_user")
+    assert sql.startswith("CREATE UNIQUE INDEX uq_grants_one_senior_per_user")
+    assert sql.endswith("ON grants (user_id) WHERE role = 'senior'")
+
+
+def test_grants_name_a_real_senior():
+    # AL6: the foreign key arrived with the seniors table.
+    assert "FOREIGN KEY(senior_id) REFERENCES seniors (id) ON DELETE CASCADE" in (
+        create_table("grants")
+    )
 
 
 def test_enums_are_plain_strings_without_a_check():
@@ -130,9 +150,34 @@ def test_severity_is_stored_by_name():
     assert Call.__table__.c.final_severity.type.enums == ["green", "yellow", "red"]
 
 
-def test_new_ids_are_time_ordered():
-    ids = [new_id() for _ in range(50)]
-    assert all(i.version == 7 for i in ids)
-    assert ids == sorted(ids)
-    assert len(set(ids)) == len(ids)
-    assert isinstance(ids[0], uuid.UUID)
+def test_models_match_the_migration(migrated):
+    # `alembic check` fails when autogenerate would add anything (auth-layer §4).
+    subprocess.run([sys.executable, "-m", "alembic", "check"], cwd=BACKEND, check=True)
+
+
+async def test_ids_are_uuid_v7(add_user):
+    user = await add_user("+40700000001")
+    assert user.id.version == 7
+
+
+async def test_one_grant_per_role(db, add_user):
+    user = await add_user("+40700000001", Role.das)
+    db.add(Grant(user_id=user.id, role=Role.das))
+    with pytest.raises(IntegrityError):
+        await db.commit()
+
+
+@pytest.mark.parametrize(
+    ("role", "senior_id"),
+    [
+        (Role.caregiver, None),  # a caregiver grant names its senior
+        (Role.senior, None),
+        (Role.das, uuid.uuid4()),  # a staff grant names none
+        ("boss", None),  # only the four roles
+    ],
+)
+async def test_grant_checks(db, add_user, role, senior_id):
+    user = await add_user("+40700000001")
+    db.add(Grant(user_id=user.id, role=role, senior_id=senior_id))
+    with pytest.raises(IntegrityError):
+        await db.commit()

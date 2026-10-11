@@ -20,6 +20,19 @@ defaults:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # tests/conftest.py points at sentinela_test on localhost (auth-layer §6.4)
+    services:
+      postgres:
+        image: postgres:18 # the major version of Railway's Postgres and Compose's
+        env:
+          POSTGRES_USER: sentinela
+          POSTGRES_PASSWORD: sentinela
+          POSTGRES_DB: sentinela_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sentinela"
+          --health-interval 2s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v7
       # setup-uv publishes no moving major tag (v10), only full versions

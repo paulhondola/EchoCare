@@ -5,7 +5,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
-import app.models  # noqa: F401  registers every table on Base.metadata for autogenerate
+import app.models  # noqa: F401  # autogenerate and check see only imported tables
 from alembic import context
 from app.db import Base
 from app.settings import db_host, get_settings, is_local_db, on_railway

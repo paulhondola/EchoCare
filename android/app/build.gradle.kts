@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ktlint)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
 }
 
 // Keystore paths and passwords, and the optional API override, stay out of Git (ADR-001 §2.1, §2.2).
@@ -42,8 +46,9 @@ android {
         // points a debug build elsewhere, e.g. http://10.0.2.2:8000 for Compose from the emulator.
         debug {
             signingConfig = signingConfigs.getByName("shared")
-            buildConfigField("String", "API_URL",
-                "\"${localProps.getProperty("sentinela.apiUrl") ?: "https://api-staging-11c9.up.railway.app"}\"")
+            val apiUrl = localProps.getProperty("sentinela.apiUrl")
+                ?: "https://api-staging-11c9.up.railway.app"
+            buildConfigField("String", "API_URL", "\"$apiUrl\"")
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
@@ -76,6 +81,12 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.kotlinx.serialization.json)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

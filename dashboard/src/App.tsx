@@ -1,26 +1,88 @@
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useEffect, useState } from "react";
+import { getMe } from "./api";
+import { auth } from "./firebase";
 import IncidentBoard from "./IncidentBoard";
+import SignIn from "./SignIn";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NO_ACCESS = "Acest număr nu are acces la dispecerat.";
+const NOT_REGISTERED = "Numărul nu este înregistrat. Contactați medicul de familie.";
+const UNAVAILABLE = "Autentificarea nu este disponibilă acum. Încercați din nou.";
+
+// What App shows, by state (auth-layer §7.1)
+type View =
+  | { kind: "loading" }
+  | { kind: "signedOut"; notice?: string }
+  | { kind: "das"; name: string }
+  | { kind: "unavailable" };
 
 export default function App() {
-  const [health, setHealth] = useState("…");
+  const [view, setView] = useState<View>({ kind: "loading" });
 
-  // ponytail: a cross-origin call to /api/health proves the API, the database and CORS in one request
-  useEffect(() => {
-    fetch(`${API_URL}/api/health`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((h) => setHealth(`${h.status} (${h.env})`))
-      .catch((e) => setHealth(`unreachable: ${e}`));
-  }, []);
-
-  return (
-    <main className="mx-auto max-w-7xl p-4">
-      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 pb-2">
-        <h1 className="text-2xl font-bold">Sentinela DAS</h1>
-        <span className="text-sm text-base-content/60">API: {health}</span>
-      </header>
-      <IncidentBoard />
-    </main>
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (user) => {
+        if (!user) {
+          // Keeps a notice set just before signing out.
+          setView((v) => (v.kind === "signedOut" ? v : { kind: "signedOut" }));
+          return;
+        }
+        setView({ kind: "loading" });
+        const refuse = (notice: string) => {
+          setView({ kind: "signedOut", notice });
+          void signOut(auth);
+        };
+        getMe()
+          .then((me) => {
+            if (me === "not_registered") refuse(NOT_REGISTERED);
+            else if (me === "not_signed_in") return; // apiFetch has already signed out
+            else if (typeof me === "string") setView({ kind: "unavailable" });
+            else if (me.grants.some((g) => g.role === "das"))
+              setView({ kind: "das", name: me.display_name });
+            else refuse(NO_ACCESS);
+          })
+          .catch((err: unknown) => {
+            console.error(err);
+            setView({ kind: "unavailable" });
+          });
+      }),
+    [],
   );
+
+  const exit = (
+    <button className="btn btn-sm" onClick={() => void signOut(auth)}>
+      Ieșire
+    </button>
+  );
+
+  switch (view.kind) {
+    case "loading":
+      return <main aria-busy="true" />;
+    case "signedOut":
+      return (
+        <main>
+          <SignIn notice={view.notice} />
+        </main>
+      );
+    case "das":
+      return (
+        <main className="mx-auto max-w-7xl p-4">
+          <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 pb-2">
+            <h1 className="text-2xl font-bold">Sentinela DAS</h1>
+            <span className="flex items-center gap-2 text-sm text-base-content/60">
+              Conectat ca {view.name}
+              {exit}
+            </span>
+          </header>
+          <IncidentBoard />
+        </main>
+      );
+    case "unavailable":
+      return (
+        <main>
+          <p role="alert">{UNAVAILABLE}</p>
+          {exit}
+        </main>
+      );
+  }
 }

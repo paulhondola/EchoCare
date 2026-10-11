@@ -1,7 +1,9 @@
 """Tables (05 §1), with the rules the database enforces itself (05 §3).
 
-Enums are stored as their member names in a plain VARCHAR with no CHECK constraint, so a
-later change can add a value without a migration (ADR-001 §2.3: changes only add).
+The database makes every row id with uuidv7(), built into Postgres 18 (04 §0); only an
+event's id comes from the device. Enums are stored as their member names in a plain
+VARCHAR with no CHECK constraint, so a later change can add a value without a migration
+(ADR-001 §2.3: changes only add). `grants.role` predates this and keeps its CHECK.
 """
 
 import enum
@@ -41,6 +43,9 @@ class Role(StrEnum):
     caregiver = "caregiver"
     senior = "senior"
 
+
+# The order of GET /me's grants (auth-layer §3.3).
+ROLE_ORDER = list(Role)
 
 # Grants that apply to one senior; das and medic grants apply to none (05 §1).
 SENIOR_ROLES = frozenset({Role.caregiver, Role.senior})
@@ -145,9 +150,9 @@ def in_states(column: str, states: frozenset[Any]) -> Any:
     return text(f"{column} IN ({names})")
 
 
-def new_id() -> uuid.UUID:
+def uuid_pk() -> Mapped[uuid.UUID]:
     # Time-ordered, so new rows land at the end of the primary key index.
-    return uuid.uuid7()
+    return mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
 
 
 def timestamp_now() -> Mapped[datetime]:
@@ -159,6 +164,12 @@ class User(Base):
 
     __tablename__ = "users"
     __table_args__ = (
+        # Constraints carry the names their migration gave them, so `alembic check`
+        # matches: Postgres's own in 5d0c8c3a7f21, uq_ and ck_ ones after it.
+        # Its unique index serves the lookup on every request (auth-layer §3.1).
+        UniqueConstraint("phone_e164", name="users_phone_e164_key"),
+        # Replaced, with a warning, if another Firebase account signs in with it (AL4).
+        UniqueConstraint("firebase_uid", name="users_firebase_uid_key"),
         # At most one DAS employee on duty (P10).
         Index(
             "uq_users_on_duty",
@@ -168,11 +179,11 @@ class User(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
-    phone_e164: Mapped[str] = mapped_column(String(16), unique=True)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    phone_e164: Mapped[str] = mapped_column(String(16))
     display_name: Mapped[str] = mapped_column(String(120))
-    firebase_uid: Mapped[str | None] = mapped_column(String(128), unique=True)
-    practice: Mapped[str | None] = mapped_column(String(200))
+    firebase_uid: Mapped[str | None] = mapped_column(String(128))
+    practice: Mapped[str | None] = mapped_column(String(200))  # medics
     on_duty: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
@@ -180,29 +191,46 @@ class User(Base):
 
 
 class Grant(Base):
+    """One role for one user; caregiver and senior grants name their senior (AL5)."""
+
     __tablename__ = "grants"
     __table_args__ = (
-        # One grant per role and senior; NULLS NOT DISTINCT so a das or medic grant,
-        # which has no senior, is also unique per user.
+        # NULLS NOT DISTINCT: a das or medic grant, whose senior_id is NULL, is also
+        # unique per user. Starting with user_id, it serves the per-request grant lookup.
         UniqueConstraint(
-            "user_id", "role", "senior_id", postgresql_nulls_not_distinct=True
+            "user_id",
+            "role",
+            "senior_id",
+            name="grants_user_id_role_senior_id_key",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint(
+            "role IN ('das', 'medic', 'caregiver', 'senior')", name="role_known"
         ),
         CheckConstraint(
             "(role IN ('caregiver', 'senior')) = (senior_id IS NOT NULL)",
             name="senior_only_for_senior_roles",
         ),
+        # At most one senior grant per user (AL7).
+        Index(
+            "uq_grants_one_senior_per_user",
+            "user_id",
+            unique=True,
+            postgresql_where=text("role = 'senior'"),
+        ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
-    # Revoking a grant deletes it, so a removed caregiver loses access at once (05 §5).
+    id: Mapped[uuid.UUID] = uuid_pk()
+    # Revoking a grant deletes it, so access stops at once (05 §5).
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+        ForeignKey("users.id", ondelete="CASCADE")
     )
-    role: Mapped[Role] = mapped_column(enum_type(Role))
+    role: Mapped[str] = mapped_column(String(16))
+    # The foreign key arrived with the seniors table (AL6).
     senior_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("seniors.id", ondelete="CASCADE"), index=True
     )
-    relation: Mapped[str | None] = mapped_column(String(60))
+    relation: Mapped[str | None] = mapped_column(String(60))  # caregivers
     # Empty for grants made by the setup script (G6).
     granted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = timestamp_now()
@@ -211,7 +239,7 @@ class Grant(Base):
 class Senior(Base):
     __tablename__ = "seniors"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     medic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     full_name: Mapped[str] = mapped_column(String(200))
     form_of_address: Mapped[str] = mapped_column(String(120))  # "doamna Maria"
@@ -242,7 +270,7 @@ class Consent(Base):
 
     __tablename__ = "consents"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     senior_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seniors.id"), index=True)
     decision: Mapped[ConsentDecision] = mapped_column(enum_type(ConsentDecision))
     method: Mapped[ConsentMethod] = mapped_column(enum_type(ConsentMethod))
@@ -295,7 +323,7 @@ class Event(Base):
 class Campaign(Base):
     __tablename__ = "campaigns"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     kind: Mapped[CampaignKind] = mapped_column(enum_type(CampaignKind))
     level: Mapped[WarningLevel] = mapped_column(enum_type(WarningLevel))
     started_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
@@ -322,9 +350,10 @@ class Call(Base):
             "due_at",
             postgresql_where=in_states("state", frozenset({CallState.queued})),
         ),
+        UniqueConstraint("twilio_call_id", name="uq_calls_twilio_call_id"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     senior_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seniors.id"), index=True)
     trigger: Mapped[CallTrigger] = mapped_column(enum_type(CallTrigger))
     campaign_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -341,7 +370,7 @@ class Call(Base):
     )
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Twilio's CallSid; status callbacks find the call by it.
-    twilio_call_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    twilio_call_id: Mapped[str | None] = mapped_column(String(64))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     final_severity: Mapped[Severity | None] = mapped_column(enum_type(Severity))
@@ -359,9 +388,11 @@ class CallTurn(Base):
     """The transcript, one row per utterance or key press."""
 
     __tablename__ = "call_turns"
-    __table_args__ = (UniqueConstraint("call_id", "position"),)
+    __table_args__ = (
+        UniqueConstraint("call_id", "position", name="uq_call_turns_call_id"),
+    )
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"))
     position: Mapped[int] = mapped_column(Integer)
     speaker: Mapped[Speaker] = mapped_column(enum_type(Speaker))
@@ -376,7 +407,7 @@ class Answer(Base):
 
     __tablename__ = "answers"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"), index=True)
     field: Mapped[Question] = mapped_column(enum_type(Question))
     value: Mapped[str] = mapped_column(String(60))
@@ -390,7 +421,7 @@ class StatusReport(Base):
 
     __tablename__ = "status_reports"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"), index=True)
     source: Mapped[ReportSource] = mapped_column(enum_type(ReportSource))
     severity: Mapped[Severity] = mapped_column(enum_type(Severity))
@@ -429,11 +460,11 @@ class Incident(Base):
         ),
         CheckConstraint(
             "status != 'resolved' OR (resolved_by IS NOT NULL AND outcome IS NOT NULL)",
-            name="resolved_has_outcome",
+            name="ck_incidents_resolved_has_outcome",
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     senior_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seniors.id"), index=True)
     opened_by_call_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("calls.id"))
     status: Mapped[IncidentStatus] = mapped_column(
@@ -455,13 +486,14 @@ class PushToken(Base):
     """Where to deliver pushes for a user, one row per device (G4)."""
 
     __tablename__ = "push_tokens"
+    __table_args__ = (UniqueConstraint("token", name="uq_push_tokens_token"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     # A device's token belongs to whoever signed in on it last.
-    token: Mapped[str] = mapped_column(String(512), unique=True)
+    token: Mapped[str] = mapped_column(String(512))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

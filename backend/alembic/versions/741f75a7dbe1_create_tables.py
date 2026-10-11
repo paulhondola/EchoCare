@@ -1,9 +1,11 @@
 """create tables
 
-Every table in the data model (05 §1) with the constraints the database enforces (05 §3).
+Every other table in the data model (05 §1) with the constraints the database enforces
+(05 §3), on top of the auth layer's users and grants: users gets on_duty (P10), grants
+gets its senior foreign key (AL6) and the one-senior-grant index (AL7).
 
 Revision ID: 741f75a7dbe1
-Revises:
+Revises: 5d0c8c3a7f21
 Create Date: 2026-10-10 20:38:47.000000
 
 """
@@ -17,32 +19,18 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "741f75a7dbe1"
-down_revision: str | Sequence[str] | None = None
+down_revision: str | Sequence[str] | None = "5d0c8c3a7f21"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.create_table(
+    op.add_column(
         "users",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("phone_e164", sa.String(length=16), nullable=False),
-        sa.Column("display_name", sa.String(length=120), nullable=False),
-        sa.Column("firebase_uid", sa.String(length=128), nullable=True),
-        sa.Column("practice", sa.String(length=200), nullable=True),
         sa.Column(
             "on_duty", sa.Boolean(), server_default=sa.text("false"), nullable=False
         ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
-        sa.UniqueConstraint("firebase_uid", name=op.f("uq_users_firebase_uid")),
-        sa.UniqueConstraint("phone_e164", name=op.f("uq_users_phone_e164")),
     )
     op.create_index(
         "uq_users_on_duty",
@@ -53,7 +41,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "campaigns",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column(
             "kind",
             sa.Enum("heat", "cold", name="campaignkind", native_enum=False, length=32),
@@ -79,7 +67,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "push_tokens",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("token", sa.String(length=512), nullable=False),
         sa.Column(
@@ -102,7 +90,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "seniors",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("medic_id", sa.Uuid(), nullable=False),
         sa.Column("full_name", sa.String(length=200), nullable=False),
         sa.Column("form_of_address", sa.String(length=120), nullable=False),
@@ -149,7 +137,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_seniors_medic_id"), "seniors", ["medic_id"], unique=False)
     op.create_table(
         "calls",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("senior_id", sa.Uuid(), nullable=False),
         sa.Column(
             "trigger",
@@ -266,62 +254,22 @@ def upgrade() -> None:
         unique=True,
         postgresql_where=sa.text("state IN ('in_progress', 'queued', 'ringing')"),
     )
-    op.create_table(
+    op.create_foreign_key(
+        op.f("fk_grants_senior_id_seniors"),
         "grants",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column(
-            "role",
-            sa.Enum(
-                "das",
-                "medic",
-                "caregiver",
-                "senior",
-                name="role",
-                native_enum=False,
-                length=32,
-            ),
-            nullable=False,
-        ),
-        sa.Column("senior_id", sa.Uuid(), nullable=True),
-        sa.Column("relation", sa.String(length=60), nullable=True),
-        sa.Column("granted_by", sa.Uuid(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "(role IN ('caregiver', 'senior')) = (senior_id IS NOT NULL)",
-            name=op.f("ck_grants_senior_only_for_senior_roles"),
-        ),
-        sa.ForeignKeyConstraint(
-            ["granted_by"], ["users.id"], name=op.f("fk_grants_granted_by_users")
-        ),
-        sa.ForeignKeyConstraint(
-            ["senior_id"],
-            ["seniors.id"],
-            name=op.f("fk_grants_senior_id_seniors"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"],
-            ["users.id"],
-            name=op.f("fk_grants_user_id_users"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_grants")),
-        sa.UniqueConstraint(
-            "user_id",
-            "role",
-            "senior_id",
-            name=op.f("uq_grants_user_id"),
-            postgresql_nulls_not_distinct=True,
-        ),
+        "seniors",
+        ["senior_id"],
+        ["id"],
+        ondelete="CASCADE",
     )
     op.create_index(op.f("ix_grants_senior_id"), "grants", ["senior_id"], unique=False)
-    op.create_index(op.f("ix_grants_user_id"), "grants", ["user_id"], unique=False)
+    op.create_index(
+        "uq_grants_one_senior_per_user",
+        "grants",
+        ["user_id"],
+        unique=True,
+        postgresql_where=sa.text("role = 'senior'"),
+    )
     op.create_table(
         "watch_states",
         sa.Column("senior_id", sa.Uuid(), nullable=False),
@@ -350,7 +298,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "answers",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("call_id", sa.Uuid(), nullable=False),
         sa.Column(
             "field",
@@ -381,7 +329,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_answers_call_id"), "answers", ["call_id"], unique=False)
     op.create_table(
         "call_turns",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("call_id", sa.Uuid(), nullable=False),
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column(
@@ -417,7 +365,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "consents",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("senior_id", sa.Uuid(), nullable=False),
         sa.Column(
             "decision",
@@ -511,7 +459,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_events_senior_id"), "events", ["senior_id"], unique=False)
     op.create_table(
         "incidents",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("senior_id", sa.Uuid(), nullable=False),
         sa.Column("opened_by_call_id", sa.Uuid(), nullable=True),
         sa.Column(
@@ -610,7 +558,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "status_reports",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("call_id", sa.Uuid(), nullable=False),
         sa.Column(
             "source",
@@ -680,9 +628,15 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_answers_call_id"), table_name="answers")
     op.drop_table("answers")
     op.drop_table("watch_states")
+    op.drop_index(
+        "uq_grants_one_senior_per_user",
+        table_name="grants",
+        postgresql_where=sa.text("role = 'senior'"),
+    )
     op.drop_index(op.f("ix_grants_senior_id"), table_name="grants")
-    op.drop_index(op.f("ix_grants_user_id"), table_name="grants")
-    op.drop_table("grants")
+    op.drop_constraint(
+        op.f("fk_grants_senior_id_seniors"), "grants", type_="foreignkey"
+    )
     op.drop_index(op.f("ix_calls_campaign_id"), table_name="calls")
     op.drop_index(
         "ix_calls_queued_due_at",
@@ -704,4 +658,4 @@ def downgrade() -> None:
     op.drop_index(
         "uq_users_on_duty", table_name="users", postgresql_where=sa.text("on_duty")
     )
-    op.drop_table("users")
+    op.drop_column("users", "on_duty")

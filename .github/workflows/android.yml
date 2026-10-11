@@ -1,4 +1,5 @@
-# Checks for the phone and watch apps (ADR-001 §2.5): lint, JVM unit tests (:shared included), debug APKs.
+# Checks for the phone and watch apps (ADR-001 §2.5, ADR-002): ktlint, lint, JVM unit tests, debug APKs.
+# :shared is plain Kotlin: its tests run under `test`, which testDebugUnitTest does not include.
 # No emulator tests: background sensors and delivery only show on real hardware (S5, S6, S7).
 # Do not mark it as a required check: path-filtered workflows never report on other PRs.
 name: android
@@ -40,4 +41,4 @@ jobs:
             echo "sentinela.keystore.password=$KEYSTORE_PASSWORD"
             echo "sentinela.key.password=$KEYSTORE_PASSWORD"
           } > local.properties
-      - run: ./gradlew lint testDebugUnitTest assembleDebug
+      - run: ./gradlew ktlintCheck lint testDebugUnitTest :shared:test assembleDebug

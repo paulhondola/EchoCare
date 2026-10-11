@@ -43,7 +43,8 @@ export default function IncidentBoard() {
               : `Nu am putut citi incidentele (${e instanceof Error ? e.message : e}).`;
           setLoad({ kind: "error", message });
         });
-    read();
+    // read() catches its own errors
+    void read();
     const timer = setInterval(read, REFRESH_MS);
     return () => {
       ctrl.abort();
@@ -73,19 +74,28 @@ export default function IncidentBoard() {
           const items = load.incidents.filter((i) => i.status === status);
           return (
             <div key={status}>
-              <h2 className={`mb-3 flex items-center gap-2 border-b-4 pb-1.5 font-semibold ${border}`}>
+              <h2
+                className={`mb-3 flex items-center gap-2 border-b-4 pb-1.5 font-semibold ${border}`}
+              >
                 {title} <span className={`badge badge-sm ${badge}`}>{items.length}</span>
               </h2>
-              {items.length === 0 && <p className="text-sm text-base-content/60">Niciun incident.</p>}
+              {items.length === 0 && (
+                <p className="text-sm text-base-content/60">Niciun incident.</p>
+              )}
               {items.map((i) => (
-                <article key={i.id} className={`card card-sm mb-3 border-l-4 bg-base-100 shadow-sm ${border}`}>
+                <article
+                  key={i.id}
+                  className={`card card-sm mb-3 border-l-4 bg-base-100 shadow-sm ${border}`}
+                >
                   <div className="card-body gap-1">
                     <h3 className="card-title text-base">{i.senior_full_name}</h3>
                     <p className="text-sm text-base-content/60">{i.senior_form_of_address}</p>
                     <p>{i.reason}</p>
                     <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
                       <dt className="text-base-content/60">Deschis</dt>
-                      <dd title={time.format(Date.parse(i.opened_at))}>{minutesSince(i.opened_at, now)}</dd>
+                      <dd title={time.format(Date.parse(i.opened_at))}>
+                        {minutesSince(i.opened_at, now)}
+                      </dd>
                       {i.taken_by_name && (
                         <>
                           <dt className="text-base-content/60">Preluat de</dt>
@@ -97,7 +107,9 @@ export default function IncidentBoard() {
                       )}
                       <dt className="text-base-content/60">Transfer apel</dt>
                       <dd>
-                        <span className={`badge badge-xs badge-soft ${i.handover_answered ? "badge-success" : "badge-error"}`}>
+                        <span
+                          className={`badge badge-xs badge-soft ${i.handover_answered ? "badge-success" : "badge-error"}`}
+                        >
                           {i.handover_answered ? "preluat" : "nepreluat"}
                         </span>
                       </dd>

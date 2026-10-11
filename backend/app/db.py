@@ -1,21 +1,25 @@
-from sqlalchemy import MetaData
-from sqlalchemy.ext.asyncio import create_async_engine
+from collections.abc import AsyncIterator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.settings import get_settings
 
 
 class Base(DeclarativeBase):
-    # Named constraints, so a later migration can alter or drop one by a known name.
-    metadata = MetaData(
-        naming_convention={
-            "ix": "ix_%(column_0_label)s",
-            "uq": "uq_%(table_name)s_%(column_0_name)s",
-            "ck": "ck_%(table_name)s_%(constraint_name)s",
-            "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-            "pk": "pk_%(table_name)s",
-        }
-    )
+    # No naming convention: alembic would apply it to the unnamed constraints of
+    # 5d0c8c3a7f21, frozen on main, and fresh databases would differ from staging.
+    # Tables name their constraints explicitly instead (app/models.py).
+    pass
 
 
 engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+# expire_on_commit=False: rows stay readable after a commit, since async code cannot
+# lazy-load an expired attribute.
+Session = async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_session() -> AsyncIterator[AsyncSession]:
+    """One session per request; FastAPI hands the same one to every dependency."""
+    async with Session() as session:
+        yield session

@@ -109,6 +109,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Secrets | Twilio, model provider and Firebase service credentials live in Railway's variables, never in an app or the dashboard |
 | Browser requests | The API accepts browser requests only from the dashboard's own address |
 | The on-duty number | The on-duty DAS employee's own phone, read at hand-over time; only a DAS user can change who is on duty |
+| Logs | A refusal is logged with its reason and the user id, or a masked number (`+40700***009`). Tokens are never logged ([auth-layer.md](../auth-layer.md) AL15) |
 
 **Data**
 

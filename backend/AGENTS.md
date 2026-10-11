@@ -8,13 +8,19 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 backend/
 ├── app/
 │   ├── main.py        FastAPI app; every route on the /api router, docs at /api/docs
-│   ├── settings.py    pydantic-settings from env / .env; check_environment() guard
-│   ├── db.py          async engine (asyncpg), declarative Base for models
+│   ├── settings.py    pydantic-settings from env / .env; check_environment()
+│   ├── db.py          async engine (asyncpg), Session and get_session, declarative Base
+│   ├── models.py      SQLAlchemy tables and the constraints the database enforces (05)
+│   ├── auth.py        Firebase token check, the caller and their grants, refusals (auth-layer §3)
+│   ├── staff.py       granting staff roles, for POST /staff and grant_das.py
+│   ├── phones.py      phone numbers to E.164
 │   ├── alarms.py      alarm phrases: normalization and tier 1 / tier 2 patterns (03 §4)
 │   ├── status.py      status engine: severity, certainty, matrix, combining (03 §3, §5, §6)
 │   ├── calls.py       call lifecycle: states and allowed transitions (03 §9)
-│   ├── incidents.py   incident lifecycle: open, in progress, resolved (G16, UC-11)
-│   └── models.py      SQLAlchemy tables and the constraints the database enforces (05)
+│   └── incidents.py   incident lifecycle: open, in progress, resolved (G16, UC-11)
+├── scripts/
+│   ├── grant_das.py   the setup script (G6), run inside the api container
+│   └── dev_token.py   a real sign-in token for a test number, for curl and Swagger
 ├── alembic/
 │   ├── env.py         refuses to migrate any non-local database off Railway
 │   └── versions/      migrations, frozen once on main
