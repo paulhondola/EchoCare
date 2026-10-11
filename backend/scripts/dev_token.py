@@ -10,6 +10,7 @@ Paste the token into Authorize at /api/docs, or use it with curl. It lasts an ho
 """
 
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -20,17 +21,66 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.phones import normalize
 
-# Public: the dashboard ships it in every browser bundle (.railway/railway.ts).
-WEB_API_KEY = "AIzaSyBWFvTyqk904SsoT_uFXIzXgyHBBxhz5m0"
-ACCOUNTS = "https://identitytoolkit.googleapis.com/v1/accounts:{}?key=" + WEB_API_KEY
+ACCOUNTS_URL = "https://identitytoolkit.googleapis.com/v1/accounts:{}?key={}"
 
 
-def call(method: str, body: dict) -> dict:
+def _read_env_key(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        if k.strip() in (
+            "FIREBASE_WEB_API_KEY",
+            "VITE_FIREBASE_API_KEY",
+            "WEB_API_KEY",
+        ):
+            val = v.strip().strip("'\"")
+            if val:
+                return val
+    return None
+
+
+def get_web_api_key(env_path: Path | None = None) -> str:
+    """Read the Firebase web API key from the environment or .env files."""
+    for var in ("FIREBASE_WEB_API_KEY", "VITE_FIREBASE_API_KEY", "WEB_API_KEY"):
+        if val := os.environ.get(var):
+            return val
+
+    if env_path is not None:
+        if val := _read_env_key(env_path):
+            return val
+        raise SystemExit(
+            f"FIREBASE_WEB_API_KEY is not set in {env_path} or environment. "
+            "See backend/.env.example."
+        )
+
+    backend_root = Path(__file__).resolve().parent.parent
+    candidates = [
+        backend_root / ".env",
+        backend_root.parent / "dashboard" / ".env",
+        Path.cwd() / ".env",
+    ]
+    for candidate in candidates:
+        if val := _read_env_key(candidate):
+            return val
+
+    raise SystemExit(
+        "FIREBASE_WEB_API_KEY is not set in backend/.env, dashboard/.env or environment. "
+        "See backend/.env.example."
+    )
+
+
+def call(method: str, body: dict, api_key: str | None = None) -> dict:
+    key = api_key or get_web_api_key()
     request = urllib.request.Request(
-        ACCOUNTS.format(method),
+        ACCOUNTS_URL.format(method, key),
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"},
     )
+
     try:
         with urllib.request.urlopen(request) as response:
             return json.load(response)
@@ -43,11 +93,18 @@ def main() -> int:
     if len(sys.argv) != 3:
         print(__doc__, file=sys.stderr)
         return 2
+    api_key = get_web_api_key()
     phone, code = normalize(sys.argv[1]), sys.argv[2]
     # Test numbers skip the reCAPTCHA check, so any token string passes.
-    sent = call("sendVerificationCode", {"phoneNumber": phone, "recaptchaToken": "dev"})
+    sent = call(
+        "sendVerificationCode",
+        {"phoneNumber": phone, "recaptchaToken": "dev"},
+        api_key=api_key,
+    )
     signed_in = call(
-        "signInWithPhoneNumber", {"sessionInfo": sent["sessionInfo"], "code": code}
+        "signInWithPhoneNumber",
+        {"sessionInfo": sent["sessionInfo"], "code": code},
+        api_key=api_key,
     )
     print(signed_in["idToken"])
     return 0

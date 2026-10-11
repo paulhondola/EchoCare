@@ -2070,8 +2070,8 @@ from app.auth import init_firebase
 from app.phones import normalize
 from app.settings import get_settings
 
-# Public: the dashboard ships it in every browser bundle (.railway/railway.ts).
-WEB_API_KEY = "AIzaSyBWFvTyqk904SsoT_uFXIzXgyHBBxhz5m0"
+# Read from environment / .env:
+WEB_API_KEY = os.environ["FIREBASE_WEB_API_KEY"]
 EXCHANGE = (
     "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken"
     f"?key={WEB_API_KEY}"
