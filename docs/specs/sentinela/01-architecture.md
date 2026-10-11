@@ -105,12 +105,12 @@ Nobody chooses a role. A role is a **grant** made by someone allowed to make it,
 | A DAS employee | Medics, and other DAS employees | Name, phone number, practice (for a medic) |
 | A medic | A senior, and the senior's caregivers | The registration form: the senior's own number, and each caregiver's name, relation and number |
 
-A grant creates the person's user row immediately, before they ever sign in. At first sign-in FastAPI attaches the Firebase account to that row.
+A grant creates the person's user row immediately, before they ever sign in. At first sign-in FastAPI attaches the Firebase account to that row. The phone number stays the key on every request: if a different Firebase account signs in with the number, FastAPI replaces the stored one and logs a warning ([auth-layer.md](../auth-layer.md) AL4).
 
 | When a number signs in | Result |
 |---|---|
-| It has one grant | The app opens the screens for that role. The dashboard accepts DAS grants only |
-| It has several grants (for example a caregiver who is also a medic, or a senior who uses a relative's phone) | The app asks which role to use, listing only the granted ones |
+| Its grants are all one role | The app opens the screens for that role. The dashboard accepts DAS grants only |
+| Its grants span several roles (for example a caregiver who is also a medic, or a senior who uses a relative's phone) | The app asks which role to use, listing only the granted roles. Several grants of one role, such as a caregiver of both parents, are one role: its screens list every senior it covers |
 | It has none | „Numărul nu este înregistrat. Contactați medicul de familie." Nothing is stored |
 
 Phone numbers are normalized to the international format (+40…) on every write and every lookup, so "0722 123 456" typed by a medic matches the number Firebase reports.
@@ -121,7 +121,7 @@ Phone numbers are normalized to the international format (+40…) on every write
 
 **Twilio** signs every callback; FastAPI rejects unsigned or wrongly signed requests.
 
-**One place enforces permissions: FastAPI.** Every endpoint checks the caller's grants and, where a senior is involved, that the grant covers that senior. The app's role screens are a convenience, not a protection.
+**One place enforces permissions: FastAPI.** Every endpoint checks the caller's grants and, where a senior is involved, that the grant covers that senior. The app's role screens are a convenience, not a protection. A caller may do what any of their grants allows; the role chosen in the app only picks screens. For one senior, the caller sees what the grants covering that senior allow in the table below. A medic covers a senior when they hold a medic grant and registered that senior. A senior outside the caller's reach answers "not found", as an id that does not exist does. A user holds at most one senior grant: when a couple shares one mobile, the second senior has no app role and still receives every call ([auth-layer.md](../auth-layer.md) AL2, AL7, AL8).
 
 **Who sees which seniors**
 

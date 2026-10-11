@@ -1,3 +1,27 @@
 <resources>
     <string name="app_name">Sentinela</string>
+
+    <!-- Sign-in (auth-layer §8.2) -->
+    <string name="sign_in_title">Intrați în cont</string>
+    <string name="phone_label">Număr de telefon</string>
+    <string name="send_code">Trimite codul</string>
+    <string name="code_label">Codul primit prin SMS</string>
+    <string name="confirm">Confirmă</string>
+    <string name="resend_code">Retrimite codul</string>
+    <string name="wrong_code">Cod greșit.</string>
+    <string name="not_registered">Numărul nu este înregistrat. Contactați medicul de familie.</string>
+    <string name="unavailable">Autentificarea nu este disponibilă acum. Încercați din nou.</string>
+    <!-- The dashboard's copy for the same Firebase errors (auth-layer §7.1) -->
+    <string name="invalid_phone">Număr de telefon invalid.</string>
+    <string name="too_many_attempts">Prea multe încercări. Încercați mai târziu.</string>
+    <string name="retry">Reîncercați</string>
+
+    <string name="pick_role_title">Alegeți rolul</string>
+    <string name="role_das">Dispecerat DAS</string>
+    <string name="role_medic">Medic</string>
+    <string name="role_caregiver">Aparținător</string>
+    <string name="role_senior">Senior</string>
+    <string name="home">Conectat ca %1$s · %2$s</string>
+    <string name="change_role">Schimbă rolul</string>
+    <string name="sign_out">Ieșire</string>
 </resources>

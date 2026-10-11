@@ -44,6 +44,7 @@ cp .env.example .env
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
+| `FIREBASE_WEB_API_KEY` | your Firebase web API key | Used by `dev_token.py` to sign in test numbers; same as dashboard's `VITE_FIREBASE_API_KEY` |
 
 ## Test and lint
 
@@ -61,7 +62,44 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-Tests that need a database use `sentinela_test`, which Compose creates on a fresh volume, never `sentinela`.
+Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `sentinela_test` on a fresh volume; on an older one, create it once:
+
+```bash
+docker compose exec db createdb -U sentinela sentinela_test
+```
+
+## Sign in by hand
+
+Every client signs in with a phone number ([auth-layer.md](../docs/specs/auth-layer.md)). No key or account setup is needed: the API checks tokens against Firebase's public keys. These Firebase test numbers need no SMS:
+
+| Number | Code | Granted as |
+|---|---|---|
+| `+40700000001` | `111111` | DAS |
+| `+40700000002` | `222222` | medic |
+| `+40700000003` | `333333` | DAS and medic |
+| `+40700000009` | `999999` | nothing |
+
+Grants live in each environment's database. Locally, grant DAS with the setup script (on Railway, run the same inside `railway ssh -s api -e staging`):
+
+```bash
+docker compose exec api python scripts/grant_das.py "DAS Test" +40700000001
+```
+
+A real token for a test number and its code, valid for an hour. Paste it into Authorize at http://localhost:8000/api/docs, or use it with curl:
+
+```bash
+TOKEN=$(uv run python scripts/dev_token.py +40700000001 111111)
+```
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/me
+```
+
+A DAS grants medics through the API:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"display_name": "Medic Test", "phone": "+40700000002", "role": "medic", "practice": "CMI Test"}' localhost:8000/api/staff
+```
 
 ## Migrations
 

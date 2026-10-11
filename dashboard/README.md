@@ -37,7 +37,7 @@ cp .env.example .env
 
 The same Firebase values are set for staging and production in [.railway/railway.ts](../.railway/railway.ts).
 
-**Firebase phone sign-in works only on authorized domains** (Firebase console → Authentication → Settings → Authorized domains). Add each Railway dashboard domain there. Firebase's docs say `localhost` is not allowed for phone sign-in; if reCAPTCHA fails locally, add `127.0.0.1` and open http://127.0.0.1:5173. Use the Firebase test phone numbers for development, so no real SMS is sent.
+**Firebase phone sign-in works only on authorized domains** (Firebase console → Authentication → Settings → Authorized domains). Add each Railway dashboard domain there. Firebase's docs say `localhost` is not allowed for phone sign-in; if reCAPTCHA fails locally, add `127.0.0.1` and open http://127.0.0.1:5173. Use the Firebase test phone numbers for development, so no real SMS is sent. The dev server sets `appVerificationDisabledForTesting` (`src/firebase.ts`), so test numbers sign in without a reCAPTCHA challenge; real numbers then fail, and the production build never sets it.
 
 ## Build and check
 

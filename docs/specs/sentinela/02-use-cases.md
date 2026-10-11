@@ -186,7 +186,7 @@ Nothing rings and no code exists yet.
 2. Firebase sends an SMS code. The app reads it automatically when it can; otherwise the person types it.
 3. The app calls FastAPI with its identity token.
 4. FastAPI normalizes the number, finds its user row, attaches the Firebase account on first sign-in, and returns the grants.
-5. One grant: the app opens that role's screens. Several: the app asks which role, listing only the granted ones.
+5. All grants one role: the app opens that role's screens. Several roles: the app asks which role, listing only the granted ones.
 6. The app saves the device's push token.
 
 Variations:

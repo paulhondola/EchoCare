@@ -8,7 +8,11 @@ The DAS web dashboard (spec G15): a React + Vite single-page app that calls the 
 dashboard/
 ├── src/
 │   ├── main.tsx       React root
-│   └── App.tsx        the app; today a single API health check
+│   ├── App.tsx        what to show, from the Firebase user and GET /api/me (auth-layer §7.1)
+│   ├── SignIn.tsx     phone step, then code step; invisible reCAPTCHA
+│   ├── firebase.ts    the Firebase app and `auth`
+│   ├── api.ts         apiFetch (bearer token, one retry on 401) and getMe
+│   └── phone.ts       typed number → E.164, with phone.test.ts
 ├── index.html         Vite entry
 ├── vite.config.ts     Vite+: dev server on 5173, lint (with type check), fmt
 ├── tsconfig.json
@@ -36,7 +40,7 @@ From `dashboard/`. CI ([dashboard.yml](../.github/workflows/dashboard.yml)) runs
 | Serve the built `dist/` | `npm run preview` |
 | Build the production image (from the repo root) | `docker build -t sentinela-dashboard --build-arg VITE_API_URL=http://localhost:8000 dashboard` |
 
-The toolchain is Vite+ ([ADR-002](../docs/adr/ADR-002-git-hooks.md)): `vp check` runs oxfmt, oxlint and a type check through tsgolint, all configured in `vite.config.ts`. `npm run build` no longer type-checks. Vitest is bundled (`npx vp test`); there are no tests yet.
+The toolchain is Vite+ ([ADR-002](../docs/adr/ADR-002-git-hooks.md)): `vp check` runs oxfmt, oxlint and a type check through tsgolint, all configured in `vite.config.ts`. `npm run build` no longer type-checks. Vitest is bundled (`npx vp test`); CI does not run it yet.
 
 ## Rules
 
