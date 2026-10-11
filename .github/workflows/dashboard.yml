@@ -28,4 +28,5 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
       - run: npx vp check # oxfmt, oxlint, type check (ADR-002)
-      - run: npm run build # vp build
+      - run: npx vp build
+      - run: npx vp test

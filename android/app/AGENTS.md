@@ -1,14 +1,18 @@
 # AGENTS.md: android/app
 
-The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it is the skeleton: one screen showing whether the API answers. Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and shows a placeholder per role (auth-layer §8). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
 
 ## Layout
 
 ```
 app/src/
 ├── main/java/bia/sentinela/
-│   ├── MainActivity.kt    Compose entry; ApiStatus screen
+│   ├── SentinelaApp.kt    @HiltAndroidApp
+│   ├── MainActivity.kt    Compose entry; starts phone verification; the sign-in screens
 │   ├── Api.kt             SentinelaApi (Retrofit): one function per endpoint of 04-interfaces.md
+│   ├── Modules.kt         Hilt: FirebaseAuth, and SentinelaApi with the token interceptor and 401 retry
+│   ├── auth/Screen.kt     the sign-in screen state and what /me's answer leads to, tested on the JVM
+│   ├── auth/AuthViewModel.kt   sign-in, GET /me, the saved role
 │   └── ui/theme/          Material 3 theme
 ├── main/keepRules/        R8 keep rules for release
 ├── debug/AndroidManifest.xml   debug only: ACCESS_LOCAL_NETWORK, cleartext HTTP to 10.0.2.2
