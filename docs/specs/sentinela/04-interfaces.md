@@ -21,7 +21,7 @@ Each read is scoped by the caller's grants as in [01-architecture.md](01-archite
 
 | Read | Indicative address | Who | Returns |
 |---|---|---|---|
-| My profile | `GET /me` | Any signed-in number | Display name and grants (role, and the senior for caregiver and senior grants). Whether a warning is active |
+| My profile | `GET /me` | Any number with a grant | Display name, phone number, and one entry per grant: role, and the senior for caregiver and senior grants; das first, then medic, caregiver, senior. Whether a warning is active, and the seniors' names, are added with the campaign and senior tables ([auth-layer.md](../auth-layer.md) §3.3) |
 | Seniors | `GET /seniors` | Medic: seniors they registered, drafts included. Caregiver: seniors linked to them. Senior: themselves. DAS: seniors submitted or further along | Per senior: name, form of address, enrollment state, code, reason, since when, acknowledged or not, call in progress or not. For caregiver and medic also the watch state. For every role, the home node state and latest room temperature if there is a node **(proposed)** |
 | One senior | `GET /seniors/{id}` | Same scoping | Registration details, address and access details, landline or not, caregivers, current code, consent state, latest event location (caregiver and DAS). For caregiver and medic also the watch. For every role, the home node and its latest room reading **(proposed)** |
 | Calls | `GET /seniors/{id}/calls` | Same scoping | Per call: time, trigger, final severity and certainty, reason, summary |

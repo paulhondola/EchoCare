@@ -1,10 +1,13 @@
 import logging
+import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy import text
 
-from app.auth import init_firebase
+from app.auth import Caller, current_caller, init_firebase
 from app.db import engine
 from app.settings import check_environment, check_firebase, get_settings
 
@@ -40,6 +43,28 @@ async def health() -> dict[str, str]:
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     return {"status": "ok", "env": settings.app_env}
+
+
+class GrantView(BaseModel):
+    role: str
+    senior_id: uuid.UUID | None
+
+
+class Me(BaseModel):
+    """GET /me (auth-layer §3.3). Fields are only ever added: old apps read new servers."""
+
+    display_name: str
+    phone_e164: str
+    grants: list[GrantView]
+
+
+@api.get("/me")
+async def me(caller: Annotated[Caller, Depends(current_caller)]) -> Me:
+    return Me(
+        display_name=caller.user.display_name,
+        phone_e164=caller.user.phone_e164,
+        grants=[GrantView(role=g.role, senior_id=g.senior_id) for g in caller.grants],
+    )
 
 
 # after every route is declared: include_router copies the routes it has at this point
