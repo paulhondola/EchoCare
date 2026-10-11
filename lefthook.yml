@@ -1,0 +1,41 @@
+# Git hooks for the whole repository (ADR-002). One toolchain per folder (ADR-001).
+# Install once per clone: brew install lefthook && lefthook install
+# Fast checks on commit, Gradle on push. A job runs only when its glob matches.
+min_version: 2.2.0
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: backend
+      root: backend/
+      glob: "*.py"
+      group:
+        piped: true # fix, then format, then test: they touch the same files
+        jobs:
+          - run: uv run ruff check --fix {staged_files}
+            stage_fixed: true
+          - run: uv run ruff format {staged_files}
+            stage_fixed: true
+          - run: uv run pytest -q
+
+    - name: dashboard
+      root: dashboard/
+      glob: "*.{ts,tsx,js,json,css,html}"
+      # ponytail: whole project, since a type change can break a file you did not stage.
+      # Pass {staged_files} for format and lint if this gets slow.
+      # --no: fail when npm ci was never run, instead of downloading some other vp
+      run: npx --no vp check --fix
+      stage_fixed: true
+
+    - name: android
+      root: android/
+      glob: "*.{kt,kts}"
+      run: ./gradlew -q ktlintFormat
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: android
+      root: android/
+      glob: "*.{kt,kts,xml,toml,properties,pro}"
+      run: ./gradlew ktlintCheck lint testDebugUnitTest :shared:test

@@ -21,6 +21,7 @@ Sentinela checks on seniors living alone with automated phone calls, a Wear OS w
 | Node.js 26 + npm | Dashboard development outside Docker; `.railway/` | `brew install node` |
 | Railway CLI | Applying `.railway/`, logs, SSH into deployments | `brew install railway` |
 | GitHub CLI | Pull requests from the terminal (optional) | `brew install gh` |
+| lefthook | Git hooks: each folder's checks on commit and push (see below) | `brew install lefthook` |
 
 Teammates who only run the stack, such as the Android and Wear OS owners, need only Docker.
 
@@ -78,6 +79,26 @@ PR main → release, merged with a merge commit → Railway production
 - **Watch paths** keep a docs, dashboard or Android change from redeploying the API, which would drop live calls.
 - **`release`** accepts changes only through a pull request merged with a merge commit; anyone on the team can open and merge one.
 - **Railway's settings** live in [.railway/railway.ts](.railway/railway.ts) and are applied by hand; see [.railway/README.md](.railway/README.md).
+
+## Git hooks
+
+[lefthook.yml](lefthook.yml) runs CI's checks on your laptop, only for the folders a commit or push touches ([ADR-002](docs/adr/ADR-002-git-hooks.md)). Install the hooks once per clone:
+
+```bash
+lefthook install
+```
+
+| Touches | On commit | On push |
+|---|---|---|
+| `backend/` | `ruff check --fix`, `ruff format`, `pytest` | |
+| `dashboard/` | `vp check --fix`: format, lint, type check | |
+| `android/` | `ktlintFormat` | `ktlintCheck lint testDebugUnitTest :shared:test` |
+
+- **Formatters fix and restage** the files you commit. A lint error, type error or failing test stops the commit.
+- **Each hook needs its folder's toolchain:** uv for `backend/`, `npm ci` in `dashboard/`, the Android SDK for `android/`.
+- **Committing part of a file:** the unstaged lines are kept, but when a formatter changes the staged ones they can come back a few lines off. Check `git diff` afterwards.
+- **Skipping:** `git commit --no-verify` or `LEFTHOOK=0`. CI still runs the same checks.
+- **Git GUIs** (Android Studio, VS Code) may run hooks without Homebrew on the `PATH`. Create `lefthook-local.yml` (not committed) with `rc: ~/.lefthookrc`, and put `export PATH="/opt/homebrew/bin:$PATH"` in `~/.lefthookrc`.
 
 ## Claude Code and other agents
 

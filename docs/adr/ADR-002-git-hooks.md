@@ -89,12 +89,12 @@ pre-push:
       run: ./gradlew ktlintCheck lint testDebugUnitTest :shared:test
 ```
 
-`lefthook validate` (2.2.1) accepts this file. Three behaviours still need a test with real commits (action item 3):
-- nested jobs in a group inherit its `root` and `glob`;
-- `{staged_files}` arrive relative to `root`;
-- a job whose glob matches nothing is skipped, including on push, where lefthook matches against the files in the pushed commits.
+Tested with real commits in a throwaway clone (lefthook 2.2.1):
+- nested jobs in a group inherit its `root` and `glob`, and `{staged_files}` arrive relative to `root`;
+- a job whose glob matches nothing is skipped ("no matching staged files");
+- on push, lefthook diffs `HEAD` against `@{push}`. On a branch's first push, before `@{push}` exists, it diffs against the fork point with `origin/HEAD`, so a new branch with no Android changes skips Gradle too.
 
-The push check is CI's Android command without `assembleDebug`. Compile errors still surface, because the unit tests compile the main sources. Packaging errors (manifest merging, resources, signing) are left to CI.
+The push check is CI's Android command without `assembleDebug`. Compile errors still surface, because the unit tests compile the main sources. Packaging errors (manifest merging, resources, signing) are left to CI. Lint and unit tests do not sign anything, so the push check works without the keystore in `local.properties`: tested with `sdk.dir` alone.
 
 ### `dashboard/`: Vite+
 
@@ -139,6 +139,8 @@ Vite+ 1.1.0 (`vite-plus` on npm) is one dev dependency that brings Vite, Vitest 
   ```
 
 `ktlintFormat` cannot take a list of files, so it formats the whole Android project. `stage_fixed` restages only the files that were staged; any other file it reformats stays as an unstaged change in the working tree.
+
+**Partly staged files.** Before a hook runs, lefthook sets aside the unstaged changes of a partly staged file, and reapplies them as a patch afterwards. The commit gets exactly the staged lines, formatted, and the unstaged lines are not lost. But when the formatter rewrote the lines the patch is anchored to, they come back a few lines off. In the test, an unstaged line added after a reformatted one came back above it. lint-staged has the same limitation. The README and `AGENTS.md` say to check `git diff` after committing part of a file.
 
 ### CI
 
@@ -233,6 +235,7 @@ Git reads hooks from one directory: `.git/hooks/`, or `core.hooksPath` when it i
 - Vite+ replaces the `vite` package. A Vite plugin that checks Vite's version can fail to install until Vite+ supports it.
 - Two hook managers are within reach. Anyone who runs `vp config` without `--no-hooks` silently turns lefthook's hooks off.
 - Android commits pay Gradle's start-up, about 13 s when no daemon is running.
+- Committing part of a file that a formatter changes can move the unstaged lines (see "Partly staged files").
 
 **To revisit**
 - `pytest` on commit, once tests need the `sentinela_test` database. The hook would fail whenever Compose is not running; move those tests to pre-push or mark them.
@@ -244,18 +247,18 @@ Git reads hooks from one directory: `.git/hooks/`, or `core.hooksPath` when it i
 
 Three commits, in this order: the tools first, so the first hook run meets formatted code. They touch separate folders, so they can also be three pull requests, with the hooks last (ADR-001 §2.4).
 
-1. [ ] **Dashboard on Vite+.** `npx vp migrate --no-hooks` and the config above; `dashboard.yml`; `dashboard/AGENTS.md` (commands, the hooks rule; drop "no linter or test runner yet"); the migration's reformat. Check, and stop to report if any of these fails without a clean fix:
+1. [x] **Dashboard on Vite+.** `npx vp migrate --no-hooks` and the config above; `dashboard.yml`; `dashboard/AGENTS.md` (commands, the hooks rule; drop "no linter or test runner yet"); the migration's reformat. Check, and stop to report if any of these fails without a clean fix:
    1. `npm ci` resolves `@vitejs/plugin-react`'s `vite ^8` requirement against Vite+'s `vite` package;
    2. `npx vp check` and `npm run build` pass;
    3. `docker build dashboard` succeeds: the image is Alpine (musl) and needs Vite+'s native binaries for it;
    4. `docker compose up --watch dashboard` serves on `localhost:5173`, with `--host 0.0.0.0` passed through to `vp dev`.
-2. [ ] **ktlint for Android.** The plugin, `android/.editorconfig`, `ktlintFormat` over the existing `.kt` files, `android.yml`, `android/AGENTS.md`. Check: `./gradlew ktlintCheck lint testDebugUnitTest :shared:test assembleDebug` passes locally. Then check that `lint` and the unit tests also pass without the signing key in `local.properties`, which decides whether pre-push needs it.
-3. [ ] **Lefthook.** `lefthook.yml`; `lefthook-local.yml` in `.gitignore`; lefthook in the README's Tools table and `lefthook install` in its setup steps; root `AGENTS.md` (layout, commands, the hooks rule). Check with commits in a throwaway worktree:
+2. [x] **ktlint for Android.** The plugin, `android/.editorconfig`, `ktlintFormat` over the existing `.kt` files, `android.yml`, `android/AGENTS.md`. Check: `./gradlew ktlintCheck lint testDebugUnitTest :shared:test assembleDebug` passes locally. Then check that `lint` and the unit tests also pass without the signing key in `local.properties`, which decides whether pre-push needs it.
+3. [x] **Lefthook.** `lefthook.yml`; `lefthook-local.yml` in `.gitignore`; lefthook in the README's Tools table and `lefthook install` in its setup steps; root `AGENTS.md` (layout, commands, the hooks rule). Check with commits in a throwaway clone (a worktree shares `.git/hooks` with the main checkout):
    - a misformatted `.py`, `.tsx` and `.kt` file are each fixed and restaged;
    - a type error in `dashboard/` and a failing test in `backend/` each block the commit;
    - a backend-only commit never starts Gradle;
    - a docs-only commit runs nothing;
    - a partially staged file keeps its unstaged changes;
    - a push of an `android/` change runs the Gradle checks, and a push without one does not.
-4. [ ] Update ADR-001 §2.5's Android CI command to match `android.yml`.
+4. [x] Update ADR-001 §2.5's Android CI command to match `android.yml`.
 5. [ ] Each team member: `brew install lefthook`, then `lefthook install` in their clone.
