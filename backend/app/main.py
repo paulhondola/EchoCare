@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -86,6 +86,14 @@ class StaffGrant(BaseModel):
     phone: str
     role: Literal["das", "medic"]
     practice: Practice | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def practice_only_for_medics(cls, data: Any) -> Any:
+        # Ignored for das (§3.4), so a form's empty practice field refuses nothing.
+        if isinstance(data, dict) and data.get("role") != "medic":
+            return {**data, "practice": None}
+        return data
 
     @field_validator("phone")
     @classmethod

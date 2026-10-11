@@ -99,6 +99,13 @@ async def test_a_das_grant_keeps_the_practice(client, das):
     assert r.json()["practice"] == "CMI Dr. Pop"
 
 
+@pytest.mark.parametrize("practice", ["", "   ", "x" * 201])
+async def test_a_das_grant_ignores_any_practice(client, das, practice):
+    # Ignored for das (§3.4): a form's empty practice field must not refuse the grant.
+    r = await post(client, {**MEDIC, "role": "das", "practice": practice})
+    assert r.status_code == 201
+
+
 @pytest.mark.parametrize(
     "change",
     [

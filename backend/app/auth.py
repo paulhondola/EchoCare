@@ -45,13 +45,15 @@ def init_firebase(service_account: str | None) -> None:
     if _firebase is not None:
         return
     try:
-        info = json.loads(service_account)
-    except json.JSONDecodeError:
+        # JSONDecodeError and a malformed key are ValueErrors; a JSON string makes
+        # Certificate look for a file, an OSError.
+        cert = credentials.Certificate(json.loads(service_account))
+    except ValueError, OSError:
         raise SystemExit(
-            "FIREBASE_SERVICE_ACCOUNT is not valid JSON: paste the key file's content "
-            "on one line, in single quotes"
+            "FIREBASE_SERVICE_ACCOUNT is not a service account key: paste the key "
+            "file's JSON on one line, in single quotes"
         ) from None
-    _firebase = firebase_admin.initialize_app(credentials.Certificate(info))
+    _firebase = firebase_admin.initialize_app(cert)
 
 
 def verify_token(

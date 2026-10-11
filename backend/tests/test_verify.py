@@ -63,7 +63,27 @@ def test_claims_pass_through(firebase):
     assert auth.verify_token(TOKEN) == {"uid": "u1", "phone_number": "+40700000001"}
 
 
-def test_key_that_is_not_json_stops_startup(monkeypatch):
+MANGLED_KEY = (
+    '{"type": "service_account", "project_id": "p", "private_key_id": "k",'
+    ' "private_key": "-----BEGIN PRIVATE KEY-----\\nnot a key\\n'
+    '-----END PRIVATE KEY-----\\n", "client_email": "a@p.iam.gserviceaccount.com",'
+    ' "client_id": "1", "token_uri": "https://oauth2.googleapis.com/token"}'
+)
+
+
+@pytest.mark.parametrize(
+    "service_account",
+    [
+        "{not json",  # pasted across lines, or without its quotes
+        "{}",  # another JSON file, such as google-services.json
+        "[]",
+        '"x"',  # a JSON string, which Certificate would read as a file path
+        MANGLED_KEY,  # the private key's \n escapes lost on the way
+    ],
+)
+def test_a_key_that_is_not_a_service_account_stops_startup(
+    monkeypatch, service_account
+):
     monkeypatch.setattr(auth, "_firebase", None)
-    with pytest.raises(SystemExit, match="not valid JSON"):
-        auth.init_firebase("{not json")
+    with pytest.raises(SystemExit, match="FIREBASE_SERVICE_ACCOUNT"):
+        auth.init_firebase(service_account)

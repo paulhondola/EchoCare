@@ -20,17 +20,18 @@ from app.staff import grant_staff
 
 
 async def grant_das(display_name: str, phone: str) -> str:
-    """Returns granted, already granted, or invalid for a number that cannot sign in."""
+    """Returns granted, already granted, or invalid, validating like POST /staff (§3.4)."""
+    name = display_name.strip()
+    if not 1 <= len(name) <= 120:
+        return "invalid"
     try:
         e164 = normalize(phone)
     except ValueError:
         return "invalid"
-    if not is_mobile(e164):
+    if not is_mobile(e164):  # no SMS, no sign-in
         return "invalid"
     async with Session() as session:
-        user = await grant_staff(
-            session, display_name.strip(), e164, Role.das, None, None
-        )
+        user = await grant_staff(session, name, e164, Role.das, None, None)
     return "granted" if user else "already granted"
 
 
