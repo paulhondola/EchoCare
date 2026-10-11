@@ -116,7 +116,7 @@ Vite+ 1.1.0 (`vite-plus` on npm) is one dev dependency that brings Vite, Vitest 
   ```
 
   Scripts become `dev: vp dev`, `build: vp build`, `preview: vp preview`, plus a new `check: vp check`. `build` stops type checking; `check` does it instead, and CI runs both.
-- **Formatting:** oxfmt's defaults (Prettier-compatible) match the current code: 2 spaces, double quotes, semicolons. No `fmt` options unless the migration's reformat shows a difference.
+- **Formatting:** oxfmt's defaults (Prettier-compatible) match the current code: 2 spaces, double quotes, semicolons; the migration changed no source file. oxfmt also formats Markdown and pads every table column, unlike the compact tables in the rest of the repository, so `fmt: { ignorePatterns: ["*.md"] }` leaves Markdown alone.
 - **Tests:** none yet. Vitest is there for the first component with real logic (`vp test`).
 - **`typescript` stays a dev dependency**, for the editor's TypeScript service.
 - **The Dockerfile stays unchanged:** its `npm run build` and `npm run dev -- --host 0.0.0.0` now call `vp`.

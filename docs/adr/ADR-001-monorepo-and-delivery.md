@@ -548,7 +548,7 @@ flowchart LR
 
     subgraph ACT["GitHub Actions, path-filtered"]
         BW["backend.yml<br/>ruff, pytest, openapi.json check"]
-        DW["dashboard.yml<br/>tsc, vite build"]
+        DW["dashboard.yml<br/>vp check, vp build"]
         AW["android.yml<br/>lint, unit tests, assemble"]
         AR["android-release.yml<br/>signed APKs, distribute"]
     end
