@@ -27,4 +27,5 @@ jobs:
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
-      - run: npm run build # tsc --noEmit, then vite build
+      - run: npx vp check # oxfmt, oxlint, type check (ADR-002)
+      - run: npm run build # vp build

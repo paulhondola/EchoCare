@@ -548,8 +548,8 @@ flowchart LR
 
     subgraph ACT["GitHub Actions, path-filtered"]
         BW["backend.yml<br/>ruff, pytest, openapi.json check"]
-        DW["dashboard.yml<br/>tsc, vite build"]
-        AW["android.yml<br/>lint, unit tests, assemble"]
+        DW["dashboard.yml<br/>vp check, vp build"]
+        AW["android.yml<br/>ktlint, lint, unit tests, assemble"]
         AR["android-release.yml<br/>signed APKs, distribute"]
     end
 
@@ -640,8 +640,8 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 
 | Runs on every Android pull request | Why it is in CI |
 |---|---|
-| `./gradlew lint testDebugUnitTest assembleDebug` | Fast enough with Gradle caching (`gradle/actions/setup-gradle`, JDK 25: the Gradle daemon JVM Android Studio pinned in `android/gradle/gradle-daemon-jvm.properties`) |
-| Unit tests of `:shared`: message encoding and decoding round trips, the watch threshold cases from 06 §5 | Plain Kotlin, no device needed |
+| `./gradlew ktlintCheck lint testDebugUnitTest :shared:test assembleDebug` (ktlint added by [ADR-002](ADR-002-git-hooks.md)) | Fast enough with Gradle caching (`gradle/actions/setup-gradle`, JDK 25: the Gradle daemon JVM Android Studio pinned in `android/gradle/gradle-daemon-jvm.properties`) |
+| Unit tests of `:shared` (`:shared:test`; `testDebugUnitTest` exists only in the Android modules): message encoding and decoding round trips, the watch threshold cases from 06 §5 | Plain Kotlin, no device needed |
 
 | Does not run in CI | Why |
 |---|---|

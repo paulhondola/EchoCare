@@ -1,0 +1,7 @@
+root = true
+
+[*.{kt,kts}]
+# Android Studio's own formatter agrees with this style, so Reformat Code and the hook do not fight (ADR-002)
+ktlint_code_style = android_studio
+# Compose functions are PascalCase
+ktlint_function_naming_ignore_when_annotated_with = Composable

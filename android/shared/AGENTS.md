@@ -26,7 +26,7 @@ From `android/`.
 | Unit tests | `./gradlew :shared:test` |
 | Build | `./gradlew :shared:build` |
 
-`./gradlew testDebugUnitTest` in CI covers this module too.
+CI runs `:shared:test` by name: this module is plain Kotlin, so `testDebugUnitTest` does not include it.
 
 ## Rules
 
