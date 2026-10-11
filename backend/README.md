@@ -61,7 +61,11 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-Tests that need a database use `sentinela_test`, which Compose creates on a fresh volume, never `sentinela`.
+Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `sentinela_test` on a fresh volume; on an older one, create it once:
+
+```bash
+docker compose exec db createdb -U sentinela sentinela_test
+```
 
 ## Migrations
 
