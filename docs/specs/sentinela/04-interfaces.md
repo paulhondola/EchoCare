@@ -37,7 +37,7 @@ A command answers as soon as its work is stored or queued. Results show up throu
 
 | Request | Indicative address | Who | Effect | Refused when |
 |---|---|---|---|---|
-| Grant staff | `POST /staff` | DAS | Creates the user row and a `medic` or `das` grant for the number | The number already has that grant |
+| Grant staff | `POST /staff` | DAS | Display name, phone number (a mobile: staff sign in by SMS), role `medic` or `das`, and the practice for a medic. Creates the user row if the number has none, keeping an existing name, and the grant ([auth-layer.md](../auth-layer.md) §3.4) | The number already has that grant (`already_done`); nothing changes |
 | Set on duty | `PUT /staff/on-duty` | DAS | Marks one DAS employee on duty and clears all others **(P10, proposed)** | The person is not a DAS employee |
 | Save senior draft | `POST /seniors`, `PUT /seniors/{id}` | Medic, own senior | Creates or updates a senior in `draft`. A mobile number for the senior creates the senior grant | The senior is past `draft` |
 | Add or remove a caregiver | `POST /seniors/{id}/caregivers`, `DELETE /seniors/{id}/caregivers/{userId}` | Medic, own senior | Creates or removes the caregiver grant. On add, sends the notice SMS **(proposed)** | n/a |
