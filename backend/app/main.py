@@ -1,12 +1,21 @@
+import logging
+
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.auth import init_firebase
 from app.db import engine
-from app.settings import check_environment, get_settings
+from app.settings import check_environment, check_firebase, get_settings
+
+# Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
+logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
+logging.getLogger("sentinela").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
+check_firebase(settings)
+init_firebase(settings.firebase_service_account)
 
 # Everything under /api, docs included, so the API and the dashboard can share one domain.
 app = FastAPI(

@@ -1,6 +1,6 @@
 import pytest
 
-from app.settings import Settings, check_environment, is_local_db
+from app.settings import Settings, check_environment, check_firebase, is_local_db
 
 
 def test_railway_url_gets_asyncpg_driver():
@@ -45,3 +45,16 @@ def test_allowed_combinations(monkeypatch):
     check(
         monkeypatch, REMOTE, scheduler=True, deployment_id="dep-1"
     )  # deployed on Railway
+
+
+def test_firebase_key_required_on_railway(monkeypatch):
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "dep-1")
+    # passed explicitly: a laptop's backend/.env may hold the key
+    with pytest.raises(SystemExit, match="FIREBASE_SERVICE_ACCOUNT"):
+        check_firebase(Settings(database_url=LOCAL, firebase_service_account=None))
+    check_firebase(Settings(database_url=LOCAL, firebase_service_account="{}"))
+
+
+def test_firebase_key_optional_on_a_laptop(monkeypatch):
+    monkeypatch.delenv("RAILWAY_DEPLOYMENT_ID", raising=False)
+    check_firebase(Settings(database_url=LOCAL, firebase_service_account=None))

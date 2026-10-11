@@ -44,6 +44,7 @@ cp .env.example .env
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
+| `FIREBASE_SERVICE_ACCOUNT` | the laptop key from the team password manager, its JSON on one line in single quotes | Verifies sign-in tokens. Without it the API starts and protected requests answer 503; on Railway the API refuses to start |
 
 ## Test and lint
 

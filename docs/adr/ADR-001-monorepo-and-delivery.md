@@ -157,6 +157,7 @@ Revisit after the hackathon, if needed, with "Focused PR environments" so that o
 | `DATABASE_URL` | `api` | `${{Postgres.DATABASE_URL}}`, private network. Railway names the service `Postgres`, and references are case-sensitive |
 | `ALLOWED_ORIGIN` | `api` | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` (the single CORS origin, 01 §4 channel 3) |
 | `PUBLIC_BASE_URL` | `api` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`, used for Twilio addresses and for checking Twilio's signature |
+| `FIREBASE_SERVICE_ACCOUNT` | `api` | Secret: the Firebase Admin SDK service account's JSON, set with `railway variable set` and declared with `preserve()` ([auth-layer.md](../specs/auth-layer.md) AL11, §9) |
 | `VITE_API_URL` | `dashboard` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`. Vite writes it into the bundle at build time, so changing it means rebuilding |
 | `DEMO_MODE` | `api` | On in every environment for the hackathon (06 §3); per-environment values are in "Three environments" below |
 

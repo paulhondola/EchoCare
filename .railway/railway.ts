@@ -2,7 +2,7 @@
 // Railway never reads this file during a deploy; a person applies it from .railway/:
 //   railway config plan --environment staging
 //   railway config apply --environment staging
-import { defineRailway, github, postgres, project, service } from "railway/iac";
+import { defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
 const REPO = "paulhondola/Sentinela-Test";
 const REGION = "europe-west4-drams3a"; // EU West
@@ -43,6 +43,9 @@ export default defineRailway((ctx) => {
       // ${{...}} is Railway's own reference syntax, resolved at deploy time
       PUBLIC_BASE_URL: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
       ALLOWED_ORIGIN: "https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}",
+      // Secret, set with `railway variable set` (docs/specs/auth-layer.md §9);
+      // preserve() keeps it when this file is applied.
+      FIREBASE_SERVICE_ACCOUNT: preserve(),
     },
   });
 
