@@ -25,7 +25,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | AL4 | The phone number is the identity key on every request. `firebase_uid` is stored, written when empty, and overwritten with a warning log when it differs | The MVP assumes numbers do not change. The uid is kept for a later second sign-in method or a change-number flow |
 | AL5 | Caregivers, and the senior's own app account, are rows in `grants`. `seniors.medic_id` is the only foreign key from `seniors` to `users` | 05 as written. Caregiver to senior is many-to-many with a `relation`; `grants` is that join table |
 | AL6 | `grants.senior_id` is a plain nullable `uuid`. Its foreign key arrives with the `seniors` migration | No `seniors` table yet |
-| AL7 | At most one `senior` grant per user. When a couple shares one mobile, the second senior has no app role and still receives every call | The rule is recorded now; the seniors migration adds its index |
+| AL7 | At most one `senior` grant per user. One mobile number signs in as one senior: a second senior with that mobile is refused with `phone_taken`. A landline can be shared | Reworded by [seniors-and-enrollment.md](seniors-and-enrollment.md) SE10. The index is in the tables migration, `741f75a7dbe1` |
 | AL8 | A senior outside the caller's reach answers 404 `not_found` | Applies to later endpoints; shows a stranger and a revoked caregiver the same thing |
 | AL9 | The refusal contract in §3.2 | Extends 04 §0 |
 | AL10 | `firebase-admin`, verifying against Google's public keys. No revocation check. The `phone_number` claim is required. Any sign-in provider is accepted when the token carries `phone_number` | Grants give instant revocation |
@@ -81,8 +81,8 @@ Any caller with at least one grant.
   "display_name": "Ana Pop",
   "phone_e164": "+40700000003",
   "grants": [
-    { "role": "das", "senior_id": null },
-    { "role": "medic", "senior_id": null }
+    { "role": "das", "senior_id": null, "senior_form_of_address": null, "relation": null },
+    { "role": "medic", "senior_id": null, "senior_form_of_address": null, "relation": null }
   ]
 }
 ```
@@ -90,7 +90,8 @@ Any caller with at least one grant.
 - **One entry per grant**, sorted `das`, `medic`, `caregiver`, `senior`, then by `created_at`. A caregiver of two seniors has two `caregiver` entries.
 - **Zero grants** answer 403 `not_registered` (§3.2).
 - **Clients derive the distinct roles** themselves for the picker (AL3).
-- **Fields that arrive later, each as an optional addition:** `id`, `relation`, `practice`, `warning_active` (with campaigns), the senior's form of address (with seniors).
+- **Added with the seniors work**, on every grant and `null` where they do not apply: `senior_form_of_address` and `relation` ([seniors-and-enrollment.md](seniors-and-enrollment.md) §3.3).
+- **Fields that arrive later, each as an optional addition:** `id`, `practice`, `warning_active` (with campaigns).
 
 ### 3.4 `POST /api/staff`
 
@@ -129,7 +130,7 @@ These results were checked with `phonenumbers` on Python 3.14:
 
 ### 3.6 Permission rules for later endpoints
 
-No endpoint in this layer takes a senior. These rules are fixed now so that the seniors work does not have to reopen them.
+No endpoint in this layer takes a senior. These rules were fixed here and are built by the seniors work ([seniors-and-enrollment.md](seniors-and-enrollment.md) §3.1), which adds one: the medic who registered a senior, and DAS for a senior it reaches, may edit the registration and its caregivers (SE9).
 
 - **What a caller sees of one senior** is the union of the grants that cover that senior, using the matrix in 01 §6. For example, the transcript needs medic-of-this-senior or DAS; an event's location needs caregiver or DAS.
 - **A medic reaches a senior** when they hold a `medic` grant **and** `seniors.medic_id` is their id. Revoking the grant cuts access even though `medic_id` still points at them.
@@ -178,6 +179,8 @@ These are configured in the Firebase console under Authentication → Sign-in me
 | `+40700000001` | `111111` | DAS (`grant_das.py`) |
 | `+40700000002` | `222222` | medic (`POST /api/staff`) |
 | `+40700000003` | `333333` | DAS (`grant_das.py`) and medic (`POST /api/staff`): exercises the role picker |
+| `+40700000004` | `444444` | a caregiver (`POST /api/seniors/{id}/caregivers`) |
+| `+40700000005` | `555555` | a senior (`POST /api/seniors` with this number) |
 | `+40700000009` | `999999` | nothing: exercises `not_registered` |
 
 Grants live in each environment's database (ADR-001), so each environment needs its own grants (§9).
@@ -473,9 +476,11 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 | Item | Belongs to |
 |---|---|
 | Push tokens: `PUT/DELETE /me/push-tokens`, the `push_tokens` table, the FCM dependency on Android | The push work (G4) |
-| `GET /staff`, on-duty (`users.on_duty`), the dashboard's „Personal” screen | The staff feature (UC-14 UI, P10) |
+| `GET /staff` and the dashboard's „Personal” screen | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
+| On duty: `PUT /staff/on-duty` and the flag in `GET /staff` | The hand-over work (P10) |
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |
-| The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7; the senior-scoped helper for §3.6; `/me`'s senior names | The seniors work (UC-01) |
+| The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7 | Built with the data model, in migration `741f75a7dbe1` |
+| The senior-scoped helper for §3.6; `/me`'s senior names | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
 | `warning_active` on `/me` | The campaign work (UC-05) |
 | App Check, rate limits | Before a pilot |
 

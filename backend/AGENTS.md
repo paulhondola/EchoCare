@@ -7,12 +7,15 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 ```
 backend/
 ├── app/
-│   ├── main.py        FastAPI app; every route on the /api router, docs at /api/docs
+│   ├── main.py        FastAPI app; the /api router and the routes with no module of their own; docs at /api/docs
 │   ├── settings.py    pydantic-settings from env / .env; check_environment()
 │   ├── db.py          async engine (asyncpg), Session and get_session, declarative Base
 │   ├── models.py      SQLAlchemy tables and the constraints the database enforces (05)
 │   ├── auth.py        Firebase token check, the caller and their grants, refusals (auth-layer §3)
-│   ├── staff.py       granting staff roles, for POST /staff and grant_das.py
+│   ├── grants.py      the user row behind a grant, shared by staff, senior and caregiver grants
+│   ├── staff.py       granting staff roles, for POST /staff and grant_das.py; listing them, for GET /staff
+│   ├── reach.py       who reaches which senior, as one SQL condition (auth-layer §3.6)
+│   ├── seniors.py     seniors, caregivers and enrollment, on a router included into /api
 │   ├── phones.py      phone numbers to E.164
 │   ├── alarms.py      alarm phrases: normalization and tier 1 / tier 2 patterns (03 §4)
 │   ├── status.py      status engine: severity, certainty, matrix, combining (03 §3, §5, §6)
@@ -33,7 +36,7 @@ backend/
 ## Scope
 
 - Endpoints, call handling, the scheduler, the status engine and the database all live here. The contract is [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md), the tables are [05-data-model.md](../docs/specs/sentinela/05-data-model.md).
-- Every route goes on the `api` router (prefix `/api`) and must be declared before `app.include_router(api)` at the bottom of `main.py`.
+- Every route goes on the `api` router (prefix `/api`), or on a module's own router that `main.py` includes into `api`, as `seniors.py` does. Both happen before `app.include_router(api)` at the bottom of `main.py`, which copies the routes it has at that point.
 - New settings go on `Settings` in `settings.py` and in `.env.example`.
 - Clients (`dashboard/`, `android/`) never read the database; they go through this API.
 

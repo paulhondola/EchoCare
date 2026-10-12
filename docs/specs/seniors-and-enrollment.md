@@ -652,7 +652,7 @@ Each slice is one folder, so a red Android build never holds back an API deploy 
 
 | Fact | Confirmed by |
 |---|---|
-| FastAPI answers a role refusal before it validates the body (§3.1 order) | A test in slice 1 |
+| FastAPI answers a role refusal before it validates the body (§3.1 order) | Confirmed by `test_a_role_refusal_comes_before_the_body` in `backend/tests/test_seniors.py` |
 | The stable Navigation Compose release that builds with AGP 9.4.1 and Kotlin 2.2.10 | Slice 3's first step |
 | react-router's current major version and its import path | Slice 2's first step |
 | The two new test numbers and codes match the console | The person, when configuring |
