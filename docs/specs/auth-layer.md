@@ -68,8 +68,9 @@ The body is FastAPI's own shape: `{"detail": {"reason": "<reason>"}}`. A 401 als
 | 403 | `not_registered` | Valid token, but no user row for the number, or a user with zero grants | Shows „Numărul nu este înregistrat. Contactați medicul de familie.” and signs out of Firebase |
 | 403 | `not_allowed` | The caller has grants, but none permits this request | Shows a generic error and stays signed in |
 | 404 | `not_found` | The thing does not exist, or a senior outside the caller's reach (AL8) | Shows "not found" |
-| 409 | `already_done` | `POST /api/staff` for a grant the number already holds; an incident someone else already took or resolved (the take refusal adds `taken_by_name`) | Shows "already granted", or who has the incident |
-| 409 | `wrong_state` | An incident not in the state the command needs: taking a resolved one, resolving an open one (04 §2) | Re-reads the incident |
+| 409 | `already_done` | `POST /api/staff` for a grant the number already holds; an incident someone else already took or resolved (the take refusal adds `taken_by_name`); a senior already submitted or accepted | Shows "already granted", or who has the incident |
+| 409 | `wrong_state` | An incident not in the state the command needs: taking a resolved one, resolving an open one; a senior not in the enrollment state submit or accept needs (04 §2) | Re-reads the incident or senior |
+| 422 | `incomplete` | Submitting a registration without the address or a caregiver; `missing` names what is missing (04 §2) | Shows what to fill in |
 | 503 | `auth_unavailable` | Google's public keys cannot be fetched | Shows „Autentificarea nu este disponibilă acum. Încercați din nou.” and stays signed in |
 
 ### 3.3 `GET /api/me`

@@ -11,7 +11,7 @@ import uuid
 from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, StringConstraints, field_validator
-from sqlalchemy import ColumnElement, Select, delete, false, or_, select
+from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -238,3 +238,56 @@ async def forms_of_address(
         select(Senior.id, Senior.form_of_address).where(Senior.id.in_(senior_ids))
     )
     return dict(rows.tuples().all())
+
+
+# What submit needs beyond the form's own required fields (04 §2): the address DAS
+# drives to (G13), and someone to call about her (UC-01 step 3).
+REQUIRED_TO_SUBMIT = ("street", "street_number")
+
+
+async def missing_to_submit(session: AsyncSession, senior: Senior) -> list[str]:
+    missing = [name for name in REQUIRED_TO_SUBMIT if not getattr(senior, name)]
+    has_caregiver = await session.scalar(
+        select(
+            select(Grant.id)
+            .where(Grant.senior_id == senior.id, Grant.role == Role.caregiver)
+            .exists()
+        )
+    )
+    if not has_caregiver:
+        missing.append("caregiver")
+    return missing
+
+
+async def move(
+    session: AsyncSession,
+    caller: Caller,
+    senior: Senior,
+    before: EnrollmentState,
+    after: EnrollmentState,
+) -> None:
+    """`before` -> `after`, only where the senior is still `before`, so of two at once
+    one wins (05 §3's pattern). Already `after` is `already_done`, anything else
+    `wrong_state`; either way nothing changes (04 §0)."""
+    moved = await session.scalar(
+        update(Senior)
+        .where(Senior.id == senior.id, Senior.enrollment_state == before)
+        .values(enrollment_state=after)
+        .returning(Senior.id)
+    )
+    if moved is None:
+        await session.refresh(senior, ["enrollment_state"])
+        reason = "already_done" if senior.enrollment_state == after else "wrong_state"
+        log.info("refused %s: user %s, senior %s", reason, caller.user.id, senior.id)
+        raise refuse(409, reason)
+    await session.commit()
+    await session.refresh(senior, ["enrollment_state"])
+
+
+def enrollments_query() -> Select:
+    """GET /enrollments: waiting for DAS, oldest registration first (04 §1)."""
+    return (
+        select(Senior)
+        .where(Senior.enrollment_state == EnrollmentState.submitted)
+        .order_by(Senior.created_at, Senior.id)
+    )
