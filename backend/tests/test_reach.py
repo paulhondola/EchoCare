@@ -5,7 +5,7 @@ import logging
 import uuid
 
 import pytest
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 
 from app.models import EnrollmentState, Grant, Role, User
 
@@ -138,6 +138,32 @@ async def test_role_narrows_the_list(client, db, seniors, role, reached):
     assert {s["full_name"] for s in r.json()} == reached
 
 
+async def test_each_role_reaches_through_its_own_grants(
+    client, db, add_user, add_senior
+):
+    # One user, the caregiver of one senior and the number of another: a role's reach
+    # holds only the grants of that role.
+    user = await add_user(CAREGIVER)
+    cared = await add_senior("+40256000001", "cared")
+    own = await add_senior("+40256000002", "own")
+    db.add_all(
+        [
+            Grant(user_id=user.id, role=Role.caregiver, senior_id=cared.id),
+            Grant(user_id=user.id, role=Role.senior, senior_id=own.id),
+        ]
+    )
+    await db.commit()
+    for params, reached in [
+        ({"role": "caregiver"}, {"cared"}),
+        ({"role": "senior"}, {"own"}),
+        ({}, {"cared", "own"}),
+    ]:
+        r = await client.get(
+            "/api/seniors", params=params, headers=signed_in(CAREGIVER)
+        )
+        assert {s["full_name"] for s in r.json()} == reached
+
+
 async def test_an_unknown_role_is_a_422(client, seniors):
     r = await client.get("/api/seniors?role=nurse", headers=signed_in(MEDIC))
     assert r.status_code == 422
@@ -181,3 +207,52 @@ async def test_a_refusal_is_logged_without_a_number(client, seniors, caplog):
 async def test_refusals(client, seniors, path, headers, status, reason):
     r = await client.get(path.format(id=seniors["submitted"]), headers=headers)
     assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+
+
+CHANGE = {
+    "full_name": "Changed",
+    "form_of_address": "doamna Maria",
+    "phone": "0256 123 456",
+    "street": "Str. Daliei",
+    "street_number": "12",
+}
+NEW_CAREGIVER = {"display_name": "Ioana", "relation": "fiică", "phone": "0700 000 009"}
+
+
+@pytest.mark.parametrize(
+    ("token", "closing"), [(OTHER_MEDIC, "submit"), (DAS, "accept")]
+)
+async def test_reading_as_a_caregiver_gives_no_command(
+    client, db, add_user, add_senior, token, closing
+):
+    # seniors §3.1: the commands count only the roles of their table, so the caregiver
+    # grant of a medic or of DAS lets them read the draft and nothing more.
+    medic = await add_user(MEDIC, Role.medic)
+    other_medic = await add_user(OTHER_MEDIC, Role.medic)
+    das = await add_user(DAS, Role.das)
+    senior = await add_senior(
+        "+40256123456", medic=medic, street="Str. Daliei", street_number="12"
+    )
+    db.add_all(
+        Grant(user_id=u.id, role=Role.caregiver, senior_id=senior.id)
+        for u in (other_medic, das)
+    )
+    await db.commit()
+    page = f"/api/seniors/{senior.id}"
+    headers = signed_in(token)
+    assert (await client.get(page, headers=headers)).status_code == 200
+    commands = [
+        ("PUT", page, CHANGE),
+        ("POST", f"{page}/caregivers", NEW_CAREGIVER),
+        ("DELETE", f"{page}/caregivers/{other_medic.id}", None),
+        ("POST", f"{page}/{closing}", None),
+    ]
+    caregivers = (
+        select(func.count()).select_from(Grant).where(Grant.role == Role.caregiver)
+    )
+    for method, path, body in commands:
+        r = await client.request(method, path, json=body, headers=headers)
+        assert (r.status_code, r.json()) == (404, NOT_FOUND)
+        await db.refresh(senior)
+        assert (senior.full_name, senior.enrollment_state) == ("Maria Pop", "draft")
+        assert await db.scalar(caregivers) == 2

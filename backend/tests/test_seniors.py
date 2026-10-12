@@ -5,6 +5,7 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
+from app.db import engine
 from app.models import EnrollmentState, Grant, Role, Senior, User
 
 DAS = "+40700000001"
@@ -167,11 +168,13 @@ async def test_a_known_number_keeps_its_name(client, add_user, medic):
     [
         {"full_name": "   "},
         {"full_name": "x" * 201},
+        {"full_name": "Ma\x00ria"},  # Postgres text cannot hold a NUL
         {"form_of_address": ""},
         {"form_of_address": "x" * 121},
         {"phone": "12345"},
         {"phone": None},
         {"street": "x" * 201},
+        {"street": "Str.\x00 Daliei"},
         {"street_number": "x" * 21},
         {"intercom_code": "x" * 41},
         {"call_window": "x" * 61},
@@ -181,6 +184,11 @@ async def test_invalid_bodies(client, db, medic, change):
     r = await create(client, {**BODY, **change})
     assert r.status_code == 422
     assert await db.scalar(select(func.count()).select_from(Senior)) == 0
+
+
+def test_database_errors_hide_their_parameters():
+    # A failed statement must not put a name or a number in the log (auth-layer AL15).
+    assert engine.sync_engine.hide_parameters
 
 
 async def test_optional_fields_are_trimmed_and_a_blank_is_null(client, medic):

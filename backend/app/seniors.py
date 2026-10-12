@@ -10,7 +10,13 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, BeforeValidator, StringConstraints, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    StringConstraints,
+    field_validator,
+)
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,23 +138,37 @@ def blank_to_none(value: Any) -> Any:
     return value
 
 
+def no_nul(value: str) -> str:
+    # Postgres text cannot hold a NUL. Refuse it here, as a 422, not there, as a 500.
+    if "\x00" in value:
+        raise ValueError("the text contains a NUL character")
+    return value
+
+
 def required(max_length: int) -> Any:
     return Annotated[
         str,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=max_length),
+        AfterValidator(no_nul),
     ]
 
 
 def optional(max_length: int) -> Any:
     # The limit sits on the text, not on the whole field: a constraint on `str | None`
     # is also applied to the None a blank becomes, and fails.
-    text = Annotated[str, StringConstraints(max_length=max_length)]
+    text = Annotated[
+        str, StringConstraints(max_length=max_length), AfterValidator(no_nul)
+    ]
     return Annotated[text | None, BeforeValidator(blank_to_none)]
 
 
 class SeniorBody(BaseModel):
     """The registration, for POST and PUT /seniors (seniors §3.5). PUT replaces every
-    field, so one left out becomes null."""
+    field, so one left out becomes null.
+
+    A field added later must treat "absent" as "unchanged", or an installed app that
+    does not send it would empty it on every save (ADR-001 §2.3).
+    """
 
     full_name: required(200)
     form_of_address: required(120)
@@ -294,6 +314,12 @@ async def add_caregiver(
     if granted is None:
         raise refused(409, "already_done", caller, senior_id)
     await session.commit()
+    log.info(
+        "caregiver added: user %s, senior %s, caregiver %s",
+        caller.user.id,
+        senior_id,
+        user.id,
+    )
     return CaregiverView(
         user_id=user.id,
         display_name=user.display_name,
@@ -321,6 +347,12 @@ async def remove_caregiver(
     if removed.first() is None:
         raise refused(404, "not_found", caller, senior_id)
     await session.commit()
+    log.info(
+        "caregiver removed: user %s, senior %s, caregiver %s",
+        caller.user.id,
+        senior_id,
+        user_id,
+    )
 
 
 async def move(
@@ -349,11 +381,14 @@ async def move(
 
 
 @router.get("/enrollments")
-async def list_enrollments(_: AsDas, session: Db) -> list[SeniorRow]:
+async def list_enrollments(caller: AsDas, session: Db) -> list[SeniorRow]:
     """Seniors waiting for DAS, oldest first (UC-04 step 1)."""
     seniors = await session.scalars(
         select(Senior)
-        .where(Senior.enrollment_state == EnrollmentState.submitted)
+        .where(
+            Senior.enrollment_state == EnrollmentState.submitted,
+            reaches(caller, Role.das),
+        )
         .order_by(Senior.created_at, Senior.id)
     )
     return [SeniorRow.model_validate(s, from_attributes=True) for s in seniors]
@@ -364,7 +399,9 @@ async def submit_senior(
     senior_id: uuid.UUID, caller: AsMedic, session: Db
 ) -> SeniorPage:
     """draft -> submitted: the senior now waits for DAS (UC-01 step 6)."""
-    senior = await reachable_senior(session, caller, senior_id, Role.medic)
+    # Locked, so a PUT at the same moment cannot fill the street between the refused
+    # update and the refresh below, which would answer missing_fields with no fields.
+    senior = await reachable_senior(session, caller, senior_id, Role.medic, lock=True)
     if not await move(
         session, senior, EnrollmentState.draft, EnrollmentState.submitted
     ):

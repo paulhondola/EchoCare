@@ -62,19 +62,32 @@ async def test_grants_in_role_order(client, add_user):
 async def test_one_entry_per_caregiver_grant(client, db, add_user, add_senior):
     user = await add_user("+40700000004")
     mother = (await add_senior("+40700000101")).id
-    father = (await add_senior("+40700000102", name="Ion Pop")).id
+    father = await add_senior("+40700000102", name="Ion Pop")
+    father.form_of_address = "domnul Ion"
     db.add_all(
-        Grant(user_id=user.id, role=Role.caregiver, senior_id=s, relation="fiică")
-        for s in (mother, father)
+        [
+            Grant(
+                user_id=user.id, role=Role.caregiver, senior_id=mother, relation="fiică"
+            ),
+            Grant(
+                user_id=user.id,
+                role=Role.caregiver,
+                senior_id=father.id,
+                relation="vecină",
+            ),
+        ]
     )
     await db.commit()
     r = await client.get("/api/me", headers=signed_in("+40700000004"))
     grants = r.json()["grants"]
     assert [g["role"] for g in grants] == ["caregiver", "caregiver"]
-    assert {g["senior_id"] for g in grants} == {str(mother), str(father)}
-    # Each names its senior and the relation (seniors §3.3).
-    assert [g["senior_form_of_address"] for g in grants] == ["doamna Maria"] * 2
-    assert [g["relation"] for g in grants] == ["fiică", "fiică"]
+    # Each names its own senior and its own relation (seniors §3.3).
+    assert {
+        g["senior_id"]: (g["senior_form_of_address"], g["relation"]) for g in grants
+    } == {
+        str(mother): ("doamna Maria", "fiică"),
+        str(father.id): ("domnul Ion", "vecină"),
+    }
 
 
 async def test_firebase_uid_written_kept_and_replaced(client, db, add_user, caplog):

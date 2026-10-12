@@ -13,7 +13,11 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+# hide_parameters: a database error must not carry the statement's parameters, which
+# hold names, numbers and addresses, into the log (auth-layer AL15, 06 §4).
+engine = create_async_engine(
+    get_settings().database_url, pool_pre_ping=True, hide_parameters=True
+)
 # expire_on_commit=False: rows stay readable after a commit, since async code cannot
 # lazy-load an expired attribute.
 Session = async_sessionmaker(engine, expire_on_commit=False)

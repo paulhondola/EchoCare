@@ -1,6 +1,7 @@
 """A senior's caregivers (seniors §3.4, §3.5; UC-01 step 3)."""
 
 import asyncio
+import logging
 import uuid
 
 import pytest
@@ -117,6 +118,8 @@ async def test_a_known_number_keeps_its_name(client, add_user, senior):
         {"relation": "x" * 61},
         {"display_name": ""},
         {"display_name": "x" * 121},
+        {"display_name": "Io\x00ana"},  # Postgres text cannot hold a NUL
+        {"relation": "fi\x00că"},
     ],
 )
 async def test_invalid_bodies(client, db, senior, change):
@@ -138,6 +141,27 @@ async def test_two_adds_at_once(client, senior):
     assert sorted([first.status_code, second.status_code]) == [201, 409]
 
 
+async def test_a_put_and_an_add_with_the_same_new_number(client, add_senior, medic):
+    # Both make a user for the number and then a grant on the senior. The PUT holds the
+    # senior's row, and a plain FOR UPDATE would conflict with the key-share lock the
+    # add's grant takes on it: each waits for the other (seniors §6.2).
+    senior_body = {"full_name": "Maria Popescu", "form_of_address": "doamna Maria"}
+    requests = []
+    for n in range(8):
+        senior = await add_senior(f"+4025600010{n}", medic=medic)
+        mobile = f"+4070000200{n}"
+        requests += [
+            client.put(
+                f"/api/seniors/{senior.id}",
+                json={**senior_body, "phone": mobile},
+                headers=signed_in(MEDIC),
+            ),
+            add(client, senior.id, {**BODY, "phone": mobile}),
+        ]
+    results = await asyncio.gather(*requests, return_exceptions=True)
+    assert [getattr(r, "status_code", r) for r in results] == [200, 201] * 8
+
+
 async def test_the_seniors_own_mobile_can_care(client, medic):
     # A senior who uses a relative's phone (01 §6, seniors SE12).
     made = await client.post(
@@ -152,6 +176,9 @@ async def test_the_seniors_own_mobile_can_care(client, medic):
     senior_id = made.json()["id"]
     r = await add(client, senior_id)
     assert r.status_code == 201
+    # A known limit (seniors §11): the number's user was named for the senior, and a
+    # user keeps their name, so the caregiver shows under it.
+    assert r.json()["display_name"] == "Maria Popescu"
     assert [g["role"] for g in (await me(client)).json()["grants"]] == [
         "caregiver",
         "senior",
@@ -159,6 +186,19 @@ async def test_the_seniors_own_mobile_can_care(client, medic):
     # Removing the caregiver grant leaves the senior's own.
     assert (await remove(client, senior_id, r.json()["user_id"])).status_code == 204
     assert [g["role"] for g in (await me(client)).json()["grants"]] == ["senior"]
+
+
+async def test_giving_and_removing_a_caregiver_is_logged(client, medic, senior, caplog):
+    caplog.set_level(logging.INFO, logger="sentinela")
+    added = await add(client, senior.id)
+    caregiver_id = added.json()["user_id"]
+    await remove(client, senior.id, caregiver_id)
+    for done in ("added", "removed"):
+        line = f"caregiver {done}: user {medic.id}, senior {senior.id}, caregiver "
+        assert f"{line}{caregiver_id}" in caplog.text
+    # Ids only, never a number or a name (auth-layer AL15).
+    assert CAREGIVER not in caplog.text
+    assert BODY["display_name"] not in caplog.text
 
 
 async def test_removed_caregiver_is_not_registered(client, db, senior):

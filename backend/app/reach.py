@@ -50,11 +50,13 @@ async def reachable_senior(
 
     Otherwise 404 not_found, the answer an id that does not exist gets (AL8).
     `lock` holds the row until the transaction ends, for a command that reads the
-    state and then writes.
+    state and then writes. It is FOR NO KEY UPDATE, not FOR UPDATE: a grant insert
+    takes FOR KEY SHARE on the senior row through its foreign key, which a plain FOR
+    UPDATE would block, and an add and a PUT that bring one new number would deadlock.
     """
     query = select(Senior).where(Senior.id == senior_id, reaches(caller, *roles))
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update(key_share=True)
     senior = await session.scalar(query)
     if senior is None:
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
