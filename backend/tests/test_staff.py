@@ -71,7 +71,9 @@ async def test_the_new_medic_signs_in(client, das):
     await post(client, MEDIC)
     r = await client.get("/api/me", headers=signed_in("+40700000002"))
     assert r.status_code == 200
-    assert r.json()["grants"] == [{"role": "medic", "senior_id": None}]
+    assert [(g["role"], g["senior_id"]) for g in r.json()["grants"]] == [
+        ("medic", None)
+    ]
 
 
 async def test_a_known_number_keeps_its_name(client, add_user, das):

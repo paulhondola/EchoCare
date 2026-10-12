@@ -13,6 +13,7 @@ backend/
 │   ├── models.py      SQLAlchemy tables and the constraints the database enforces (05)
 │   ├── auth.py        Firebase token check, the caller and their grants, refusals (auth-layer §3)
 │   ├── staff.py       granting staff roles, for POST /staff and grant_das.py
+│   ├── seniors.py     registration, caregiver and senior grants, who reaches whom (auth-layer §3.6)
 │   ├── phones.py      phone numbers to E.164
 │   ├── alarms.py      alarm phrases: normalization and tier 1 / tier 2 patterns (03 §4)
 │   ├── status.py      status engine: severity, certainty, matrix, combining (03 §3, §5, §6)

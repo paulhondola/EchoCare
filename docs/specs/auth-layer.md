@@ -90,7 +90,8 @@ Any caller with at least one grant.
 - **One entry per grant**, sorted `das`, `medic`, `caregiver`, `senior`, then by `created_at`. A caregiver of two seniors has two `caregiver` entries.
 - **Zero grants** answer 403 `not_registered` (§3.2).
 - **Clients derive the distinct roles** themselves for the picker (AL3).
-- **Fields that arrive later, each as an optional addition:** `id`, `relation`, `practice`, `warning_active` (with campaigns), the senior's form of address (with seniors).
+- **Added with the seniors work:** `senior_form_of_address` and `relation` on each grant, null for das and medic grants.
+- **Fields that arrive later, each as an optional addition:** `id`, `practice`, `warning_active` (with campaigns).
 
 ### 3.4 `POST /api/staff`
 

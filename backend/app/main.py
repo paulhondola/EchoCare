@@ -3,10 +3,11 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal, Self
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints, field_validator, model_validator
-from sqlalchemy import Select, func, or_, select, text, update
+from sqlalchemy import Select, delete, func, or_, select, text, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -17,6 +18,7 @@ from app.incidents import IncidentStatus, resolve_refusal, take_refusal
 from app.models import (
     ROLE_ORDER,
     Call,
+    EnrollmentState,
     Grant,
     Incident,
     IncidentOutcome,
@@ -25,8 +27,21 @@ from app.models import (
     User,
 )
 from app.phones import is_mobile, normalize
+from app.seniors import (
+    CaregiverForm,
+    CaregiverView,
+    SeniorForm,
+    SeniorSummary,
+    SeniorView,
+    forms_of_address,
+    own_senior,
+    reach_senior,
+    senior_view,
+    seniors_query,
+    sync_senior_grant,
+)
 from app.settings import check_environment, get_settings
-from app.staff import grant_staff
+from app.staff import grant_staff, user_for
 
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
 logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
@@ -64,6 +79,9 @@ async def health() -> dict[str, str]:
 class GrantView(BaseModel):
     role: str
     senior_id: uuid.UUID | None
+    # Added with the seniors work, for caregiver and senior grants (auth-layer §3.3).
+    senior_form_of_address: str | None = None
+    relation: str | None = None  # caregivers
 
 
 class Me(BaseModel):
@@ -75,11 +93,25 @@ class Me(BaseModel):
 
 
 @api.get("/me")
-async def me(caller: Annotated[Caller, Depends(current_caller)]) -> Me:
+async def me(
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Me:
+    names = await forms_of_address(
+        session, {g.senior_id for g in caller.grants if g.senior_id is not None}
+    )
     return Me(
         display_name=caller.user.display_name,
         phone_e164=caller.user.phone_e164,
-        grants=[GrantView(role=g.role, senior_id=g.senior_id) for g in caller.grants],
+        grants=[
+            GrantView(
+                role=g.role,
+                senior_id=g.senior_id,
+                senior_form_of_address=names.get(g.senior_id),
+                relation=g.relation,
+            )
+            for g in caller.grants
+        ],
     )
 
 
@@ -196,6 +228,121 @@ async def list_staff(
     for listing in staff.values():
         listing.roles.sort(key=lambda r: ROLE_ORDER.index(Role(r)))
     return list(staff.values())
+
+
+@api.get("/seniors")
+async def list_seniors(
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[SeniorSummary]:
+    """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6)."""
+    seniors = await session.scalars(seniors_query(caller))
+    return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
+
+
+@api.get("/seniors/{senior_id}")
+async def get_senior(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorView:
+    return await senior_view(session, await reach_senior(session, caller, senior_id))
+
+
+@api.post("/seniors", status_code=201)
+async def create_senior(
+    body: SeniorForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorView:
+    """Pacient nou: a draft, seen only by its medic until submitted (UC-01)."""
+    senior = Senior(medic_id=caller.user.id, **body.columns())
+    session.add(senior)
+    await session.flush()  # the database makes the id
+    await sync_senior_grant(session, senior)
+    await session.commit()
+    return await senior_view(session, senior)
+
+
+@api.put("/seniors/{senior_id}")
+async def update_senior(
+    senior_id: uuid.UUID,
+    body: SeniorForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorView:
+    """The whole registration again, while it is a draft (04 §2)."""
+    await own_senior(session, caller, senior_id)
+    # Only where still a draft, so a submit at the same time wins (05 §3's pattern).
+    updated = await session.scalar(
+        update(Senior)
+        .where(Senior.id == senior_id, Senior.enrollment_state == EnrollmentState.draft)
+        .values(**body.columns())
+        .returning(Senior)
+        .execution_options(populate_existing=True)
+    )
+    if updated is None:
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    await sync_senior_grant(session, updated)
+    await session.commit()
+    return await senior_view(session, updated)
+
+
+@api.post("/seniors/{senior_id}/caregivers", status_code=201)
+async def add_caregiver(
+    senior_id: uuid.UUID,
+    body: CaregiverForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> CaregiverView:
+    """The number becomes a caregiver grant for this senior (UC-01 step 3). No notice
+    SMS yet. A number already caring for this senior is `already_done`."""
+    await own_senior(session, caller, senior_id)
+    user = await user_for(session, body.phone, body.display_name)
+    granted = await session.scalar(
+        insert(Grant)
+        .values(
+            user_id=user.id,
+            role=Role.caregiver,
+            senior_id=senior_id,
+            relation=body.relation,
+            granted_by=caller.user.id,
+        )
+        .on_conflict_do_nothing()
+        .returning(Grant.id)
+    )
+    if granted is None:
+        await session.rollback()
+        raise refuse(409, "already_done")
+    await session.commit()
+    return CaregiverView(
+        user_id=user.id,
+        display_name=user.display_name,
+        phone_e164=user.phone_e164,
+        relation=body.relation,
+    )
+
+
+@api.delete("/seniors/{senior_id}/caregivers/{user_id}", status_code=204)
+async def remove_caregiver(
+    senior_id: uuid.UUID,
+    user_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Deletes the grant, so access stops at once (05 §5). The user row stays; with no
+    grant left their next request is `not_registered`. A repeat changes nothing."""
+    await own_senior(session, caller, senior_id)
+    await session.execute(
+        delete(Grant).where(
+            Grant.senior_id == senior_id,
+            Grant.user_id == user_id,
+            Grant.role == Role.caregiver,
+        )
+    )
+    await session.commit()
+    return Response(status_code=204)
 
 
 # One row of GET /incidents (04 §1). Names follow the incidents and seniors tables (05 §1)
