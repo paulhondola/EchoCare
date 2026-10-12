@@ -262,11 +262,11 @@ A test number is enough for a senior here, because nothing dials it yet. When ca
 |---|---|
 | `app/grants.py` | `user_for_number(session, phone_e164, display_name) -> User`: the insert-if-missing step now inside `staff.py`, shared by staff, senior and caregiver grants |
 | `app/staff.py` | `grant_staff()` calls `user_for_number()`. Gains `list_staff(session)` for `GET /staff` |
-| `app/reach.py` | `reaches(caller, *roles)` and `reachable_senior(session, caller, senior_id, *roles) -> Senior`, which raises 404 `not_found` (§3.1) |
+| `app/reach.py` | `reaches(caller, *roles)` and `reachable_senior(session, caller, senior_id, *roles) -> Senior`, which raises 404 `not_found` (§3.1). With `lock=True` it holds the row until the transaction ends, for a command that reads the state and then writes |
 | `app/seniors.py` | An `APIRouter` with the reads and commands of §3.3 and §3.4 for seniors, caregivers and enrollment; their request and response models; the grant rules of §3.5 |
 | `app/main.py` | `GET /staff`; the `/me` additions; `api.include_router(seniors.router)` |
 | `tests/conftest.py` | `add_senior` accepts the medic who registers the senior |
-| `tests/test_reach.py`, `test_seniors.py`, `test_caregivers.py`, `test_enrollment.py` | §6.4 |
+| `tests/test_grants.py`, `test_reach.py`, `test_seniors.py`, `test_caregivers.py`, `test_enrollment.py` | §6.4 |
 | `tests/test_staff.py`, `tests/test_me.py` | The `GET /staff` and `/me` cases of §6.4 |
 
 ### 6.2 Facts that are hard to find by looking
