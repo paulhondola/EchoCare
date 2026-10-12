@@ -203,7 +203,7 @@ A refused command changes nothing: its transaction rolls back.
 | `intercom_code` | Optional, at most 40 characters |
 | `call_window` | Optional, at most 60 characters, free text |
 
-Optional fields are trimmed, and an empty one is stored as `null`. `PUT` replaces every field, so a field left out becomes `null`.
+Optional fields are trimmed, and an empty one is stored as `null`. A text field that contains a NUL character is a 422. `PUT` replaces every field, so a field left out becomes `null`.
 
 **The caregiver body:**
 
@@ -243,7 +243,7 @@ No table changes (SE2). Each field of §3.3 is the `seniors` column of the same 
 
 ## 5. Test numbers
 
-Auth-layer §5 lists four. This work adds two, configured by a person in the Firebase console:
+Auth-layer §5 listed four before this work, which adds two, configured by a person in the Firebase console:
 
 | Number | Code | Used as |
 |---|---|---|
@@ -280,6 +280,8 @@ A test number is enough for a senior here, because nothing dials it yet. When ca
 - **`add_senior` makes a new medic for every senior.** Tests of "own senior" need to name the medic.
 - **`incident_view.py` has a `SeniorDetail` and a `caregivers_query`** for the incident screen. The senior's page has more fields and a `user_id` per caregiver, so it gets its own models; do not change the incident response.
 - **Refusals are logged** with the reason and the user id, never a full number (AL15).
+- **The engine is created with `hide_parameters=True`**, so a database error never carries a name, a number or an address into the log (AL15).
+- **The row lock is `FOR NO KEY UPDATE`** (`with_for_update(key_share=True)`). A plain `FOR UPDATE` deadlocks with the `FOR KEY SHARE` lock that a grant insert takes on the senior row, when a `PUT` and an add-caregiver bring the same new number.
 
 ### 6.3 Steps
 
@@ -647,12 +649,16 @@ Each slice is one folder, so a red Android build never holds back an API deploy 
 | Who accepted a senior, and when it was submitted | With the screen that needs them; each needs a column |
 | A list beside the patient on a tablet | UC-12's panel of codes |
 | Renaming the senior's user row when the senior's name is corrected | When a screen shows that name |
+| A caregiver added on the senior's own number is listed under the senior's name, because a user row has one name | A decision before a pilot; a real fix needs a name on the grant |
+| Adding a caregiver, or saving a senior, tells a medic whether a number is already in the system, and the caregiver answer shows that user's name | A decision before a pilot; it works against the intent of AL8 |
+| A mobile held by another medic's draft cannot be freed by anyone else: DAS does not reach drafts and nothing deletes one | The first screen that shows drafts across medics, or a way to delete a draft |
+| `PUT /seniors/{id}` replaces every field, so an installed app that does not know a field added later would empty it on each save | The change that adds the first new registration field: "absent" must mean "unchanged" (ADR-001 §2.3) |
 
 ## 12. Facts still to confirm
 
 | Fact | Confirmed by |
 |---|---|
-| FastAPI answers a role refusal before it validates the body (§3.1 order) | Confirmed by `test_a_role_refusal_comes_before_the_body` in `backend/tests/test_seniors.py` |
+| FastAPI answers a role refusal before it validates the body (§3.1 order) | Confirmed by `test_a_role_refusal_comes_before_the_body` in `backend/tests/test_seniors.py`, for a well-formed body. A body that is not JSON answers 422 before any dependency runs, signed in or not |
 | The stable Navigation Compose release that builds with AGP 9.4.1 and Kotlin 2.2.10 | Slice 3's first step |
 | react-router's current major version and its import path | Slice 2's first step |
 | The two new test numbers and codes match the console | The person, when configuring |

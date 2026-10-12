@@ -104,7 +104,7 @@ Nobody chooses a role. A role is a **grant** made by someone allowed to make it,
 | The setup script, run by the team | DAS employees | Name and phone number |
 | A DAS employee | Medics, and other DAS employees | Name, phone number, practice (for a medic) |
 | A medic | A senior, and the senior's caregivers | The registration form: the senior's own number, and each caregiver's name, relation and number |
-| A DAS employee | Caregivers of a senior that is submitted or further along | The caregiver's name, relation and number ([seniors-and-enrollment.md](../seniors-and-enrollment.md) SE9) |
+| A DAS employee | Caregivers of a senior that is submitted or further along, and that senior's own grant when it changes the senior's number | The caregiver's name, relation and number, or the senior's new number ([seniors-and-enrollment.md](../seniors-and-enrollment.md) SE9, SE11) |
 
 A grant creates the person's user row immediately, before they ever sign in. At first sign-in FastAPI attaches the Firebase account to that row. The phone number stays the key on every request: if a different Firebase account signs in with the number, FastAPI replaces the stored one and logs a warning ([auth-layer.md](../auth-layer.md) AL4).
 

@@ -24,7 +24,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | AL3 | The role picker appears when the grants span **more than one distinct role**. Several caregiver grants are one role | Rewords 01 §6 "several grants" |
 | AL4 | The phone number is the identity key on every request. `firebase_uid` is stored, written when empty, and overwritten with a warning log when it differs | The MVP assumes numbers do not change. The uid is kept for a later second sign-in method or a change-number flow |
 | AL5 | Caregivers, and the senior's own app account, are rows in `grants`. `seniors.medic_id` is the only foreign key from `seniors` to `users` | 05 as written. Caregiver to senior is many-to-many with a `relation`; `grants` is that join table |
-| AL6 | `grants.senior_id` is a plain nullable `uuid`. Its foreign key arrives with the `seniors` migration | No `seniors` table yet |
+| AL6 | `grants.senior_id` is a plain nullable `uuid`. Its foreign key arrives with the `seniors` migration | No `seniors` table when this was decided. The table and the key are in migration `741f75a7dbe1` |
 | AL7 | At most one `senior` grant per user. One mobile number signs in as one senior: a second senior with that mobile is refused with `phone_taken`. A landline can be shared | Reworded by [seniors-and-enrollment.md](seniors-and-enrollment.md) SE10. The index is in the tables migration, `741f75a7dbe1` |
 | AL8 | A senior outside the caller's reach answers 404 `not_found` | Applies to later endpoints; shows a stranger and a revoked caregiver the same thing |
 | AL9 | The refusal contract in §3.2 | Extends 04 §0 |
@@ -185,7 +185,7 @@ These are configured in the Firebase console under Authentication → Sign-in me
 
 Grants live in each environment's database (ADR-001), so each environment needs its own grants (§9).
 
-Test numbers suit staff and caregivers. A **senior's** number must be a real team phone, because Twilio really dials it. That warning is for the seniors work.
+Test numbers suit staff and caregivers. A **senior's** number must be a real team phone, because Twilio really dials it. That warning is for the seniors work: until calls exist, `+40700000005` stands in for a senior ([seniors-and-enrollment.md](seniors-and-enrollment.md) §5).
 
 ## 6. Slice 1: Backend
 
@@ -489,4 +489,4 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 | Fact | Confirmed by |
 |---|---|
 | A custom-token sign-in's identity token carries `phone_number` | §6.3 step 10 |
-| The four test numbers and codes in §5 match the console | The person, when configuring |
+| The test numbers and codes in §5 match the console | The person, when configuring |
