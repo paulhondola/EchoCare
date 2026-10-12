@@ -7,7 +7,6 @@ DAS did; it never changes the code (03 §8).
 import uuid
 from enum import StrEnum
 
-from app.calls import InvalidTransition
 from app.status import Severity
 
 
@@ -17,25 +16,8 @@ class IncidentStatus(StrEnum):
     resolved = "resolved"
 
 
-# Taking an open incident, by "Preiau" or by answering the hand-over, makes it in_progress;
-# resolving needs it taken first. Reopening is deferred past the MVP.
-TRANSITIONS: dict[IncidentStatus, frozenset[IncidentStatus]] = {
-    IncidentStatus.open: frozenset({IncidentStatus.in_progress}),
-    IncidentStatus.in_progress: frozenset({IncidentStatus.resolved}),
-    IncidentStatus.resolved: frozenset(),
-}
-
 # At most one per senior, enforced by a partial unique index (05 §3).
 UNRESOLVED = frozenset({IncidentStatus.open, IncidentStatus.in_progress})
-
-
-def advance(current: IncidentStatus, new: IncidentStatus) -> IncidentStatus:
-    """Move an incident on. Unlike a call, a repeat is refused: a second taker is told
-    who has it instead of taking it again (05 §3).
-    """
-    if new not in TRANSITIONS[current]:
-        raise InvalidTransition(f"incident cannot go from {current} to {new}")
-    return new
 
 
 def opens_incident(result: Severity, unresolved: bool) -> bool:
@@ -63,20 +45,17 @@ def take_refusal(
 
 def resolve_refusal(
     status: IncidentStatus,
-    resolved_by: uuid.UUID | None,
-    outcome: str | None,
-    caller: uuid.UUID,
-    wanted: str,
+    done: tuple[uuid.UUID | None, str | None, str | None],
+    wanted: tuple[uuid.UUID, str, str],
 ) -> str | None:
     """Why POST /incidents/{id}/resolve is refused, once its update changed nothing.
 
     An open incident is taken first (UC-11). Any DAS employee may resolve one in
-    progress, so a shift change needs no hand-back. None for an exact repeat.
+    progress, so a shift change needs no hand-back. `done` and `wanted` are who, the
+    outcome and the note; None only for an exact repeat (04 §2).
     """
     if status is IncidentStatus.open:
         return "wrong_state"
-    if status is IncidentStatus.resolved and (
-        resolved_by != caller or outcome != wanted
-    ):
+    if status is IncidentStatus.resolved and done != wanted:
         return "already_done"
     return None

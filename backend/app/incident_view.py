@@ -10,8 +10,9 @@ join the response with their tables (P19-P22).
 
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -27,6 +28,9 @@ from app.models import (
     StatusReport,
     User,
 )
+
+# Severity and Certainty are IntEnums; clients read their names, "red", not "2".
+Level = Annotated[str, BeforeValidator(lambda v: getattr(v, "name", v))]
 
 
 class SeniorDetail(BaseModel):
@@ -76,8 +80,8 @@ class Report(BaseModel):
     """A severity reached during the call, with the senior's words (05 §2)."""
 
     source: str
-    severity: str
-    certainty: str | None
+    severity: Level
+    certainty: Level | None
     reason: str
     quote: str | None
     at: datetime
@@ -90,8 +94,8 @@ class CallDetail(BaseModel):
     state: str
     started_at: datetime | None
     ended_at: datetime | None
-    final_severity: str | None
-    final_certainty: str | None
+    final_severity: Level | None
+    final_certainty: Level | None
     reason: str | None
     summary: str | None
     handover_answered: bool | None
@@ -207,7 +211,7 @@ async def load_incident(
         await session.scalar(
             select(Event)
             .where(Event.call_id.in_([c.id for c in chain]))
-            .order_by(Event.received_at.desc())
+            .order_by(Event.received_at)
             .limit(1)
         )
         if chain
@@ -226,7 +230,8 @@ async def load_incident(
         resolved_at=incident.resolved_at,
         outcome=incident.outcome,
         note=incident.note,
-        handover_answered=bool(chain and chain[0].handover_answered),
+        # A later red added to the incident may be the one whose hand-over was answered.
+        handover_answered=any(c.handover_answered for c in calls),
         senior=SeniorDetail.model_validate(senior, from_attributes=True),
         caregivers=[Caregiver.model_validate(dict(c)) for c in caregivers],
         event=event and TriggerEvent.model_validate(event, from_attributes=True),

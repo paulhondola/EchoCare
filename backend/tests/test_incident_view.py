@@ -133,8 +133,10 @@ async def test_the_whole_incident(client, db, add_user, add_senior):
     assert body["event"]["latitude"] == 45.75
     assert [c["id"] for c in body["calls"]] == [str(first.id), str(opening.id)]
     last = body["calls"][1]
+    assert last["final_severity"] == "red"  # by name, not "2"
     assert last["turns"][0]["content"] == "Am căzut și nu mă pot ridica"
     assert last["reports"][0]["source"] == "alarm_tier1"
+    assert last["reports"][0]["severity"] == "red"
 
 
 async def test_not_found_and_das_only(client, add_user):

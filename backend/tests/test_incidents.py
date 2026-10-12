@@ -2,12 +2,8 @@ import uuid
 
 import pytest
 
-from app.calls import InvalidTransition
 from app.incidents import (
-    TRANSITIONS,
-    UNRESOLVED,
     IncidentStatus,
-    advance,
     opens_incident,
     resolve_refusal,
     take_refusal,
@@ -17,36 +13,6 @@ from app.status import Severity
 OPEN = IncidentStatus.open
 IN_PROGRESS = IncidentStatus.in_progress
 RESOLVED = IncidentStatus.resolved
-
-
-def test_take_then_resolve():
-    assert advance(OPEN, IN_PROGRESS) is IN_PROGRESS
-    assert advance(IN_PROGRESS, RESOLVED) is RESOLVED
-
-
-@pytest.mark.parametrize(
-    ("current", "new"),
-    [
-        (OPEN, OPEN),
-        (OPEN, RESOLVED),  # taken first, then resolved (UC-11)
-        (IN_PROGRESS, IN_PROGRESS),  # a second taker is told who has it
-        (IN_PROGRESS, OPEN),
-        (RESOLVED, OPEN),  # reopening is deferred past the MVP
-        (RESOLVED, IN_PROGRESS),
-        (RESOLVED, RESOLVED),
-    ],
-)
-def test_refused(current, new):
-    with pytest.raises(InvalidTransition):
-        advance(current, new)
-
-
-def test_every_status_has_transitions():
-    assert set(TRANSITIONS) == set(IncidentStatus)
-
-
-def test_unresolved_are_the_statuses_that_can_still_move():
-    assert UNRESOLVED == {status for status, nexts in TRANSITIONS.items() if nexts}
 
 
 @pytest.mark.parametrize(
@@ -82,13 +48,14 @@ def test_take_refusal(status, taken_by, reason):
 
 
 @pytest.mark.parametrize(
-    ("status", "resolved_by", "outcome", "reason"),
+    ("status", "done", "reason"),
     [
-        (OPEN, None, None, "wrong_state"),  # taken first (UC-11)
-        (RESOLVED, ME, "senior_ok", None),  # an exact repeat
-        (RESOLVED, ME, "team_sent", "already_done"),
-        (RESOLVED, OTHER, "senior_ok", "already_done"),
+        (OPEN, (None, None, None), "wrong_state"),  # taken first (UC-11)
+        (RESOLVED, (ME, "senior_ok", "e bine"), None),  # an exact repeat
+        (RESOLVED, (ME, "team_sent", "e bine"), "already_done"),
+        (RESOLVED, (ME, "senior_ok", "alta notă"), "already_done"),  # note not lost
+        (RESOLVED, (OTHER, "senior_ok", "e bine"), "already_done"),
     ],
 )
-def test_resolve_refusal(status, resolved_by, outcome, reason):
-    assert resolve_refusal(status, resolved_by, outcome, ME, "senior_ok") == reason
+def test_resolve_refusal(status, done, reason):
+    assert resolve_refusal(status, done, (ME, "senior_ok", "e bine")) == reason

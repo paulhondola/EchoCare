@@ -6,7 +6,7 @@ ones from the 03 appendix; the final list is built from the spike S2 transcripts
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import IntEnum
 
 # Both comma-below and cedilla forms, since transcriptions use both (03 §4).
@@ -44,7 +44,7 @@ _PATTERNS: list[tuple[Tier, str, list[str]]] = [
     (
         Tier.one,
         "breathing",
-        [r"nu (mai )?pot (sa )?respir", r"ma sufoc", r"n(-| )?am aer", r"ma inec"],
+        [r"nu (mai )?pot (sa )?respir", r"ma sufoc", r"n(u |-| )?am aer", r"ma inec"],
     ),
     (
         Tier.one,
@@ -115,7 +115,7 @@ _PATTERNS: list[tuple[Tier, str, list[str]]] = [
         [
             r"nu-?mi simt degetele",
             r"tremur tot",
-            r"n(-| )?am caldura",
+            r"n(u |-| )?am caldura",
             r"oprit caldura",
             r"inghet",
         ],
@@ -147,13 +147,28 @@ _COMPILED = sorted(
 )
 
 
+# A negation just before a tier 1 phrase: „nu am căzut”, „n-am nevoie de salvare”.
+_NEGATED = re.compile(r"(?<![\w-])(nu|n-am)( (am|e|ma|mai|vreau))?( nevoie de)? $")
+
+
 def check(sentence: str) -> AlarmMatch | None:
-    """Return the most severe alarm phrase in a transcribed sentence, or None."""
+    """Return the most severe alarm phrase in a transcribed sentence, or None.
+
+    A negated tier 1 phrase asks the tier 2 confirmation instead of forcing red, so
+    „nu am căzut azi” is never a hand-over, yet silence still is (03 §4).
+    """
     text = normalize(sentence)
+    demoted: AlarmMatch | None = None
     for tier, condition, pattern in _COMPILED:
         if found := pattern.search(text):
-            return AlarmMatch(tier=tier, condition=condition, matched=found.group(0))
-    return None
+            match = AlarmMatch(tier=tier, condition=condition, matched=found.group(0))
+            if tier is Tier.one and _NEGATED.search(text[: found.start()]):
+                demoted = demoted or replace(match, tier=Tier.two)
+            elif tier is Tier.one or demoted is None:
+                return match
+            else:
+                return demoted
+    return demoted
 
 
 # Said by the server, not the model, on a tier 2 match (03 §4).
@@ -174,7 +189,7 @@ def confirmation_question(sentence: str) -> str:
 
 
 # Replies that sound like „nu” but are not a clear no.
-_UNSURE = re.compile(r"\bnu (stiu|sunt sigur\w*|prea)\b")
+_UNSURE = re.compile(r"\bnu (am )?(stiu|sunt sigur\w*|prea|auzit|inteles)\b")
 
 
 def needs_help(reply: str | None) -> bool:
@@ -185,10 +200,11 @@ def needs_help(reply: str | None) -> bool:
     """
     if reply is None:
         return True
-    text = normalize(reply)
-    if text == "1":
+    # „n-am nevoie”, „nu-i nevoie”: a contracted „nu” is still a no.
+    text = re.sub(r"\bn-", "nu ", normalize(reply)).replace("-", " ")
+    if text in {"1", "unu"}:
         return True
-    if text == "2":
+    if text in {"2", "doi"}:
         return False
     words = set(text.split())
     said_yes = "da" in words

@@ -14,7 +14,7 @@ from sqlalchemy.schema import CreateIndex, CreateTable
 from app.calls import LIVE
 from app.db import Base
 from app.incidents import UNRESOLVED
-from app.models import SENIOR_ROLES, Call, Event, Grant, Role
+from app.models import SENIOR_ROLES, Call, Event, EventType, Grant, Role
 from app.status import Severity
 
 BACKEND = Path(__file__).parent.parent
@@ -147,7 +147,17 @@ def test_severity_is_stored_by_name():
     query = select(Call.id).where(Call.final_severity == Severity.red)
     sql = str(query.compile(dialect=DIALECT, compile_kwargs={"literal_binds": True}))
     assert "calls.final_severity = 'red'" in sql
-    assert Call.__table__.c.final_severity.type.enums == ["green", "yellow", "red"]
+
+
+def test_an_unknown_name_reads_back_as_a_string():
+    # Written by a newer copy during a deploy, or before a rollback (ADR-001 §2.3).
+    read = Event.__table__.c.type.type.process_result_value
+    assert read("sos_button", DIALECT) is EventType.sos_button
+    assert read("fall", DIALECT) == "fall"
+    assert (
+        Call.__table__.c.final_severity.type.process_result_value("red", DIALECT)
+        is Severity.red
+    )
 
 
 def test_models_match_the_migration(migrated):

@@ -21,12 +21,19 @@ class CallState(StrEnum):
 
 
 TRANSITIONS: dict[CallState, frozenset[CallState]] = {
-    CallState.queued: frozenset({CallState.ringing}),
+    # failed: Twilio refused to place it, so it frees the senior's live slot (05 §3).
+    CallState.queued: frozenset({CallState.ringing, CallState.failed}),
     CallState.ringing: frozenset(
         {CallState.in_progress, CallState.unanswered, CallState.failed}
     ),
+    # unanswered: a machine picked up, found by voicemail detection (04 §4.2).
     CallState.in_progress: frozenset(
-        {CallState.completed, CallState.handed_over, CallState.dropped}
+        {
+            CallState.completed,
+            CallState.handed_over,
+            CallState.dropped,
+            CallState.unanswered,
+        }
     ),
     CallState.unanswered: frozenset(),
     CallState.failed: frozenset(),

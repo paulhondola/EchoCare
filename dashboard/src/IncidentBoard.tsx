@@ -15,7 +15,8 @@ const COLUMNS: { status: IncidentStatus; title: string; border: string; badge: s
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ok"; incidents: Incident[]; at: number }
+  // error: the last read failed; the board keeps the last good list
+  | { kind: "ok"; incidents: Incident[]; at: number; error?: string }
   | { kind: "error"; message: string };
 
 export default function IncidentBoard() {
@@ -38,7 +39,7 @@ export default function IncidentBoard() {
             e instanceof ApiError && e.status === 404
               ? "API-ul nu oferă încă lista de incidente."
               : `Nu am putut citi incidentele (${e instanceof Error ? e.message : e}).`;
-          setLoad({ kind: "error", message });
+          setLoad((l) => (l.kind === "ok" ? { ...l, error: message } : { kind: "error", message }));
         });
     // read() catches its own errors
     void read();
@@ -66,6 +67,11 @@ export default function IncidentBoard() {
 
   return (
     <section>
+      {load.error && (
+        <div role="alert" className="alert alert-warning alert-soft mb-3">
+          {load.error}
+        </div>
+      )}
       <p className="mb-3 text-sm text-base-content/60">Actualizat la {time.format(load.at)}</p>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-start gap-4">
         {COLUMNS.map(({ status, title, border, badge }) => {

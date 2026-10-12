@@ -3,7 +3,8 @@
 The database makes every row id with uuidv7(), built into Postgres 18 (04 §0); only an
 event's id comes from the device. Enums are stored as their member names in a plain
 VARCHAR with no CHECK constraint, so a later change can add a value without a migration
-(ADR-001 §2.3: changes only add). `grants.role` predates this and keeps its CHECK.
+(ADR-001 §2.3: changes only add), and a name this copy does not know reads back as a plain
+string instead of failing. `grants.role` predates this and keeps its CHECK.
 """
 
 import enum
@@ -16,13 +17,13 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
+    TypeDecorator,
     UniqueConstraint,
     Uuid,
     func,
@@ -139,9 +140,29 @@ class IncidentOutcome(StrEnum):
     false_alarm = "false_alarm"
 
 
-def enum_type(cls: type[enum.Enum]) -> Enum:
-    # By member name, so Severity and Certainty store "green" and "high", not 0 and 2.
-    return Enum(cls, native_enum=False, create_constraint=False, length=32)
+class StoredEnum(TypeDecorator):
+    """An enum in a VARCHAR(32), by member name, so Severity and Certainty store "green"
+    and "high", not 0 and 2. An unknown name, written by a newer copy during a deploy or
+    before a rollback, reads back as the bare string (ADR-001 §2.3).
+    """
+
+    # ponytail: autogenerate renders this as app.models.StoredEnum; write sa.String(32).
+    impl = String
+    cache_ok = True
+
+    def __init__(self, cls: type[enum.Enum]) -> None:
+        super().__init__(length=32)
+        self.cls = cls
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        return value.name if isinstance(value, enum.Enum) else value
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        return value if value is None else self.cls.__members__.get(value, value)
+
+
+def enum_type(cls: type[enum.Enum]) -> StoredEnum:
+    return StoredEnum(cls)
 
 
 def in_states(column: str, states: frozenset[Any]) -> Any:
@@ -317,7 +338,10 @@ class Event(Base):
     longitude: Mapped[float | None] = mapped_column(Float)
     location_accuracy_m: Mapped[float | None] = mapped_column(Float)
     located_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    call_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("calls.id"))
+    # GET /incidents/{id} looks up the events of an incident's calls.
+    call_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("calls.id"), index=True
+    )
 
 
 class Campaign(Base):

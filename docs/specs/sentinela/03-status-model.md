@@ -101,7 +101,7 @@ For self-harm the agent's only words before the hand-over are „Vă fac legătu
 | Strong dizziness, vomiting | „se învârte camera”, „mă învârt”, „vomit”, „am vărsat de mai multe ori” |
 | A general call for help | „ajutor”, „mi-e foarte rău”, „mi-e rău de tot”, „mor” |
 
-Common everyday words sit in tier 2 on purpose: „nu am nevoie de ajutor” and „mor de cald” are ordinary speech.
+Common everyday words sit in tier 2 on purpose: „nu am nevoie de ajutor” and „mor de cald” are ordinary speech. A tier 1 phrase right after a negation („nu am căzut azi”, „n-am nevoie de salvare”) asks the tier 2 confirmation instead of forcing red.
 
 On a tier 2 match the server, not the model, asks a fixed question that names what was said: „Ați spus că [...]. Aveți nevoie de ajutor acum? Spuneți «da» sau apăsați 1. Dacă nu, spuneți «nu» sau apăsați 2.”
 
@@ -236,10 +236,12 @@ stateDiagram-v2
     Queued --> Ringing: dialer places the call
     Ringing --> InProgress: a person answers
     Ringing --> Unanswered: no answer, busy or voicemail
+    Queued --> Failed: Twilio refuses to place the call
     Ringing --> Failed: Twilio or network error
     InProgress --> Completed: agent closes the call
     InProgress --> HandedOver: red, or request for a person
     InProgress --> Dropped: senior hangs up, or connection lost
+    InProgress --> Unanswered: voicemail detected after pickup
     Unanswered --> [*]
     Failed --> [*]
     Completed --> [*]
@@ -289,7 +291,7 @@ Matched on normalized text. These fix the approach; the final patterns are built
 
 | Condition | Tier | Patterns |
 |---|---|---|
-| Breathing | 1 | `nu (mai )?pot (sa )?respir` · `ma sufoc` · `n(-\| )?am aer` · `ma inec` |
+| Breathing | 1 | `nu (mai )?pot (sa )?respir` · `ma sufoc` · `n(u \|-\| )?am aer` · `ma inec` |
 | Chest and heart | 1 | `(dure\w*\|doare\|dor\|apasa\|strange\|arde\|junghi).{0,15}piept` · `piept\w*.{0,10}(doare\|dor\|apasa\|strange)` · `(mana\|bratul) stang` |
 | Stroke signs | 1 | `nu-?mi simt (mana\|bratul\|piciorul\|fata)` · `amort\w*.{0,15}(parte\|mana\|fata\|piciorul)` · `nu pot misca` · `stramb\w*.{0,10}gura` · `vad dublu` · `nu (mai )?vad` |
 | Ambulance | 1 | `salvare\w*` · `ambulant\w*` · `112` · `unu unu doi` · `trimite\w* pe cineva` |
@@ -298,6 +300,6 @@ Matched on normalized text. These fix the approach; the final patterns are built
 | Self-harm | 1 | `vreau sa mor` · `nu (mai )?vreau sa (mai )?traiesc` · `sa se termine` · `ma omor` |
 | Fainting | 2 | `lesin\w*` · `negru in fata ochilor` · `am picat` · `pierdut cunostint` |
 | Heat | 2 | `ard tot` · `nu (mai )?transpir` · `febra mare` · `nu (mai )?pot de cald` |
-| Cold | 2 | `nu-?mi simt degetele` · `tremur tot` · `n(-\| )?am caldura` · `oprit caldura` · `inghet` |
+| Cold | 2 | `nu-?mi simt degetele` · `tremur tot` · `n(u \|-\| )?am caldura` · `oprit caldura` · `inghet` |
 | Dizziness, vomiting | 2 | `se invarte` · `ma invart` · `vom\w*` · `varsat` |
 | Call for help | 2 | `ajutor` · `(mi-?e\|imi e) (foarte\|tare\|asa de) rau` · `rau de tot` · `\bmor\b` |

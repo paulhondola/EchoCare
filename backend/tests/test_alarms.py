@@ -16,6 +16,7 @@ def test_normalize():
         ("Nu pot respira", "breathing"),
         ("Mă sufoc!", "breathing"),
         ("N-am aer", "breathing"),
+        ("Nu am aer", "breathing"),
         ("Mă doare pieptul", "chest_heart"),
         ("Am o durere în piept", "chest_heart"),
         ("Mă doare mâna stângă", "chest_heart"),
@@ -45,6 +46,7 @@ def test_tier_one(sentence, condition):
         ("Mi s-a făcut negru în fața ochilor", "fainting"),
         ("Tremur tot", "cold"),
         ("Nu-mi simt degetele", "cold"),
+        ("Nu am căldură", "cold"),
         ("Se învârte camera", "dizziness_vomiting"),
         ("Ajutor!", "help"),
         ("Mi-e foarte rău", "help"),
@@ -68,6 +70,9 @@ def test_tier_one_wins_over_tier_two():
     "sentence",
     [
         "N-am căzut azi",
+        "Nu am căzut azi",
+        "Nu am nevoie de salvare",
+        "Nu mă doare pieptul",
         "Mor de cald",
         "Nu am nevoie de ajutor",
         "Sunt bine, mulțumesc",
@@ -78,6 +83,14 @@ def test_harmless_never_tier_one(sentence):
     # 03 §4: everyday speech must not reach tier 1.
     match = check(sentence)
     assert match is None or match.tier is Tier.two
+
+
+def test_a_negated_tier_one_asks_first():
+    match = check("Nu am căzut azi")
+    assert match is not None
+    assert (match.tier, match.condition) == (Tier.two, "fall")
+    # another tier 1 phrase in the same sentence still wins
+    assert check("Nu am căzut, dar mă doare pieptul").tier is Tier.one
 
 
 def test_harmless_no_match():
@@ -102,8 +115,12 @@ def test_confirmation_question_names_what_was_said():
         ("", True),
         ("nu știu", True),  # unclear
         ("da... nu", True),  # unclear
+        ("n-am auzit", True),  # unclear
         ("2", False),
+        ("doi", False),
         ("nu", False),
+        ("N-am nevoie", False),
+        ("Nu-i nevoie", False),
         ("Nu, sunt bine, doar e cald", False),  # 03 §10 example 11
     ],
 )

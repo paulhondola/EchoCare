@@ -1,12 +1,12 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal, Self
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints, field_validator, model_validator
-from sqlalchemy import Select, false, func, select, text, update
+from sqlalchemy import Select, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -165,13 +165,26 @@ def parse_statuses(status: str | None) -> set[IncidentStatus] | None:
     try:
         return {IncidentStatus(s.strip()) for s in status.split(",") if s.strip()}
     except ValueError:
-        raise HTTPException(422, "unknown status") from None
+        raise refuse(422, "unknown_status") from None
 
 
 def incidents_query(
     statuses: set[IncidentStatus] | None, incident_id: uuid.UUID | None = None
 ) -> Select:
-    taker = aliased(User)
+    taker, opening, call = aliased(User), aliased(Call), aliased(Call)
+    # Answered on any of its calls: the opening red, or a later red added to it (05 §1).
+    handover_answered = (
+        select(call.id)
+        .where(
+            call.senior_id == Incident.senior_id,
+            call.handover_answered.is_(True),
+            call.created_at >= func.coalesce(opening.created_at, Incident.opened_at),
+            or_(
+                Incident.resolved_at.is_(None), call.created_at <= Incident.resolved_at
+            ),
+        )
+        .exists()
+    )
     query = (
         select(
             Incident.id,
@@ -182,12 +195,11 @@ def incidents_query(
             Incident.opened_at,
             taker.display_name.label("taken_by_name"),
             Incident.taken_at,
-            # Set on the call that opened the incident when DAS picked up the hand-over.
-            func.coalesce(Call.handover_answered, false()).label("handover_answered"),
+            handover_answered.label("handover_answered"),
         )
         .join(Senior, Senior.id == Incident.senior_id)
         .outerjoin(taker, taker.id == Incident.taken_by)
-        .outerjoin(Call, Call.id == Incident.opened_by_call_id)
+        .outerjoin(opening, opening.id == Incident.opened_by_call_id)
         .order_by(Incident.opened_at.desc())
     )
     if statuses is not None:
@@ -197,12 +209,21 @@ def incidents_query(
     return query
 
 
+# Resolved incidents are kept (05 §5); the list shows only the last day's (04 §1).
+RESOLVED_SHOWN = timedelta(hours=24)
+
+
 @api.get("/incidents")
 async def list_incidents(
     _: Annotated[Caller, Depends(require_roles(Role.das))],
     status: str | None = None,
 ) -> list[IncidentSummary]:
-    query = incidents_query(parse_statuses(status))
+    query = incidents_query(parse_statuses(status)).where(
+        or_(
+            Incident.resolved_at.is_(None),
+            Incident.resolved_at > func.now() - RESOLVED_SHOWN,
+        )
+    )
     async with engine.connect() as conn:
         rows = (await conn.execute(query)).mappings().all()
     return [IncidentSummary.model_validate(dict(row)) for row in rows]
@@ -262,6 +283,9 @@ async def take_incident(
             log.info(
                 "refused %s: user %s, incident %s", reason, caller.user.id, incident_id
             )
+            if reason != "already_done":
+                raise refuse(409, reason)
+            # Only someone else having it names who (04 §2).
             taker = incident.taken_by and await session.get(User, incident.taken_by)
             raise refuse(
                 409, reason, taken_by_name=taker.display_name if taker else None
@@ -310,10 +334,8 @@ async def resolve_incident(
         incident = await current_incident(session, incident_id)
         reason = resolve_refusal(
             incident.status,
-            incident.resolved_by,
-            incident.outcome,
-            caller.user.id,
-            body.outcome,
+            (incident.resolved_by, incident.outcome, incident.note),
+            (caller.user.id, body.outcome, body.note),
         )
         if reason is not None:
             log.info(

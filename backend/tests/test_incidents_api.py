@@ -2,6 +2,7 @@
 commands against one."""
 
 import uuid
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -21,10 +22,15 @@ def sql(statuses) -> str:
     )
 
 
+def outer(query: str) -> str:
+    """The outer query's joins and WHERE, past the hand-over subquery's own WHERE."""
+    return query.split("FROM incidents JOIN")[1]
+
+
 @pytest.mark.parametrize("raw", [None, ""])
 def test_no_filter_means_any_status(raw):
     assert parse_statuses(raw) is None
-    assert "WHERE" not in sql(None)
+    assert "WHERE" not in outer(sql(None))
 
 
 def test_filter_is_comma_separated():
@@ -38,10 +44,11 @@ def test_unknown_status_is_refused():
     with pytest.raises(HTTPException) as e:
         parse_statuses("open,closed")
     assert e.value.status_code == 422
+    assert e.value.detail == {"reason": "unknown_status"}  # 04 §0
 
 
 def test_filter_matches_stored_names():
-    where = sql({IncidentStatus.in_progress}).split("WHERE")[1]
+    where = outer(sql({IncidentStatus.in_progress})).split("WHERE")[1]
     assert "'in_progress'" in where
 
 
@@ -51,8 +58,8 @@ def test_newest_first():
 
 def test_one_incident_by_id():
     incident_id = uuid.uuid4()
-    where = str(
-        incidents_query(None, incident_id).compile(dialect=postgresql.dialect())
+    where = outer(
+        str(incidents_query(None, incident_id).compile(dialect=postgresql.dialect()))
     ).split("WHERE")[1]
     assert "incidents.id =" in where
 
@@ -143,6 +150,17 @@ async def test_wrong_state(client, incident):
     assert r.json() == {"detail": {"reason": "wrong_state"}}
     r = await resolve(client, incident.id, body={**RESOLUTION, "outcome": "team_sent"})
     assert r.json() == {"detail": {"reason": "already_done"}}
+
+
+async def test_old_resolved_incidents_leave_the_list(client, db, incident):
+    await take(client, incident.id)
+    await resolve(client, incident.id)
+    listed = (await client.get("/api/incidents", headers=signed_in(DAS))).json()
+    assert [i["id"] for i in listed] == [str(incident.id)]
+    row = await stored(db, incident.id)
+    row.resolved_at -= timedelta(days=2)
+    await db.commit()
+    assert (await client.get("/api/incidents", headers=signed_in(DAS))).json() == []
 
 
 async def test_only_das(client, incident):

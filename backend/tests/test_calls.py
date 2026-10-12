@@ -19,6 +19,17 @@ def test_happy_path():
     assert state is CallState.completed
 
 
+@pytest.mark.parametrize(
+    ("current", "new"),
+    [
+        (CallState.queued, CallState.failed),  # Twilio refused to place it
+        (CallState.in_progress, CallState.unanswered),  # voicemail (04 §4.2)
+    ],
+)
+def test_ways_out_of_a_live_call(current, new):
+    assert advance(current, new) is new
+
+
 def test_repeated_callback_is_a_no_op():
     assert advance(CallState.ringing, CallState.ringing) is CallState.ringing
 
