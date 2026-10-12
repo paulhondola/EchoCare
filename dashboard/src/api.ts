@@ -169,6 +169,12 @@ export interface IncidentDetail {
   }[];
 }
 
+/** The address fields every senior view carries (G13) */
+export type SeniorAddress = Pick<
+  IncidentDetail["senior"],
+  "street" | "street_number" | "block" | "staircase" | "floor" | "apartment"
+>;
+
 export async function fetchIncident(id: string, signal?: AbortSignal): Promise<IncidentDetail> {
   const r = await apiFetch(`/api/incidents/${id}`, { signal });
   if (!r.ok) throw await refused(r);
@@ -206,4 +212,45 @@ export async function grantStaff(grant: {
     body: JSON.stringify(grant),
   });
   if (!r.ok) throw await refused(r);
+}
+
+// One row of GET /seniors and GET /enrollments (04 §1). Mirrors SeniorSummary in
+// backend/app/seniors.py. The state stays a string: the server adds states later.
+export interface SeniorSummary {
+  id: string;
+  full_name: string;
+  form_of_address: string;
+  enrollment_state: string;
+}
+
+// GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors.py.
+export type SeniorView = IncidentDetail["senior"] & {
+  call_window: string | null;
+  enrollment_state: string;
+  caregivers: {
+    user_id: string;
+    display_name: string;
+    phone_e164: string;
+    relation: string | null;
+  }[];
+};
+
+/** Cereri de înrolare: the seniors in `submitted`, oldest first (04 §1), DAS only. */
+export async function fetchEnrollments(signal?: AbortSignal): Promise<SeniorSummary[]> {
+  const r = await apiFetch("/api/enrollments", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as SeniorSummary[];
+}
+
+export async function fetchSenior(id: string, signal?: AbortSignal): Promise<SeniorView> {
+  const r = await apiFetch(`/api/seniors/${id}`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as SeniorView;
+}
+
+/** Acceptă: submitted → accepted (04 §2). A second accept: `already_done`. */
+export async function acceptSenior(id: string): Promise<SeniorSummary> {
+  const r = await apiFetch(`/api/seniors/${id}/accept`, { method: "POST" });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as SeniorSummary;
 }
