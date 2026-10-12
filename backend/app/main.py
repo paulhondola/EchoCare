@@ -16,6 +16,7 @@ from app.incident_view import IncidentDetail, load_incident
 from app.incidents import IncidentStatus, resolve_refusal, take_refusal
 from app.models import Call, Incident, IncidentOutcome, Role, Senior, User
 from app.phones import is_mobile, normalize
+from app.seniors import router as seniors
 from app.settings import check_environment, get_settings
 from app.staff import grant_staff
 
@@ -367,6 +368,9 @@ async def resolve_incident(
     await session.commit()
     return await incident_summary(session, incident_id)
 
+
+# Seniors, caregivers and enrollment have their own module (seniors SE16).
+api.include_router(seniors)
 
 # after every route is declared: include_router copies the routes it has at this point
 app.include_router(api)
