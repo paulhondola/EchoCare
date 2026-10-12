@@ -13,8 +13,9 @@ dashboard/
 │   ├── IncidentBoard.tsx  incidents by status, re-read every 15 s (04 §6)
 │   ├── IncidentCard.tsx   one incident: Preiau and Rezolvă (04 §2)
 │   ├── IncidentDetails.tsx  the whole incident in a modal: address, caregivers, calls (04 §1)
+│   ├── Staff.tsx      „Personal": the staff list and adding a medic or DAS employee (UC-14)
 │   ├── firebase.ts    the Firebase app and `auth`
-│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, the incident calls
+│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, the incident and staff calls
 │   ├── phone.ts       typed number → E.164, with phone.test.ts
 │   ├── labels.ts      shared Romanian labels and the date format
 │   └── styles.css     Tailwind v4 + DaisyUI 5 entry, light and dark themes

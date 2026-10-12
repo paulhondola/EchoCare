@@ -4,6 +4,7 @@ import { getMe } from "./api";
 import { auth } from "./firebase";
 import IncidentBoard from "./IncidentBoard";
 import SignIn from "./SignIn";
+import Staff from "./Staff";
 
 const NO_ACCESS = "Acest număr nu are acces la dispecerat.";
 const NOT_REGISTERED = "Numărul nu este înregistrat. Contactați medicul de familie.";
@@ -18,6 +19,8 @@ type View =
 
 export default function App() {
   const [view, setView] = useState<View>({ kind: "loading" });
+  // No router yet (AGENTS.md): two screens, picked in the header
+  const [screen, setScreen] = useState<"incidents" | "staff">("incidents");
 
   useEffect(
     () =>
@@ -69,12 +72,28 @@ export default function App() {
         <main className="mx-auto max-w-7xl p-4">
           <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 pb-2">
             <h1 className="text-2xl font-bold">Sentinela DAS</h1>
+            <nav role="tablist" className="tabs tabs-box tabs-sm">
+              <button
+                role="tab"
+                className={`tab ${screen === "incidents" ? "tab-active" : ""}`}
+                onClick={() => setScreen("incidents")}
+              >
+                Incidente
+              </button>
+              <button
+                role="tab"
+                className={`tab ${screen === "staff" ? "tab-active" : ""}`}
+                onClick={() => setScreen("staff")}
+              >
+                Personal
+              </button>
+            </nav>
             <span className="flex items-center gap-2 text-sm text-base-content/60">
               Conectat ca {view.name}
               {exit}
             </span>
           </header>
-          <IncidentBoard />
+          {screen === "incidents" ? <IncidentBoard /> : <Staff />}
         </main>
       );
     case "unavailable":

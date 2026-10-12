@@ -174,3 +174,36 @@ export async function fetchIncident(id: string, signal?: AbortSignal): Promise<I
   if (!r.ok) throw await refused(r);
   return (await r.json()) as IncidentDetail;
 }
+
+export type StaffRole = "das" | "medic";
+
+// One row of GET /staff (04 §1), DAS only. Mirrors StaffListing in backend/app/main.py.
+export interface StaffMember {
+  id: string;
+  display_name: string;
+  phone_e164: string;
+  practice: string | null;
+  roles: StaffRole[];
+  on_duty: boolean;
+}
+
+export async function fetchStaff(signal?: AbortSignal): Promise<StaffMember[]> {
+  const r = await apiFetch("/api/staff", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as StaffMember[];
+}
+
+/** POST /staff (auth-layer §3.4). A number that already has the role: 409 `already_done`. */
+export async function grantStaff(grant: {
+  display_name: string;
+  phone: string;
+  role: StaffRole;
+  practice?: string;
+}): Promise<void> {
+  const r = await apiFetch("/api/staff", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(grant),
+  });
+  if (!r.ok) throw await refused(r);
+}
