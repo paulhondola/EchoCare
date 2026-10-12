@@ -11,7 +11,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, BeforeValidator, StringConstraints, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -321,3 +321,71 @@ async def remove_caregiver(
     if removed.first() is None:
         raise refused(404, "not_found", caller, senior_id)
     await session.commit()
+
+
+async def move(
+    session: AsyncSession,
+    senior: Senior,
+    expected: EnrollmentState,
+    to: EnrollmentState,
+) -> bool:
+    """Changes the state only where it is still `expected`, so of two at the same
+    moment one wins (seniors §3.5). False when nothing moved."""
+    conditions = [Senior.id == senior.id, Senior.enrollment_state == expected]
+    if to == EnrollmentState.submitted:
+        conditions += [
+            getattr(Senior, name).is_not(None) for name in REQUIRED_TO_SUBMIT
+        ]
+    moved = await session.execute(
+        update(Senior)
+        .where(*conditions)
+        .values(enrollment_state=to)
+        .returning(Senior.id)
+    )
+    if moved.first() is None:
+        return False
+    await session.commit()
+    return True
+
+
+@router.get("/enrollments")
+async def list_enrollments(_: AsDas, session: Db) -> list[SeniorRow]:
+    """Seniors waiting for DAS, oldest first (UC-04 step 1)."""
+    seniors = await session.scalars(
+        select(Senior)
+        .where(Senior.enrollment_state == EnrollmentState.submitted)
+        .order_by(Senior.created_at, Senior.id)
+    )
+    return [SeniorRow.model_validate(s, from_attributes=True) for s in seniors]
+
+
+@router.post("/seniors/{senior_id}/submit")
+async def submit_senior(
+    senior_id: uuid.UUID, caller: AsMedic, session: Db
+) -> SeniorPage:
+    """draft -> submitted: the senior now waits for DAS (UC-01 step 6)."""
+    senior = await reachable_senior(session, caller, senior_id, Role.medic)
+    if not await move(
+        session, senior, EnrollmentState.draft, EnrollmentState.submitted
+    ):
+        await session.refresh(senior)
+        if senior.enrollment_state != EnrollmentState.draft:
+            raise refused(409, "wrong_state", caller, senior_id)
+        missing = [name for name in REQUIRED_TO_SUBMIT if getattr(senior, name) is None]
+        raise refused(422, "missing_fields", caller, senior_id, fields=missing)
+    await session.refresh(senior)
+    return await page(session, senior)
+
+
+@router.post("/seniors/{senior_id}/accept")
+async def accept_senior(senior_id: uuid.UUID, caller: AsDas, session: Db) -> SeniorPage:
+    """submitted -> accepted (UC-04 step 1). It queues nothing until the welcome call
+    exists, and nobody is stored as the accepter (seniors SE15)."""
+    senior = await reachable_senior(session, caller, senior_id, Role.das)
+    if not await move(
+        session, senior, EnrollmentState.submitted, EnrollmentState.accepted
+    ):
+        raise refused(409, "wrong_state", caller, senior_id)
+    log.info("accepted: user %s, senior %s", caller.user.id, senior_id)
+    await session.refresh(senior)
+    return await page(session, senior)
