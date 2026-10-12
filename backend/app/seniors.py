@@ -254,3 +254,70 @@ async def update_senior(
         await follow_number(session, senior, caller)
     await session.commit()
     return await page(session, senior)
+
+
+class CaregiverBody(BaseModel):
+    """POST /seniors/{id}/caregivers' body (seniors §3.5)."""
+
+    display_name: required(120)
+    relation: required(60)
+    phone: str
+
+    @field_validator("phone")
+    @classmethod
+    def mobile_e164(cls, raw: str) -> str:
+        e164 = normalize(raw)
+        if not is_mobile(e164):
+            raise ValueError("a caregiver signs in by SMS: the number must be a mobile")
+        return e164
+
+
+@router.post("/seniors/{senior_id}/caregivers", status_code=201)
+async def add_caregiver(
+    senior_id: uuid.UUID, body: CaregiverBody, caller: AsMedicOrDas, session: Db
+) -> CaregiverView:
+    """Makes the caregiver grant; the number can sign in at once (UC-01 step 3)."""
+    senior = await reachable_senior(session, caller, senior_id, Role.medic, Role.das)
+    user = await user_for_number(session, body.phone, body.display_name)
+    granted = await session.scalar(
+        insert(Grant)
+        .values(
+            user_id=user.id,
+            role=Role.caregiver,
+            senior_id=senior.id,
+            relation=body.relation,
+            granted_by=caller.user.id,
+        )
+        .on_conflict_do_nothing()
+        .returning(Grant.id)
+    )
+    if granted is None:
+        raise refused(409, "already_done", caller, senior_id)
+    await session.commit()
+    return CaregiverView(
+        user_id=user.id,
+        display_name=user.display_name,
+        relation=body.relation,
+        phone_e164=user.phone_e164,
+    )
+
+
+@router.delete("/seniors/{senior_id}/caregivers/{user_id}", status_code=204)
+async def remove_caregiver(
+    senior_id: uuid.UUID, user_id: uuid.UUID, caller: AsMedicOrDas, session: Db
+) -> None:
+    """Deletes that caregiver grant, so access stops at once (05 §5). The user row and
+    their other grants stay."""
+    senior = await reachable_senior(session, caller, senior_id, Role.medic, Role.das)
+    removed = await session.execute(
+        delete(Grant)
+        .where(
+            Grant.senior_id == senior.id,
+            Grant.role == Role.caregiver,
+            Grant.user_id == user_id,
+        )
+        .returning(Grant.id)
+    )
+    if removed.first() is None:
+        raise refused(404, "not_found", caller, senior_id)
+    await session.commit()
