@@ -8,6 +8,8 @@ from app.models import Grant, Role, User
 DAS = "+40700000001"
 NOT_SIGNED_IN = {"detail": {"reason": "not_signed_in"}}
 NOT_REGISTERED = {"detail": {"reason": "not_registered"}}
+# What a das or medic grant carries besides its role (seniors §3.3).
+NO_SENIOR = {"senior_id": None, "senior_form_of_address": None, "relation": None}
 
 
 def signed_in(token: str) -> dict[str, str]:
@@ -51,8 +53,8 @@ async def test_grants_in_role_order(client, add_user):
         "display_name": "Ana Pop",
         "phone_e164": "+40700000003",
         "grants": [
-            {"role": "das", "senior_id": None},
-            {"role": "medic", "senior_id": None},
+            {"role": "das", **NO_SENIOR},
+            {"role": "medic", **NO_SENIOR},
         ],
     }
 
@@ -70,6 +72,9 @@ async def test_one_entry_per_caregiver_grant(client, db, add_user, add_senior):
     grants = r.json()["grants"]
     assert [g["role"] for g in grants] == ["caregiver", "caregiver"]
     assert {g["senior_id"] for g in grants} == {str(mother), str(father)}
+    # Each names its senior and the relation (seniors §3.3).
+    assert [g["senior_form_of_address"] for g in grants] == ["doamna Maria"] * 2
+    assert [g["relation"] for g in grants] == ["fiică", "fiică"]
 
 
 async def test_firebase_uid_written_kept_and_replaced(client, db, add_user, caplog):

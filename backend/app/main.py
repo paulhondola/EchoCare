@@ -55,6 +55,9 @@ async def health() -> dict[str, str]:
 class GrantView(BaseModel):
     role: str
     senior_id: uuid.UUID | None
+    # Added with the seniors work (seniors §3.3); null where they do not apply.
+    senior_form_of_address: str | None = None
+    relation: str | None = None
 
 
 class Me(BaseModel):
@@ -66,11 +69,30 @@ class Me(BaseModel):
 
 
 @api.get("/me")
-async def me(caller: Annotated[Caller, Depends(current_caller)]) -> Me:
+async def me(
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Me:
+    named = [g.senior_id for g in caller.grants if g.senior_id is not None]
+    # Only a caregiver or a senior pays for this second query.
+    addressed: dict[uuid.UUID, str] = {}
+    if named:
+        rows = await session.execute(
+            select(Senior.id, Senior.form_of_address).where(Senior.id.in_(named))
+        )
+        addressed = {senior_id: address for senior_id, address in rows}
     return Me(
         display_name=caller.user.display_name,
         phone_e164=caller.user.phone_e164,
-        grants=[GrantView(role=g.role, senior_id=g.senior_id) for g in caller.grants],
+        grants=[
+            GrantView(
+                role=g.role,
+                senior_id=g.senior_id,
+                senior_form_of_address=addressed.get(g.senior_id),
+                relation=g.relation,
+            )
+            for g in caller.grants
+        ],
     )
 
 
