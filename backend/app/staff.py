@@ -1,12 +1,17 @@
-"""Granting staff roles (UC-14, auth-layer §3.4), for POST /staff and grant_das.py."""
+"""Staff roles (UC-14): granting them, for POST /staff and grant_das.py (auth-layer
+§3.4), and listing who holds them, for GET /staff (04 §1)."""
 
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.grants import user_for_number
-from app.models import Grant, Role, User
+from app.models import ROLE_ORDER, Grant, Role, User
+
+# The roles DAS grants (UC-14). GET /staff lists who holds them.
+STAFF_ROLES = (Role.das, Role.medic)
 
 
 async def grant_staff(
@@ -37,3 +42,20 @@ async def grant_staff(
         user.practice = practice
     await session.commit()
     return user
+
+
+async def list_staff(session: AsyncSession) -> list[tuple[User, list[str]]]:
+    """Everyone who holds a das or a medic grant, by name, each with those roles in
+    GET /me's order (seniors §3.3)."""
+    rows = await session.execute(
+        select(User, Grant.role)
+        .join(Grant, Grant.user_id == User.id)
+        .where(Grant.role.in_(STAFF_ROLES))
+        .order_by(User.display_name, User.id)
+    )
+    staff: dict[uuid.UUID, tuple[User, list[str]]] = {}
+    for user, role in rows:
+        staff.setdefault(user.id, (user, []))[1].append(role)
+    return [
+        (user, sorted(roles, key=ROLE_ORDER.index)) for user, roles in staff.values()
+    ]

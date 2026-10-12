@@ -18,7 +18,7 @@ from app.models import Call, Incident, IncidentOutcome, Role, Senior, User
 from app.phones import is_mobile, normalize
 from app.seniors import router as seniors
 from app.settings import check_environment, get_settings
-from app.staff import grant_staff
+from app.staff import grant_staff, list_staff
 
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
 logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
@@ -165,6 +165,35 @@ async def grant_staff_member(
         role=body.role,
         practice=user.practice,
     )
+
+
+class StaffRow(BaseModel):
+    """One person in GET /staff (seniors §3.3). On duty joins it with the hand-over
+    work (P10)."""
+
+    id: uuid.UUID
+    display_name: str
+    phone_e164: str
+    practice: str | None
+    roles: list[str]
+
+
+@api.get("/staff")
+async def list_staff_members(
+    _: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[StaffRow]:
+    """DAS employees and medics, for the dashboard's „Personal” (UC-14)."""
+    return [
+        StaffRow(
+            id=user.id,
+            display_name=user.display_name,
+            phone_e164=user.phone_e164,
+            practice=user.practice,
+            roles=roles,
+        )
+        for user, roles in await list_staff(session)
+    ]
 
 
 # One row of GET /incidents (04 §1). Names follow the incidents and seniors tables (05 §1)

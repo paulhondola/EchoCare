@@ -132,3 +132,66 @@ async def test_invalid_bodies(client, das, change):
 async def test_two_grants_at_once(client, das):
     first, second = await asyncio.gather(post(client, MEDIC), post(client, MEDIC))
     assert sorted([first.status_code, second.status_code]) == [201, 409]
+
+
+async def list_staff(client, token=DAS):
+    return await client.get("/api/staff", headers=signed_in(token))
+
+
+async def test_staff_lists_das_and_medics_by_name(
+    client, db, add_user, add_senior, das
+):
+    await add_user("+40700000003", Role.medic, Role.das, name="Ana Pop")
+    medic = await add_user("+40700000002", Role.medic, name="Bogdan Ene")
+    # A caregiver is not staff, and a staff member's caregiver grant is not a staff role.
+    senior = await add_senior("+40256000001")
+    caregiver = await add_user("+40700000004", name="Carmen Stan")
+    db.add_all(
+        Grant(user_id=u.id, role=Role.caregiver, senior_id=senior.id)
+        for u in (caregiver, medic)
+    )
+    medic.practice = "CMI Dr. Ene"
+    await db.commit()
+    r = await list_staff(client)
+    assert r.status_code == 200
+    assert [(p["display_name"], p["roles"]) for p in r.json()] == [
+        ("Ana Pop", ["das", "medic"]),
+        ("Bogdan Ene", ["medic"]),
+        ("DAS Test", ["das"]),
+        ("Medic", ["medic"]),  # add_senior's own medic
+    ]
+    assert r.json()[1] == {
+        "id": str(medic.id),
+        "display_name": "Bogdan Ene",
+        "phone_e164": "+40700000002",
+        "practice": "CMI Dr. Ene",
+        "roles": ["medic"],
+    }
+
+
+async def test_a_new_grant_shows_in_the_list(client, das):
+    await post(client, MEDIC)
+    names = [p["display_name"] for p in (await list_staff(client)).json()]
+    assert names == ["DAS Test", "Dr. Ion Pop"]
+
+
+async def test_only_das_lists_staff(client, add_user):
+    await add_user("+40700000003", Role.medic)
+    r = await list_staff(client, token="+40700000003")
+    assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_allowed"}})
+
+
+@pytest.mark.parametrize(
+    ("headers", "status", "reason"),
+    [
+        ({}, 401, "not_signed_in"),
+        (signed_in("invalid"), 401, "not_signed_in"),
+        (signed_in("no-phone"), 401, "not_signed_in"),
+        (signed_in("+40700000009"), 403, "not_registered"),
+        (signed_in("+40700000004"), 403, "not_registered"),  # a user with no grant left
+    ],
+)
+async def test_list_refusals(client, add_user, das, headers, status, reason):
+    await add_user("+40700000004")
+    r = await client.get("/api/staff", headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
