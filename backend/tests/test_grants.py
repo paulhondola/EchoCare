@@ -19,5 +19,9 @@ async def test_a_known_number_keeps_its_user_and_name(db, add_user):
     known = await add_user(PHONE, name="Dr. Ioana Pop")
     user = await user_for_number(db, PHONE, "Ioana")
     await db.commit()
-    assert (user.id, user.display_name) == (known.id, "Dr. Ioana Pop")
+    assert user.id == known.id
+    # Read back from the database: `user` is the object add_user already loaded,
+    # so its attributes would show the old name even if the row had been renamed.
+    stored = select(User.display_name).where(User.id == known.id)
+    assert await db.scalar(stored) == "Dr. Ioana Pop"
     assert await db.scalar(select(func.count()).select_from(User)) == 1
