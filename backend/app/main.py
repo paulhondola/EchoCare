@@ -14,7 +14,16 @@ from app.auth import Caller, current_caller, refuse, require_roles
 from app.db import engine, get_session
 from app.incident_view import IncidentDetail, load_incident
 from app.incidents import IncidentStatus, resolve_refusal, take_refusal
-from app.models import Call, Incident, IncidentOutcome, Role, Senior, User
+from app.models import (
+    ROLE_ORDER,
+    Call,
+    Grant,
+    Incident,
+    IncidentOutcome,
+    Role,
+    Senior,
+    User,
+)
 from app.phones import is_mobile, normalize
 from app.settings import check_environment, get_settings
 from app.staff import grant_staff
@@ -142,6 +151,51 @@ async def grant_staff_member(
         role=body.role,
         practice=user.practice,
     )
+
+
+class StaffListing(BaseModel):
+    """One row of GET /staff (04 §1): a person with a das or medic grant, once."""
+
+    id: uuid.UUID
+    display_name: str
+    phone_e164: str
+    practice: str | None
+    roles: list[str]  # das before medic, like /me's grants
+    on_duty: bool
+
+
+STAFF_ROLES = (Role.das, Role.medic)
+
+
+@api.get("/staff")
+async def list_staff(
+    _: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[StaffListing]:
+    """DAS employees and medics, by name, for the dashboard's "Personal" (UC-14)."""
+    rows = await session.execute(
+        select(User, Grant.role)
+        .join(Grant, Grant.user_id == User.id)
+        .where(Grant.role.in_(STAFF_ROLES))
+        .order_by(User.display_name, User.phone_e164)
+    )
+    staff: dict[uuid.UUID, StaffListing] = {}
+    for user, role in rows:
+        listing = staff.setdefault(
+            user.id,
+            StaffListing(
+                id=user.id,
+                display_name=user.display_name,
+                phone_e164=user.phone_e164,
+                practice=user.practice,
+                roles=[],
+                on_duty=user.on_duty,
+            ),
+        )
+        listing.roles.append(role)
+    for listing in staff.values():
+        listing.roles.sort(key=lambda r: ROLE_ORDER.index(Role(r)))
+    return list(staff.values())
 
 
 # One row of GET /incidents (04 §1). Names follow the incidents and seniors tables (05 §1)

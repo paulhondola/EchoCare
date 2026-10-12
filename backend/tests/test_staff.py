@@ -125,3 +125,51 @@ async def test_invalid_bodies(client, das, change):
 async def test_two_grants_at_once(client, das):
     first, second = await asyncio.gather(post(client, MEDIC), post(client, MEDIC))
     assert sorted([first.status_code, second.status_code]) == [201, 409]
+
+
+async def test_the_staff_list(client, db, add_user, add_senior, das):
+    await add_user("+40700000003", Role.medic, Role.das, name="Ana Ionescu")
+    senior = await add_senior("+40700000101")  # also adds its medic, "Medic"
+    caregiver = await add_user("+40700000004", name="Ion Pop")
+    db.add(Grant(user_id=caregiver.id, role=Role.caregiver, senior_id=senior.id))
+    await db.commit()
+
+    r = await client.get("/api/staff", headers=signed_in(DAS))
+    assert r.status_code == 200
+    staff = [(s["display_name"], s["phone_e164"], s["roles"]) for s in r.json()]
+    # By name, once per person, das before medic; caregivers are not staff.
+    assert staff == [
+        ("Ana Ionescu", "+40700000003", ["das", "medic"]),
+        ("DAS Test", DAS, ["das"]),
+        ("Medic", "+40790000101", ["medic"]),
+    ]
+    assert r.json()[1] == {
+        "id": str(das.id),
+        "display_name": "DAS Test",
+        "phone_e164": DAS,
+        "practice": None,
+        "roles": ["das"],
+        "on_duty": False,
+    }
+
+
+async def test_a_granted_medic_is_listed(client, das):
+    await post(client, MEDIC)
+    r = await client.get("/api/staff", headers=signed_in(DAS))
+    medic = next(s for s in r.json() if s["phone_e164"] == "+40700000002")
+    assert (medic["roles"], medic["practice"]) == (["medic"], "CMI Dr. Pop")
+
+
+@pytest.mark.parametrize(
+    ("token", "status", "reason"),
+    [
+        (None, 401, "not_signed_in"),
+        ("+40700000009", 403, "not_registered"),
+        ("+40700000003", 403, "not_allowed"),  # a medic
+    ],
+)
+async def test_the_staff_list_is_for_das(client, add_user, das, token, status, reason):
+    await add_user("+40700000003", Role.medic)
+    headers = signed_in(token) if token else {}
+    r = await client.get("/api/staff", headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
