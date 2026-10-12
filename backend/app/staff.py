@@ -2,10 +2,10 @@
 
 import uuid
 
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.grants import user_for_number
 from app.models import Grant, Role, User
 
 
@@ -23,12 +23,7 @@ async def grant_staff(
     changed. An existing user keeps their name; a medic grant sets the practice. Both
     inserts are ON CONFLICT DO NOTHING, so two DAS granting at once cannot both win.
     """
-    await session.execute(
-        insert(User)
-        .values(phone_e164=phone_e164, display_name=display_name)
-        .on_conflict_do_nothing(index_elements=[User.phone_e164])
-    )
-    user = await session.scalar(select(User).where(User.phone_e164 == phone_e164))
+    user = await user_for_number(session, phone_e164, display_name)
     granted = await session.scalar(
         insert(Grant)
         .values(user_id=user.id, role=role, granted_by=granted_by)
