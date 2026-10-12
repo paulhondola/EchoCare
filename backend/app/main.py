@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app import voice
 from app.auth import Caller, current_caller, refuse, require_roles
 from app.db import engine, get_session
 from app.incident_view import IncidentDetail, load_incident
@@ -598,6 +599,9 @@ async def resolve_incident(
     await session.commit()
     return await incident_summary(session, incident_id)
 
+
+# Twilio's callbacks and the relay WebSocket, signature-checked (04 §4.2, §4.3).
+api.include_router(voice.router)
 
 # after every route is declared: include_router copies the routes it has at this point
 app.include_router(api)

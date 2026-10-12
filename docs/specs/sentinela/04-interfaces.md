@@ -104,14 +104,20 @@ The wellbeing-call design is v3 §7 and §12. Exact parameter and field names ar
 
 FastAPI asks Twilio's Voice API to place a call with:
 
-| Parameter | Value |
-|---|---|
-| To | The senior's phone number |
-| From | The project's Twilio number |
-| Answer callback | The welcome-call address or the wellbeing answer address, carrying the call id |
-| Status callback | FastAPI's status address |
-| Voicemail detection | On, in the background, reporting to its own callback |
-| Ring time limit | A fixed number of seconds |
+`POST https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Calls.json`, a form, with the account SID and auth token as basic auth:
+
+| Parameter | Twilio's name | Value |
+|---|---|---|
+| To | `To` | The senior's phone number |
+| From | `From` | The project's Twilio number (`TWILIO_FROM_NUMBER`) |
+| Answer callback | `Url`, `Method=POST` | The welcome-call address or the wellbeing answer address, carrying the call id as `?call=<id>` |
+| Status callback | `StatusCallback`, `StatusCallbackMethod=POST`, `StatusCallbackEvent` = `initiated`, `ringing`, `answered`, `completed` | FastAPI's status address, carrying the call id |
+| Voicemail detection | `MachineDetection=Enable`, `AsyncAmd=true`, `AsyncAmdStatusCallback`, `AsyncAmdStatusCallbackMethod=POST` | On, in the background, reporting to its own address, carrying the call id |
+| Ring time limit | `Timeout` | 30 seconds |
+
+Twilio answers with the call's `sid`, stored as `twilio_call_id`. Every callback address carries our call id, so a callback that arrives before that answer still finds its call. Ending a call early, as for a machine, is `POST …/Calls/{sid}.json` with `Status=completed`.
+
+**Signatures.** Twilio signs each callback with `X-Twilio-Signature`: HMAC-SHA1 with the auth token over the full address it called followed by every POST parameter, name then value, sorted by name, in base64. FastAPI rebuilds the address from `PUBLIC_BASE_URL`, since behind Railway's proxy or the tunnel the request's own address differs. The WebSocket connect is signed the same way over its `wss://` address with no parameters. A missing or wrong signature is refused with 403, and without `TWILIO_AUTH_TOKEN` every callback is.
 
 ### 4.2 Callbacks (channel 6)
 
@@ -123,8 +129,8 @@ All are signed by Twilio and verified by FastAPI.
 | Welcome answer | `POST /voice/welcome` | A welcome call is picked up | The identity question, accepting keys and speech (`<Gather>`) |
 | Welcome identity | `POST /voice/welcome/identity` | The identity question has an answer, or timed out | The consent text and question, a polite goodbye, or a repeat |
 | Welcome consent | `POST /voice/welcome/consent` | The consent question has an answer, or timed out | The anti-scam close, a repeat, or a goodbye. Records the consent with the key or words, Twilio's confidence and the consent text version |
-| Status | `POST /voice/status` | The call rings, is answered, completes, is not answered, is busy, or fails | Nothing. Updates the call record; an unanswered or failed result goes to the status engine |
-| Voicemail detection | `POST /voice/amd` | Detection finishes, shortly after pickup | Nothing. If a machine answered, FastAPI ends the call and counts it as unanswered |
+| Status | `POST /voice/status` | The call rings, is answered, completes, is not answered, is busy, or fails | Nothing (204). Updates the call record from `CallStatus`: `ringing` → `ringing`, `in-progress` → `in_progress`, `completed` → `completed`, `busy`, `no-answer` and `canceled` → `unanswered`, `failed` → `failed`. A callback may skip a lost one ahead, never moves a call back, and leaves an ended call as it ended. An unanswered or failed result goes to the status engine |
+| Voicemail detection | `POST /voice/amd` | Detection finishes, shortly after pickup | Nothing (204). If `AnsweredBy` is `machine_…` or `fax`, FastAPI ends the call and counts it as unanswered |
 | Hand-over | `POST /voice/handoff` | The relay session was closed with hand-over data | Instructions to dial the on-duty number with a ring time limit and the result address. If nobody is on duty: a spoken message, then hang up |
 | Hand-over answered | `POST /voice/handoff-answered` | The on-duty phone picked up | Nothing to say; connect. Marks the incident `in_progress`, taken by the on-duty employee, and sets the call's `handover_answered` |
 | Hand-over result | `POST /voice/handoff-result` | The dial to DAS finished | If DAS did not answer: a spoken message that someone will call back, then hang up |
@@ -139,13 +145,15 @@ One WebSocket per live wellbeing call. FastAPI never receives or sends audio.
 
 | Direction | Message | Meaning | FastAPI's reaction |
 |---|---|---|---|
-| Twilio → FastAPI | `setup` | Session opened; carries Twilio's call id | Binds the session to the call record and loads the senior's context |
-| Twilio → FastAPI | `prompt` | What the senior said, as text | Stores the turn and checks alarm phrases. Tier 1: red and hand-over. Tier 2: sends the confirmation question and waits for its reply. Otherwise, or after a clear "no", passes the conversation to the model |
-| Twilio → FastAPI | `dtmf` | A key was pressed | Key 9 starts a hand-over. During a tier 2 confirmation, 1 means yes and 2 means no |
-| Twilio → FastAPI | `interrupt` | The senior spoke over the agent | Stops sending the current reply and records how much of it was heard |
-| Twilio → FastAPI | `error` | A problem on Twilio's side | Logged; if the session cannot continue, the call counts as dropped |
-| FastAPI → Twilio | `text` | A piece of the agent's reply, or a fixed sentence; the last piece is flagged | n/a |
-| FastAPI → Twilio | `end` | Close the session, optionally with hand-over data | n/a |
+| Twilio → FastAPI | `setup` | Session opened; carries Twilio's call id as `callSid` | Binds the session to the call record and loads the senior's context |
+| Twilio → FastAPI | `prompt` | What the senior said, as text in `voicePrompt` | Stores the turn and checks alarm phrases. Tier 1: red and hand-over. Tier 2: sends the confirmation question and waits for its reply. Otherwise, or after a clear "no", passes the conversation to the model |
+| Twilio → FastAPI | `dtmf` | A key was pressed, in `digit` | Key 9 starts a hand-over. During a tier 2 confirmation, 1 means yes and 2 means no |
+| Twilio → FastAPI | `interrupt` | The senior spoke over the agent; `utteranceUntilInterrupt` is what they heard | Stops sending the current reply and records how much of it was heard |
+| Twilio → FastAPI | `error` | A problem on Twilio's side, in `description` | Logged; if the session cannot continue, the call counts as dropped |
+| FastAPI → Twilio | `text` | A piece of the agent's reply, or a fixed sentence, in `token`; the last piece has `last: true` | n/a |
+| FastAPI → Twilio | `end` | Close the session, optionally with hand-over data in `handoffData` | n/a |
+
+The WebSocket is `/voice/relay?call=<id>`, the one-time call id of 01 §4 channel 7. The answer callback names it in `<Connect><ConversationRelay url=… language="ro-RO" ttsProvider=… voice=… welcomeGreeting=… dtmfDetection="true"/></Connect>`; the voice comes from `TWILIO_TTS_PROVIDER` and `TWILIO_VOICE`. A `setup` whose `callSid` is not the call's closes the session.
 
 ### 4.4 Hand-over, step by step
 

@@ -2,7 +2,7 @@
 // Railway never reads this file during a deploy; a person applies it from .railway/:
 //   railway config plan --environment staging
 //   railway config apply --environment staging
-import { defineRailway, github, postgres, project, service } from "railway/iac";
+import { defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
 const REPO = "paulhondola/Sentinela-Test";
 const REGION = "europe-west4-drams3a"; // EU West
@@ -43,6 +43,10 @@ export default defineRailway((ctx) => {
       // ${{...}} is Railway's own reference syntax, resolved at deploy time
       PUBLIC_BASE_URL: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
       ALLOWED_ORIGIN: "https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}",
+      // Twilio (04 §4), set by a person with `railway variable set`; apply keeps them
+      TWILIO_ACCOUNT_SID: preserve(),
+      TWILIO_AUTH_TOKEN: preserve(),
+      TWILIO_FROM_NUMBER: preserve(),
     },
   });
 

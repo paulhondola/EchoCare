@@ -12,6 +12,9 @@ from typing import Annotated, Any
 os.environ["DATABASE_URL"] = (
     "postgresql://sentinela:sentinela@localhost:5432/sentinela_test"
 )
+# Twilio's callbacks are signed with this token for the address Twilio would call (#15).
+os.environ["TWILIO_AUTH_TOKEN"] = "test-auth-token"
+os.environ["PUBLIC_BASE_URL"] = "https://sentinela.test"
 
 import pytest
 from fastapi import Depends

@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     allowed_origin: str = "http://localhost:5173"
     scheduler_enabled: bool = True
     demo_mode: bool = True
+    # Twilio (04 §4). Empty until a person creates the account; every callback is then
+    # refused, since no signature can match (#15).
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""
+    # ConversationRelay's voice for ro-RO; which one sounds right is spike S1.
+    twilio_tts_provider: str = "Google"
+    twilio_voice: str = "ro-RO-Wavenet-A"
 
     @field_validator("database_url")
     @classmethod
