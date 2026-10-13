@@ -20,7 +20,7 @@ flowchart TB
         CA["Android app<br/>caregiver role"]
         MA["Android app<br/>medic role, tablet"]
         DA["Android app<br/>DAS role, red incidents"]
-        WD["Web dashboard<br/>DAS desk, React"]
+        WD["Web dashboard<br/>DAS desk, Svelte"]
         DP["On-duty DAS phone<br/>also runs the DAS role"]
     end
 
@@ -64,7 +64,7 @@ flowchart TB
 | FastAPI service | All reads and writes, calls, scheduling, event intake, the rules and the matrix | The only part that changes a code, makes a phone ring or touches the database |
 | PostgreSQL | The single store | Reached only by FastAPI, over Railway's private network |
 | Android app | One app, four roles | The roles granted to the signed-in number decide which screens appear. The medic layout targets a tablet and also works on a phone. The DAS role shows only red incidents (G15) |
-| Web dashboard | DAS at the desk | React, built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
+| Web dashboard | DAS at the desk | Svelte 5 and SvelteKit 3 (ADR-003), built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
 | Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
 | Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over, sends the caregiver notice SMS |

@@ -1,6 +1,6 @@
 # dashboard: the DAS web dashboard
 
-The dispatch team's view (spec G15): a React + Vite single-page app that calls the FastAPI JSON API and signs people in with Firebase phone sign-in. On Railway it is the `dashboard` service: Node builds it and Caddy serves the result, both in this folder's [Dockerfile](Dockerfile).
+The dispatch team's view (spec G15): a Svelte 5 + SvelteKit 3 single-page app ([ADR-003](../docs/adr/ADR-003-dashboard-svelte.md)) that calls the FastAPI JSON API and signs people in with Firebase phone sign-in. On Railway it is the `dashboard` service: Node builds it and Caddy serves the result, both in this folder's [Dockerfile](Dockerfile).
 
 ## Run it
 
@@ -41,10 +41,10 @@ The same Firebase values are set for staging and production in [.railway/railway
 
 ## Build and check
 
-The toolchain is [Vite+](https://viteplus.dev/guide): `vp check` formats (oxfmt), lints (oxlint) and type-checks. `--fix` applies the formatting and the safe lint fixes. CI runs it, then the build ([dashboard.yml](../.github/workflows/dashboard.yml)):
+The toolchain is [Vite+](https://viteplus.dev/guide) and [svelte-check](https://svelte.dev/docs/kit/packaging): `npm run check` runs both `vp check` (oxfmt, oxlint, type check) and `svelte-check --tsgo --fail-on-warnings`. `--fix` applies the formatting and the safe lint fixes. CI runs it, then the build ([dashboard.yml](../.github/workflows/dashboard.yml)):
 
 ```bash
-npx vp check
+npm run check
 ```
 
 ```bash
@@ -67,7 +67,7 @@ docker build -t sentinela-dashboard --build-arg VITE_API_URL=http://localhost:80
 docker run --rm -p 3000:3000 sentinela-dashboard
 ```
 
-The [Caddyfile](Caddyfile) sends every unknown path to `index.html`, so a reload on a route like `/incidents/42` works. It caches hashed files under `/assets/` for a year and revalidates `index.html` on every load, so a deploy shows at once.
+The [Caddyfile](Caddyfile) sends every unknown path to `index.html`, so a reload on a route works. It caches hashed files under `/_app/immutable/` for a year and revalidates `index.html` on every load, so a deploy shows at once.
 
 Logs from a deployment:
 
