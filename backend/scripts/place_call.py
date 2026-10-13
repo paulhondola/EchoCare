@@ -20,13 +20,13 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.calls import CallState
-from app.db import Session
+from app.core.db import Session
+from app.core.phones import normalize
+from app.core.settings import get_settings
 from app.models import Call, CallTrigger, Senior
-from app.phones import normalize
-from app.settings import get_settings
 from app.status import Severity
-from app.twilio import dial
+from app.voice.calls import CallState
+from app.voice.twilio import dial
 
 
 async def place_call(phone: str) -> tuple[bool, str]:

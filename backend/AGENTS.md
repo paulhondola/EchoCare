@@ -7,21 +7,15 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 ```
 backend/
 ├── app/
-│   ├── main.py        FastAPI app; every route on the /api router, docs at /api/docs
-│   ├── settings.py    pydantic-settings from env / .env; check_environment()
-│   ├── db.py          async engine (asyncpg), Session and get_session, declarative Base
-│   ├── models.py      SQLAlchemy tables and the constraints the database enforces (05)
-│   ├── auth.py        Firebase token check, the caller and their grants, refusals (auth-layer §3)
-│   ├── staff.py       granting staff roles, for POST /staff and grant_das.py
-│   ├── seniors.py     registration, caregiver and senior grants, who reaches whom (auth-layer §3.6)
-│   ├── phones.py      phone numbers to E.164
-│   ├── alarms.py      alarm phrases: normalization and tier 1 / tier 2 patterns (03 §4)
-│   ├── status.py      status engine: severity, certainty, matrix, combining (03 §3, §5, §6)
-│   ├── calls.py       call lifecycle: states and allowed transitions (03 §9)
-│   ├── incidents.py   incident lifecycle: open, in progress, resolved (G16, UC-11)
-│   ├── incident_view.py  GET /incidents/{id}: the senior, caregivers, event and calls (04 §1)
-│   ├── twilio.py      Twilio signatures and the Voice API: dial, hang up (04 §4.1)
-│   └── voice.py       Twilio's callbacks and the relay WebSocket, a scripted call for now (04 §4.2, §4.3)
+│   ├── main.py        FastAPI app; mounts domain routers on /api, docs at /api/docs
+│   ├── core/          settings, async db engine/session, phone E.164 normalization
+│   ├── models/        declarative Base and all SQLAlchemy database models re-exported
+│   ├── auth/          Firebase token verification, caller authentication, push tokens, router
+│   ├── staff/         staff roles (medic, DAS), permissions, router
+│   ├── seniors/       seniors, caregivers, consents, enrollments, router
+│   ├── incidents/     incident lifecycle, refusal reasons, detailed views, router
+│   ├── status/        alarm phrase normalization, status matrix & engine
+│   └── voice/         Twilio signatures, Call lifecycle, dialogue relay, router
 ├── scripts/
 │   ├── grant_das.py   the setup script (G6), run inside the api container
 │   ├── dev_token.py   a real sign-in token for a test number, for curl and Swagger
@@ -37,8 +31,8 @@ backend/
 ## Scope
 
 - Endpoints, call handling, the scheduler, the status engine and the database all live here. The contract is [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md), the tables are [05-data-model.md](../docs/specs/sentinela/05-data-model.md).
-- Every route goes on the `api` router (prefix `/api`) and must be declared before `app.include_router(api)` at the bottom of `main.py`.
-- New settings go on `Settings` in `settings.py` and in `.env.example`.
+- Domain routers are mounted on the `api` router (prefix `/api`) in `main.py`.
+- New settings go on `Settings` in `app/core/settings.py` and in `.env.example`.
 - Clients (`dashboard/`, `android/`) never read the database; they go through this API.
 
 ## Commands

@@ -1,11 +1,11 @@
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { getMe } from "./api";
-import { auth } from "./firebase";
-import Enrollments from "./Enrollments";
-import IncidentBoard from "./IncidentBoard";
-import SignIn from "./SignIn";
-import Staff from "./Staff";
+import { getMe } from "./services/api";
+import { auth } from "./services/firebase";
+import { Enrollments } from "./features/enrollments";
+import { IncidentBoard } from "./features/incidents";
+import { SignIn } from "./features/auth";
+import { Staff } from "./features/staff";
 
 const NO_ACCESS = "Acest număr nu are acces la dispecerat.";
 const NOT_REGISTERED = "Numărul nu este înregistrat. Contactați medicul de familie.";

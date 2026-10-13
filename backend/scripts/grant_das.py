@@ -13,9 +13,9 @@ from pathlib import Path
 # Run as a file, Python puts scripts/ on the path, not the folder that holds app/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db import Session
+from app.core.db import Session
+from app.core.phones import is_mobile, normalize
 from app.models import Role
-from app.phones import is_mobile, normalize
 from app.staff import grant_staff
 
 
