@@ -41,7 +41,7 @@ async def test_system_health_success_for_das(client, add_user):
 async def test_system_health_degraded_when_db_down(client, add_user):
     await add_user(DAS, Role.das)
     with patch(
-        "app.main.check_database_health",
+        "app.system.router.check_database_health",
         side_effect=OperationalError("mock", {}, Exception()),
     ):
         r = await client.get("/api/system/health", headers=signed_in(DAS))
