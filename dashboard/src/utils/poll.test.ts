@@ -118,4 +118,70 @@ describe("poll", () => {
       }
     });
   });
+
+  it("aborts in-flight read on reload() without setting error state", async () => {
+    const abortedSignals: boolean[] = [];
+    let callCount = 0;
+
+    const poller = poll(
+      (signal) => {
+        callCount++;
+        const currentCall = callCount;
+        return new Promise<string[]>((resolve, reject) => {
+          signal.addEventListener("abort", () => {
+            abortedSignals.push(signal.aborted);
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+          if (currentCall === 1) {
+            // Leave first call pending until aborted
+          } else {
+            resolve(["second"]);
+          }
+        });
+      },
+      10000,
+      (err) => (err instanceof Error ? err.message : String(err)),
+    );
+
+    expect(poller.load.kind).toBe("loading");
+
+    // Call reload while first is still pending
+    poller.reload();
+
+    await vi.waitFor(() => {
+      expect(poller.load.kind).toBe("ok");
+    });
+
+    if (poller.load.kind === "ok") {
+      expect(poller.load.data).toEqual(["second"]);
+      expect(poller.load.error).toBeUndefined();
+    }
+    expect(abortedSignals).toEqual([true]);
+  });
+
+  it("ignores generic Error with name AbortError without error state", async () => {
+    let callCount = 0;
+    const poller = poll(
+      () => {
+        callCount++;
+        if (callCount === 1) {
+          const err = new Error("This operation was aborted");
+          err.name = "AbortError";
+          throw err;
+        }
+        return Promise.resolve(["recovered"]);
+      },
+      50,
+      (err) => (err instanceof Error ? err.message : String(err)),
+    );
+
+    // Initial read threw an AbortError - it should NOT transition load to error
+    expect(poller.load.kind).toBe("loading");
+    await vi.waitFor(() => {
+      expect(poller.load.kind).toBe("ok");
+    });
+    if (poller.load.kind === "ok") {
+      expect(poller.load.data).toEqual(["recovered"]);
+    }
+  });
 });

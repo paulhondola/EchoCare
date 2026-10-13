@@ -26,14 +26,22 @@ export function poll<T>(
   async function execute() {
     if (timer) clearTimeout(timer);
     if (controller) controller.abort();
-    controller = new AbortController();
+    const currentController = new AbortController();
+    controller = currentController;
 
     try {
-      const data = await read(controller.signal);
-      if (!active) return;
+      const data = await read(currentController.signal);
+      if (!active || currentController.signal.aborted) return;
       load = { kind: "ok", data, at: Date.now() };
     } catch (err) {
-      if (!active || (err instanceof DOMException && err.name === "AbortError")) return;
+      if (
+        !active ||
+        currentController.signal.aborted ||
+        (err instanceof DOMException && err.name === "AbortError") ||
+        (err instanceof Error && err.name === "AbortError")
+      ) {
+        return;
+      }
       const message = describe(err);
       if (load.kind === "ok") {
         load = { ...load, error: message };
@@ -41,7 +49,7 @@ export function poll<T>(
         load = { kind: "error", message };
       }
     } finally {
-      if (active) {
+      if (active && !currentController.signal.aborted) {
         timer = setTimeout(execute, ms);
       }
     }

@@ -26,7 +26,7 @@ pre-commit:
         jobs:
           - run: npx --no vp check --fix
             stage_fixed: true
-          - run: npx --no svelte-check --tsgo --fail-on-warnings
+          - run: npx --no -- svelte-check --tsgo --fail-on-warnings
 
     - name: android
       root: android/
