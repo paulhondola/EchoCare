@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { fetchIncident, type IncidentDetail } from "./api";
-import { address, OUTCOMES, time } from "./labels";
+import { fetchIncident, type IncidentDetail } from "../../services/api";
+import { address, OUTCOMES, time } from "../../utils/labels";
 
 // Romanian labels for the stored values (05 §1); an unknown value shows as it is
 const TRIGGERS: Record<string, string> = {

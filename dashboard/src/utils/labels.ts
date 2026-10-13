@@ -1,4 +1,4 @@
-import type { IncidentOutcome, SeniorAddress } from "./api";
+import type { IncidentOutcome, SeniorAddress } from "../services/api";
 
 export const time = new Intl.DateTimeFormat("ro-RO", { dateStyle: "short", timeStyle: "short" });
 

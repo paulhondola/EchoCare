@@ -5,9 +5,9 @@ import {
   takeIncident,
   type Incident,
   type IncidentOutcome,
-} from "./api";
+} from "../../services/api";
 import IncidentDetails from "./IncidentDetails";
-import { OUTCOMES, time } from "./labels";
+import { OUTCOMES, time } from "../../utils/labels";
 
 function minutesSince(iso: string, now: number): string {
   const m = Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));

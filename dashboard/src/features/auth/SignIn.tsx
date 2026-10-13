@@ -1,8 +1,8 @@
 import { FirebaseError } from "firebase/app";
 import { type ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { auth } from "./firebase";
-import { toE164 } from "./phone";
+import { auth } from "../../services/firebase";
+import { toE164 } from "../../utils/phone";
 
 // auth-layer §7.1. Anything else falls back to the "unavailable" text of §3.2.
 const ERRORS: Record<string, string> = {

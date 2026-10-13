@@ -1,6 +1,12 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { ApiError, fetchStaff, grantStaff, type StaffMember, type StaffRole } from "./api";
-import { toE164 } from "./phone";
+import {
+  ApiError,
+  fetchStaff,
+  grantStaff,
+  type StaffMember,
+  type StaffRole,
+} from "../../services/api";
+import { toE164 } from "../../utils/phone";
 
 const ROLE_LABELS: Record<StaffRole, string> = { das: "Dispecer DAS", medic: "Medic" };
 

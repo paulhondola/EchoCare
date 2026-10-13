@@ -6,8 +6,8 @@ import {
   fetchSenior,
   type SeniorSummary,
   type SeniorView,
-} from "./api";
-import { address, time } from "./labels";
+} from "../../services/api";
+import { address, time } from "../../utils/labels";
 
 // Re-read like the incident board: the dashboard gets no pushes (04 §6)
 const REFRESH_MS = 15_000;
