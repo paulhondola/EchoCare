@@ -69,17 +69,23 @@ def add_user(db: AsyncSession) -> Callable[..., Awaitable[User]]:
 def add_senior(
     db: AsyncSession, add_user: Callable[..., Awaitable[User]]
 ) -> Callable[..., Awaitable[Senior]]:
-    """add_senior("+40700000101"): a draft senior registered by a fresh medic, which
-    caregiver and senior grants can name now that grants.senior_id has its key (AL6)."""
+    """add_senior("+40700000101"): a draft senior, which caregiver and senior grants
+    can name now that grants.senior_id has its key (AL6). Registered by `medic`, or by
+    a fresh one. Other columns go by name: enrollment_state=..., street=...
+    """
 
-    async def add(phone: str, name: str = "Maria Pop") -> Senior:
-        medic = await add_user(f"+4079{phone[-7:]}", Role.medic, name="Medic")
+    async def add(
+        phone: str, name: str = "Maria Pop", medic: User | None = None, **columns: Any
+    ) -> Senior:
+        if medic is None:
+            medic = await add_user(f"+4079{phone[-7:]}", Role.medic, name="Medic")
         senior = Senior(
             medic_id=medic.id,
             full_name=name,
             form_of_address="doamna Maria",
             phone_e164=phone,
             phone_is_landline=False,
+            **columns,
         )
         db.add(senior)
         await db.commit()

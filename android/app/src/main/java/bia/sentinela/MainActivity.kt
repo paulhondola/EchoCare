@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -33,6 +32,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import bia.sentinela.auth.AuthViewModel
 import bia.sentinela.auth.Screen
 import bia.sentinela.auth.toE164
+import bia.sentinela.home.HomeNav
 import bia.sentinela.ui.theme.SentinelaTheme
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
@@ -53,13 +53,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             val vm: AuthViewModel = hiltViewModel()
             SentinelaTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    SignIn(
-                        vm,
-                        onSendCode = { sendCode(vm, it, null) },
-                        onResend = { sendCode(vm, vm.phone, vm.resendToken) },
-                        modifier = Modifier.padding(innerPadding)
+                when (val screen = vm.screen) {
+                    // Signed in: the role's home and what opens from it (seniors §8.2).
+                    is Screen.Home -> HomeNav(
+                        screen,
+                        onSwitchRole = vm::switchRole,
+                        onSignOut = vm::signOut,
+                        onSessionEnd = vm::sessionEnded
                     )
+
+                    else -> Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        SignIn(
+                            vm,
+                            onSendCode = { sendCode(vm, it, null) },
+                            onResend = { sendCode(vm, vm.phone, vm.resendToken) },
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
                 }
             }
         }
@@ -134,24 +144,8 @@ fun SignIn(
                     }
                 }
             }
-            // ponytail: the role's placeholder; its real screens replace it (UC-02).
-            is Screen.Home -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    stringResource(
-                        R.string.home,
-                        screen.displayName,
-                        stringResource(ROLE_LABELS.getValue(screen.role))
-                    )
-                )
-                Row {
-                    if (screen.canSwitch) {
-                        TextButton(vm::switchRole) {
-                            Text(stringResource(R.string.change_role))
-                        }
-                    }
-                    TextButton(vm::signOut) { Text(stringResource(R.string.sign_out)) }
-                }
-            }
+            // Shown by HomeNav in MainActivity, not here.
+            is Screen.Home -> {}
         }
     }
 }

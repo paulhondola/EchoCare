@@ -38,9 +38,11 @@ router = APIRouter()
 async def list_seniors(
     caller: Annotated[Caller, Depends(current_caller)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    role: Role | None = None,
 ) -> list[SeniorSummary]:
-    """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6)."""
-    seniors = await session.scalars(seniors_query(caller))
+    """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6). `role`
+    narrows the list to one role's reach, for that role's home (seniors SE6)."""
+    seniors = await session.scalars(seniors_query(caller, role))
     return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
 
 

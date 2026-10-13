@@ -87,6 +87,8 @@ async def test_from_draft_to_accepted(client, staff):
         "id": maria,
         "full_name": "Maria Pop",
         "form_of_address": "doamna Maria",
+        "phone_e164": SENIOR,
+        "phone_is_landline": False,
         "enrollment_state": "submitted",
     }
     assert [s["id"] for s in (await enrollments(client)).json()] == [maria]

@@ -77,7 +77,11 @@ Every client signs in with a phone number ([auth-layer.md](../docs/specs/auth-la
 | `+40700000001` | `111111` | DAS |
 | `+40700000002` | `222222` | medic |
 | `+40700000003` | `333333` | DAS and medic |
+| `+40700000004` | `444444` | a caregiver |
+| `+40700000005` | `555555` | a senior |
 | `+40700000009` | `999999` | nothing |
+
+The numbers `+40700000004` and `+40700000005` work once a person has added them in the Firebase console ([seniors-and-enrollment.md](../docs/specs/seniors-and-enrollment.md), §10 step 1).
 
 Grants live in each environment's database. Locally, grant DAS with the setup script (on Railway, run the same inside `railway ssh -s api -e staging`):
 

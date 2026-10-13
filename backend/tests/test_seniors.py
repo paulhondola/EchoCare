@@ -1,8 +1,11 @@
 """Seniors, caregiver and senior grants, and who reaches whom (#16, auth-layer §3.6)."""
 
+import asyncio
+
 import pytest
 from sqlalchemy import delete, select, update
 
+from app.core.db import engine
 from app.models import EnrollmentState, Grant, Role, Senior, User
 
 DAS = "+40700000001"
@@ -77,6 +80,7 @@ async def test_the_medic_registers_a_draft(client, staff):
         "12C",
     )
     assert maria["caregivers"] == []
+    assert maria["medic"] == {"display_name": "Dr. Pop", "practice": None}
     r = await get(client, f"/api/seniors/{maria['id']}", MEDIC)
     assert r.json() == maria
 
@@ -162,6 +166,33 @@ async def test_a_repeated_caregiver_changes_nothing(client, staff):
     assert refusal(r) == (409, {"detail": {"reason": "already_done"}})
     r = await get(client, f"/api/seniors/{maria['id']}", MEDIC)
     assert [c["relation"] for c in r.json()["caregivers"]] == ["fiica"]
+
+
+async def test_two_adds_at_once(client, staff):
+    maria = await register(client)
+    first, second = await asyncio.gather(
+        add_caregiver(client, maria["id"]), add_caregiver(client, maria["id"])
+    )
+    assert sorted([first.status_code, second.status_code]) == [201, 409]
+
+
+async def test_a_put_and_an_add_with_the_same_new_number(client, add_senior, staff):
+    # Both make a user for the number and then a grant naming the senior, whose row
+    # each holds meanwhile. Neither waits on the other for good (seniors §6.2).
+    requests = []
+    for n in range(8):
+        senior = await add_senior(f"+4025600010{n}", medic=staff)
+        mobile = f"+4070000200{n}"
+        requests += [
+            client.put(
+                f"/api/seniors/{senior.id}",
+                json={**MARIA, "phone": mobile},
+                headers=signed_in(MEDIC),
+            ),
+            add_caregiver(client, senior.id, {**ANA, "phone": mobile}),
+        ]
+    results = await asyncio.gather(*requests, return_exceptions=True)
+    assert [getattr(r, "status_code", r) for r in results] == [200, 201] * 8
 
 
 async def test_removing_twice_changes_nothing(client, staff):
@@ -364,6 +395,8 @@ async def test_das_cannot_register(client, staff):
         {"form_of_address": ""},
         {"phone": "12345"},
         {"block": "x" * 21},
+        {"full_name": "Ma\x00ria"},  # Postgres text cannot hold a NUL
+        {"street": "Str.\x00 Florilor"},
     ],
 )
 async def test_invalid_registrations(client, staff, change):
@@ -373,9 +406,19 @@ async def test_invalid_registrations(client, staff, change):
     assert r.status_code == 422
 
 
+def test_database_errors_hide_their_parameters():
+    # They are names, numbers and addresses (auth-layer AL15).
+    assert engine.sync_engine.hide_parameters
+
+
 @pytest.mark.parametrize(
     "change",
-    [{"phone": "0256 123 456"}, {"relation": " "}, {"display_name": ""}],
+    [
+        {"phone": "0256 123 456"},
+        {"relation": " "},
+        {"display_name": ""},
+        {"display_name": "A\x00na"},
+    ],
 )
 async def test_invalid_caregivers(client, staff, change):
     # A caregiver signs in by SMS, so their number must be a mobile.

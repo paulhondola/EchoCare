@@ -2,7 +2,13 @@ import logging
 import uuid
 from typing import Annotated, Any
 
-from pydantic import BaseModel, BeforeValidator, StringConstraints, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    StringConstraints,
+    field_validator,
+)
 from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,12 +47,20 @@ class Caregiver(BaseModel):
     relation: str | None
 
 
+def no_nul(value: str) -> str:
+    # Postgres text cannot hold a NUL. Refuse it here, as a 422, not there, as a 500.
+    if "\x00" in value:
+        raise ValueError("the text contains a NUL character")
+    return value
+
+
 def text(max_length: int, min_length: int = 0) -> Any:
     return Annotated[
         str,
         StringConstraints(
             strip_whitespace=True, min_length=min_length, max_length=max_length
         ),
+        AfterValidator(no_nul),
     ]
 
 
@@ -126,6 +140,9 @@ class SeniorSummary(BaseModel):
     id: uuid.UUID
     full_name: str
     form_of_address: str
+    # The number and whether it is a landline, for the apps' senior cards (seniors §3.3).
+    phone_e164: str
+    phone_is_landline: bool
     enrollment_state: State
 
 
@@ -133,41 +150,65 @@ class CaregiverView(Caregiver):
     user_id: uuid.UUID  # for DELETE /seniors/{id}/caregivers/{userId}
 
 
+class MedicView(BaseModel):
+    """The medic who registered the senior, on the senior's page (seniors §3.3)."""
+
+    display_name: str
+    practice: str | None
+
+
 class SeniorView(SeniorDetail):
-    """GET /seniors/{id} (04 §1): registration, address and caregivers."""
+    """GET /seniors/{id} (04 §1): registration, address, medic and caregivers. One
+    shape for every role (seniors SE7)."""
 
     call_window: str | None
     enrollment_state: State
+    medic: MedicView
     caregivers: list[CaregiverView]
 
 
-def reach(caller: Caller) -> ColumnElement[bool]:
+def reach(caller: Caller, role: Role | None = None) -> ColumnElement[bool]:
     """The seniors this caller reaches, as a condition on `seniors` (auth-layer §3.6).
 
     A medic their own seniors while they hold the grant, caregivers and the senior
     through grants naming them, DAS every senior past `draft`. The union, as AL2 says.
+
+    `role` narrows it to what that one role reaches, for a home that shows one role
+    (seniors SE6). It grants nothing: a role the caller does not hold reaches nobody.
     """
+    held = caller.roles if role is None else caller.roles & {role}
     reaches = []
-    if Role.medic in caller.roles:
+    if Role.medic in held:
         reaches.append(Senior.medic_id == caller.user.id)
-    granted = [g.senior_id for g in caller.grants if g.senior_id is not None]
+    granted = [
+        g.senior_id for g in caller.grants if g.role in held and g.senior_id is not None
+    ]
     if granted:
         reaches.append(Senior.id.in_(granted))
-    if Role.das in caller.roles:
+    if Role.das in held:
         reaches.append(Senior.enrollment_state != EnrollmentState.draft)
     return or_(*reaches) if reaches else false()
 
 
-def seniors_query(caller: Caller) -> Select:
-    return select(Senior).where(reach(caller)).order_by(Senior.full_name, Senior.id)
+def seniors_query(caller: Caller, role: Role | None = None) -> Select:
+    return (
+        select(Senior).where(reach(caller, role)).order_by(Senior.full_name, Senior.id)
+    )
 
 
 async def reach_senior(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, *, lock: bool = False
 ) -> Senior:
-    """The senior, if the caller reaches them; otherwise 404 `not_found` (AL8)."""
+    """The senior, if the caller reaches them; otherwise 404 `not_found` (AL8).
+
+    `lock` is FOR NO KEY UPDATE, not FOR UPDATE: inserting a grant, a call or an
+    incident takes FOR KEY SHARE on the senior's row through its foreign key, which a
+    plain FOR UPDATE would block (seniors §6.2).
+    """
     query = select(Senior).where(Senior.id == senior_id, reach(caller))
-    senior = await session.scalar(query.with_for_update() if lock else query)
+    if lock:
+        query = query.with_for_update(key_share=True)
+    senior = await session.scalar(query)
     if senior is None:
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(404, "not_found")
@@ -238,10 +279,12 @@ def caregivers_query(senior_id: uuid.UUID) -> Select:
 
 
 async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
+    medic = await session.get(User, senior.medic_id)
     caregivers = (await session.execute(caregivers_query(senior.id))).mappings()
-    fields = SeniorView.model_fields.keys() - {"caregivers"}
+    fields = SeniorView.model_fields.keys() - {"medic", "caregivers"}
     return SeniorView(
         **{name: getattr(senior, name) for name in fields},
+        medic=MedicView.model_validate(medic, from_attributes=True),
         caregivers=[CaregiverView.model_validate(dict(c)) for c in caregivers],
     )
 
