@@ -1,7 +1,7 @@
 """Place a scripted test call to a registered senior's number (#15, spike S1).
 
 A script, not an endpoint: an endpoint would stay in the API for old clients. The
-senior must exist (POST /api/seniors); the call is a `manual` one on their record.
+senior must exist (POST /api/seniors); the call is a `test` one on their record.
 Twilio must reach PUBLIC_BASE_URL, so run it inside the api container: locally with
 the tunnel profile (`docker compose exec api`), on staging through
 `railway ssh -s api -e staging`:
@@ -49,8 +49,8 @@ async def place_call(phone: str) -> tuple[bool, str]:
             )
         call = Call(
             senior_id=senior.id,
-            trigger=CallTrigger.manual,
-            starting_severity=Severity.green,
+            trigger=CallTrigger.test,
+            starting_severity=Severity.yellow,  # like a request for a call (UC-10)
             due_at=func.now(),
         )
         session.add(call)

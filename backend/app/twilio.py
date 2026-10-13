@@ -1,20 +1,23 @@
 """Talking to Twilio: request signatures (01 §4, channels 6 and 7) and the Voice API
 (channel 5, 04 §4.1).
 
-No Twilio library: its client blocks, and everything in the request path is
-asynchronous (01 §8). The Voice API is two form posts through httpx, and the signature
-is Twilio's documented HMAC, a few lines here.
+No Twilio library: the Voice API is two form posts through httpx, asynchronous like
+everything in the request path (01 §8), and the signature is Twilio's documented HMAC,
+a few lines here.
 """
 
 import base64
 import hashlib
 import hmac
+import logging
 import uuid
 from collections.abc import Iterable
 
 import httpx
 
 from app.settings import get_settings
+
+log = logging.getLogger("sentinela.twilio")
 
 API = "https://api.twilio.com/2010-04-01"
 
@@ -91,5 +94,9 @@ async def _post(path: str, data: dict) -> httpx.Response:
         r = await client.post(
             f"{API}/Accounts/{s.twilio_account_sid}/{path}", data=data
         )
+    if r.is_error:
+        # Twilio's own code and message (21219 unverified number, 21215 geo
+        # permissions) are in the body, which raise_for_status leaves out.
+        log.warning("Twilio %s on %s: %s", r.status_code, path, r.text)
     r.raise_for_status()
     return r

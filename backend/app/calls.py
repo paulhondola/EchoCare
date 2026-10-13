@@ -79,12 +79,16 @@ def ended_certainty(state: CallState, computed: Certainty) -> Certainty:
 TWILIO_STATUSES: dict[str, CallState] = {
     "ringing": CallState.ringing,
     "in-progress": CallState.in_progress,
-    "completed": CallState.completed,
+    # Twilio says completed whoever ended the call. A call our side closed is already
+    # completed (the relay marks it before its `end`), and an ended call stays as it
+    # ended; so a completed that still moves a call is a hang-up or a lost line (03 §9).
+    "completed": CallState.dropped,
     "busy": CallState.unanswered,
     "no-answer": CallState.unanswered,
     "canceled": CallState.unanswered,
     "failed": CallState.failed,
 }
+TWILIO_DIALING = frozenset({"queued", "initiated"})
 
 # What voicemail detection's AnsweredBy says when no person picked up (04 §4.2).
 MACHINE_PREFIXES = ("machine_", "fax")

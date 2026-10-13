@@ -1,18 +1,22 @@
 """Twilio's callbacks replayed against FastAPI, one with a bad signature (#15, 06 §5)."""
 
 import json
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlencode
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app import voice
+from app.db import get_session
 from app.main import app
-from app.models import Call
+from app.models import Call, CallTurn
 from app.twilio import signature
 
 FIXTURES = json.loads(
@@ -78,20 +82,21 @@ async def test_a_bad_signature_gets_403(client, db, call):
 async def test_a_signature_for_another_call_gets_403(client, call):
     # The call id is part of the signed address.
     url = f"https://sentinela.test/api/voice/answer?call={call.id}"
-    header = signature(TOKEN, url.replace(str(call.id)[-4:], "0000"), [])
+    header = signature(TOKEN, url.replace(str(call.id), str(uuid.uuid4())), [])
     r = await client.post(
         f"/api/voice/answer?call={call.id}", headers={"X-Twilio-Signature": header}
     )
     assert r.status_code == 403
 
 
-async def test_an_answered_call_ends_completed(client, db, call):
+async def test_a_hang_up_ends_dropped(client, db, call):
+    # Twilio's completed, with no close of ours before it: they hung up (03 §9).
     for event in FIXTURES["status"]:
         params = {**FIXTURES["status_common"], **event}
         r = await callback(client, "status", call.id, params)
         assert r.status_code == 204
     row = await stored(db, call)
-    assert (row.state, row.twilio_call_id) == ("completed", SID)
+    assert (row.state, row.twilio_call_id) == ("dropped", SID)
     assert row.started_at is not None and row.ended_at >= row.started_at
 
 
@@ -111,7 +116,7 @@ async def test_late_and_repeated_callbacks_change_nothing(client, db, call):
         await callback(client, "status", call.id, params)
     # completed without in-progress still means answered
     row = await stored(db, call)
-    assert row.state == "completed"
+    assert row.state == "dropped"
     assert row.started_at is not None
 
 
@@ -162,3 +167,105 @@ def test_an_unsigned_relay_connect_is_refused():
     ):
         pass
     assert closed.value.code == 1008
+
+
+async def test_unknown_status_changes_nothing(client, db, call):
+    params = {**FIXTURES["status_common"], "CallStatus": "on-hold"}
+    assert (await callback(client, "status", call.id, params)).status_code == 204
+    assert (await stored(db, call)).state == "queued"
+
+
+async def test_a_database_failure_at_pickup_says_sorry(client, call):
+    class Broken:
+        async def scalar(self, *_):
+            raise OperationalError("SELECT", {}, OSError("connection refused"))
+
+    app.dependency_overrides[get_session] = lambda: Broken()
+    r = await callback(client, "answer", call.id, FIXTURES["answer"])
+    del app.dependency_overrides[get_session]
+    # Romanian, never Twilio's English application error (06 §1)
+    assert r.status_code == 200
+    assert voice.SORRY in r.text and "<Hangup/>" in r.text
+
+
+class Socket:
+    """The relay's side of a WebSocket, signed as Twilio signs the connect (04 §4.1)."""
+
+    def __init__(self, call_id, messages):
+        self.url = SimpleNamespace(path="/api/voice/relay", query=f"call={call_id}")
+        url = f"wss://sentinela.test/api/voice/relay?call={call_id}"
+        self.headers = {"x-twilio-signature": signature(TOKEN, url, [])}
+        self.incoming = [m if isinstance(m, str) else json.dumps(m) for m in messages]
+        self.sent, self.accepted, self.closed = [], False, None
+
+    async def accept(self):
+        self.accepted = True
+
+    async def close(self, code):
+        self.closed = code
+
+    async def receive_text(self):
+        if not self.incoming:
+            raise WebSocketDisconnect(1000)
+        return self.incoming.pop(0)
+
+    async def send_json(self, data):
+        self.sent.append(data)
+
+
+SETUP = {"type": "setup", "callSid": SID}
+
+
+async def answered(client, call):
+    common = FIXTURES["status_common"]
+    await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
+
+
+async def test_our_close_ends_completed(client, db, call):
+    await answered(client, call)
+    ws = Socket(call.id, [SETUP, {"type": "dtmf", "digit": "0"}])
+    await voice.relay(ws, call.id)
+    assert ws.sent[-1] == {"type": "end"}
+    assert (await stored(db, call)).state == "completed"
+    # Twilio's completed after our close changes nothing
+    params = {**FIXTURES["status_common"], **FIXTURES["status"][-1]}
+    await callback(client, "status", call.id, params)
+    assert (await stored(db, call)).state == "completed"
+    turns = await db.scalars(
+        select(CallTurn.content)
+        .where(CallTurn.call_id == call.id)
+        .order_by(CallTurn.position)
+    )
+    assert turns.all()[1:] == ["0", voice.GOODBYE]
+
+
+async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
+    await answered(client, call)
+    ws = Socket(call.id, [SETUP, "not json", "[1, 2]", {"type": "dtmf", "digit": "0"}])
+    await voice.relay(ws, call.id)
+    assert (ws.closed, ws.sent[-1]) == (None, {"type": "end"})
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        {"type": "setup", "callSid": "CA" + "2" * 32},  # another call's
+        {"type": "prompt", "voicePrompt": "Mă simt bine", "last": True},  # no setup
+    ],
+)
+async def test_the_relay_needs_the_calls_own_setup_first(client, db, call, first):
+    await answered(client, call)
+    ws = Socket(call.id, [first, {"type": "dtmf", "digit": "0"}])
+    await voice.relay(ws, call.id)
+    assert (ws.closed, ws.sent) == (1008, [])
+    assert (await stored(db, call)).state == "in_progress"
+
+
+async def test_an_ended_call_takes_no_relay(client, db, call):
+    # The signed address never changes, so only a live call takes a connect (Q13).
+    for status in ("in-progress", "completed"):
+        params = {**FIXTURES["status_common"], "CallStatus": status}
+        await callback(client, "status", call.id, params)
+    ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
+    await voice.relay(ws, call.id)
+    assert (ws.accepted, ws.closed) == (False, 1008)

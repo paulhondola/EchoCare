@@ -28,7 +28,7 @@ type View =
 
 export default function App() {
   const [view, setView] = useState<View>({ kind: "loading" });
-  // No router yet (AGENTS.md): two screens, picked in the header
+  // No router yet (AGENTS.md): three screens, picked in the header
   const [screen, setScreen] = useState<Screen>("incidents");
 
   useEffect(

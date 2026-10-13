@@ -5,7 +5,10 @@ says comes back as text and gets a fixed reply, and every turn is kept. Every ca
 and the WebSocket connect are signature-checked (01 §4, channels 6 and 7).
 
 The wellbeing call's agent, alarm phrases, the welcome call and hand-over build on
-this; their callbacks join this router (04 §4.2).
+this; their callbacks join this router (04 §4.2). `Relay` is spike scaffolding: one
+message in, a list of replies out. The agent loop replaces it with a session that
+streams the model's reply, stops it on `interrupt` and waits on a tier 2 question, and
+that answers any failure of its own with a fixed apology and a `dropped` call (06 §1).
 """
 
 import json
@@ -21,11 +24,14 @@ import httpx
 from fastapi import APIRouter, Depends, Request, Response, WebSocket
 from fastapi.websockets import WebSocketDisconnect
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import refuse
 from app.calls import (
     ENDED,
+    LIVE,
+    TWILIO_DIALING,
     TWILIO_STATUSES,
     CallState,
     after_callback,
@@ -45,7 +51,12 @@ GOODBYE = "Vă mulțumesc. La revedere."
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
 # On the way to an ended call these states mean someone picked up (03 §9).
 ANSWERED = frozenset(
-    {CallState.in_progress, CallState.completed, CallState.handed_over}
+    {
+        CallState.in_progress,
+        CallState.completed,
+        CallState.handed_over,
+        CallState.dropped,
+    }
 )
 
 
@@ -65,6 +76,11 @@ def heard(words: str) -> str:
 def twiml(body: str) -> Response:
     xml = f'<?xml version="1.0" encoding="UTF-8"?><Response>{body}</Response>'
     return Response(xml, media_type="text/xml")
+
+
+def sorry() -> Response:
+    """A polite Romanian goodbye, never Twilio's own English error (06 §1)."""
+    return twiml(f"<Say language={quoteattr(LANGUAGE)}>{escape(SORRY)}</Say><Hangup/>")
 
 
 async def twilio_params(request: Request) -> dict[str, str]:
@@ -106,6 +122,8 @@ async def move_call(
             call.ended_at = now
         log.info("call %s: %s -> %s", call_id, call.state, moved)
         call.state = moved
+    elif new is not None and new is not call.state:
+        log.info("call %s: %s ignored in %s", call_id, new, call.state)
     await session.commit()
     return moved
 
@@ -113,16 +131,18 @@ async def move_call(
 @router.post("/voice/answer")
 async def answer(call: uuid.UUID, _: Params, session: Db) -> Response:
     """Picked up: connect to ConversationRelay in ro-RO (04 §4.2)."""
-    form_of_address = await session.scalar(
-        select(Senior.form_of_address)
-        .join(Call, Call.senior_id == Senior.id)
-        .where(Call.id == call)
-    )
+    try:
+        form_of_address = await session.scalar(
+            select(Senior.form_of_address)
+            .join(Call, Call.senior_id == Senior.id)
+            .where(Call.id == call)
+        )
+    except SQLAlchemyError, OSError:
+        log.exception("answer for call %s: database unavailable", call)
+        return sorry()
     if form_of_address is None:
         log.warning("answer for unknown call %s", call)
-        return twiml(
-            f"<Say language={quoteattr(LANGUAGE)}>{escape(SORRY)}</Say><Hangup/>"
-        )
+        return sorry()
     s = get_settings()
     attrs = {
         "url": voice_url("relay", call, scheme="wss"),
@@ -141,9 +161,10 @@ async def status(call: uuid.UUID, params: Params, session: Db) -> Response:
     """Rings, answered, completed, not answered, busy, failed (04 §4.2)."""
     twilio_status = params.get("CallStatus", "")
     log.info("call %s: Twilio status %s", call, twilio_status)
-    await move_call(
-        session, call, params.get("CallSid"), TWILIO_STATUSES.get(twilio_status)
-    )
+    new = TWILIO_STATUSES.get(twilio_status)
+    if new is None and twilio_status not in TWILIO_DIALING:
+        log.warning("call %s: unknown Twilio status %r", call, twilio_status)
+    await move_call(session, call, params.get("CallSid"), new)
     return Response(status_code=204)
 
 
@@ -223,7 +244,11 @@ class Relay:
 @router.websocket("/voice/relay")
 async def relay(ws: WebSocket, call: uuid.UUID) -> None:
     """One ConversationRelay session (04 §4.3). Closing before accept answers the
-    upgrade with 403, so an unsigned connect gets nothing."""
+    upgrade with 403, so an unsigned connect gets nothing.
+
+    The signature covers only the address, so it is the same for every connect to one
+    call. The call id is one-time as 01 §4 channel 7 asks: a connect is taken only
+    while the call is live, and nothing before a `setup` naming the call's Twilio id."""
     urls = [public_url(ws.url.path, ws.url.query, s) for s in ("wss", "https")]
     if not signed(ws.headers.get("x-twilio-signature", ""), urls, []):
         log.warning("refused not_allowed: unsigned relay connect, call %s", call)
@@ -234,11 +259,11 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
             await session.execute(
                 select(Call.twilio_call_id, Senior.form_of_address)
                 .join(Senior, Senior.id == Call.senior_id)
-                .where(Call.id == call)
+                .where(Call.id == call, Call.state.in_(LIVE))
             )
         ).first()
         if row is None:
-            log.warning("relay connect for unknown call %s", call)
+            log.warning("relay connect for unknown or ended call %s", call)
             await ws.close(code=1008)
             return
         # Continues the transcript if Twilio reconnects the same call.
@@ -265,27 +290,40 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
         session_relay = Relay(greeting(row.form_of_address), store)
         await ws.accept()
         log.info("relay open: call %s", call)
+        set_up = False
         try:
             while True:
                 try:
                     message = json.loads(await ws.receive_text())
                 except ValueError:
-                    log.warning("relay: a message that is not JSON, call %s", call)
-                    continue
-                sid = message.get("callSid")
-                if message.get("type") == "setup" and row.twilio_call_id not in (
-                    None,
-                    sid,
-                ):
+                    message = None
+                if not isinstance(message, dict):
                     log.warning(
-                        "relay: call %s is Twilio's %s, not %s",
-                        call,
-                        row.twilio_call_id,
-                        sid,
+                        "relay: a message that is not a JSON object, call %s", call
                     )
-                    await ws.close(code=1008)
-                    return
-                for reply in await session_relay.handle(message):
+                    continue
+                if not set_up:
+                    sid = message.get("callSid")
+                    if message.get("type") != "setup" or row.twilio_call_id not in (
+                        None,
+                        sid,
+                    ):
+                        log.warning(
+                            "relay: call %s is Twilio's %s; got %s from %s",
+                            call,
+                            row.twilio_call_id,
+                            message.get("type"),
+                            sid,
+                        )
+                        await ws.close(code=1008)
+                        return
+                    set_up = True
+                replies = await session_relay.handle(message)
+                if any(reply["type"] == "end" for reply in replies):
+                    # We close it, so it ends completed even if they hang up during
+                    # the goodbye; a hang-up before this ends dropped (03 §9).
+                    await move_call(session, call, None, CallState.completed)
+                for reply in replies:
                     await ws.send_json(reply)
         except WebSocketDisconnect:
             log.info("relay closed: call %s", call)

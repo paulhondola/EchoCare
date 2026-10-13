@@ -36,6 +36,8 @@ from app.seniors import (
     SeniorView,
     enrollments_query,
     forms_of_address,
+    has_caregiver,
+    missing_address,
     missing_to_submit,
     move,
     own_senior,
@@ -275,19 +277,27 @@ async def update_senior(
     caller: Annotated[Caller, Depends(require_roles(Role.medic))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorView:
-    """The whole registration again, while it is a draft (04 §2)."""
-    await own_senior(session, caller, senior_id)
-    # Only where still a draft, so a submit at the same time wins (05 §3's pattern).
+    """The whole registration again, while it is a draft or a request DAS has not
+    accepted yet (04 §2). A request keeps its place and stays one DAS can act on: an
+    edit that drops the address is `incomplete`."""
+    senior = await own_senior(session, caller, senior_id)  # locked: no move meanwhile
+    if senior.enrollment_state not in (
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    missing = missing_address(body)
+    if senior.enrollment_state == EnrollmentState.submitted and missing:
+        log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(422, "incomplete", missing=missing)
     updated = await session.scalar(
         update(Senior)
-        .where(Senior.id == senior_id, Senior.enrollment_state == EnrollmentState.draft)
+        .where(Senior.id == senior_id)
         .values(**body.columns())
         .returning(Senior)
         .execution_options(populate_existing=True)
     )
-    if updated is None:
-        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
-        raise refuse(409, "wrong_state")
     await sync_senior_grant(session, updated)
     await session.commit()
     return await senior_view(session, updated)
@@ -336,8 +346,9 @@ async def remove_caregiver(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
     """Deletes the grant, so access stops at once (05 §5). The user row stays; with no
-    grant left their next request is `not_registered`. A repeat changes nothing."""
-    await own_senior(session, caller, senior_id)
+    grant left their next request is `not_registered`. A repeat changes nothing. Past
+    draft, the last caregiver stays: removing them is `incomplete` (04 §2)."""
+    senior = await own_senior(session, caller, senior_id)
     await session.execute(
         delete(Grant).where(
             Grant.senior_id == senior_id,
@@ -345,6 +356,12 @@ async def remove_caregiver(
             Grant.role == Role.caregiver,
         )
     )
+    if senior.enrollment_state != EnrollmentState.draft and not await has_caregiver(
+        session, senior_id
+    ):
+        log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(422, "incomplete", missing=["caregiver"])
     await session.commit()
     return Response(status_code=204)
 

@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from sqlalchemy import update
 
+from app import main
 from app.models import EnrollmentState, Role, Senior
 
 DAS = "+40700000001"
@@ -133,6 +134,39 @@ async def test_two_accepts_at_once(client, staff):
     await submit(client, maria)
     first, second = await asyncio.gather(accept(client, maria), accept(client, maria))
     assert sorted([first.status_code, second.status_code]) == [200, 409]
+    assert ALREADY_DONE in (refusal(first), refusal(second))
+
+
+async def test_removing_the_caregiver_during_a_submit(client, staff, monkeypatch):
+    # Submit pauses between its check and its move, and the removal comes in that
+    # gap. The senior's row lock makes it wait, so DAS never gets a request without
+    # a caregiver (04 §2).
+    checked = main.missing_to_submit
+
+    async def slow_check(session, senior):
+        missing = await checked(session, senior)
+        await asyncio.sleep(0.3)
+        return missing
+
+    monkeypatch.setattr(main, "missing_to_submit", slow_check)
+    maria = await register(client)
+    detail = await client.get(f"/api/seniors/{maria}", headers=signed_in(MEDIC))
+    ana = detail.json()["caregivers"][0]["user_id"]
+
+    async def remove_in_the_gap():
+        await asyncio.sleep(0.1)
+        return await client.delete(
+            f"/api/seniors/{maria}/caregivers/{ana}", headers=signed_in(MEDIC)
+        )
+
+    submitted, removed = await asyncio.gather(
+        submit(client, maria), remove_in_the_gap()
+    )
+    assert submitted.status_code == 200
+    assert refusal(removed) == (
+        422,
+        {"detail": {"reason": "incomplete", "missing": ["caregiver"]}},
+    )
 
 
 @pytest.mark.parametrize(

@@ -146,12 +146,11 @@ def seniors_query(caller: Caller) -> Select:
 
 
 async def reach_senior(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, *, lock: bool = False
 ) -> Senior:
     """The senior, if the caller reaches them; otherwise 404 `not_found` (AL8)."""
-    senior = await session.scalar(
-        select(Senior).where(Senior.id == senior_id, reach(caller))
-    )
+    query = select(Senior).where(Senior.id == senior_id, reach(caller))
+    senior = await session.scalar(query.with_for_update() if lock else query)
     if senior is None:
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(404, "not_found")
@@ -164,9 +163,11 @@ async def own_senior(
     """A senior the caller registered, for the medic's commands (04 §2).
 
     Out of reach is 404; within reach but someone else's, such as DAS looking at a
-    submitted senior, is 403 `not_allowed`.
+    submitted senior, is 403 `not_allowed`. The row stays locked until the request
+    ends, so the medic's commands on one senior run one at a time: submit's check
+    cannot interleave with an edit or a caregiver's removal.
     """
-    senior = await reach_senior(session, caller, senior_id)
+    senior = await reach_senior(session, caller, senior_id, lock=True)
     if Role.medic not in caller.roles or senior.medic_id != caller.user.id:
         log.info("refused not_allowed: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(403, "not_allowed")
@@ -241,20 +242,28 @@ async def forms_of_address(
 
 
 # What submit needs beyond the form's own required fields (04 §2): the address DAS
-# drives to (G13), and someone to call about her (UC-01 step 3).
+# drives to (G13), and someone to call about her (UC-01 step 3). Past draft, an edit
+# or a caregiver's removal must leave both in place.
 REQUIRED_TO_SUBMIT = ("street", "street_number")
 
 
-async def missing_to_submit(session: AsyncSession, senior: Senior) -> list[str]:
-    missing = [name for name in REQUIRED_TO_SUBMIT if not getattr(senior, name)]
-    has_caregiver = await session.scalar(
+def missing_address(registration: Senior | SeniorForm) -> list[str]:
+    return [name for name in REQUIRED_TO_SUBMIT if not getattr(registration, name)]
+
+
+async def has_caregiver(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    return await session.scalar(
         select(
             select(Grant.id)
-            .where(Grant.senior_id == senior.id, Grant.role == Role.caregiver)
+            .where(Grant.senior_id == senior_id, Grant.role == Role.caregiver)
             .exists()
         )
     )
-    if not has_caregiver:
+
+
+async def missing_to_submit(session: AsyncSession, senior: Senior) -> list[str]:
+    missing = missing_address(senior)
+    if not await has_caregiver(session, senior.id):
         missing.append("caregiver")
     return missing
 
