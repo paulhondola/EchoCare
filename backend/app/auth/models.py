@@ -5,10 +5,12 @@ from enum import StrEnum
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    DateTime,
     ForeignKey,
     Index,
     String,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -105,3 +107,20 @@ class Grant(Base):
     # Empty for grants made by the setup script (G6).
     granted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = timestamp_now()
+
+
+class PushToken(Base):
+    """Where to deliver pushes for a user, one row per device (G4)."""
+
+    __tablename__ = "push_tokens"
+    __table_args__ = (UniqueConstraint("token", name="uq_push_tokens_token"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    # A device's token belongs to whoever signed in on it last.
+    token: Mapped[str] = mapped_column(String(512))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

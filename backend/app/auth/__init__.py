@@ -1,4 +1,4 @@
-from app.auth.models import ROLE_ORDER, SENIOR_ROLES, Grant, Role, User
+from app.auth.models import ROLE_ORDER, SENIOR_ROLES, Grant, PushToken, Role, User
 from app.auth.service import (
     Caller,
     bearer,
@@ -13,6 +13,7 @@ __all__ = [
     "SENIOR_ROLES",
     "Caller",
     "Grant",
+    "PushToken",
     "Role",
     "User",
     "bearer",
