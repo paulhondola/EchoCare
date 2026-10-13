@@ -140,9 +140,12 @@
 {/snippet}
 
 {#if poller.load.kind === "loading"}
-  <div role="status" class="alert">
-    <span class="loading loading-spinner loading-sm"></span>
-    Se încarcă cererile…
+  <div
+    role="status"
+    class="loading-delay flex items-center justify-center gap-2 p-12 text-base-content/60"
+  >
+    <span class="loading loading-spinner loading-md"></span>
+    <span class="text-sm">Se încarcă cererile…</span>
   </div>
 {:else if poller.load.kind === "error"}
   <div role="alert" class="alert alert-error alert-soft">

@@ -65,9 +65,12 @@
   <div>
     <h2 class="mb-3 text-lg font-semibold">Personal</h2>
     {#if poller.load.kind === "loading"}
-      <div role="status" class="alert">
-        <span class="loading loading-spinner loading-sm"></span>
-        Se încarcă lista…
+      <div
+        role="status"
+        class="loading-delay flex items-center justify-center gap-2 p-12 text-base-content/60"
+      >
+        <span class="loading loading-spinner loading-md"></span>
+        <span class="text-sm">Se încarcă lista…</span>
       </div>
     {:else if poller.load.kind === "error"}
       <div role="alert" class="alert alert-error alert-soft mb-3">
