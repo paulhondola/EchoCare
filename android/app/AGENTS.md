@@ -1,6 +1,6 @@
 # AGENTS.md: android/app
 
-The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and shows a placeholder per role (auth-layer §8). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and an empty DAS home (seniors §8). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
 
 ## Layout
 
@@ -13,6 +13,12 @@ app/src/
 │   ├── Modules.kt         Hilt: FirebaseAuth, and SentinelaApi with the token interceptor and 401 retry
 │   ├── auth/Screen.kt     the sign-in screen state and what /me's answer leads to, tested on the JVM
 │   ├── auth/AuthViewModel.kt   sign-in, GET /me, the saved role
+│   ├── home/Load.kt       what a list or a page shows for each answer, tested on the JVM (seniors §8.2)
+│   ├── home/Routes.kt     the type-safe routes, the home of each role, the state labels
+│   ├── home/HomeNav.kt    the NavHost of the signed-in app and its menu
+│   ├── home/Frame.kt      the shared top bar, the timed re-read, loading and failure states
+│   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
+│   ├── home/Senior*.kt    one senior's page
 │   └── ui/theme/          Material 3 theme
 ├── main/keepRules/        R8 keep rules for release
 ├── debug/AndroidManifest.xml   debug only: ACCESS_LOCAL_NETWORK, cleartext HTTP to 10.0.2.2
