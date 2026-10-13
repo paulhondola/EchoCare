@@ -4,6 +4,7 @@
   import { onAuthStateChanged, signOut } from "firebase/auth";
   import { onMount } from "svelte";
   import { SignIn } from "../features/auth";
+  import SystemHealthIndicator from "../features/system/SystemHealthIndicator.svelte";
   import { getMe } from "../services/api";
   import { auth } from "../services/firebase";
 
@@ -93,10 +94,11 @@
           Personal
         </a>
       </nav>
-      <span class="flex items-center gap-2 text-sm text-base-content/60">
-        Conectat ca {view.name}
+      <div class="flex items-center gap-3 text-sm text-base-content/60">
+        <SystemHealthIndicator />
+        <span>Conectat ca {view.name}</span>
         <button class="btn btn-sm" onclick={() => void signOut(auth)}>Ieșire</button>
-      </span>
+      </div>
     </header>
     {@render children()}
   </main>

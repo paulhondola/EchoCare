@@ -254,3 +254,22 @@ export async function acceptSenior(id: string): Promise<SeniorSummary> {
   if (!r.ok) throw await refused(r);
   return (await r.json()) as SeniorSummary;
 }
+
+export interface DatabaseHealth {
+  status: "ok" | "unreachable";
+  latency_ms: number | null;
+}
+
+export interface SystemHealth {
+  status: "ok" | "degraded";
+  env: string;
+  database: DatabaseHealth;
+  timestamp: string;
+}
+
+/** Dashboard system health telemetry (04 §1), DAS only. */
+export async function fetchSystemHealth(signal?: AbortSignal): Promise<SystemHealth> {
+  const r = await apiFetch("/api/system/health", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as SystemHealth;
+}
