@@ -20,12 +20,13 @@ pre-commit:
 
     - name: dashboard
       root: dashboard/
-      glob: "*.{ts,tsx,js,json,css,html}"
-      # ponytail: whole project, since a type change can break a file you did not stage.
-      # Pass {staged_files} for format and lint if this gets slow.
-      # --no: fail when npm ci was never run, instead of downloading some other vp
-      run: npx --no vp check --fix
-      stage_fixed: true
+      glob: "*.{ts,js,json,css,html,svelte}"
+      group:
+        piped: true
+        jobs:
+          - run: npx --no vp check --fix
+            stage_fixed: true
+          - run: npx --no svelte-check --tsgo --fail-on-warnings
 
     - name: android
       root: android/
