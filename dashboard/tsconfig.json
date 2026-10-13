@@ -1,14 +1,15 @@
 {
+  "extends": "$app/tsconfig",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "strict": true,
-    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "sourceMap": true,
+    "strict": true,
+    "moduleResolution": "bundler"
   },
-  "include": ["src"]
+  "include": ["src/**/*"]
 }

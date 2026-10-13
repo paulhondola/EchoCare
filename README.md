@@ -5,7 +5,7 @@ Sentinela checks on seniors living alone with automated phone calls, a Wear OS w
 | Folder | What | Setup and commands |
 |---|---|---|
 | [backend/](backend/) | FastAPI service (`api` on Railway), Python, uv, Alembic | [backend/README.md](backend/README.md) |
-| [dashboard/](dashboard/) | DAS web dashboard, React + Vite, served by Caddy | [dashboard/README.md](dashboard/README.md) |
+| [dashboard/](dashboard/) | DAS web dashboard, Svelte 5 + SvelteKit 3, served by Caddy | [dashboard/README.md](dashboard/README.md) |
 | [android/](android/) | Android app (four roles) and Wear OS app, one Gradle build | [android/README.md](android/README.md) |
 | [.railway/](.railway/) | Railway infrastructure as code for staging and production | [.railway/README.md](.railway/README.md) |
 | [docs/](docs/) | Specification and architecture decisions | |

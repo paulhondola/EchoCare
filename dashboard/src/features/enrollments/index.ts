@@ -1,1 +1,1 @@
-export { default as Enrollments } from "./Enrollments";
+export { default as Enrollments } from "./Enrollments.svelte";

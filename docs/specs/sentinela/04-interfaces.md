@@ -30,6 +30,7 @@ Each read is scoped by the caller's grants as in [01-architecture.md](01-archite
 | One incident | `GET /incidents/{id}` | DAS | The incident, the senior's full data with address and access details and landline or not, the location from the triggering event if any, the latest room reading if there is a home node **(proposed)**, the calls with their transcripts, the caregivers' names and numbers. The calls are the senior's calls from the first attempt behind the opening call until the incident was resolved, so redials and a later red added to it are included. Served without the home node fields until their tables exist |
 | Enrollment requests | `GET /enrollments` | DAS | Seniors in `submitted`, oldest registration first, each as one row of `GET /seniors` |
 | Staff | `GET /staff` | DAS | DAS employees and medics, once per person, by name: id, display name, phone number, practice, roles (`das` before `medic`), on duty or not |
+| System health | `GET /system/health` | DAS | System health: status (`ok` or `degraded`), environment (`env`), database connectivity & latency (`database`), UTC timestamp; extensible for active telemetry |
 
 ## 2. Apps → FastAPI: data entry and commands (channel 3)
 

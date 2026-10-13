@@ -16,6 +16,7 @@ from app.incidents.router import (
 )
 from app.seniors.router import router as seniors_router
 from app.staff.router import router as staff_router
+from app.system.router import router as system_router
 from app.voice.router import router as voice_router
 
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
@@ -57,6 +58,7 @@ api.include_router(staff_router)
 api.include_router(seniors_router)
 api.include_router(incidents_router)
 api.include_router(voice_router)
+api.include_router(system_router)
 
 # after every route is declared: include_router copies the routes it has at this point
 app.include_router(api)

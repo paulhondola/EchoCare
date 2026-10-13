@@ -28,5 +28,6 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
       - run: npx vp check # oxfmt, oxlint, type check (ADR-002)
+      - run: npx svelte-check --tsgo --fail-on-warnings
       - run: npx vp build
       - run: npx vp test
