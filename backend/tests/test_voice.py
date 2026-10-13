@@ -14,10 +14,10 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app import voice
-from app.db import get_session
+from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn
-from app.twilio import signature
+from app.voice.twilio import signature
 
 FIXTURES = json.loads(
     (Path(__file__).parent / "fixtures" / "twilio_callbacks.json").read_text()

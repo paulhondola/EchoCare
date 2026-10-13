@@ -1,6 +1,7 @@
 import pytest
 
-from app.calls import (
+from app.status import Certainty
+from app.voice.calls import (
     ENDED,
     LIVE,
     CallState,
@@ -9,7 +10,6 @@ from app.calls import (
     ended_certainty,
     was_answered,
 )
-from app.status import Certainty
 
 
 def test_happy_path():

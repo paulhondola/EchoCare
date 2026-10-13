@@ -1,6 +1,6 @@
 import pytest
 
-from app.alarms import Tier, check, confirmation_question, needs_help, normalize
+from app.status.alarms import Tier, check, confirmation_question, needs_help, normalize
 
 
 def test_normalize():

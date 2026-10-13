@@ -1,6 +1,6 @@
 import pytest
 
-from app.settings import Settings, check_environment, is_local_db
+from app.core.settings import Settings, check_environment, is_local_db
 
 
 def test_railway_url_gets_asyncpg_driver():

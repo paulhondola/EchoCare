@@ -3,11 +3,11 @@ pieces of the telephony edge: signatures and how callbacks move a call (#15)."""
 
 import pytest
 
-from app.calls import CallState, after_callback, answered_by_machine
+from app.core.settings import get_settings
 from app.models import Speaker, TurnKind
-from app.settings import get_settings
-from app.twilio import public_url, signature, signed
 from app.voice import GOODBYE, Relay, greeting
+from app.voice.calls import CallState, after_callback, answered_by_machine
+from app.voice.twilio import public_url, signature, signed
 
 C = CallState
 
