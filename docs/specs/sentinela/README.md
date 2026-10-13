@@ -51,6 +51,7 @@ flowchart LR
 | [04-interfaces.md](04-interfaces.md) | Every interface between parts: endpoints, callbacks, messages, agent tools |
 | [05-data-model.md](05-data-model.md) | Entities, relationships, constraints, retention |
 | [06-operations.md](06-operations.md) | Failure handling, timers and demo mode, security and privacy, testing, spikes to run before the hackathon |
+| [07-dashboard-stitch-spec.md](07-dashboard-stitch-spec.md) | DAS web dashboard, design system (GitHub Projects Kanban style), and Google Stitch prompt package |
 
 ## What changed from v3
 
