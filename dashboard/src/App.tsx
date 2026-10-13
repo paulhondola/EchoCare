@@ -2,12 +2,22 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { getMe } from "./api";
 import { auth } from "./firebase";
+import Enrollments from "./Enrollments";
 import IncidentBoard from "./IncidentBoard";
 import SignIn from "./SignIn";
+import Staff from "./Staff";
 
 const NO_ACCESS = "Acest număr nu are acces la dispecerat.";
 const NOT_REGISTERED = "Numărul nu este înregistrat. Contactați medicul de familie.";
 const UNAVAILABLE = "Autentificarea nu este disponibilă acum. Încercați din nou.";
+
+// The DAS screens, picked in the header
+const SCREENS = [
+  { key: "incidents", label: "Incidente" },
+  { key: "enrollments", label: "Cereri de înrolare" },
+  { key: "staff", label: "Personal" },
+] as const;
+type Screen = (typeof SCREENS)[number]["key"];
 
 // What App shows, by state (auth-layer §7.1)
 type View =
@@ -18,6 +28,8 @@ type View =
 
 export default function App() {
   const [view, setView] = useState<View>({ kind: "loading" });
+  // No router yet (AGENTS.md): three screens, picked in the header
+  const [screen, setScreen] = useState<Screen>("incidents");
 
   useEffect(
     () =>
@@ -69,12 +81,26 @@ export default function App() {
         <main className="mx-auto max-w-7xl p-4">
           <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 pb-2">
             <h1 className="text-2xl font-bold">Sentinela DAS</h1>
+            <nav role="tablist" className="tabs tabs-box tabs-sm">
+              {SCREENS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  role="tab"
+                  className={`tab ${screen === key ? "tab-active" : ""}`}
+                  onClick={() => setScreen(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
             <span className="flex items-center gap-2 text-sm text-base-content/60">
               Conectat ca {view.name}
               {exit}
             </span>
           </header>
-          <IncidentBoard />
+          {screen === "incidents" && <IncidentBoard />}
+          {screen === "enrollments" && <Enrollments />}
+          {screen === "staff" && <Staff />}
         </main>
       );
     case "unavailable":

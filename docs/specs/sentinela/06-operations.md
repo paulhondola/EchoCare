@@ -171,32 +171,9 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 | S12 | Does the phone app keep its Bluetooth connection to the home node, and relay readings, while it is in the background for an hour? | Keep the phone app in the foreground on the demo phone; a foreground service in the app |
 | S13 | Can the Wear OS app read the accelerometer fast enough (about 50 readings a second) in the background to see a fall, and what does it cost in battery? | Fall detection only while the monitoring screen is open; the hidden "force fall" action for the demo |
 
-## 7. Demo walk-through
+**S1 and S8, how to answer them.** The telephony edge for both is built (#15): `scripts/place_call.py <number>` dials a registered senior's number with a scripted ConversationRelay call that repeats what it hears and ends on key 0. Run it on staging through `railway ssh -s api -e staging` with the Twilio variables set, then write here:
 
-Adapted from v3 §16 to the MVP's scope. It leads with cold, since the event is in November (G14).
-
-| Step | On the table | Use cases |
+| Spike | Answer | Date |
 |---|---|---|
-| 1 | The medic registers a fictitious patient on the tablet, with address, floor and intercom code, and a caregiver's number. The "caregiver" signs in on a phone with that number and sees doamna Maria at once. DAS accepts on the laptop dashboard; the senior's phone rings with the welcome call; the "senior" presses 1 and 1; every screen shows green | UC-01, UC-02, UC-04 |
-| 2 | DAS presses "Simulează avertizare", cold, on the dashboard. The senior's phone, on speaker, has a natural conversation and ends green on every screen | UC-05, UC-12 |
-| 2b **(proposed)** | An ice pack goes on the home node; the room temperature drops live on the caregiver's phone and the dashboard. After the short hold time the senior's phone rings. The "senior" says „sunt bine, am căldură”, but the node reads 14°C: the server does not believe the "yes", and every screen turns yellow with the reason „spune că are căldură, senzorul arată 14°C”. The node's light turns yellow | UC-16, UC-06 |
-| 3 | The watch reports inactivity and the wrist prompt is ignored. The phone rings; the "senior" says „am căzut și nu mă pot ridica”. Every screen turns red, the caregiver's and medic's phones buzz, the dashboard sounds with a new incident on top. The on-duty phone rings; answering connects the two and takes the incident. The DAS app on that phone shows the floor, the intercom code and the location; tap "Deschide în Hărți"; resolve with "team sent" | UC-09, UC-07, UC-11 |
-| 4 | A second patient does not answer; after the short redial the card turns yellow and the caregiver's phone buzzes | UC-08, UC-06 |
-| Fallback | If the watch misbehaves, the "senior" taps "Sunați-mă" and step 3 continues from the phone ringing | UC-10 |
-
-v3's backups still apply: a team phone as the senior's phone, and a recorded video of a full run.
-
-## 8. Main risks
-
-| Risk | Why it matters | Mitigation |
-|---|---|---|
-| Three client codebases and a backend in 48 hours | v3 cut native apps for this reason | One owner each among four people (Android, Wear OS, dashboard, backend); one Android app for four roles; the Wear OS app is one screen and one job; the dashboard is another client of the same JSON API; all logic sits in FastAPI; code written before the event (G1) |
-| Delay between the senior speaking and the agent answering | Long pauses confuse an elderly listener; the international route adds to it | Short replies, streaming, fixed sentences for routine turns, measured in the rehearsal (S4) |
-| Background sensors and messaging on Wear OS and Android | The watch trigger depends on them | Spikes S5 and S6; the "Sunați-mă" fallback |
-| Bluetooth between the home node and the phone | The room trigger and the room check depend on it | Spike S12; the node and the phone side by side on the demo table; the "Sunați-mă" fallback |
-| SMS at sign-in on stage | A late code stalls the demo | Firebase test numbers on every demo device |
-| Phone number as identity | A mistyped number shows a senior to a stranger | The caregiver signs in at the practice, or the notice SMS reveals the mistake; removing a grant cuts access at once |
-| A caregiver on an iPhone has no channel | The automated family call was deferred | Stated as a known gap; README open question 6 |
-| The model misreads an answer | Answers drive the code | The model only extracts; rules decide; the server checks orientation; alarm phrases do not depend on the model; uncertainty moves codes up; every answer is stored with the senior's words |
-| False reds from alarm phrases | Dispatchers learn to ignore a noisy queue | Everyday words sit in tier 2 behind a confirmation; tier 1 is a short list reviewed by a medical mentor |
-| A deploy during the demo | Live calls drop | No deploys after the Sunday-morning freeze; the scheduler lock prevents double dialing |
+| S1 | *Not run yet.* Record: whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/fixtures/twilio_callbacks.json` | |
+| S8 | *Not run yet.* Record: whether one call holds its WebSocket for three minutes, and what a redeploy during a call does to it | |

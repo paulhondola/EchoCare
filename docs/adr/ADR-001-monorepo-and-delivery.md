@@ -139,7 +139,7 @@ Watch paths are what make the monorepo safe for live calls (force 4). Without th
 | `staging` | `main` | Developers, team test calls, Android debug builds | Its own Postgres, test data |
 | `production` | `release` | The demo, Android release builds | Its own Postgres, the demo's fictitious seniors |
 
-Promoting is a pull request from `main` into `release`, which anyone on the team may open and merge. A GitHub ruleset on `release` blocks direct pushes, force-pushes and deletion, needs no approval, and allows only merge commits: squash or rebase would give `release` commits that `main` never has, and the next promotion would conflict. The merge commit is new, so `backend.yml` and `dashboard.yml` also run on pushes to `release`, giving Wait for CI a result for it. The Sunday-morning freeze (06 §8) becomes one more rule in that ruleset: nobody merges after the freeze.
+Promoting is a pull request from `main` into `release`, which anyone on the team may open and merge. A GitHub ruleset on `release` blocks direct pushes, force-pushes and deletion, needs no approval, and allows only merge commits: squash or rebase would give `release` commits that `main` never has, and the next promotion would conflict. The merge commit is new, so `backend.yml` and `dashboard.yml` also run on pushes to `release`, giving Wait for CI a result for it. The Sunday-morning freeze (01 §9) becomes one more rule in that ruleset: nobody merges after the freeze.
 
 **Why not Railway PR environments, for now.** They would give each pull request its own API, dashboard and empty database. Three things get in the way:
 - The dashboard's Firebase phone sign-in only works on domains authorized in Firebase, and PR environments get a new random domain each time.

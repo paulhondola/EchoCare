@@ -13,10 +13,12 @@ dashboard/
 │   ├── IncidentBoard.tsx  incidents by status, re-read every 15 s (04 §6)
 │   ├── IncidentCard.tsx   one incident: Preiau and Rezolvă (04 §2)
 │   ├── IncidentDetails.tsx  the whole incident in a modal: address, caregivers, calls (04 §1)
+│   ├── Enrollments.tsx  „Cereri de înrolare": submitted registrations, review and Acceptă (UC-04)
+│   ├── Staff.tsx      „Personal": the staff list and adding a medic or DAS employee (UC-14)
 │   ├── firebase.ts    the Firebase app and `auth`
-│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, the incident calls
+│   ├── api.ts         apiFetch (bearer token, one retry on 401), getMe, the incident, enrollment and staff calls
 │   ├── phone.ts       typed number → E.164, with phone.test.ts
-│   ├── labels.ts      shared Romanian labels and the date format
+│   ├── labels.ts      shared Romanian labels, the date format and the address line
 │   └── styles.css     Tailwind v4 + DaisyUI 5 entry, light and dark themes
 ├── index.html         Vite entry
 ├── vite.config.ts     Vite+: dev server on 5173, lint (with type check), fmt

@@ -72,3 +72,55 @@ def ended_certainty(state: CallState, computed: Certainty) -> Certainty:
     if state is CallState.dropped:
         return Certainty.low
     return computed
+
+
+# Twilio's CallStatus on a status callback, as our state (04 §4.2). `initiated` and
+# `queued` are Twilio's own dialing steps and change nothing here.
+TWILIO_STATUSES: dict[str, CallState] = {
+    "ringing": CallState.ringing,
+    "in-progress": CallState.in_progress,
+    # Twilio says completed whoever ended the call. A call our side closed is already
+    # completed (the relay marks it before its `end`), and an ended call stays as it
+    # ended; so a completed that still moves a call is a hang-up or a lost line (03 §9).
+    "completed": CallState.dropped,
+    "busy": CallState.unanswered,
+    "no-answer": CallState.unanswered,
+    "canceled": CallState.unanswered,
+    "failed": CallState.failed,
+}
+TWILIO_DIALING = frozenset({"queued", "initiated"})
+
+# What voicemail detection's AnsweredBy says when no person picked up (04 §4.2).
+MACHINE_PREFIXES = ("machine_", "fax")
+
+
+def reachable(current: CallState, new: CallState) -> bool:
+    """Whether `new` lies ahead of `current` through any allowed transitions."""
+    seen, frontier = set(), [current]
+    while frontier:
+        for state in TRANSITIONS[frontier.pop()]:
+            if state is new:
+                return True
+            if state not in seen:
+                seen.add(state)
+                frontier.append(state)
+    return False
+
+
+def after_callback(current: CallState, new: CallState | None) -> CallState | None:
+    """The state a callback moves the call to, or None when it changes nothing.
+
+    Twilio's callbacks can arrive late, twice or out of order, and one can be lost: a
+    `completed` without the `in-progress` before it still means the call was answered.
+    So a callback may skip ahead, never go back, and an ended call stays as it ended.
+    """
+    # A state this copy does not know, written by a newer one, is left alone.
+    if current not in TRANSITIONS or new is None or new is current:
+        return None
+    if not reachable(current, new):
+        return None
+    return new
+
+
+def answered_by_machine(answered_by: str) -> bool:
+    return answered_by.startswith(MACHINE_PREFIXES)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { fetchIncident, type IncidentDetail } from "./api";
-import { OUTCOMES, time } from "./labels";
+import { address, OUTCOMES, time } from "./labels";
 
 // Romanian labels for the stored values (05 §1); an unknown value shows as it is
 const TRIGGERS: Record<string, string> = {
@@ -34,18 +34,6 @@ const SEVERITY_BADGE: Record<string, string> = {
 const SEVERITIES: Record<string, string> = { green: "verde", yellow: "galben", red: "roșu" };
 
 const at = (iso: string | null) => (iso ? time.format(Date.parse(iso)) : "—");
-
-/** "Str. Florilor nr. 3, bl. A2, sc. B, et. 4, ap. 17", from what was filled in */
-function address(s: IncidentDetail["senior"]): string {
-  const parts = [
-    [s.street, s.street_number && `nr. ${s.street_number}`].filter(Boolean).join(" "),
-    s.block && `bl. ${s.block}`,
-    s.staircase && `sc. ${s.staircase}`,
-    s.floor && `et. ${s.floor}`,
-    s.apartment && `ap. ${s.apartment}`,
-  ].filter(Boolean);
-  return parts.length ? parts.join(", ") : "Adresă necompletată";
-}
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

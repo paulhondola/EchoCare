@@ -102,6 +102,8 @@ class CallTrigger(StrEnum):
     watch = "watch"
     manual = "manual"
     welcome = "welcome"
+    # scripts/place_call.py's scripted calls, which no rule or call history counts (05 §1)
+    test = "test"
 
 
 class WelcomeOutcome(StrEnum):
