@@ -169,7 +169,7 @@ A DAS employee's phone number is also their hand-over number when they are on du
 
 Variations:
 - **The senior cannot come to the practice.** A caregiver comes alone, or the medic fills the form on a home visit. Nothing changes: consent is the senior's own, given on the welcome call.
-- **Form left unfinished.** The draft is saved. That medic sees it, and so do the caregivers and the senior already named in it; DAS does not.
+- **Form left unfinished.** The draft is saved. DAS cannot see it until it is submitted; the medic sees it, and so do the caregivers and the senior whose numbers it already grants (step 4).
 
 Nothing rings and no code exists yet.
 

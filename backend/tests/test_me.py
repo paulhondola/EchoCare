@@ -8,8 +8,6 @@ from app.models import Grant, Role, User
 DAS = "+40700000001"
 NOT_SIGNED_IN = {"detail": {"reason": "not_signed_in"}}
 NOT_REGISTERED = {"detail": {"reason": "not_registered"}}
-# What a das or medic grant carries besides its role (seniors §3.3).
-NO_SENIOR = {"senior_id": None, "senior_form_of_address": None, "relation": None}
 
 
 def signed_in(token: str) -> dict[str, str]:
@@ -45,6 +43,10 @@ async def test_zero_grants(client, add_user):
     assert (r.status_code, r.json()) == (403, NOT_REGISTERED)
 
 
+# Staff grants name no senior, so the seniors work's additions are empty (§3.3).
+NO_SENIOR = {"senior_form_of_address": None, "relation": None}
+
+
 async def test_grants_in_role_order(client, add_user):
     await add_user("+40700000003", Role.medic, Role.das, name="Ana Pop")
     r = await client.get("/api/me", headers=signed_in("+40700000003"))
@@ -53,8 +55,8 @@ async def test_grants_in_role_order(client, add_user):
         "display_name": "Ana Pop",
         "phone_e164": "+40700000003",
         "grants": [
-            {"role": "das", **NO_SENIOR},
-            {"role": "medic", **NO_SENIOR},
+            {"role": "das", "senior_id": None, **NO_SENIOR},
+            {"role": "medic", "senior_id": None, **NO_SENIOR},
         ],
     }
 
@@ -81,7 +83,7 @@ async def test_one_entry_per_caregiver_grant(client, db, add_user, add_senior):
     r = await client.get("/api/me", headers=signed_in("+40700000004"))
     grants = r.json()["grants"]
     assert [g["role"] for g in grants] == ["caregiver", "caregiver"]
-    # Each names its own senior and its own relation (seniors §3.3).
+    # Each names its own senior and its own relation (auth-layer §3.3).
     assert {
         g["senior_id"]: (g["senior_form_of_address"], g["relation"]) for g in grants
     } == {

@@ -120,7 +120,7 @@ erDiagram
     CALL {
         uuid id PK
         uuid senior_id FK
-        string trigger "campaign, watch, home_node, manual, welcome"
+        string trigger "campaign, watch, home_node, manual, welcome, test (a scripted spike call, counted by no rule)"
         uuid campaign_id FK "optional"
         uuid previous_call_id FK "set on a redial"
         int attempt

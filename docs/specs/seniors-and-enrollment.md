@@ -5,6 +5,8 @@
 **Implements:** UC-01 (register a senior), UC-04 step 1 (accept, without the welcome call), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](sentinela/04-interfaces.md).
 **Read with:** the system spec in [sentinela/](sentinela/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
 
+**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](sentinela/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE9 (only the medic who registered a senior edits them, in `draft` or `submitted`), SE10 (a second senior on one mobile gets no grant, as AL7 says; there is no `phone_taken`), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
+
 Sections 1 to 5 are shared reference that every slice reads. Sections 6 to 9 are self-contained briefs, one per pull request, each ending on a completion criterion. Section 10 is the rollout.
 
 ## 1. Outcome

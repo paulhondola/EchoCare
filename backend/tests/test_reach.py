@@ -1,5 +1,5 @@
-"""Who reaches which senior (seniors §3.1, auth-layer §3.6), read through
-GET /seniors and GET /seniors/{id}."""
+"""Who reaches which senior (auth-layer §3.6, seniors §3.1), read through
+GET /seniors and GET /seniors/{id}, and what `?role=` narrows (seniors SE6)."""
 
 import logging
 import uuid
@@ -18,6 +18,8 @@ SENIOR_SUBMITTED = "+40700000006"
 OTHER_CAREGIVER = "+40700000007"
 EX_MEDIC = "+40700000008"
 NOT_FOUND = {"detail": {"reason": "not_found"}}
+NOT_ALLOWED = {"detail": {"reason": "not_allowed"}}
+WRONG_STATE = {"detail": {"reason": "wrong_state"}}
 
 
 def signed_in(token: str) -> dict[str, str]:
@@ -97,9 +99,9 @@ async def test_an_id_that_does_not_exist_is_not_found(client, seniors):
     assert (r.status_code, r.json()) == (404, NOT_FOUND)
 
 
-async def test_newest_first(client, seniors):
+async def test_by_name(client, seniors):
     r = await client.get("/api/seniors", headers=signed_in(MEDIC))
-    assert [s["full_name"] for s in r.json()] == ["submitted", "draft"]
+    assert [s["full_name"] for s in r.json()] == ["draft", "submitted"]
 
 
 async def test_one_row(client, seniors):
@@ -220,13 +222,18 @@ NEW_CAREGIVER = {"display_name": "Ioana", "relation": "fiică", "phone": "0700 0
 
 
 @pytest.mark.parametrize(
-    ("token", "closing"), [(OTHER_MEDIC, "submit"), (DAS, "accept")]
+    ("token", "closing", "refused"),
+    [
+        (OTHER_MEDIC, "submit", (403, NOT_ALLOWED)),
+        # Accept finds the draft through the caregiver grant; a draft is not accepted.
+        (DAS, "accept", (409, WRONG_STATE)),
+    ],
 )
 async def test_reading_as_a_caregiver_gives_no_command(
-    client, db, add_user, add_senior, token, closing
+    client, db, add_user, add_senior, token, closing, refused
 ):
-    # seniors §3.1: the commands count only the roles of their table, so the caregiver
-    # grant of a medic or of DAS lets them read the draft and nothing more.
+    # The caregiver grant of another medic or of DAS lets them read the draft and
+    # nothing more: the medic's commands are for the medic who registered her (04 §2).
     medic = await add_user(MEDIC, Role.medic)
     other_medic = await add_user(OTHER_MEDIC, Role.medic)
     das = await add_user(DAS, Role.das)
@@ -242,17 +249,17 @@ async def test_reading_as_a_caregiver_gives_no_command(
     headers = signed_in(token)
     assert (await client.get(page, headers=headers)).status_code == 200
     commands = [
-        ("PUT", page, CHANGE),
-        ("POST", f"{page}/caregivers", NEW_CAREGIVER),
-        ("DELETE", f"{page}/caregivers/{other_medic.id}", None),
-        ("POST", f"{page}/{closing}", None),
+        ("PUT", page, CHANGE, (403, NOT_ALLOWED)),
+        ("POST", f"{page}/caregivers", NEW_CAREGIVER, (403, NOT_ALLOWED)),
+        ("DELETE", f"{page}/caregivers/{other_medic.id}", None, (403, NOT_ALLOWED)),
+        ("POST", f"{page}/{closing}", None, refused),
     ]
     caregivers = (
         select(func.count()).select_from(Grant).where(Grant.role == Role.caregiver)
     )
-    for method, path, body in commands:
+    for method, path, body, expected in commands:
         r = await client.request(method, path, json=body, headers=headers)
-        assert (r.status_code, r.json()) == (404, NOT_FOUND)
+        assert (r.status_code, r.json()) == expected
         await db.refresh(senior)
         assert (senior.full_name, senior.enrollment_state) == ("Maria Pop", "draft")
         assert await db.scalar(caregivers) == 2
