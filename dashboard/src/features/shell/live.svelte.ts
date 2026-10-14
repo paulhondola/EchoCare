@@ -6,11 +6,15 @@ import {
   fetchSeniors,
   fetchStaff,
   fetchSystemHealth,
+  type Incident,
 } from "../../services/api";
+import { columns, type DossierTab } from "../../utils/incidents";
 import { poll } from "../../utils/poll.svelte";
 
 const INCIDENTS_MS = 15_000;
 const LISTS_MS = 30_000;
+// The whole registry, mostly for a sidebar counter: the Seniors page reads it again on opening
+const SENIORS_MS = 120_000;
 
 function describe(what: string, missing: string) {
   return (e: unknown) =>
@@ -31,7 +35,7 @@ export class Live {
   );
   seniors = poll(
     fetchSeniors,
-    LISTS_MS,
+    SENIORS_MS,
     describe("seniorii", "API-ul nu oferă încă lista de seniori."),
   );
   enrollments = poll(
@@ -41,6 +45,14 @@ export class Live {
   );
   staff = poll(fetchStaff, LISTS_MS, describe("lista de personal", "API-ul nu oferă încă lista."));
   health = poll(fetchSystemHealth, LISTS_MS, (e) => (e instanceof Error ? e.message : String(e)));
+
+  /** Open incidents, the longest wait first, or null until the first read */
+  open = $derived(
+    this.incidents.load.kind === "ok" ? columns(this.incidents.load.data).open : null,
+  );
+
+  /** The incident dossier on screen, over whichever page is open */
+  dossier = $state<{ id: string; tab: DossierTab } | null>(null);
 
   /** Alerte sonore: off until the dispatcher turns it on, since browsers need a click to play sound */
   sound = $state(false);
@@ -52,6 +64,11 @@ export class Live {
       ? l.data.filter((s) => s.on_duty && s.roles.includes("das")).length
       : null;
   }
+
+  /** A command's answer, applied at once instead of waiting for the next read */
+  incidentChanged = (i: Incident) => {
+    this.incidents.update((list) => list.map((x) => (x.id === i.id ? i : x)));
+  };
 }
 
 export const [getLive, setLive] = createContext<Live>();

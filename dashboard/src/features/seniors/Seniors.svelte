@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { SeniorSummary } from "../../services/api";
   import Icon from "../../ui/Icon.svelte";
   import { download, toCsv } from "../../utils/csv";
@@ -11,6 +12,9 @@
 
   const live = getLive();
   const seniors = live.seniors;
+
+  // The registry is polled slowly for the sidebar's counter: read it fresh when the page opens
+  onMount(() => seniors.reload());
 
   // Tabs by enrollment state (03 §1). The API sends no codes per senior yet (04 §1, proposed),
   // so the design's Cod Roșu / Galben / Verde tabs wait for them.
@@ -59,7 +63,7 @@
       s.phone_is_landline ? "fix" : "mobil",
       enrollment(s.enrollment_state).label,
     ]);
-    const day = new Date().toISOString().slice(0, 10);
+    const day = new Date().toLocaleDateString("sv-SE"); // the local date as YYYY-MM-DD
     download(
       `seniori-${day}.csv`,
       toCsv([["Nume", "Formă de adresare", "Telefon", "Tip", "Stare înrolare"], ...rows]),

@@ -49,6 +49,7 @@ export function poll<T>(
         load = { kind: "error", message };
       }
     } finally {
+      if (controller === currentController) controller = null;
       if (active && !currentController.signal.aborted) {
         timer = setTimeout(execute, ms);
       }
@@ -78,6 +79,8 @@ export function poll<T>(
       if (load.kind === "ok") {
         load = { ...load, data: change(load.data) };
       }
+      // A read sent before the command would land after it and undo the change: read again
+      if (controller) void execute();
     },
   };
 }

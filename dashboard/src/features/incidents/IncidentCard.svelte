@@ -1,10 +1,9 @@
 <script lang="ts">
   import { takeIncident, type Incident } from "../../services/api";
   import Icon from "../../ui/Icon.svelte";
-  import { initials, shortId, since } from "../../utils/incidents";
+  import { initials, shortId, since, type DossierTab } from "../../utils/incidents";
   import { time } from "../../utils/labels";
   import { refusalMessage } from "./commands";
-  import type { DossierTab } from "./IncidentDetails.svelte";
 
   let {
     incident: i,

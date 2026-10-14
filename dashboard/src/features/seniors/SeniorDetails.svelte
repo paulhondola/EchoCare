@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { fetchSenior, type SeniorSummary, type SeniorView } from "../../services/api";
+  import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
   import { address, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
@@ -14,8 +15,6 @@
 
   let load = $state<Load>({ kind: "loading" });
   let dialogEl: HTMLDialogElement | undefined = $state();
-  let copied = $state(false);
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
 
   const stage = $derived(enrollment(summary.enrollment_state));
 
@@ -33,18 +32,8 @@
           message: `Nu am putut citi dosarul (${e instanceof Error ? e.message : String(e)}).`,
         };
       });
-    return () => {
-      ctrl.abort();
-      clearTimeout(copyTimer);
-    };
+    return () => ctrl.abort();
   });
-
-  function copy(text: string) {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    copied = true;
-    clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => (copied = false), 1400);
-  }
 </script>
 
 {#snippet row(label: string, value: string | null)}
@@ -94,14 +83,12 @@
           <Icon name="phone" size={13} />Apelează senior
         </a>
         {#if load.kind === "ok"}
-          {@const line = address(load.data)}
-          <button
-            type="button"
-            class="sn-btn h-[34px] px-3.5 font-semibold text-fg-soft hover:border-link hover:text-fg"
-            onclick={() => copy(line)}
-          >
-            <Icon name="copy" size={13} />{copied ? "Copiat" : "Copiază adresa"}
-          </button>
+          <CopyButton
+            class="h-[34px] px-3.5"
+            icon="copy"
+            label="Copiază adresa"
+            text={address(load.data)}
+          />
         {/if}
       </div>
     </div>

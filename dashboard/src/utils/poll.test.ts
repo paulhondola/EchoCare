@@ -92,6 +92,39 @@ describe("poll", () => {
     }
   });
 
+  it("drops a read sent before update() so it cannot undo the change", async () => {
+    // Read 1 succeeds; read 2 stays pending (a poll in flight when the command answers) and
+    // would bring back "open"; read 3, sent after update(), sees the change.
+    let call = 0;
+    let finishStale: ((v: string) => void) | null = null;
+    const poller = poll(
+      (signal) => {
+        call++;
+        if (call === 1) return Promise.resolve("open");
+        if (call === 2)
+          return new Promise<string>((resolve, reject) => {
+            finishStale = resolve;
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          });
+        return Promise.resolve("taken");
+      },
+      10000,
+      (err) => String(err),
+    );
+
+    await vi.waitFor(() => expect(poller.load.kind).toBe("ok"));
+    poller.reload(); // read 2, left pending
+    poller.update(() => "taken");
+
+    await vi.waitFor(() => expect(call).toBe(3));
+    finishStale!("open");
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(poller.load).toMatchObject({ kind: "ok", data: "taken" });
+  });
+
   it("triggers an immediate read with reload()", async () => {
     let count = 0;
     const poller = poll(

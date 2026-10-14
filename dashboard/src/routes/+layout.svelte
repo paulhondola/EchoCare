@@ -6,6 +6,7 @@
   import Shell from "../features/shell/Shell.svelte";
   import { getMe } from "../services/api";
   import { auth } from "../services/firebase";
+  import Brand from "../ui/Brand.svelte";
 
   let { children } = $props();
 
@@ -49,13 +50,6 @@
   });
 </script>
 
-{#snippet brand()}
-  <div class="flex flex-col gap-1">
-    <div class="text-[19px] leading-none font-extrabold tracking-[-0.015em]">SENTINELA</div>
-    <div class="text-[11px] tracking-[0.08em] text-fg-muted uppercase">DAS · Dispecerat</div>
-  </div>
-{/snippet}
-
 {#if view.kind === "loading"}
   <main aria-busy="true" class="grid min-h-screen place-items-center">
     <span class="loading-delay loading loading-md loading-spinner text-fg-muted"></span>
@@ -63,14 +57,14 @@
 {:else if view.kind === "signedOut"}
   <main class="grid min-h-screen place-items-center p-4">
     <div class="flex w-full max-w-sm flex-col gap-5 border-2 border-line bg-subtle p-6">
-      {@render brand()}
+      <Brand />
       <SignIn notice={view.notice} />
     </div>
   </main>
 {:else if view.kind === "unavailable"}
   <main class="grid min-h-screen place-items-center p-4">
     <div class="flex w-full max-w-sm flex-col gap-4 border-2 border-line bg-subtle p-6">
-      {@render brand()}
+      <Brand />
       <p role="alert" class="text-rosu-fg">{UNAVAILABLE}</p>
       <button class="sn-btn self-start" onclick={() => void signOut(auth)}>Ieșire</button>
     </div>
