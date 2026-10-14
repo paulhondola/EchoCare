@@ -19,7 +19,8 @@ backend/
 ├── scripts/
 │   ├── grant_das.py   the setup script (G6), run inside the api container
 │   ├── dev_token.py   a real sign-in token for a test number, for curl and Swagger
-│   └── place_call.py  a scripted test call to a registered senior's number (S1)
+│   ├── place_call.py  a scripted test call to a registered senior's number (S1)
+│   └── seed.py        fictitious seniors, calls and incidents for the local database
 ├── alembic/
 │   ├── env.py         refuses to migrate any non-local database off Railway
 │   └── versions/      migrations, frozen once on main
