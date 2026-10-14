@@ -6,7 +6,8 @@ Plain Kotlin shared by `:app` and `:wear`. A `java-library` module with no Andro
 
 ```
 shared/src/main/java/bia/sentinela/shared/
-└── DataLayer.kt    Wearable Data Layer message paths: EVENT, CHECK_IN, RECEIVED
+├── DataLayer.kt      Wearable Data Layer message paths: EVENT, CHECK_IN, RECEIVED
+└── FallDetector.kt   Fall detection from the accelerometer (P19), thresholds from spike S13
 ```
 
 Tests go in `shared/src/test/java/bia/sentinela/shared/`.

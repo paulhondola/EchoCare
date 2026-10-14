@@ -13,5 +13,6 @@
     <string name="sample_rate">%1$.0f valori/s · până la %2$.0f g</string>
     <string name="free_fall">cădere liberă: %1$d ms</string>
     <string name="still_after_peak">nemișcat după impact: %1$.1f s</string>
+    <string name="falls_detected">căderi detectate: %1$d</string>
     <string name="next_trial">Următoarea</string>
 </resources>

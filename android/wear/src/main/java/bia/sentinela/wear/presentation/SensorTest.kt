@@ -35,10 +35,10 @@ import androidx.wear.compose.material3.EdgeButton
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import bia.sentinela.shared.FallDetector
 import bia.sentinela.wear.R
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.sqrt
 import kotlinx.coroutines.delay
 
 // Spikes S5 and S13 (06 §6): what the watch's sensors deliver, and how often, while this screen is open.
@@ -76,6 +76,7 @@ private class Readings {
     var trial by mutableIntStateOf(1)
     var freeFallMs by mutableIntStateOf(0)
     var stillAfterPeakS by mutableFloatStateOf(0f)
+    var fallsDetected by mutableIntStateOf(0)
 
     private var firstStepCount = -1f
     private var windowStartNs = 0L
@@ -90,6 +91,8 @@ private class Readings {
     private var afterPeak = false
     private var stillStartNs = -1L
     private var longestStillNs = 0L
+    private var fallsAtTrialStart = 0
+    private val fallDetector = FallDetector()
 
     // Logs the trial that just ended, for `adb logcat -s SentinelaTrial`, then starts the next one
     fun nextTrial() {
@@ -97,7 +100,7 @@ private class Readings {
             TRIAL_LOG_TAG,
             String.format(
                 Locale.ROOT,
-                "trial=%d seconds=%d minG=%.2f maxG=%.2f freeFallMs=%d stillAfterPeakS=%.1f steps=%d heartRate=%d->%d",
+                "trial=%d seconds=%d minG=%.2f maxG=%.2f freeFallMs=%d stillAfterPeakS=%.1f steps=%d heartRate=%d->%d fallsDetected=%d",
                 trial,
                 (SystemClock.elapsedRealtime() - trialStartMs) / 1_000,
                 minG,
@@ -106,7 +109,8 @@ private class Readings {
                 longestStillNs / 1e9f,
                 steps - stepsAtTrialStart,
                 heartRateAtTrialStart,
-                heartRate
+                heartRate,
+                fallsDetected - fallsAtTrialStart
             )
         )
         trial++
@@ -117,6 +121,7 @@ private class Readings {
         trialStartMs = SystemClock.elapsedRealtime()
         stepsAtTrialStart = steps
         heartRateAtTrialStart = heartRate
+        fallsAtTrialStart = fallsDetected
         freeFallStartNs = -1L
         longestFreeFallNs = 0L
         afterPeak = false
@@ -156,7 +161,11 @@ private class Readings {
 
     private fun onAcceleration(event: SensorEvent) {
         val (x, y, z) = event.values
-        val g = sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH
+        val g = FallDetector.accelerationG(x, y, z)
+        if (fallDetector.onReading(event.timestamp / 1_000_000, g)) {
+            fallsDetected++
+            Log.i(TRIAL_LOG_TAG, "fall detected in trial=$trial")
+        }
         // Extremes from every reading, so a short impact is never missed
         if (g < minG) minG = g
         if (g > maxG) maxG = g
@@ -301,6 +310,7 @@ fun SensorTestScreen() {
             }
             item { Line(stringResource(R.string.free_fall, readings.freeFallMs)) }
             item { Line(stringResource(R.string.still_after_peak, readings.stillAfterPeakS)) }
+            item { Line(stringResource(R.string.falls_detected, readings.fallsDetected)) }
             item {
                 Line(
                     stringResource(R.string.sample_rate, readings.samplesPerSecond, readings.rangeG)
