@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +19,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import bia.sentinela.R
 import bia.sentinela.SeniorPage
+import bia.sentinela.ui.CallButton
+import bia.sentinela.ui.FieldRow
+import bia.sentinela.ui.PhoneNumber
+import bia.sentinela.ui.Rule
+import bia.sentinela.ui.SectionLabel
+import bia.sentinela.ui.formatPhone
+import bia.sentinela.ui.theme.Mono
+import bia.sentinela.ui.theme.Palette
 
 /**
  * One senior's page: everything GET /seniors/{id} returns, the same for every role (seniors SE7).
@@ -35,77 +44,98 @@ fun SeniorScreen(
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
         LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
-            Page(senior)
+            Page(senior, own = id == null)
         }
     }
 }
 
+/** Laid out like the dashboard's dossier: labelled rows, 1dp between rows, 2dp under a group. */
 @Composable
-private fun Page(senior: SeniorPage) {
+private fun Page(senior: SeniorPage, own: Boolean) {
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-            .widthIn(max = 600.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .widthIn(max = 600.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(senior.fullName, style = MaterialTheme.typography.titleLarge)
-                StateLabel(senior.state)
-            }
-            Text(
-                if (senior.landline) {
-                    stringResource(R.string.landline_number, senior.phone)
-                } else {
-                    senior.phone
-                }
-            )
+        Column(
+            Modifier.padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(senior.fullName, style = MaterialTheme.typography.headlineSmall)
+            StateLabel(senior.state)
         }
-        Section(R.string.section_address, addressLines(senior))
-        senior.callWindow?.let { Section(R.string.section_call_window, listOf(it)) }
-        Section(
-            R.string.role_medic,
-            listOf(
+        Rule()
+
+        // The senior does not need a button to call themselves
+        FieldRow(
+            stringResource(R.string.label_phone),
+            action = if (own) null else ({ CallButton(senior.phone) })
+        ) {
+            PhoneNumber(senior.phone, senior.landline)
+        }
+        FieldRow(stringResource(R.string.label_address)) { Value(place(senior)) }
+        senior.intercomCode?.let {
+            FieldRow(stringResource(R.string.label_intercom)) { Text(it, style = Mono) }
+        }
+        senior.keyHolder?.let { FieldRow(stringResource(R.string.label_key_holder)) { Value(it) } }
+        senior.landmark?.let { FieldRow(stringResource(R.string.label_landmark)) { Value(it) } }
+        senior.callWindow?.let {
+            FieldRow(stringResource(R.string.section_call_window)) { Value(it) }
+        }
+        FieldRow(stringResource(R.string.role_medic), last = true) {
+            Value(
                 listOfNotNull(senior.medic.displayName, senior.medic.practice).joinToString(" · ")
             )
+        }
+
+        SectionLabel(
+            stringResource(R.string.section_caregivers),
+            Modifier.padding(top = 20.dp, bottom = 4.dp)
         )
-        Section(
-            R.string.section_caregivers,
-            senior.caregivers.map {
-                listOfNotNull(it.displayName, it.relation, it.phone).joinToString(" · ")
+        if (senior.caregivers.isEmpty()) {
+            Text(
+                stringResource(R.string.no_caregivers),
+                Modifier.padding(vertical = 12.dp),
+                color = Palette.FgMuted
+            )
+        }
+        senior.caregivers.forEachIndexed { i, c ->
+            Column {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            listOfNotNull(c.displayName, c.relation).joinToString(" · "),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(formatPhone(c.phone), style = Mono, color = Palette.FgSoft)
+                    }
+                    CallButton(c.phone)
+                }
+                Rule(strong = i == senior.caregivers.lastIndex)
             }
-                .ifEmpty { listOf(stringResource(R.string.no_caregivers)) }
-        )
+        }
     }
 }
 
-/** The structured address with its access details (G13), one line per kind of detail. */
 @Composable
-private fun addressLines(senior: SeniorPage): List<String> {
-    val place = listOfNotNull(
-        listOfNotNull(senior.street, senior.streetNumber).joinToString(" ").ifBlank { null },
-        senior.block?.let { stringResource(R.string.address_block, it) },
-        senior.staircase?.let { stringResource(R.string.address_staircase, it) },
-        senior.floor?.let { stringResource(R.string.address_floor, it) },
-        senior.apartment?.let { stringResource(R.string.address_apartment, it) }
-    ).joinToString(", ")
-    return listOfNotNull(
-        place.ifBlank { null },
-        senior.intercomCode?.let { stringResource(R.string.address_intercom, it) },
-        senior.keyHolder?.let { stringResource(R.string.address_key_holder, it) },
-        senior.landmark?.let { stringResource(R.string.address_landmark, it) }
-    ).ifEmpty { listOf(stringResource(R.string.no_address)) }
+private fun Value(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyLarge)
 }
 
+/** The street with block, staircase, floor and apartment (G13), from what was filled in. */
 @Composable
-private fun Section(title: Int, lines: List<String>) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
-        lines.forEach { Text(it) }
-    }
-}
+private fun place(senior: SeniorPage): String = listOfNotNull(
+    listOfNotNull(senior.street, senior.streetNumber).joinToString(" ").ifBlank { null },
+    senior.block?.let { stringResource(R.string.address_block, it) },
+    senior.staircase?.let { stringResource(R.string.address_staircase, it) },
+    senior.floor?.let { stringResource(R.string.address_floor, it) },
+    senior.apartment?.let { stringResource(R.string.address_apartment, it) }
+).joinToString(", ").ifBlank { stringResource(R.string.no_address) }

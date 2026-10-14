@@ -78,30 +78,39 @@
   }
 </script>
 
-<section>
-  <h1>Intrați în cont</h1>
+<section class="flex flex-col gap-4 border-t-2 border-line pt-5">
+  <h1 class="text-[22px] leading-[1.1] font-extrabold tracking-[-0.015em]">Intrați în cont</h1>
   {#if confirmation}
-    <form onsubmit={confirm}>
-      <label for="code">Codul primit prin SMS</label>
+    <form class="flex flex-col gap-3" onsubmit={confirm}>
+      <label for="code" class="sn-label">Codul primit prin SMS</label>
       <input
         bind:this={codeEl}
         id="code"
+        class="sn-input h-9 px-2.5 font-mono text-sm"
         inputmode="numeric"
         autocomplete="one-time-code"
         required
         bind:value={code}
       />
-      <button disabled={busy}>Confirmă</button>
+      <button class="sn-btn sn-btn-success h-9" disabled={busy}>Confirmă</button>
     </form>
   {:else}
-    <form onsubmit={sendCode}>
-      <label for="phone">Număr de telefon</label>
-      <input id="phone" type="tel" autocomplete="tel" required bind:value={phone} />
-      <button disabled={busy}>Trimite codul</button>
+    <form class="flex flex-col gap-3" onsubmit={sendCode}>
+      <label for="phone" class="sn-label">Număr de telefon</label>
+      <input
+        id="phone"
+        class="sn-input h-9 px-2.5 font-mono text-sm"
+        type="tel"
+        autocomplete="tel"
+        placeholder="0722 123 456"
+        required
+        bind:value={phone}
+      />
+      <button class="sn-btn sn-btn-link h-9" disabled={busy}>Trimite codul</button>
     </form>
   {/if}
   {#if error}
-    <p role="alert">{error}</p>
+    <p role="alert" class="text-rosu-fg">{error}</p>
   {/if}
   <div bind:this={recaptchaEl}></div>
 </section>

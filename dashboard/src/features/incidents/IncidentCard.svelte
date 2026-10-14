@@ -1,154 +1,126 @@
 <script lang="ts">
-  import {
-    ApiError,
-    resolveIncident,
-    takeIncident,
-    type Incident,
-    type IncidentOutcome,
-  } from "../../services/api";
-  import { OUTCOMES, time } from "../../utils/labels";
-  import IncidentDetails from "./IncidentDetails.svelte";
+  import { takeIncident, type Incident } from "../../services/api";
+  import Icon from "../../ui/Icon.svelte";
+  import { initials, shortId, since } from "../../utils/incidents";
+  import { time } from "../../utils/labels";
+  import { refusalMessage } from "./commands";
+  import type { DossierTab } from "./IncidentDetails.svelte";
 
   let {
     incident: i,
     now,
-    border,
+    onOpen,
     onChanged,
     onStale,
   }: {
     incident: Incident;
     now: number;
-    border: string;
+    onOpen: (tab: DossierTab) => void;
     onChanged: (incident: Incident) => void;
     onStale: () => void;
   } = $props();
 
-  function minutesSince(iso: string, current: number): string {
-    const m = Math.max(0, Math.floor((current - Date.parse(iso)) / 60_000));
-    return m < 60 ? `acum ${m} min` : `acum ${Math.floor(m / 60)} h ${m % 60} min`;
-  }
-
-  function refusalMessage(e: unknown, action: "take" | "resolve"): string {
-    if (!(e instanceof ApiError)) return "Nu am putut trimite. Încercați din nou.";
-    switch (e.reason) {
-      case "already_done":
-        return action === "take"
-          ? `Incidentul a fost preluat deja de ${e.takenByName ?? "un alt dispecer"}.`
-          : "Incidentul a fost deja rezolvat.";
-      case "wrong_state":
-        return "Incidentul s-a schimbat între timp.";
-      case "not_allowed":
-        return "Nu aveți dreptul să faceți asta.";
-      case "not_found":
-        return "Incidentul nu mai există.";
-      default:
-        return `Nu am putut trimite (${e.message}).`;
-    }
-  }
+  // Full class names, so Tailwind finds them in the source
+  const BAR = { open: "bg-rosu", in_progress: "bg-galben", resolved: "bg-verde" };
 
   let busy = $state(false);
   let error = $state<string | null>(null);
-  let outcome = $state<IncidentOutcome | "">("");
-  let note = $state("");
-  let showDetails = $state(false);
 
-  function send(action: "take" | "resolve", command: () => Promise<Incident>) {
+  function take() {
     busy = true;
     error = null;
-    command()
+    takeIncident(i.id)
       .then(onChanged)
       .catch((e: unknown) => {
-        error = refusalMessage(e, action);
+        error = refusalMessage(e, "take");
         onStale();
       })
       .finally(() => {
         busy = false;
       });
   }
-
-  const canResolve = $derived(outcome !== "" && note.trim() !== "");
 </script>
 
-<article class={["card card-sm mb-3 border-l-4 bg-base-100 shadow-sm", border]}>
-  <div class="card-body gap-1">
-    <div class="flex items-start justify-between gap-2">
-      <h3 class="card-title text-base">{i.senior_full_name}</h3>
-      <button class="btn btn-ghost btn-xs" onclick={() => (showDetails = true)}> Detalii </button>
-    </div>
-    <p class="text-sm text-base-content/60">{i.senior_form_of_address}</p>
-    <p>{i.reason}</p>
-    <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-      <dt class="text-base-content/60">Deschis</dt>
-      <dd title={time.format(Date.parse(i.opened_at))}>{minutesSince(i.opened_at, now)}</dd>
-      {#if i.taken_by_name}
-        <dt class="text-base-content/60">Preluat de</dt>
-        <dd>
-          {i.taken_by_name}
-          {i.taken_at ? `, ${time.format(Date.parse(i.taken_at))}` : ""}
-        </dd>
-      {/if}
-      <dt class="text-base-content/60">Transfer apel</dt>
-      <dd>
-        <span
-          class={[
-            "badge badge-xs badge-soft",
-            i.handover_answered ? "badge-success" : "badge-error",
-          ]}
-        >
-          {i.handover_answered ? "preluat" : "nepreluat"}
+<article class="relative flex border border-line bg-card hover:border-link">
+  <div class={["w-[3px] flex-none", BAR[i.status]]}></div>
+  <div class="flex min-w-0 flex-1 flex-col gap-[5px] px-3 pt-2.5 pb-3">
+    <div class="flex items-center gap-1.5 text-[11.5px] text-fg-muted">
+      <span class="font-mono">#{shortId(i.id)}</span>
+      <span>·</span>
+      {#if i.status === "resolved"}
+        <span>deschis {time.format(Date.parse(i.opened_at))}</span>
+      {:else if i.status === "in_progress" && i.taken_at}
+        <span title={`Deschis ${time.format(Date.parse(i.opened_at))}`}>
+          preluat {since(i.taken_at, now)}
         </span>
-      </dd>
-    </dl>
+      {:else}
+        <span title={time.format(Date.parse(i.opened_at))}>{since(i.opened_at, now)}</span>
+      {/if}
+      {#if i.status === "open"}
+        <span class="ml-auto bg-rosu/15 px-[7px] py-0.5 text-[11px] font-semibold text-rosu-fg">
+          {i.handover_answered ? "Transferat la DAS" : "Nepreluat"}
+        </span>
+      {:else if i.status === "in_progress"}
+        <span class="ml-auto bg-galben/15 px-[7px] py-0.5 text-[11px] font-semibold text-galben-fg">
+          Preluat
+        </span>
+      {/if}
+    </div>
 
-    {#if i.status === "open"}
-      <div class="card-actions mt-2">
-        <button
-          class="btn btn-sm btn-error"
-          disabled={busy}
-          onclick={() => send("take", () => takeIncident(i.id))}
-        >
-          Preiau
-        </button>
-      </div>
-    {/if}
-
-    {#if i.status === "in_progress"}
-      <form
-        class="mt-2 flex flex-col gap-2"
-        onsubmit={(e) => {
-          e.preventDefault();
-          const selectedOutcome = outcome;
-          if (selectedOutcome === "" || !canResolve) return;
-          send("resolve", () => resolveIncident(i.id, selectedOutcome, note.trim()));
-        }}
+    <h3 class="text-[15px] leading-tight font-semibold">
+      <!-- The name opens the dossier; its ::after covers the card so the whole card is the target -->
+      <button
+        type="button"
+        class="cursor-pointer text-left after:absolute after:inset-0 after:content-['']"
+        onclick={() => onOpen("access")}
       >
-        <select class="select select-sm w-full" aria-label="Rezultat" bind:value={outcome}>
-          <option value="" disabled> Rezultat… </option>
-          {#each OUTCOMES as o (o.value)}
-            <option value={o.value}>
-              {o.label}
-            </option>
-          {/each}
-        </select>
-        <textarea
-          class="textarea textarea-sm w-full"
-          aria-label="Notă"
-          placeholder="Ce s-a întâmplat, pe scurt"
-          maxlength={1000}
-          rows={2}
-          bind:value={note}></textarea>
-        <button class="btn btn-sm btn-success" disabled={busy || !canResolve}> Rezolvă </button>
-      </form>
-    {/if}
+        {i.senior_full_name}
+      </button>
+      <span class="font-normal text-fg-muted">· {i.senior_form_of_address}</span>
+    </h3>
+    <div class={["font-semibold", i.status === "open" && "text-rosu-fg"]}>{i.reason}</div>
 
-    {#if showDetails}
-      <IncidentDetails id={i.id} onClose={() => (showDetails = false)} />
-    {/if}
+    <div class="mt-1 flex items-center gap-2 border-t border-line pt-2">
+      {#if i.status === "open"}
+        <button
+          type="button"
+          class="sn-btn sn-btn-danger relative z-10"
+          disabled={busy}
+          onclick={take}
+        >
+          <Icon name="zap" size={13} stroke={2.2} />Preiau
+        </button>
+        <span class="ml-auto flex items-center gap-[5px] text-xs text-fg-muted">
+          <Icon name="user" size={13} />Nealocat
+        </span>
+      {:else if i.status === "in_progress"}
+        <button
+          type="button"
+          class="sn-btn sn-btn-link relative z-10"
+          onclick={() => onOpen("resolve")}
+        >
+          Rezolvă cazul
+        </button>
+        <span class="ml-auto flex items-center gap-1.5 text-xs text-fg-soft">
+          <span class="grid size-5 place-items-center bg-line text-[9px] font-extrabold text-fg">
+            {initials(i.taken_by_name)}
+          </span>
+          {i.taken_by_name}
+        </span>
+      {:else}
+        <span
+          class="inline-flex items-center gap-1.5 bg-verde/15 px-2 py-[3px] text-xs font-semibold text-verde-fg"
+        >
+          <Icon name="check" size={12} stroke={2.6} />Rezolvat
+        </span>
+        {#if i.taken_by_name}
+          <span class="ml-auto text-xs text-fg-muted">Preluat de {i.taken_by_name}</span>
+        {/if}
+      {/if}
+    </div>
 
     {#if error}
-      <p role="alert" class="mt-1 text-sm text-error">
-        {error}
-      </p>
+      <p role="alert" class="text-xs text-rosu-fg">{error}</p>
     {/if}
   </div>
 </article>

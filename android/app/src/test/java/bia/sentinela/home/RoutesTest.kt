@@ -2,6 +2,7 @@ package bia.sentinela.home
 
 import bia.sentinela.R
 import bia.sentinela.auth.ROLES
+import bia.sentinela.ui.Tone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -42,5 +43,12 @@ class RoutesTest {
     @Test
     fun aStateThisBuildDoesNotKnowHasNoLabel() {
         assertNull(STATE_LABELS["paused"])
+    }
+
+    @Test
+    fun everyLabelledStateHasTheDashboardsColour() {
+        assertEquals(STATE_LABELS.keys, STATE_TONES.keys)
+        assertEquals(Tone.Verde, STATE_TONES["active"])
+        assertEquals(Tone.Galben, STATE_TONES["unreachable"])
     }
 }

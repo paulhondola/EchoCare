@@ -19,7 +19,10 @@ app/src/
 │   ├── home/Frame.kt      the shared top bar, the timed re-read, loading and failure states
 │   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
 │   ├── home/Senior*.kt    one senior's page
-│   └── ui/theme/          Material 3 theme
+│   ├── ui/Components.kt   the dashboard's pieces: SnButton, Chip, FieldRow, Banner, CallButton, SnTextField
+│   ├── ui/Format.kt       phone numbers as people read them, tested on the JVM
+│   └── ui/theme/          one dark Material 3 theme: Palette.kt (spec 07 §2.1), Type.kt, Theme.kt
+├── main/res/font/         Archivo and JetBrains Mono, variable fonts (OFL licences in main/assets/licenses/)
 ├── main/keepRules/        R8 keep rules for release
 ├── debug/AndroidManifest.xml   debug only: ACCESS_LOCAL_NETWORK, cleartext HTTP to 10.0.2.2
 ├── test/                  JVM unit tests
@@ -50,4 +53,5 @@ From `android/`.
 - **Decode leniently.** `Json { ignoreUnknownKeys = true }` stays. Spec enumerations (trigger, incident outcome, push `type`) are decoded as strings with a fallback, never a plain Kotlin `enum`, which crashes on a value the server adds later (ADR-001 §2.3).
 - **The Firebase token goes in one OkHttp interceptor**, not per call.
 - **UI strings are Romanian**, in `res/values/strings.xml`.
+- **The look is the DAS dashboard's** ([07-dashboard-stitch-spec.md](../../docs/specs/sentinela/07-dashboard-stitch-spec.md)): one dark theme, no rounded corners, 2dp rules under sections, button labels flush left, Archivo with JetBrains Mono for phone numbers and ids. Take colours from `Palette` (`Rosu`, `Galben`, `Verde` for the codes) and build from `ui/Components.kt` rather than stock Material buttons and cards. A colour changed in `dashboard/src/styles.css` changes in `Palette.kt` too.
 - Cleartext HTTP and local-network access belong in `src/debug/` only; release talks to Railway over HTTPS.

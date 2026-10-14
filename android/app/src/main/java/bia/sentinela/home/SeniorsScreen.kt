@@ -1,27 +1,39 @@
 package bia.sentinela.home
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import bia.sentinela.R
 import bia.sentinela.SeniorRow
+import bia.sentinela.ui.Chip
+import bia.sentinela.ui.PhoneNumber
+import bia.sentinela.ui.Tone
+import bia.sentinela.ui.theme.Palette
 
 /** The medic's and the caregiver's home: their seniors as cards (seniors §8.2, SE20). */
 @Composable
@@ -43,8 +55,8 @@ fun SeniorsScreen(
                     columns = GridCells.Adaptive(minSize = 320.dp),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(seniors, key = { it.id }) { senior ->
                         SeniorCard(senior, onClick = { onOpen(senior.id) })
@@ -55,33 +67,48 @@ fun SeniorsScreen(
     }
 }
 
+/** The dashboard's card: a bar in the state's colour down the left edge. */
 @Composable
 private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val tone = STATE_TONES[senior.state] ?: Tone.Muted
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(Palette.Card)
+            .border(1.dp, Palette.Line)
+            .clickable(role = Role.Button, onClick = onClick)
+    ) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(tone.dot)
+        )
+        Column(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text(senior.formOfAddress, style = MaterialTheme.typography.titleMedium)
             Text(
-                "${senior.fullName} · ${senior.phone}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                senior.fullName,
+                color = Palette.FgMuted,
+                style = MaterialTheme.typography.bodyMedium
             )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PhoneNumber(senior.phone, senior.landline)
+            }
             StateLabel(senior.state)
         }
     }
 }
 
-/** The enrollment state as a small outlined label; nothing for a state this build does not know. */
+/** The enrollment state as a tinted chip; nothing for a state this build does not know. */
 @Composable
 fun StateLabel(state: String) {
     val label = STATE_LABELS[state] ?: return
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Text(
-            stringResource(label),
-            Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelMedium
-        )
-    }
+    Chip(stringResource(label), STATE_TONES[state] ?: Tone.Muted)
 }

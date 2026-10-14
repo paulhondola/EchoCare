@@ -1,23 +1,24 @@
 package bia.sentinela
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +34,11 @@ import bia.sentinela.auth.AuthViewModel
 import bia.sentinela.auth.Screen
 import bia.sentinela.auth.toE164
 import bia.sentinela.home.HomeNav
+import bia.sentinela.ui.Kind
+import bia.sentinela.ui.Rule
+import bia.sentinela.ui.SnButton
+import bia.sentinela.ui.SnTextField
+import bia.sentinela.ui.theme.Palette
 import bia.sentinela.ui.theme.SentinelaTheme
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
@@ -49,7 +55,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // One dark theme (spec 07 §2.1): light status and navigation icons whatever the system uses
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         setContent {
             val vm: AuthViewModel = hiltViewModel()
             SentinelaTheme {
@@ -62,7 +72,10 @@ class MainActivity : ComponentActivity() {
                         onSessionEnd = vm::sessionEnded
                     )
 
-                    else -> Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    else -> Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = Palette.Canvas
+                    ) { innerPadding ->
                         SignIn(
                             vm,
                             onSendCode = { sendCode(vm, it, null) },
@@ -121,55 +134,93 @@ fun SignIn(
     onResend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
         when (val screen = vm.screen) {
-            is Screen.Phone -> PhoneForm(screen.error, onSendCode)
-            // Signed out already: the phone form, under the not-registered text (auth-layer §3.2).
-            Screen.NotRegistered -> PhoneForm(R.string.not_registered, onSendCode)
-            is Screen.Code -> CodeForm(screen.error, vm.canResend, vm::submitCode, onResend)
-            Screen.Loading -> CircularProgressIndicator()
-            Screen.Unavailable -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(stringResource(R.string.unavailable))
-                Button(vm::loadMe) { Text(stringResource(R.string.retry)) }
-                TextButton(vm::signOut) { Text(stringResource(R.string.sign_out)) }
-            }
-            is Screen.PickRole -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    stringResource(R.string.pick_role_title),
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                screen.roles.forEach { role ->
-                    Button({ vm.pickRole(role) }, Modifier.fillMaxWidth()) {
-                        Text(stringResource(ROLE_LABELS.getValue(role)))
-                    }
-                }
-            }
+            Screen.Loading -> CircularProgressIndicator(color = Palette.FgMuted)
             // Shown by HomeNav in MainActivity, not here.
             is Screen.Home -> {}
+            else -> Panel {
+                when (screen) {
+                    is Screen.Phone -> PhoneForm(screen.error, onSendCode)
+                    // Signed out already: the phone form, under the not-registered text (auth-layer §3.2).
+                    Screen.NotRegistered -> PhoneForm(R.string.not_registered, onSendCode)
+                    is Screen.Code -> CodeForm(screen.error, vm.canResend, vm::submitCode, onResend)
+                    Screen.Unavailable -> {
+                        ErrorText(R.string.unavailable)
+                        SnButton(
+                            stringResource(R.string.retry),
+                            vm::loadMe,
+                            Modifier.fillMaxWidth(),
+                            kind = Kind.Link
+                        )
+                        SnButton(
+                            stringResource(R.string.sign_out),
+                            vm::signOut,
+                            Modifier.fillMaxWidth(),
+                            kind = Kind.Outline
+                        )
+                    }
+                    is Screen.PickRole -> {
+                        Title(R.string.pick_role_title)
+                        screen.roles.forEach { role ->
+                            SnButton(
+                                stringResource(ROLE_LABELS.getValue(role)),
+                                { vm.pickRole(role) },
+                                Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    else -> {}
+                }
+            }
         }
     }
+}
+
+/** The dashboard's sign-in panel: the brand, a 2dp rule, then the step. */
+@Composable
+private fun Panel(content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .widthIn(max = 420.dp)
+            .fillMaxWidth()
+            .border(2.dp, Palette.Line)
+            .background(Palette.Subtle)
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            stringResource(R.string.app_name).uppercase(),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Rule()
+        content()
+    }
+}
+
+@Composable
+private fun Title(text: Int) {
+    Text(stringResource(text), style = MaterialTheme.typography.headlineSmall)
+}
+
+@Composable
+private fun ErrorText(text: Int) {
+    Text(stringResource(text), color = Palette.RosuFg, style = MaterialTheme.typography.bodyMedium)
 }
 
 @Composable
 private fun PhoneForm(error: Int?, onSendCode: (String) -> Unit) {
     var phone by rememberSaveable { mutableStateOf("") }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            stringResource(R.string.sign_in_title),
-            style = MaterialTheme.typography.headlineMedium
-        )
-        OutlinedTextField(
-            phone,
-            { phone = it },
-            label = { Text(stringResource(R.string.phone_label)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            singleLine = true
-        )
-        error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
-        Button(onClick = { onSendCode(toE164(phone)) }, enabled = phone.isNotBlank()) {
-            Text(stringResource(R.string.send_code))
-        }
-    }
+    Title(R.string.sign_in_title)
+    SnTextField(phone, { phone = it }, stringResource(R.string.phone_label), KeyboardType.Phone)
+    error?.let { ErrorText(it) }
+    SnButton(
+        stringResource(R.string.send_code),
+        { onSendCode(toE164(phone)) },
+        Modifier.fillMaxWidth(),
+        kind = Kind.Link,
+        enabled = phone.isNotBlank()
+    )
 }
 
 @Composable
@@ -180,18 +231,26 @@ private fun CodeForm(
     onResend: () -> Unit
 ) {
     var code by rememberSaveable { mutableStateOf("") }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OutlinedTextField(
-            code,
-            { code = it },
-            label = { Text(stringResource(R.string.code_label)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            singleLine = true
-        )
-        error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
-        Button(onClick = { onConfirm(code) }, enabled = code.isNotBlank()) {
-            Text(stringResource(R.string.confirm))
-        }
-        TextButton(onResend, enabled = canResend) { Text(stringResource(R.string.resend_code)) }
-    }
+    Title(R.string.sign_in_title)
+    SnTextField(
+        value = code,
+        onValueChange = { code = it },
+        label = stringResource(R.string.code_label),
+        keyboardType = KeyboardType.NumberPassword
+    )
+    error?.let { ErrorText(it) }
+    SnButton(
+        stringResource(R.string.confirm),
+        { onConfirm(code) },
+        Modifier.fillMaxWidth(),
+        kind = Kind.Success,
+        enabled = code.isNotBlank()
+    )
+    SnButton(
+        stringResource(R.string.resend_code),
+        onResend,
+        Modifier.fillMaxWidth(),
+        kind = Kind.Outline,
+        enabled = canResend
+    )
 }

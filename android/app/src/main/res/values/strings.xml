@@ -38,8 +38,14 @@
     <string name="state_refused">Refuzat</string>
     <string name="state_wrong_number">Număr greșit</string>
     <string name="state_unreachable">De negăsit</string>
-    <string name="landline_number">%1$s · fix</string>
-    <string name="section_address">Adresă și acces</string>
+    <string name="label_phone">Telefon</string>
+    <string name="label_address">Adresă</string>
+    <string name="label_intercom">Interfon</string>
+    <string name="label_key_holder">Cheie de rezervă</string>
+    <string name="label_landmark">Reper orientare</string>
+    <string name="tag_landline">fix</string>
+    <string name="tag_mobile">mobil</string>
+    <string name="call">Apelează</string>
     <string name="section_call_window">Interval pentru apel</string>
     <string name="section_caregivers">Aparținători</string>
     <string name="no_caregivers">Niciun aparținător.</string>
@@ -48,9 +54,6 @@
     <string name="address_staircase">sc. %1$s</string>
     <string name="address_floor">et. %1$s</string>
     <string name="address_apartment">ap. %1$s</string>
-    <string name="address_intercom">Interfon %1$s</string>
-    <string name="address_key_holder">Cheia: %1$s</string>
-    <string name="address_landmark">Reper: %1$s</string>
     <string name="offline_banner">Fără conexiune</string>
     <string name="no_connection">Fără conexiune.</string>
     <string name="not_found">Nu a fost găsit.</string>

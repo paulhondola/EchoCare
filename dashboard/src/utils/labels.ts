@@ -2,14 +2,51 @@ import type { IncidentOutcome, SeniorAddress } from "../services/api";
 
 export const time = new Intl.DateTimeFormat("ro-RO", { dateStyle: "short", timeStyle: "short" });
 
+/** "14:32:15", for transcript lines */
+export const clock = new Intl.DateTimeFormat("ro-RO", { timeStyle: "medium" });
+
 // The five outcomes of 04 §2, in the order a dispatcher thinks of them
 export const OUTCOMES: { value: IncidentOutcome; label: string }[] = [
-  { value: "senior_ok", label: "Seniorul este bine" },
-  { value: "team_sent", label: "Echipă trimisă" },
-  { value: "called_112", label: "Apel la 112" },
-  { value: "not_reached", label: "Nu a putut fi contactat" },
+  { value: "senior_ok", label: "Senior OK" },
+  { value: "team_sent", label: "Echipaj trimis" },
+  { value: "called_112", label: "Apelat 112" },
+  { value: "not_reached", label: "Nu a răspuns" },
   { value: "false_alarm", label: "Alarmă falsă" },
 ];
+
+export type Tone = "verde" | "galben" | "rosu" | "link" | "muted";
+
+// Enrollment states of 03 §1 as DAS sees them; an unknown state shows as it is
+export const ENROLLMENT: Record<string, { label: string; tone: Tone }> = {
+  draft: { label: "Ciornă", tone: "muted" },
+  submitted: { label: "Cerere trimisă", tone: "link" },
+  accepted: { label: "Acceptat", tone: "link" },
+  active: { label: "Activ", tone: "verde" },
+  refused: { label: "Consimțământ refuzat", tone: "galben" },
+  wrong_number: { label: "Număr greșit", tone: "galben" },
+  unreachable: { label: "Nu răspunde", tone: "galben" },
+};
+
+export function enrollment(state: string): { label: string; tone: Tone } {
+  return ENROLLMENT[state] ?? { label: state, tone: "muted" };
+}
+
+/** Chip colours per tone; full class names so Tailwind finds them */
+export const TONE_CHIP: Record<Tone, string> = {
+  verde: "bg-verde/15 text-verde-fg",
+  galben: "bg-galben/15 text-galben-fg",
+  rosu: "bg-rosu/15 text-rosu-fg",
+  link: "bg-link/15 text-link",
+  muted: "bg-line text-fg-soft",
+};
+
+export const TONE_DOT: Record<Tone, string> = {
+  verde: "bg-verde",
+  galben: "bg-galben",
+  rosu: "bg-rosu",
+  link: "bg-link",
+  muted: "bg-fg-muted",
+};
 
 /** "Str. Florilor nr. 3, bl. A2, sc. B, et. 4, ap. 17", from what was filled in */
 export function address(s: SeniorAddress): string {
