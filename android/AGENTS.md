@@ -48,5 +48,5 @@ From `android/`. CI ([android.yml](../.github/workflows/android.yml)) runs the f
 - **Kotlin is formatted by ktlint** (`android_studio` style, set in `.editorconfig`). The pre-commit hook runs `ktlintFormat`; CI runs `ktlintCheck`.
 - **The phone and watch stay in lockstep.** Same `applicationId`, same signing block, same version, or the Data Layer silently drops messages (ADR-001 §2.1).
 - **Release builds use R8.** A release-only crash is an R8 problem; launch a release build before calling one done. Keep rules go in `<module>/src/main/keepRules/`.
-- **Hilt is the DI framework** (auth-layer AL16), with its compiler through KSP. Navigation and Room still arrive with the first feature that needs them. Data lives in FastAPI, not on the device.
+- **Hilt is the DI framework** (auth-layer AL16), with its compiler through KSP. Navigation Compose is the navigation library, with type-safe routes (seniors SE18). Room still arrives with the first feature that needs it. Data lives in FastAPI, not on the device.
 - **CI has no emulator tests.** Sensors and delivery only show on real hardware (spikes S5–S7); say so when a change can't be verified on the JVM.

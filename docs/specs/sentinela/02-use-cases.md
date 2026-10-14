@@ -165,11 +165,11 @@ A DAS employee's phone number is also their hand-over number when they are on du
 3. The medic enters one or two caregivers: name, relation, phone number. Each number becomes a caregiver grant for this senior. If the senior's own number is a mobile, it becomes the senior's grant.
 4. If a caregiver is present, they sign in on the spot (UC-02); seeing doamna Maria on their phone confirms the number. Otherwise FastAPI sends a short notice SMS to the number **(proposed)**, so that a wrong number is noticed.
 5. If the senior is present, they may sign on the tablet. This is optional: consent is recorded on the welcome call (G7).
-6. The medic submits. The senior moves from `draft` to `submitted`.
+6. The medic submits. The senior moves from `draft` to `submitted`. A submit needs the street and the street number; caregivers are optional ([seniors-and-enrollment.md](../seniors-and-enrollment.md) SE4).
 
 Variations:
 - **The senior cannot come to the practice.** A caregiver comes alone, or the medic fills the form on a home visit. Nothing changes: consent is the senior's own, given on the welcome call.
-- **Form left unfinished.** The draft is saved and visible only to that medic.
+- **Form left unfinished.** The draft is saved. DAS cannot see it until it is submitted; the medic sees it, and so do the caregivers and the senior whose numbers it already grants (step 4).
 
 Nothing rings and no code exists yet.
 

@@ -1,6 +1,6 @@
 import pytest
 
-from app.phones import is_mobile, mask, normalize
+from app.core.phones import is_mobile, mask, normalize
 
 
 @pytest.mark.parametrize(

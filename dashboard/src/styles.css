@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* DaisyUI components; the dark theme follows the system setting */
+@plugin "daisyui" {
+  themes:
+    light --default,
+    dark --prefersdark;
+}
+
+@keyframes delayed-fade-in {
+  0%,
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.loading-delay {
+  animation: delayed-fade-in 200ms ease-in;
+}

@@ -12,6 +12,9 @@ from typing import Annotated, Any
 os.environ["DATABASE_URL"] = (
     "postgresql://sentinela:sentinela@localhost:5432/sentinela_test"
 )
+# Twilio's callbacks are signed with this token for the address Twilio would call (#15).
+os.environ["TWILIO_AUTH_TOKEN"] = "test-auth-token"
+os.environ["PUBLIC_BASE_URL"] = "https://sentinela.test"
 
 import pytest
 from fastapi import Depends
@@ -21,9 +24,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import bearer, refuse, verify_token
-from app.db import Session, engine
+from app.core.db import Session, engine
 from app.main import app
-from app.models import Grant, Role, User
+from app.models import Grant, Role, Senior, User
 
 BACKEND = Path(__file__).parent.parent
 
@@ -58,6 +61,35 @@ def add_user(db: AsyncSession) -> Callable[..., Awaitable[User]]:
         db.add_all(Grant(user_id=user.id, role=role) for role in roles)
         await db.commit()
         return user
+
+    return add
+
+
+@pytest.fixture
+def add_senior(
+    db: AsyncSession, add_user: Callable[..., Awaitable[User]]
+) -> Callable[..., Awaitable[Senior]]:
+    """add_senior("+40700000101"): a draft senior, which caregiver and senior grants
+    can name now that grants.senior_id has its key (AL6). Registered by `medic`, or by
+    a fresh one. Other columns go by name: enrollment_state=..., street=...
+    """
+
+    async def add(
+        phone: str, name: str = "Maria Pop", medic: User | None = None, **columns: Any
+    ) -> Senior:
+        if medic is None:
+            medic = await add_user(f"+4079{phone[-7:]}", Role.medic, name="Medic")
+        senior = Senior(
+            medic_id=medic.id,
+            full_name=name,
+            form_of_address="doamna Maria",
+            phone_e164=phone,
+            phone_is_landline=False,
+            **columns,
+        )
+        db.add(senior)
+        await db.commit()
+        return senior
 
     return add
 

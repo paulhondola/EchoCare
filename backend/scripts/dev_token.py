@@ -19,7 +19,7 @@ from pathlib import Path
 # Run as a file, Python puts scripts/ on the path, not the folder that holds app/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.phones import normalize
+from app.core.phones import normalize
 
 ACCOUNTS_URL = "https://identitytoolkit.googleapis.com/v1/accounts:{}?key={}"
 

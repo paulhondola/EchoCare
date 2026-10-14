@@ -21,6 +21,8 @@ services:
 
   api:
     build: ./backend # the same Dockerfile Railway builds
+    # rebuild on every up: watch syncs only later edits, so a cached image would run old code
+    pull_policy: build
     env_file:
       - path: backend/.env # Twilio, Firebase, model provider keys; not committed
         required: false
@@ -40,6 +42,7 @@ services:
 
   dashboard:
     build: { context: ./dashboard, target: dev }
+    pull_policy: build # same reason as api
     env_file:
       - path: dashboard/.env # VITE_FIREBASE_* web config; not committed
         required: false

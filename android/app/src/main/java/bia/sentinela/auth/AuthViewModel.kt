@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import bia.sentinela.Me
 import bia.sentinela.R
 import bia.sentinela.SentinelaApi
+import bia.sentinela.home.Failure
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuth
@@ -133,6 +134,13 @@ class AuthViewModel @Inject constructor(
 
     /** *Ieșire*. */
     fun signOut() = show(Screen.Phone())
+
+    /**
+     * A read after sign-in was refused as signed out or not registered (seniors §8.2): a grant
+     * revoked mid-session ends the session, with the not-registered text.
+     */
+    fun sessionEnded(failure: Failure) =
+        show(if (failure == Failure.NotRegistered) Screen.NotRegistered else Screen.Phone())
 
     private fun show(next: Screen) {
         when (next) {

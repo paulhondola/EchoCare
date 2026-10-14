@@ -1,5 +1,4 @@
 import logging
-import uuid
 
 import pytest
 from sqlalchemy import select
@@ -44,6 +43,10 @@ async def test_zero_grants(client, add_user):
     assert (r.status_code, r.json()) == (403, NOT_REGISTERED)
 
 
+# Staff grants name no senior, so the seniors work's additions are empty (§3.3).
+NO_SENIOR = {"senior_form_of_address": None, "relation": None}
+
+
 async def test_grants_in_role_order(client, add_user):
     await add_user("+40700000003", Role.medic, Role.das, name="Ana Pop")
     r = await client.get("/api/me", headers=signed_in("+40700000003"))
@@ -52,24 +55,41 @@ async def test_grants_in_role_order(client, add_user):
         "display_name": "Ana Pop",
         "phone_e164": "+40700000003",
         "grants": [
-            {"role": "das", "senior_id": None},
-            {"role": "medic", "senior_id": None},
+            {"role": "das", "senior_id": None, **NO_SENIOR},
+            {"role": "medic", "senior_id": None, **NO_SENIOR},
         ],
     }
 
 
-async def test_one_entry_per_caregiver_grant(client, db, add_user):
+async def test_one_entry_per_caregiver_grant(client, db, add_user, add_senior):
     user = await add_user("+40700000004")
-    mother, father = uuid.uuid4(), uuid.uuid4()
+    mother = (await add_senior("+40700000101")).id
+    father = await add_senior("+40700000102", name="Ion Pop")
+    father.form_of_address = "domnul Ion"
     db.add_all(
-        Grant(user_id=user.id, role=Role.caregiver, senior_id=s, relation="fiică")
-        for s in (mother, father)
+        [
+            Grant(
+                user_id=user.id, role=Role.caregiver, senior_id=mother, relation="fiică"
+            ),
+            Grant(
+                user_id=user.id,
+                role=Role.caregiver,
+                senior_id=father.id,
+                relation="vecină",
+            ),
+        ]
     )
     await db.commit()
     r = await client.get("/api/me", headers=signed_in("+40700000004"))
     grants = r.json()["grants"]
     assert [g["role"] for g in grants] == ["caregiver", "caregiver"]
-    assert {g["senior_id"] for g in grants} == {str(mother), str(father)}
+    # Each names its own senior and its own relation (auth-layer §3.3).
+    assert {
+        g["senior_id"]: (g["senior_form_of_address"], g["relation"]) for g in grants
+    } == {
+        str(mother): ("doamna Maria", "fiică"),
+        str(father.id): ("domnul Ion", "vecină"),
+    }
 
 
 async def test_firebase_uid_written_kept_and_replaced(client, db, add_user, caplog):

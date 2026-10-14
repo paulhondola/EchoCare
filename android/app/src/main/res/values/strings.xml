@@ -21,7 +21,38 @@
     <string name="role_medic">Medic</string>
     <string name="role_caregiver">Aparținător</string>
     <string name="role_senior">Senior</string>
-    <string name="home">Conectat ca %1$s · %2$s</string>
     <string name="change_role">Schimbă rolul</string>
     <string name="sign_out">Ieșire</string>
+    <string name="menu">Meniu</string>
+    <string name="back">Înapoi</string>
+
+    <!-- Homes and the senior's page (seniors §8.2) -->
+    <string name="medic_home">Pacienții mei</string>
+    <string name="caregiver_home">Seniorii mei</string>
+    <string name="no_incidents">Nu sunt incidente.</string>
+    <string name="no_seniors">Nu aveți niciun senior.</string>
+    <string name="state_draft">Ciornă</string>
+    <string name="state_submitted">Trimis la DAS</string>
+    <string name="state_accepted">Acceptat</string>
+    <string name="state_active">Activ</string>
+    <string name="state_refused">Refuzat</string>
+    <string name="state_wrong_number">Număr greșit</string>
+    <string name="state_unreachable">De negăsit</string>
+    <string name="landline_number">%1$s · fix</string>
+    <string name="section_address">Adresă și acces</string>
+    <string name="section_call_window">Interval pentru apel</string>
+    <string name="section_caregivers">Aparținători</string>
+    <string name="no_caregivers">Niciun aparținător.</string>
+    <string name="no_address">Fără adresă.</string>
+    <string name="address_block">bl. %1$s</string>
+    <string name="address_staircase">sc. %1$s</string>
+    <string name="address_floor">et. %1$s</string>
+    <string name="address_apartment">ap. %1$s</string>
+    <string name="address_intercom">Interfon %1$s</string>
+    <string name="address_key_holder">Cheia: %1$s</string>
+    <string name="address_landmark">Reper: %1$s</string>
+    <string name="offline_banner">Fără conexiune</string>
+    <string name="no_connection">Fără conexiune.</string>
+    <string name="not_found">Nu a fost găsit.</string>
+    <string name="not_allowed">Nu aveți acces la această acțiune.</string>
 </resources>

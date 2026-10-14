@@ -9,7 +9,7 @@ Sentinela checks on seniors living alone with automated phone calls in Romanian,
 | Path | What | Toolchain | Agent guide |
 |---|---|---|---|
 | `backend/` | FastAPI service, the only part that touches the database | Python 3.14, uv, SQLAlchemy, Alembic | [backend/AGENTS.md](backend/AGENTS.md) |
-| `dashboard/` | DAS web dashboard | React 19, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
+| `dashboard/` | DAS web dashboard | Svelte 5, SvelteKit 3, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
 | `android/` | Phone app `:app`, watch app `:wear`, plain-Kotlin `:shared` | Kotlin, Compose, Gradle | [android/AGENTS.md](android/AGENTS.md) |
 | `.railway/` | Railway settings as code, staging and production | TypeScript, Railway CLI | [.railway/AGENTS.md](.railway/AGENTS.md) |
 | `docs/specs/sentinela/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |

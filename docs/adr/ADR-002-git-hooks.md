@@ -3,7 +3,8 @@
 **Status:** Proposed
 **Date:** 2026-10-11
 **Deciders:** the team of four (owners of backend, dashboard, Android, Wear OS)
-**Builds on:** [ADR-001](ADR-001-monorepo-and-delivery.md), mainly §2.4 and §2.5
+**Builds on:** [ADR-001](ADR-001-monorepo-and-delivery.md), mainly §2.4 and §2.5  
+**Amended by:** [ADR-003](ADR-003-dashboard-svelte.md) for `dashboard/` (piped hook with `svelte-check --tsgo`)
 
 ## Context
 

@@ -120,7 +120,7 @@ erDiagram
     CALL {
         uuid id PK
         uuid senior_id FK
-        string trigger "campaign, watch, home_node, manual, welcome"
+        string trigger "campaign, watch, home_node, manual, welcome, test (a scripted spike call, counted by no rule)"
         uuid campaign_id FK "optional"
         uuid previous_call_id FK "set on a redial"
         int attempt
@@ -232,7 +232,7 @@ Several rules from the other files are enforced by the database itself, so they 
 | One current code per senior | `senior_status.senior_id` is the primary key |
 | At most one unresolved incident per senior | A unique index over `incident.senior_id` limited to rows in `open` or `in_progress` |
 | An incident is taken once | Taking updates the row only where `status` is still `open`; a second taker changes nothing and is told who has it |
-| At most one senior grant per user ([auth-layer.md](../auth-layer.md) AL7) | A unique index over `grant.user_id` limited to rows with role `senior`, added with the seniors migration |
+| At most one senior grant per user ([auth-layer.md](../auth-layer.md) AL7), so one mobile number signs in as one senior ([seniors-and-enrollment.md](../seniors-and-enrollment.md) SE10) | A unique index over `grant.user_id` limited to rows with role `senior`. Saving a second senior with that mobile is refused with `phone_taken` |
 
 ## 4. Notes on specific choices
 

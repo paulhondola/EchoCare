@@ -20,7 +20,7 @@ flowchart TB
         CA["Android app<br/>caregiver role"]
         MA["Android app<br/>medic role, tablet"]
         DA["Android app<br/>DAS role, red incidents"]
-        WD["Web dashboard<br/>DAS desk, React"]
+        WD["Web dashboard<br/>DAS desk, Svelte"]
         DP["On-duty DAS phone<br/>also runs the DAS role"]
     end
 
@@ -64,7 +64,7 @@ flowchart TB
 | FastAPI service | All reads and writes, calls, scheduling, event intake, the rules and the matrix | The only part that changes a code, makes a phone ring or touches the database |
 | PostgreSQL | The single store | Reached only by FastAPI, over Railway's private network |
 | Android app | One app, four roles | The roles granted to the signed-in number decide which screens appear. The medic layout targets a tablet and also works on a phone. The DAS role shows only red incidents (G15) |
-| Web dashboard | DAS at the desk | React, built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
+| Web dashboard | DAS at the desk | Svelte 5 and SvelteKit 3 (ADR-003), built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
 | Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
 | Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over, sends the caregiver notice SMS |
@@ -104,6 +104,7 @@ Nobody chooses a role. A role is a **grant** made by someone allowed to make it,
 | The setup script, run by the team | DAS employees | Name and phone number |
 | A DAS employee | Medics, and other DAS employees | Name, phone number, practice (for a medic) |
 | A medic | A senior, and the senior's caregivers | The registration form: the senior's own number, and each caregiver's name, relation and number |
+| A DAS employee | Caregivers of a senior that is submitted or further along, and that senior's own grant when it changes the senior's number | The caregiver's name, relation and number, or the senior's new number ([seniors-and-enrollment.md](../seniors-and-enrollment.md) SE9, SE11) |
 
 A grant creates the person's user row immediately, before they ever sign in. At first sign-in FastAPI attaches the Firebase account to that row. The phone number stays the key on every request: if a different Firebase account signs in with the number, FastAPI replaces the stored one and logs a warning ([auth-layer.md](../auth-layer.md) AL4).
 
@@ -121,7 +122,7 @@ Phone numbers are normalized to the international format (+40…) on every write
 
 **Twilio** signs every callback; FastAPI rejects unsigned or wrongly signed requests.
 
-**One place enforces permissions: FastAPI.** Every endpoint checks the caller's grants and, where a senior is involved, that the grant covers that senior. The app's role screens are a convenience, not a protection. A caller may do what any of their grants allows; the role chosen in the app only picks screens. For one senior, the caller sees what the grants covering that senior allow in the table below. A medic covers a senior when they hold a medic grant and registered that senior. A senior outside the caller's reach answers "not found", as an id that does not exist does. A user holds at most one senior grant: when a couple shares one mobile, the second senior has no app role and still receives every call ([auth-layer.md](../auth-layer.md) AL2, AL7, AL8).
+**One place enforces permissions: FastAPI.** Every endpoint checks the caller's grants and, where a senior is involved, that the grant covers that senior. The app's role screens are a convenience, not a protection. A caller may do what any of their grants allows; the role chosen in the app only picks screens. For one senior, the caller sees what the grants covering that senior allow in the table below. A medic covers a senior when they hold a medic grant and registered that senior. A senior outside the caller's reach answers "not found", as an id that does not exist does. A user holds at most one senior grant, so one mobile number signs in as one senior: registering a second senior with that mobile is refused, while a landline, which signs nobody in, can be shared ([auth-layer.md](../auth-layer.md) AL2, AL7, AL8; [seniors-and-enrollment.md](../seniors-and-enrollment.md) SE10). The medic who registered a senior, and DAS for a senior it reaches, may edit the registration and its caregivers (SE9).
 
 **Who sees which seniors**
 

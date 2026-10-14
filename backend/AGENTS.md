@@ -7,16 +7,19 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 ```
 backend/
 ├── app/
-│   ├── main.py        FastAPI app; every route on the /api router, docs at /api/docs
-│   ├── settings.py    pydantic-settings from env / .env; check_environment()
-│   ├── db.py          async engine (asyncpg), Session and get_session, declarative Base
-│   ├── models.py      tables (05), only those the built features use
-│   ├── auth.py        Firebase token check, the caller and their grants, refusals (auth-layer §3)
-│   ├── staff.py       granting staff roles, for POST /staff and grant_das.py
-│   └── phones.py      phone numbers to E.164
+│   ├── main.py        FastAPI app; mounts domain routers on /api, docs at /api/docs
+│   ├── core/          settings, async db engine/session, phone E.164 normalization
+│   ├── models/        declarative Base and all SQLAlchemy database models re-exported
+│   ├── auth/          Firebase token verification, caller authentication, push tokens, router
+│   ├── staff/         staff roles (medic, DAS), permissions, router
+│   ├── seniors/       seniors, caregivers, consents, enrollments, router
+│   ├── incidents/     incident lifecycle, refusal reasons, detailed views, router
+│   ├── status/        alarm phrase normalization, status matrix & engine
+│   └── voice/         Twilio signatures, Call lifecycle, dialogue relay, router
 ├── scripts/
 │   ├── grant_das.py   the setup script (G6), run inside the api container
-│   └── dev_token.py   a real sign-in token for a test number, for curl and Swagger
+│   ├── dev_token.py   a real sign-in token for a test number, for curl and Swagger
+│   └── place_call.py  a scripted test call to a registered senior's number (S1)
 ├── alembic/
 │   ├── env.py         refuses to migrate any non-local database off Railway
 │   └── versions/      migrations, frozen once on main
@@ -28,8 +31,8 @@ backend/
 ## Scope
 
 - Endpoints, call handling, the scheduler, the status engine and the database all live here. The contract is [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md), the tables are [05-data-model.md](../docs/specs/sentinela/05-data-model.md).
-- Every route goes on the `api` router (prefix `/api`) and must be declared before `app.include_router(api)` at the bottom of `main.py`.
-- New settings go on `Settings` in `settings.py` and in `.env.example`.
+- Domain routers are mounted on the `api` router (prefix `/api`) in `main.py`.
+- New settings go on `Settings` in `app/core/settings.py` and in `.env.example`.
 - Clients (`dashboard/`, `android/`) never read the database; they go through this API.
 
 ## Commands

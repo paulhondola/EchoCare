@@ -49,10 +49,14 @@ android {
             val apiUrl = localProps.getProperty("sentinela.apiUrl")
                 ?: "https://api-staging-11c9.up.railway.app"
             buildConfigField("String", "API_URL", "\"$apiUrl\"")
+            // How often an open screen re-reads (06 §3). sentinela.rereadSeconds=10 for a demo.
+            val reread = localProps.getProperty("sentinela.rereadSeconds") ?: "30"
+            buildConfigField("int", "REREAD_SECONDS", reread)
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
             buildConfigField("String", "API_URL", "\"https://api-production-ac97.up.railway.app\"")
+            buildConfigField("int", "REREAD_SECONDS", "30")
             optimization {
                 enable = true
             }
@@ -87,6 +91,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

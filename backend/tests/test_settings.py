@@ -1,6 +1,6 @@
 import pytest
 
-from app.settings import Settings, check_environment, is_local_db
+from app.core.settings import Settings, check_environment, is_local_db
 
 
 def test_railway_url_gets_asyncpg_driver():
@@ -45,3 +45,24 @@ def test_allowed_combinations(monkeypatch):
     check(
         monkeypatch, REMOTE, scheduler=True, deployment_id="dep-1"
     )  # deployed on Railway
+
+
+def test_s3_storage_settings():
+    s_default = Settings(database_url=LOCAL)
+    assert s_default.s3_bucket_name == ""
+    assert s_default.s3_endpoint == ""
+    assert s_default.s3_region == "ams"
+
+    s_custom = Settings(
+        database_url=LOCAL,
+        s3_bucket_name="my-bucket",
+        s3_endpoint="https://storage.ams.railway.app",
+        s3_access_key_id="test-key",
+        s3_secret_access_key="test-secret",
+        s3_region="ams",
+    )
+    assert s_custom.s3_bucket_name == "my-bucket"
+    assert s_custom.s3_endpoint == "https://storage.ams.railway.app"
+    assert s_custom.s3_access_key_id == "test-key"
+    assert s_custom.s3_secret_access_key == "test-secret"
+    assert s_custom.s3_region == "ams"

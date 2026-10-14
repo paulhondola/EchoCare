@@ -16,3 +16,6 @@ dist/
 
 # lefthook: personal overrides, such as rc: for a Git GUI's PATH (ADR-002)
 lefthook-local.yml
+
+# SvelteKit
+.svelte-kit/
