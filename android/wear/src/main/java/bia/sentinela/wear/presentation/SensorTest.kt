@@ -9,6 +9,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.health.connect.HealthPermissions
 import android.os.SystemClock
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,8 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import bia.sentinela.wear.R
+import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.sqrt
 import kotlinx.coroutines.delay
 
@@ -46,6 +49,14 @@ private val PERMISSIONS =
 
 // 50 readings a second, the rate fall detection needs (P19)
 private const val ACCELEROMETER_PERIOD_US = 20_000
+
+// Per-trial measurements for tuning fall detection (P19). The detector's own thresholds go to :shared.
+private const val FREE_FALL_G = 0.4f
+
+// Only a peak above this starts timing the stillness after it, so standing still from the start does not count
+private const val IMPACT_G = 1.5f
+private const val STILL_TOLERANCE_G = 0.1f
+private const val TRIAL_LOG_TAG = "SentinelaTrial"
 
 private fun Context.hasPermissions() = PERMISSIONS.all {
     checkSelfPermission(it) ==
@@ -62,15 +73,55 @@ private class Readings {
     var maxG by mutableFloatStateOf(0f)
     var samplesPerSecond by mutableFloatStateOf(0f)
     var rangeG by mutableFloatStateOf(0f)
+    var trial by mutableIntStateOf(1)
+    var freeFallMs by mutableIntStateOf(0)
+    var stillAfterPeakS by mutableFloatStateOf(0f)
 
     private var firstStepCount = -1f
     private var windowStartNs = 0L
     private var windowSamples = 0
     private var shownAtNs = 0L
 
-    fun resetExtremes() {
+    private var trialStartMs = SystemClock.elapsedRealtime()
+    private var stepsAtTrialStart = 0
+    private var heartRateAtTrialStart = 0
+    private var freeFallStartNs = -1L
+    private var longestFreeFallNs = 0L
+    private var afterPeak = false
+    private var stillStartNs = -1L
+    private var longestStillNs = 0L
+
+    // Logs the trial that just ended, for `adb logcat -s SentinelaTrial`, then starts the next one
+    fun nextTrial() {
+        Log.i(
+            TRIAL_LOG_TAG,
+            String.format(
+                Locale.ROOT,
+                "trial=%d seconds=%d minG=%.2f maxG=%.2f freeFallMs=%d stillAfterPeakS=%.1f steps=%d heartRate=%d->%d",
+                trial,
+                (SystemClock.elapsedRealtime() - trialStartMs) / 1_000,
+                minG,
+                maxG,
+                longestFreeFallNs / 1_000_000,
+                longestStillNs / 1e9f,
+                steps - stepsAtTrialStart,
+                heartRateAtTrialStart,
+                heartRate
+            )
+        )
+        trial++
         minG = Float.MAX_VALUE
         maxG = 0f
+        freeFallMs = 0
+        stillAfterPeakS = 0f
+        trialStartMs = SystemClock.elapsedRealtime()
+        stepsAtTrialStart = steps
+        heartRateAtTrialStart = heartRate
+        freeFallStartNs = -1L
+        longestFreeFallNs = 0L
+        afterPeak = false
+        stillStartNs = -1L
+        longestStillNs = 0L
     }
 
     val listener = object : SensorEventListener {
@@ -110,6 +161,27 @@ private class Readings {
         if (g < minG) minG = g
         if (g > maxG) maxG = g
 
+        val t = event.timestamp
+        // The longest stretch below the free-fall threshold: walking also dips below it, but only briefly
+        if (g < FREE_FALL_G) {
+            if (freeFallStartNs < 0) freeFallStartNs = t
+            longestFreeFallNs = maxOf(longestFreeFallNs, t - freeFallStartNs)
+        } else {
+            freeFallStartNs = -1L
+        }
+        // The longest stillness after the strongest peak; a higher peak starts it over
+        if (g > IMPACT_G && g >= maxG) {
+            afterPeak = true
+            stillStartNs = -1L
+            longestStillNs = 0L
+        }
+        if (afterPeak && abs(g - 1f) < STILL_TOLERANCE_G) {
+            if (stillStartNs < 0) stillStartNs = t
+            longestStillNs = maxOf(longestStillNs, t - stillStartNs)
+        } else {
+            stillStartNs = -1L
+        }
+
         if (windowStartNs == 0L) windowStartNs = event.timestamp
         windowSamples++
         val windowNs = event.timestamp - windowStartNs
@@ -121,6 +193,8 @@ private class Readings {
         // The current value at most ten times a second, to spare recomposition
         if (event.timestamp - shownAtNs >= 100_000_000L) {
             accelerationG = g
+            freeFallMs = (longestFreeFallNs / 1_000_000).toInt()
+            stillAfterPeakS = longestStillNs / 1e9f
             shownAtNs = event.timestamp
         }
     }
@@ -177,14 +251,14 @@ fun SensorTestScreen() {
     ScreenScaffold(
         scrollState = listState,
         edgeButton = {
-            EdgeButton(onClick = readings::resetExtremes) {
-                Text(stringResource(R.string.reset_min_max))
+            EdgeButton(onClick = readings::nextTrial) {
+                Text(stringResource(R.string.next_trial))
             }
         }
     ) { contentPadding ->
         TransformingLazyColumn(contentPadding = contentPadding, state = listState) {
             item {
-                ListHeader { Text(stringResource(R.string.sensor_test_title)) }
+                ListHeader { Text(stringResource(R.string.trial_title, readings.trial)) }
             }
             if (!granted) {
                 item { Line(stringResource(R.string.permission_needed)) }
@@ -225,6 +299,8 @@ fun SensorTestScreen() {
                     )
                 }
             }
+            item { Line(stringResource(R.string.free_fall, readings.freeFallMs)) }
+            item { Line(stringResource(R.string.still_after_peak, readings.stillAfterPeakS)) }
             item {
                 Line(
                     stringResource(R.string.sample_rate, readings.samplesPerSecond, readings.rangeG)

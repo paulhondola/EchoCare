@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Sentinela</string>
-    <string name="sensor_test_title">Test senzori</string>
+    <string name="trial_title">Încercarea %1$d</string>
     <string name="permission_needed">Sentinela are nevoie de acces la puls și la activitate.</string>
     <string name="grant_permission">Permite accesul</string>
     <string name="heart_rate">Puls: %1$d bpm</string>
@@ -11,5 +11,7 @@
     <string name="acceleration">Accelerație: %1$.2f g</string>
     <string name="acceleration_min_max">min %1$.2f g · max %2$.2f g</string>
     <string name="sample_rate">%1$.0f valori/s · până la %2$.0f g</string>
-    <string name="reset_min_max">Resetează</string>
+    <string name="free_fall">cădere liberă: %1$d ms</string>
+    <string name="still_after_peak">nemișcat după impact: %1$.1f s</string>
+    <string name="next_trial">Următoarea</string>
 </resources>
