@@ -8,26 +8,34 @@ The DAS web dashboard (spec G15): a Svelte 5 + SvelteKit 3 single-page app ([ADR
 dashboard/
 ├── src/
 │   ├── app.html                     SvelteKit root template
-│   ├── styles.css                   Tailwind v4 + DaisyUI 5 entry, light and dark themes
+│   ├── styles.css                   Tailwind v4 + DaisyUI 5 entry: the dark `sentinela` theme, spec 07 tokens, sn-* classes
 │   ├── routes/
 │   │   ├── +layout.ts               export const ssr = false;
-│   │   ├── +layout.svelte           Root auth gate (auth-layer §7.1) and header navigation
+│   │   ├── +layout.svelte           Root auth gate (auth-layer §7.1); signed in, renders the Shell
 │   │   ├── +page.svelte             / : IncidentBoard
+│   │   ├── seniors/
+│   │   │   └── +page.svelte         /seniors : Seniors, Monitorizare seniori
 │   │   ├── enrollments/
 │   │   │   └── +page.svelte         /enrollments : Enrollments (UC-04)
 │   │   └── staff/
 │   │       └── +page.svelte         /staff : Staff (UC-14)
 │   ├── features/                    domain feature components
+│   │   ├── shell/                   Shell, Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
-│   │   ├── incidents/               IncidentBoard, IncidentCard, IncidentDetails modal
+│   │   ├── incidents/               IncidentBoard (Cod Roșu banner, board and table), IncidentCard, IncidentDetails slide-over
+│   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over
 │   │   ├── enrollments/             Enrollments: review and Acceptă
-│   │   └── staff/                   Staff: member list and adding medic or DAS
+│   │   ├── staff/                   Staff: member list, who is on duty, adding medic or DAS
+│   │   └── system/                  SystemHealthIndicator: the sidebar's system line
+│   ├── ui/                          presentational pieces with no data: Icon.svelte (Lucide)
 │   ├── services/                    apiFetch, getMe, Firebase auth
 │   │   ├── api.ts
 │   │   └── firebase.ts
 │   ├── utils/                       formatting and helpers
-│   │   ├── phone.ts                 typed number → E.164, with phone.test.ts
-│   │   ├── labels.ts                shared Romanian labels, date format and address line
+│   │   ├── phone.ts                 typed number → E.164 and back for display, with phone.test.ts
+│   │   ├── labels.ts                shared Romanian labels, tones, date formats and address line
+│   │   ├── incidents.ts             board columns, filter, relative times, with incidents.test.ts
+│   │   ├── csv.ts                   CSV text and download, with csv.test.ts
 │   │   └── poll.svelte.ts           shared reactive timer utility (04 §6), with poll.test.ts
 │   └── vite.config.ts               Vite+: SvelteKit SPA adapter, Tailwind v4, lint, fmt
 ├── tsconfig.json                    extends "$app/tsconfig"
@@ -40,8 +48,8 @@ dashboard/
 
 - The DAS team's screens: incidents, the red hand-over, live updates. What they show and do is in [02-use-cases.md](../docs/specs/sentinela/02-use-cases.md) and [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md).
 - All data comes from the API at `import.meta.env.VITE_API_URL`. No database access and no business rules here; permissions are enforced by FastAPI.
-- Styling is Tailwind v4 (`@tailwindcss/vite`) with DaisyUI 5 components (`btn`, `card`, `badge`, `alert`). Use DaisyUI's semantic colours (`error`, `warning`, `success`, `base-*`) so both themes work, and write full class names in quotes (e.g. `class={["tab", active && "tab-active"]}`): Tailwind only finds classes it can read whole in the source.
-- Single-page application mode with SvelteKit 3: no `load` functions; all reads run client-side inside components after sign-in via `poll()` in `src/utils/poll.svelte.ts`. Relative imports are used instead of `#lib` or `$lib`.
+- Styling is Tailwind v4 (`@tailwindcss/vite`) on the design in [07-dashboard-stitch-spec.md](../docs/specs/sentinela/07-dashboard-stitch-spec.md): one dark theme, square corners, 2px section rules, flush-left button labels, Archivo with JetBrains Mono for ids, times and numbers. Take colours from the tokens in `styles.css` (`canvas`, `subtle`, `card`, `line`, `fg-muted`, `link`, and `rosu`, `galben`, `verde` for the codes), buttons from `sn-btn` and its variants, and icons from `ui/Icon.svelte`. DaisyUI 5 stays for inputs, spinners and modals, themed to match. Write full class names in quotes (e.g. `class={["tab", active && "tab-active"]}`): Tailwind only finds classes it can read whole in the source.
+- Single-page application mode with SvelteKit 3: no `load` functions; all reads run client-side after sign-in. The Shell polls incidents, seniors, enrollments, staff and health once through `poll()` (`src/utils/poll.svelte.ts`) and pages read them with `getLive()`, so the sidebar's counters and the pages share each read. Relative imports are used instead of `#lib` or `$lib`.
 
 ## Commands
 

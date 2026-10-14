@@ -1,37 +1,31 @@
 <script lang="ts">
-  import { fetchSystemHealth } from "../../services/api";
-  import { poll } from "../../utils/poll.svelte";
+  import { getLive } from "../shell/live.svelte";
 
-  const REFRESH_MS = 30_000;
+  const live = getLive();
 
-  function describe(e: unknown): string {
-    return e instanceof Error ? e.message : String(e);
-  }
-
-  const poller = poll(fetchSystemHealth, REFRESH_MS, describe);
+  // "2.1 ms" under ten, whole milliseconds above
+  const ms = (v: number) => `${v < 10 ? v.toFixed(1) : Math.round(v)} ms`;
 </script>
 
-{#if poller.load.kind === "ok"}
-  {@const h = poller.load.data}
-  {@const isOk = h.status === "ok" && h.database.status === "ok"}
-  <span
-    class="flex items-center gap-1.5 rounded-full bg-base-200 px-2.5 py-0.5 text-xs text-base-content/80 font-mono"
-    title={`Mediu: ${h.env} · DB: ${h.database.status} (${h.database.latency_ms ?? "—"} ms)`}
-  >
+<!-- The sidebar's system line (04 §1 System health) -->
+<div class="mt-2.5 flex items-center gap-[7px] text-xs">
+  {#if live.health.load.kind === "ok"}
+    {@const h = live.health.load.data}
+    {@const isOk = h.status === "ok" && h.database.status === "ok"}
     <span
-      class={["inline-block size-2 rounded-full", isOk ? "bg-success" : "bg-error animate-pulse"]}
+      class={["size-2", isOk ? "bg-verde shadow-[0_0_8px_rgba(63,185,80,.7)]" : "sn-pulse bg-rosu"]}
     ></span>
-    <span>{isOk ? "Sistem OK" : "Degradat"}</span>
+    <span title={`Mediu: ${h.env} · Bază de date: ${h.database.status}`}>
+      {isOk ? "Sistem activ" : "Sistem degradat"}
+    </span>
     {#if h.database.latency_ms !== null}
-      <span class="text-base-content/40 text-[10px]">{Math.round(h.database.latency_ms)}ms</span>
+      <span class="ml-auto font-mono text-[11px] text-fg-muted">{ms(h.database.latency_ms)}</span>
     {/if}
-  </span>
-{:else if poller.load.kind === "error"}
-  <span
-    class="flex items-center gap-1.5 rounded-full bg-error/10 px-2.5 py-0.5 text-xs text-error font-mono"
-    title={poller.load.message}
-  >
-    <span class="inline-block size-2 rounded-full bg-error animate-pulse"></span>
-    <span>Eroare conexiune</span>
-  </span>
-{/if}
+  {:else if live.health.load.kind === "error"}
+    <span class="sn-pulse size-2 bg-rosu"></span>
+    <span title={live.health.load.message}>Fără conexiune la API</span>
+  {:else}
+    <span class="size-2 bg-fg-subtle"></span>
+    <span class="text-fg-muted">Se verifică…</span>
+  {/if}
+</div>

@@ -215,18 +215,21 @@ export async function grantStaff(grant: {
 }
 
 // One row of GET /seniors and GET /enrollments (04 §1). Mirrors SeniorSummary in
-// backend/app/seniors.py. The state stays a string: the server adds states later.
+// backend/app/seniors/service.py. The state stays a string: the server adds states later.
 export interface SeniorSummary {
   id: string;
   full_name: string;
   form_of_address: string;
+  phone_e164: string;
+  phone_is_landline: boolean;
   enrollment_state: string;
 }
 
-// GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors.py.
+// GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors/service.py.
 export type SeniorView = IncidentDetail["senior"] & {
   call_window: string | null;
   enrollment_state: string;
+  medic: { display_name: string; practice: string | null };
   caregivers: {
     user_id: string;
     display_name: string;
@@ -234,6 +237,13 @@ export type SeniorView = IncidentDetail["senior"] & {
     relation: string | null;
   }[];
 };
+
+/** Monitorizare seniori: for DAS every senior past `draft`, by name (04 §1). */
+export async function fetchSeniors(signal?: AbortSignal): Promise<SeniorSummary[]> {
+  const r = await apiFetch("/api/seniors?role=das", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as SeniorSummary[];
+}
 
 /** Cereri de înrolare: the seniors in `submitted`, oldest first (04 §1), DAS only. */
 export async function fetchEnrollments(signal?: AbortSignal): Promise<SeniorSummary[]> {
