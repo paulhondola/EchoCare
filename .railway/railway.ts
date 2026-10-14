@@ -28,9 +28,9 @@ export default defineRailway((ctx) => {
   // Postgres database pinned to EU West (europe-west4-drams3a)
   const db = postgres("Postgres", { region: REGION });
   // S3-compatible storage bucket in Europe (Amsterdam)
-  const storage = bucket("storage", { region: "ams" });
+  const storage = bucket("Storage", { region: "ams" });
 
-  const api = service("api", {
+  const api = service("Sentinela API", {
     // checkSuites: Wait for CI, so a red workflow never deploys
     source: github(REPO, { branch, rootDirectory: "/backend", checkSuites: true }),
     // watch paths: only backend changes redeploy the API and drop live calls
@@ -59,7 +59,7 @@ export default defineRailway((ctx) => {
     },
   });
 
-  const dashboard = service("dashboard", {
+  const dashboard = service("DAS Dashboard", {
     source: github(REPO, { branch, rootDirectory: "/dashboard", checkSuites: true }),
     build: { builder: "DOCKERFILE", watchPatterns: ["/dashboard/**"] },
     replicas: { [REGION]: 1 },
