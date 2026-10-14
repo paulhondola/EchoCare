@@ -1,6 +1,6 @@
 # .railway: Railway infrastructure as code
 
-[railway.ts](railway.ts) declares the whole Railway project, `Sentinela`, for both environments: the `api` and `dashboard` services, the `Postgres` database, the S3-compatible `storage` bucket, and every setting and variable. That covers the GitHub source and branch, root directory, watch paths, Dockerfile builder, Wait for CI, migrations before deploy, health check, draining and variables.
+[railway.ts](railway.ts) declares the whole Railway project, `Sentinela`, for both environments: the `Sentinela API` and `DAS Dashboard` services, the `Postgres` database, the S3-compatible `Storage` bucket, and every setting and variable. That covers the GitHub source and branch, root directory, watch paths, Dockerfile builder, Wait for CI, migrations before deploy, health check, draining and variables.
 
 | Environment | Deploys from | Used by |
 |---|---|---|
