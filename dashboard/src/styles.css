@@ -42,6 +42,23 @@
   --noise: 0;
 }
 
+/* Archivo for the interface, JetBrains Mono for ids, times and numbers (spec 07 §2), served
+   from here rather than Google's CDN: the Android app's variable fonts (OFL, licences beside
+   them), cut to Latin and Romanian with fonttools and Archivo pinned to its normal width. */
+@font-face {
+  font-family: "Archivo";
+  src: url("./fonts/archivo.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./fonts/jetbrains-mono.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
 /* Design tokens (spec 07 §2.1). The codes take their Romanian names from the status model (03). */
 @theme {
   --font-sans: "Archivo", system-ui, sans-serif;

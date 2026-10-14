@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # S3-compatible storage bucket (Railway storage for avatars, logs, blob data)
     s3_bucket_name: str = ""
     s3_endpoint: str = ""
+    # The host in presigned URLs, for clients that can't reach s3_endpoint (Compose's
+    # minio:9000); empty means s3_endpoint.
+    s3_public_endpoint: str = ""
     s3_access_key_id: str = ""
     s3_secret_access_key: str = ""
     s3_region: str = "ams"

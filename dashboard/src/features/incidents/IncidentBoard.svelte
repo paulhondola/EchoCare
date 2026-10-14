@@ -1,13 +1,11 @@
 <script lang="ts">
-  import { takeIncident, type Incident, type IncidentStatus } from "../../services/api";
+  import type { IncidentStatus } from "../../services/api";
   import Icon, { type IconName } from "../../ui/Icon.svelte";
-  import { columns, matchesIncident, shortId, since } from "../../utils/incidents";
+  import { columns, matchesIncident, shortId, since, type DossierTab } from "../../utils/incidents";
   import { time } from "../../utils/labels";
   import { getLive } from "../shell/live.svelte";
   import PageHeader from "../shell/PageHeader.svelte";
-  import { refusalMessage } from "./commands";
   import IncidentCard from "./IncidentCard.svelte";
-  import IncidentDetails, { type DossierTab } from "./IncidentDetails.svelte";
 
   const live = getLive();
   const incidents = live.incidents;
@@ -60,73 +58,17 @@
 
   let view = $state<"board" | "table">("board");
   let query = $state("");
-  let selected = $state<{ id: string; tab: DossierTab } | null>(null);
-  let bannerBusy = $state(false);
-  let bannerError = $state<string | null>(null);
 
   const all = $derived(incidents.load.kind === "ok" ? incidents.load.data : []);
   const now = $derived(incidents.load.kind === "ok" ? incidents.load.at : Date.now());
   const byStatus = $derived(columns(all.filter((i) => matchesIncident(i, query))));
-  // The banner ignores the filter: a red is never hidden by a search
-  const openAll = $derived(columns(all).open);
-  const alert = $derived(openAll[0]);
-  const selectedIncident = $derived(selected ? all.find((i) => i.id === selected?.id) : undefined);
   const rows = $derived([...byStatus.open, ...byStatus.in_progress, ...byStatus.resolved]);
 
+  // The Shell shows the dossier, as it does for the Cod Roșu banner on every page
   function open(id: string, tab: DossierTab = "access") {
-    selected = { id, tab };
-  }
-
-  function changed(i: Incident) {
-    incidents.update((list) => list.map((x) => (x.id === i.id ? i : x)));
-  }
-
-  function takeAlert(i: Incident) {
-    bannerBusy = true;
-    bannerError = null;
-    takeIncident(i.id)
-      .then(changed)
-      .catch((e: unknown) => {
-        bannerError = refusalMessage(e, "take");
-        incidents.reload();
-      })
-      .finally(() => {
-        bannerBusy = false;
-      });
+    live.dossier = { id, tab };
   }
 </script>
-
-{#if alert}
-  <!-- Cod Roșu: the longest-waiting open incident, above everything (UC-11, spec 07 §1) -->
-  <section
-    aria-label="Cod Roșu"
-    class="flex flex-wrap items-center gap-3 border-b-2 border-rosu bg-rosu-strong/20 px-5 py-2.5"
-  >
-    <span class={["size-2.5 flex-none bg-rosu", live.sound && "sn-pulse"]}></span>
-    <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
-      <span class="font-extrabold tracking-[0.06em] text-rosu-fg">COD ROȘU</span>
-      <span class="font-semibold">{alert.senior_full_name} — {alert.reason}</span>
-      <span class="text-fg-soft">deschis {since(alert.opened_at, now)}</span>
-      {#if openAll.length > 1}
-        <span class="text-fg-soft">· încă {openAll.length - 1} deschise</span>
-      {/if}
-    </div>
-    {#if bannerError}
-      <span role="alert" class="text-rosu-fg">{bannerError}</span>
-    {/if}
-    <button
-      type="button"
-      class="sn-btn sn-btn-danger"
-      disabled={bannerBusy}
-      onclick={() => takeAlert(alert)}
-    >
-      <Icon name="zap" size={13} stroke={2.2} />Preiau cazul
-    </button>
-    <button type="button" class="sn-btn sn-btn-outline" onclick={() => open(alert.id)}>
-      Vezi dosar
-    </button>
-  </section>
-{/if}
 
 <PageHeader title="Dispecerat Incidente">
   <div class="flex gap-0.5" role="tablist" aria-label="Vizualizare">
@@ -198,7 +140,7 @@
                 incident={i}
                 {now}
                 onOpen={(tab) => open(i.id, tab)}
-                onChanged={changed}
+                onChanged={live.incidentChanged}
                 onStale={() => incidents.reload()}
               />
             {:else}
@@ -274,17 +216,4 @@
       </table>
     </div>
   {/if}
-{/if}
-
-{#if selected && selectedIncident}
-  {#key selected}
-    <IncidentDetails
-      incident={selectedIncident}
-      tab={selected.tab}
-      {now}
-      onClose={() => (selected = null)}
-      onChanged={changed}
-      onStale={() => incidents.reload()}
-    />
-  {/key}
 {/if}

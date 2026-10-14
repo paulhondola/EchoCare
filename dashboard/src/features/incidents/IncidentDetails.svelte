@@ -1,7 +1,3 @@
-<script lang="ts" module>
-  export type DossierTab = "access" | "transcript" | "event" | "resolve";
-</script>
-
 <script lang="ts">
   import { onMount } from "svelte";
   import {
@@ -14,8 +10,9 @@
     type IncidentOutcome,
     type SeniorView,
   } from "../../services/api";
+  import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
-  import { shortId, since } from "../../utils/incidents";
+  import { shortId, since, type DossierTab } from "../../utils/incidents";
   import { address, clock, OUTCOMES, time } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
   import { refusalMessage } from "./commands";
@@ -80,8 +77,6 @@
   let load = $state<Load<IncidentDetail>>({ kind: "loading" });
   let senior = $state<SeniorView | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
-  let copied = $state<string | null>(null);
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let outcome = $state<IncidentOutcome | "">("");
   let note = $state("");
   let busy = $state(false);
@@ -89,7 +84,6 @@
 
   onMount(() => {
     if (dialogEl && !dialogEl.open) dialogEl.showModal();
-    return () => clearTimeout(copyTimer);
   });
 
   // Read again whenever the board sees the incident change hands or state
@@ -124,13 +118,6 @@
       .catch(() => {});
     return () => ctrl.abort();
   });
-
-  function copy(key: string, text: string) {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    copied = key;
-    clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => (copied = null), 1400);
-  }
 
   function send(action: "take" | "resolve", command: () => Promise<Incident>) {
     busy = true;
@@ -248,37 +235,25 @@
         {@const line = address(s)}
         <div class="text-sm">{line}</div>
         <div class="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
-            onclick={() => copy("addr", line)}
-          >
-            <Icon name="copy" size={13} />{copied === "addr" ? "Copiat" : "Copiază adresa"}
-          </button>
+          <CopyButton class="h-7 px-2.5 text-xs" icon="copy" label="Copiază adresa" text={line} />
           {#if s.intercom_code}
-            <button
-              type="button"
-              class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
-              onclick={() => copy("ic", s.intercom_code ?? "")}
-            >
-              <Icon name="key" size={13} />
-              <span class="font-mono font-medium">
-                {copied === "ic" ? "Copiat" : `Interfon: ${s.intercom_code}`}
-              </span>
-            </button>
+            <CopyButton
+              class="h-7 px-2.5 text-xs"
+              icon="key"
+              mono
+              label={`Interfon: ${s.intercom_code}`}
+              text={s.intercom_code}
+            />
           {/if}
           {#if e && e.latitude !== null && e.longitude !== null}
             {@const gps = `${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)}`}
-            <button
-              type="button"
-              class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
-              onclick={() => copy("gps", gps)}
-            >
-              <Icon name="navigation" size={13} />
-              <span class="font-mono font-medium"
-                >{copied === "gps" ? "Copiat" : `GPS: ${gps}`}</span
-              >
-            </button>
+            <CopyButton
+              class="h-7 px-2.5 text-xs"
+              icon="navigation"
+              mono
+              label={`GPS: ${gps}`}
+              text={gps}
+            />
           {/if}
         </div>
         {#if incident.status === "open"}

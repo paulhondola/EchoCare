@@ -47,14 +47,28 @@ def test_allowed_combinations(monkeypatch):
     )  # deployed on Railway
 
 
-def test_s3_storage_settings():
-    s_default = Settings(database_url=LOCAL)
+S3_VARS = (
+    "S3_BUCKET_NAME",
+    "S3_ENDPOINT",
+    "S3_PUBLIC_ENDPOINT",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+    "S3_REGION",
+)
+
+
+def test_s3_storage_settings(monkeypatch):
+    for name in S3_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AWS_REGION", "us-east-1")  # boto3's own; settings ignore it
+    s_default = Settings(database_url=LOCAL, _env_file=None)
     assert s_default.s3_bucket_name == ""
     assert s_default.s3_endpoint == ""
     assert s_default.s3_region == "ams"
 
     s_custom = Settings(
         database_url=LOCAL,
+        _env_file=None,
         s3_bucket_name="my-bucket",
         s3_endpoint="https://storage.ams.railway.app",
         s3_access_key_id="test-key",
@@ -66,3 +80,19 @@ def test_s3_storage_settings():
     assert s_custom.s3_access_key_id == "test-key"
     assert s_custom.s3_secret_access_key == "test-secret"
     assert s_custom.s3_region == "ams"
+
+
+def test_s3_settings_from_railway_env(monkeypatch):
+    # The names railway.ts maps the bucket's variables to.
+    env = {
+        "S3_BUCKET_NAME": "bucket",
+        "S3_ENDPOINT": "https://t3.storageapi.dev",
+        "S3_PUBLIC_ENDPOINT": "https://public.example",
+        "S3_ACCESS_KEY_ID": "key",
+        "S3_SECRET_ACCESS_KEY": "secret",
+        "S3_REGION": "auto",
+    }
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    s = Settings(database_url=LOCAL, _env_file=None)
+    assert {name: getattr(s, name.lower()) for name in env} == env
