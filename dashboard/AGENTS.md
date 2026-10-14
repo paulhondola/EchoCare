@@ -8,7 +8,8 @@ The DAS web dashboard (spec G15): a Svelte 5 + SvelteKit 3 single-page app ([ADR
 dashboard/
 ├── src/
 │   ├── app.html                     SvelteKit root template
-│   ├── styles.css                   Tailwind v4 + DaisyUI 5 entry: the dark `sentinela` theme, spec 07 tokens, sn-* classes
+│   ├── styles.css                   Tailwind v4 + DaisyUI 5 entry: the dark `sentinela` theme, spec 07 tokens, sn-* classes, @font-face
+│   ├── fonts/                       Archivo and JetBrains Mono, self-hosted woff2 cut from the Android app's fonts, with their OFL licences
 │   ├── routes/
 │   │   ├── +layout.ts               export const ssr = false;
 │   │   ├── +layout.svelte           Root auth gate (auth-layer §7.1); signed in, renders the Shell
@@ -20,14 +21,14 @@ dashboard/
 │   │   └── staff/
 │   │       └── +page.svelte         /staff : Staff (UC-14)
 │   ├── features/                    domain feature components
-│   │   ├── shell/                   Shell, Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
+│   │   ├── shell/                   Shell (Cod Roșu banner and incident dossier over every page), Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
-│   │   ├── incidents/               IncidentBoard (Cod Roșu banner, board and table), IncidentCard, IncidentDetails slide-over
+│   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over
 │   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over
 │   │   ├── enrollments/             Enrollments: review and Acceptă
 │   │   ├── staff/                   Staff: member list, who is on duty, adding medic or DAS
 │   │   └── system/                  SystemHealthIndicator: the sidebar's system line
-│   ├── ui/                          presentational pieces with no data: Icon.svelte (Lucide)
+│   ├── ui/                          presentational pieces with no data: Icon.svelte (Lucide), Brand.svelte, CopyButton.svelte
 │   ├── services/                    apiFetch, getMe, Firebase auth
 │   │   ├── api.ts
 │   │   └── firebase.ts

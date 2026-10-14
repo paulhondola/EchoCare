@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import Brand from "../../ui/Brand.svelte";
   import Icon, { type IconName } from "../../ui/Icon.svelte";
   import { initials } from "../../utils/incidents";
   import SystemHealthIndicator from "../system/SystemHealthIndicator.svelte";
@@ -13,12 +14,6 @@
   const count = (l: { kind: string; data?: unknown[] }) =>
     l.kind === "ok" && l.data ? l.data.length : null;
 
-  const openCount = $derived(
-    live.incidents.load.kind === "ok"
-      ? live.incidents.load.data.filter((i) => i.status === "open").length
-      : null,
-  );
-
   type Item = { href: string; label: string; icon: IconName; count: number | null; on: boolean };
 
   const items: Item[] = $derived([
@@ -26,7 +21,7 @@
       href: "/",
       label: "Incidente",
       icon: "siren",
-      count: openCount,
+      count: live.open?.length ?? null,
       on: page.url.pathname === "/",
     },
     {
@@ -62,8 +57,7 @@
   class="flex min-h-0 flex-col border-line bg-subtle max-md:border-b-2 md:sticky md:top-0 md:h-screen md:border-r-2"
 >
   <div class="flex flex-col gap-1 border-b-2 border-line px-4 pt-[18px] pb-4">
-    <div class="text-[19px] leading-none font-extrabold tracking-[-0.015em]">SENTINELA</div>
-    <div class="text-[11px] tracking-[0.08em] text-fg-muted uppercase">DAS · Dispecerat</div>
+    <Brand />
     <SystemHealthIndicator />
   </div>
 
