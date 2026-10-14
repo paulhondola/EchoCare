@@ -1,10 +1,196 @@
 @import "tailwindcss";
 
-/* DaisyUI components; the dark theme follows the system setting */
+/* One dark theme: the GitHub-dark palette of spec 07 §2.1 on Modernist structure (square
+   corners, 2px section rules, flush-left button labels). DaisyUI's own themes are off; its
+   components (inputs, spinners, alerts) read the `sentinela` theme below. */
 @plugin "daisyui" {
-  themes:
-    light --default,
-    dark --prefersdark;
+  themes: false;
+}
+
+@plugin "daisyui/theme" {
+  name: "sentinela";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #0d1117;
+  --color-base-200: #161b22;
+  --color-base-300: #21262d;
+  --color-base-content: #f0f6fc;
+  --color-primary: #58a6ff;
+  --color-primary-content: #0d1117;
+  --color-secondary: #30363d;
+  --color-secondary-content: #f0f6fc;
+  --color-accent: #58a6ff;
+  --color-accent-content: #0d1117;
+  --color-neutral: #30363d;
+  --color-neutral-content: #f0f6fc;
+  --color-info: #58a6ff;
+  --color-info-content: #0d1117;
+  --color-success: #3fb950;
+  --color-success-content: #0d1117;
+  --color-warning: #d29922;
+  --color-warning-content: #0d1117;
+  --color-error: #f85149;
+  --color-error-content: #ffffff;
+  --radius-selector: 0rem;
+  --radius-field: 0rem;
+  --radius-box: 0rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Design tokens (spec 07 §2.1). The codes take their Romanian names from the status model (03). */
+@theme {
+  --font-sans: "Archivo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-canvas: #0d1117;
+  --color-subtle: #161b22;
+  --color-card: #21262d;
+  --color-inset: #010409;
+
+  --color-line: #30363d;
+  --color-line-strong: #6e7681;
+
+  --color-fg: #f0f6fc;
+  --color-fg-soft: #c9d1d9;
+  --color-fg-muted: #8b949e;
+  --color-fg-subtle: #6e7681;
+  --color-off: #484f58;
+
+  --color-link: #58a6ff;
+
+  --color-rosu: #f85149;
+  --color-rosu-strong: #da3633;
+  --color-rosu-hover: #e5534b;
+  --color-rosu-fg: #ff7b72;
+  --color-galben: #d29922;
+  --color-galben-fg: #e3b341;
+  --color-verde: #3fb950;
+  --color-verde-strong: #238636;
+  --color-verde-hover: #2ea043;
+  --color-verde-fg: #56d364;
+}
+
+@layer base {
+  body {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-link);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-link) 30%, transparent);
+  }
+}
+
+@layer components {
+  /* Buttons keep their label flush left, as the Modernist system asks */
+  .sn-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-line);
+    background: var(--color-card);
+    color: var(--color-fg);
+    font-weight: 800;
+    font-size: 13px;
+    line-height: 1.2;
+    text-align: left;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .sn-btn:hover {
+    border-color: var(--color-fg-muted);
+  }
+  .sn-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .sn-btn-danger {
+    background: var(--color-rosu-strong);
+    border-color: var(--color-rosu);
+    color: #fff;
+  }
+  .sn-btn-danger:hover:enabled {
+    background: var(--color-rosu-hover);
+    border-color: var(--color-rosu);
+  }
+  .sn-btn-success {
+    background: var(--color-verde-strong);
+    border-color: var(--color-verde);
+    color: #fff;
+  }
+  .sn-btn-success:hover:enabled {
+    background: var(--color-verde-hover);
+    border-color: var(--color-verde);
+  }
+  .sn-btn-link {
+    color: var(--color-link);
+  }
+  .sn-btn-link:hover {
+    border-color: var(--color-link);
+    background: color-mix(in srgb, #388bfd 15%, transparent);
+  }
+  .sn-btn-outline {
+    background: transparent;
+    border-color: var(--color-line-strong);
+  }
+  .sn-btn-outline:hover {
+    border-color: var(--color-fg);
+  }
+
+  /* Small uppercase field label */
+  .sn-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-muted);
+  }
+
+  /* Monospace counter next to a title */
+  .sn-count {
+    padding: 1px 7px;
+    font: 600 11px/1.5 var(--font-mono);
+  }
+
+  /* Inset text field: search, notes, forms */
+  .sn-input {
+    background: var(--color-inset);
+    border: 1px solid var(--color-line);
+    color: var(--color-fg);
+  }
+  .sn-input::placeholder {
+    color: var(--color-fg-muted);
+  }
+  .sn-input:focus,
+  .sn-input:focus-within {
+    border-color: var(--color-link);
+    outline: none;
+  }
+}
+
+@keyframes sn-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.sn-pulse {
+  animation: sn-pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes delayed-fade-in {

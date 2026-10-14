@@ -1,10 +1,9 @@
 <script lang="ts">
   import "../styles.css";
-  import { page } from "$app/state";
   import { onAuthStateChanged, signOut } from "firebase/auth";
   import { onMount } from "svelte";
   import { SignIn } from "../features/auth";
-  import SystemHealthIndicator from "../features/system/SystemHealthIndicator.svelte";
+  import Shell from "../features/shell/Shell.svelte";
   import { getMe } from "../services/api";
   import { auth } from "../services/firebase";
 
@@ -48,58 +47,36 @@
         });
     });
   });
-
-  const isIncidents = $derived(page.url.pathname === "/");
-  const isEnrollments = $derived(page.url.pathname.startsWith("/enrollments"));
-  const isStaff = $derived(page.url.pathname.startsWith("/staff"));
 </script>
 
+{#snippet brand()}
+  <div class="flex flex-col gap-1">
+    <div class="text-[19px] leading-none font-extrabold tracking-[-0.015em]">SENTINELA</div>
+    <div class="text-[11px] tracking-[0.08em] text-fg-muted uppercase">DAS · Dispecerat</div>
+  </div>
+{/snippet}
+
 {#if view.kind === "loading"}
-  <main aria-busy="true"></main>
+  <main aria-busy="true" class="grid min-h-screen place-items-center">
+    <span class="loading-delay loading loading-md loading-spinner text-fg-muted"></span>
+  </main>
 {:else if view.kind === "signedOut"}
-  <main>
-    <SignIn notice={view.notice} />
+  <main class="grid min-h-screen place-items-center p-4">
+    <div class="flex w-full max-w-sm flex-col gap-5 border-2 border-line bg-subtle p-6">
+      {@render brand()}
+      <SignIn notice={view.notice} />
+    </div>
   </main>
 {:else if view.kind === "unavailable"}
-  <main>
-    <p role="alert">{UNAVAILABLE}</p>
-    <button class="btn btn-sm" onclick={() => void signOut(auth)}>Ieșire</button>
+  <main class="grid min-h-screen place-items-center p-4">
+    <div class="flex w-full max-w-sm flex-col gap-4 border-2 border-line bg-subtle p-6">
+      {@render brand()}
+      <p role="alert" class="text-rosu-fg">{UNAVAILABLE}</p>
+      <button class="sn-btn self-start" onclick={() => void signOut(auth)}>Ieșire</button>
+    </div>
   </main>
 {:else if view.kind === "das"}
-  <main class="mx-auto max-w-7xl p-4">
-    <header
-      class="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 pb-2"
-    >
-      <h1 class="text-2xl font-bold">Sentinela DAS</h1>
-      <nav class="tabs tabs-box tabs-sm">
-        <a
-          href="/"
-          class={["tab", isIncidents && "tab-active"]}
-          aria-current={isIncidents ? "page" : undefined}
-        >
-          Incidente
-        </a>
-        <a
-          href="/enrollments"
-          class={["tab", isEnrollments && "tab-active"]}
-          aria-current={isEnrollments ? "page" : undefined}
-        >
-          Cereri de înrolare
-        </a>
-        <a
-          href="/staff"
-          class={["tab", isStaff && "tab-active"]}
-          aria-current={isStaff ? "page" : undefined}
-        >
-          Personal
-        </a>
-      </nav>
-      <div class="flex items-center gap-3 text-sm text-base-content/60">
-        <SystemHealthIndicator />
-        <span>Conectat ca {view.name}</span>
-        <button class="btn btn-sm" onclick={() => void signOut(auth)}>Ieșire</button>
-      </div>
-    </header>
+  <Shell name={view.name} onSignOut={() => void signOut(auth)}>
     {@render children()}
-  </main>
+  </Shell>
 {/if}

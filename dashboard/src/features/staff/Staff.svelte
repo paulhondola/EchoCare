@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { ApiError, fetchStaff, grantStaff, type StaffRole } from "../../services/api";
-  import { toE164 } from "../../utils/phone";
-  import { poll } from "../../utils/poll.svelte";
+  import { ApiError, grantStaff, type StaffRole } from "../../services/api";
+  import Icon from "../../ui/Icon.svelte";
+  import { initials } from "../../utils/incidents";
+  import { formatPhone, toE164 } from "../../utils/phone";
+  import { getLive } from "../shell/live.svelte";
+  import PageHeader from "../shell/PageHeader.svelte";
 
-  const REFRESH_MS = 15_000;
   const ROLE_LABELS: Record<StaffRole, string> = { das: "Dispecer DAS", medic: "Medic" };
 
   function refusalMessage(e: unknown): string {
@@ -15,11 +17,8 @@
     return `Nu am putut trimite (${e.message}).`;
   }
 
-  function describe(e: unknown): string {
-    return `Nu am putut citi lista (${e instanceof Error ? e.message : String(e)}).`;
-  }
-
-  const poller = poll(fetchStaff, REFRESH_MS, describe);
+  const live = getLive();
+  const staff = live.staff;
 
   let name = $state("");
   let phone = $state("");
@@ -50,7 +49,7 @@
         name = "";
         phone = "";
         practice = "";
-        poller.reload();
+        staff.reload();
       })
       .catch((err: unknown) => {
         error = refusalMessage(err);
@@ -61,104 +60,126 @@
   }
 </script>
 
-<section class="grid items-start gap-6 lg:grid-cols-[1fr_320px]">
-  <div>
-    <h2 class="mb-3 text-lg font-semibold">Personal</h2>
-    {#if poller.load.kind === "loading"}
-      <div
-        role="status"
-        class="loading-delay flex items-center justify-center gap-2 p-12 text-base-content/60"
-      >
-        <span class="loading loading-spinner loading-md"></span>
-        <span class="text-sm">Se încarcă lista…</span>
-      </div>
-    {:else if poller.load.kind === "error"}
-      <div role="alert" class="alert alert-error alert-soft mb-3">
-        {poller.load.message}
-      </div>
-    {:else if poller.load.kind === "ok"}
-      {#if poller.load.error}
-        <div role="alert" class="alert alert-warning alert-soft mb-3">
-          {poller.load.error}
-        </div>
-      {/if}
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Nume</th>
-              <th>Telefon</th>
-              <th>Rol</th>
-              <th>Cabinet</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each poller.load.data as s (s.id)}
-              <tr>
-                <td>
-                  {s.display_name}
-                  {#if s.on_duty}
-                    <span class="badge badge-xs badge-success ml-2">de serviciu</span>
-                  {/if}
-                </td>
-                <td class="whitespace-nowrap">{s.phone_e164}</td>
-                <td>
-                  {#each s.roles as r (r)}
-                    <span class="badge badge-sm badge-soft mr-1">
-                      {ROLE_LABELS[r] ?? r}
-                    </span>
-                  {/each}
-                </td>
-                <td>{s.practice ?? "—"}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
+{#if live.onDuty === 0}
+  <div
+    role="alert"
+    class="flex flex-wrap items-center gap-2.5 border-b-2 border-rosu bg-rosu-strong/20 px-5 py-2.5"
+  >
+    <Icon name="alert" class="text-rosu" />
+    <span class="font-extrabold tracking-[0.06em] text-rosu-fg">ATENȚIE:</span>
+    <span class="font-semibold">
+      Niciun dispecer nu este de serviciu! Apelurile de urgență nu pot fi transferate.
+    </span>
   </div>
+{/if}
 
-  <form class="card card-sm bg-base-100 shadow-sm" onsubmit={add}>
-    <div class="card-body gap-2">
-      <h3 class="card-title text-base">Adaugă</h3>
-      <select class="select select-sm w-full" aria-label="Rol" bind:value={role}>
-        <option value="medic">{ROLE_LABELS.medic}</option>
-        <option value="das">{ROLE_LABELS.das}</option>
-      </select>
-      <input
-        class="input input-sm w-full"
-        aria-label="Nume"
-        placeholder="Nume"
-        maxlength={120}
-        bind:value={name}
-      />
-      <input
-        class="input input-sm w-full"
-        aria-label="Telefon mobil"
-        placeholder="Telefon mobil, ex. 0722 123 456"
-        type="tel"
-        bind:value={phone}
-      />
-      {#if role === "medic"}
-        <input
-          class="input input-sm w-full"
-          aria-label="Cabinet"
-          placeholder="Cabinet"
-          maxlength={200}
-          bind:value={practice}
-        />
-      {/if}
-      <button class="btn btn-sm btn-primary" disabled={busy || !canAdd}> Adaugă </button>
-      {#if error}
-        <p role="alert" class="text-sm text-error">
-          {error}
+<PageHeader title="Personal" />
+
+<div class="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_360px]">
+  <section class="flex min-h-0 flex-col border-line md:border-r-2" aria-labelledby="staff-title">
+    <div class="flex flex-col gap-1 px-5 pt-4 pb-3">
+      <h2 id="staff-title" class="text-[15px] font-extrabold">Dispeceri și medici</h2>
+      <span class="text-xs text-fg-muted">
+        Apelurile Cod Roșu se transferă doar către dispecerul de serviciu.
+      </span>
+    </div>
+    <div class="min-h-0 flex-1 overflow-auto border-t border-line">
+      {#if staff.load.kind === "loading"}
+        <div role="status" class="loading-delay flex items-center gap-2 p-5 text-fg-muted">
+          <span class="loading loading-sm loading-spinner"></span>Se încarcă lista…
+        </div>
+      {:else if staff.load.kind === "error"}
+        <p role="alert" class="m-4 border border-rosu bg-rosu/15 px-4 py-3 text-rosu-fg">
+          {staff.load.message}
         </p>
-      {/if}
-      {#if added}
-        <p role="status" class="text-sm text-success">
-          {added}
-        </p>
+      {:else}
+        {#if staff.load.error}
+          <p role="alert" class="m-4 border border-galben bg-galben/15 px-4 py-2 text-galben-fg">
+            {staff.load.error}
+          </p>
+        {/if}
+        {#each staff.load.data as s (s.id)}
+          <div
+            class="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-5 py-3"
+          >
+            <span class="grid size-[34px] place-items-center bg-line text-xs font-extrabold">
+              {initials(s.display_name)}
+            </span>
+            <span class="flex min-w-0 flex-col gap-0.5 leading-tight">
+              <span class="text-sm font-semibold">{s.display_name}</span>
+              <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span class="font-mono text-xs text-fg-muted">{formatPhone(s.phone_e164)}</span>
+                {#each s.roles as r (r)}
+                  <span class="bg-line px-1.5 text-[11px] font-semibold text-fg-soft">
+                    {ROLE_LABELS[r] ?? r}
+                  </span>
+                {/each}
+                {#if s.practice}
+                  <span class="text-xs text-fg-muted">{s.practice}</span>
+                {/if}
+              </span>
+            </span>
+            {#if s.roles.includes("das")}
+              <!-- Read only: setting who is on duty (P10) has no endpoint yet -->
+              <span
+                class={[
+                  "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold tracking-[0.06em] uppercase",
+                  s.on_duty ? "bg-verde/15 text-verde-fg" : "text-fg-muted",
+                ]}
+              >
+                <span class={["size-1.5", s.on_duty ? "bg-verde" : "bg-off"]}></span>
+                {s.on_duty ? "De serviciu" : "Liber"}
+              </span>
+            {/if}
+          </div>
+        {:else}
+          <p class="px-5 py-6 text-fg-muted">Niciun membru al personalului.</p>
+        {/each}
       {/if}
     </div>
+  </section>
+
+  <form class="flex flex-col gap-3 px-5 pt-4 pb-5" onsubmit={add} aria-labelledby="add-title">
+    <h2 id="add-title" class="text-[15px] font-extrabold">Adaugă personal</h2>
+    <div class="flex border border-line" role="radiogroup" aria-label="Rol">
+      {#each ["medic", "das"] as const as r (r)}
+        <label
+          class={[
+            "flex flex-1 cursor-pointer items-center px-3 py-[7px] text-[13px] has-focus-visible:outline-2 has-focus-visible:outline-link",
+            r === "das" && "border-l border-line",
+            role === r ? "bg-link/15 font-semibold text-fg" : "text-fg-soft hover:bg-card",
+          ]}
+        >
+          <input type="radio" name="role" value={r} bind:group={role} class="sr-only" />
+          {ROLE_LABELS[r]}
+        </label>
+      {/each}
+    </div>
+    <label class="flex flex-col gap-1.5">
+      <span class="sn-label">Nume</span>
+      <input class="sn-input h-9 px-2.5" maxlength={120} bind:value={name} />
+    </label>
+    <label class="flex flex-col gap-1.5">
+      <span class="sn-label">Telefon mobil</span>
+      <input
+        class="sn-input h-9 px-2.5 font-mono"
+        type="tel"
+        placeholder="0722 123 456"
+        bind:value={phone}
+      />
+    </label>
+    {#if role === "medic"}
+      <label class="flex flex-col gap-1.5">
+        <span class="sn-label">Cabinet</span>
+        <input class="sn-input h-9 px-2.5" maxlength={200} bind:value={practice} />
+      </label>
+    {/if}
+    <button class="sn-btn sn-btn-success h-9" disabled={busy || !canAdd}>Adaugă</button>
+    {#if error}
+      <p role="alert" class="text-rosu-fg">{error}</p>
+    {/if}
+    {#if added}
+      <p role="status" class="text-verde-fg">{added}</p>
+    {/if}
   </form>
-</section>
+</div>

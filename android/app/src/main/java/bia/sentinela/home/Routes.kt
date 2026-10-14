@@ -1,6 +1,7 @@
 package bia.sentinela.home
 
 import bia.sentinela.R
+import bia.sentinela.ui.Tone
 import kotlinx.serialization.Serializable
 
 // The destinations of the signed-in app (seniors §8.2), as type-safe routes.
@@ -40,4 +41,15 @@ val STATE_LABELS = mapOf(
     "refused" to R.string.state_refused,
     "wrong_number" to R.string.state_wrong_number,
     "unreachable" to R.string.state_unreachable
+)
+
+/** The colour of each state's chip, the same as on the dashboard (dashboard/src/utils/labels.ts). */
+val STATE_TONES = mapOf(
+    "draft" to Tone.Muted,
+    "submitted" to Tone.Link,
+    "accepted" to Tone.Link,
+    "active" to Tone.Verde,
+    "refused" to Tone.Galben,
+    "wrong_number" to Tone.Galben,
+    "unreachable" to Tone.Galben
 )

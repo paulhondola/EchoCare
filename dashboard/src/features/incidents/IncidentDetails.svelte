@@ -1,9 +1,47 @@
+<script lang="ts" module>
+  export type DossierTab = "access" | "transcript" | "event" | "resolve";
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchIncident, type IncidentDetail } from "../../services/api";
-  import { address, OUTCOMES, time } from "../../utils/labels";
+  import {
+    fetchIncident,
+    fetchSenior,
+    resolveIncident,
+    takeIncident,
+    type Incident,
+    type IncidentDetail,
+    type IncidentOutcome,
+    type SeniorView,
+  } from "../../services/api";
+  import Icon from "../../ui/Icon.svelte";
+  import { shortId, since } from "../../utils/incidents";
+  import { address, clock, OUTCOMES, time } from "../../utils/labels";
+  import { formatPhone } from "../../utils/phone";
+  import { refusalMessage } from "./commands";
 
-  let { id, onClose }: { id: string; onClose: () => void } = $props();
+  let {
+    incident,
+    tab: initialTab,
+    now,
+    onClose,
+    onChanged,
+    onStale,
+  }: {
+    incident: Incident;
+    tab: DossierTab;
+    now: number;
+    onClose: () => void;
+    onChanged: (incident: Incident) => void;
+    onStale: () => void;
+  } = $props();
+
+  const TABS: { key: DossierTab; n: number; label: string }[] = [
+    { key: "access", n: 1, label: "Urgență & acces" },
+    { key: "transcript", n: 2, label: "Transcriere apel" },
+    { key: "event", n: 3, label: "Eveniment" },
+    { key: "resolve", n: 4, label: "Rezolvare caz" },
+  ];
 
   // Romanian labels for the stored values (05 §1); an unknown value shows as it is
   const TRIGGERS: Record<string, string> = {
@@ -17,6 +55,7 @@
     inactivity: "Inactivitate",
     sos_button: "Buton SOS",
     manual_request: "„Sunați-mă”",
+    fall: "Cădere detectată",
   };
   const STATES: Record<string, string> = {
     queued: "în așteptare",
@@ -28,219 +67,527 @@
     handed_over: "transferat la DAS",
     dropped: "întrerupt",
   };
-  const SPEAKERS: Record<string, string> = { senior: "Senior", agent: "Agent", system: "Sistem" };
-  const SEVERITY_BADGE: Record<string, string> = {
-    green: "badge-success",
-    yellow: "badge-warning",
-    red: "badge-error",
+  const SEVERITY: Record<string, { label: string; text: string }> = {
+    red: { label: "Cod Roșu", text: "text-rosu-fg" },
+    yellow: { label: "Cod Galben", text: "text-galben-fg" },
+    green: { label: "Cod Verde", text: "text-verde-fg" },
   };
-  const SEVERITIES: Record<string, string> = { green: "verde", yellow: "galben", red: "roșu" };
 
-  const at = (iso: string | null) => (iso ? time.format(Date.parse(iso)) : "—");
+  type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
 
-  type Load =
-    | { kind: "loading" }
-    | { kind: "ok"; incident: IncidentDetail }
-    | { kind: "error"; message: string };
-
-  let load = $state<Load>({ kind: "loading" });
+  // svelte-ignore state_referenced_locally
+  let tab = $state<DossierTab>(initialTab);
+  let load = $state<Load<IncidentDetail>>({ kind: "loading" });
+  let senior = $state<SeniorView | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
+  let copied = $state<string | null>(null);
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  let outcome = $state<IncidentOutcome | "">("");
+  let note = $state("");
+  let busy = $state(false);
+  let error = $state<string | null>(null);
 
   onMount(() => {
     if (dialogEl && !dialogEl.open) dialogEl.showModal();
+    return () => clearTimeout(copyTimer);
+  });
 
+  // Read again whenever the board sees the incident change hands or state
+  const version = $derived(`${incident.id}:${incident.status}:${incident.taken_by_name ?? ""}`);
+  $effect(() => {
+    void version;
     const ctrl = new AbortController();
-    fetchIncident(id, ctrl.signal)
-      .then((incident) => {
-        load = { kind: "ok", incident };
+    fetchIncident(incident.id, ctrl.signal)
+      .then((data) => {
+        load = { kind: "ok", data };
       })
       .catch((e: unknown) => {
         if (ctrl.signal.aborted) return;
-        load = {
-          kind: "error",
-          message: `Nu am putut citi incidentul (${e instanceof Error ? e.message : String(e)}).`,
-        };
+        if (load.kind !== "ok")
+          load = {
+            kind: "error",
+            message: `Nu am putut citi incidentul (${e instanceof Error ? e.message : String(e)}).`,
+          };
       });
-
     return () => ctrl.abort();
   });
+
+  // The senior's page adds the family doctor and the call window; the dossier works without it
+  const seniorId = $derived(load.kind === "ok" ? load.data.senior.id : null);
+  $effect(() => {
+    if (!seniorId) return;
+    const ctrl = new AbortController();
+    fetchSenior(seniorId, ctrl.signal)
+      .then((s) => {
+        senior = s;
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  });
+
+  function copy(key: string, text: string) {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    copied = key;
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => (copied = null), 1400);
+  }
+
+  function send(action: "take" | "resolve", command: () => Promise<Incident>) {
+    busy = true;
+    error = null;
+    command()
+      .then((changed) => {
+        onChanged(changed);
+        if (action === "take") tab = "resolve";
+      })
+      .catch((e: unknown) => {
+        error = refusalMessage(e, action);
+        onStale();
+      })
+      .finally(() => {
+        busy = false;
+      });
+  }
+
+  const take = () => send("take", () => takeIncident(incident.id));
+
+  const canFinish = $derived(outcome !== "" && note.trim() !== "");
+  function finish(e: SubmitEvent) {
+    e.preventDefault();
+    const chosen = outcome;
+    if (chosen === "" || !canFinish) return;
+    send("resolve", () => resolveIncident(incident.id, chosen, note.trim()));
+  }
+
+  const at = (iso: string | null) => (iso ? time.format(Date.parse(iso)) : "—");
+  const tel = (e164: string) => `tel:${e164}`;
+
+  function duration(start: string | null, end: string | null): string | null {
+    if (!start || !end) return null;
+    const s = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
+    return `${Math.floor(s / 60)}m ${s % 60}s`;
+  }
+
+  const STATUS = $derived(
+    incident.status === "open"
+      ? {
+          label: `Deschis · ${since(incident.opened_at, now)}`,
+          chip: "bg-rosu/15 text-rosu-fg",
+          dot: "bg-rosu",
+        }
+      : incident.status === "in_progress"
+        ? {
+            label: `În lucru · preluat de ${incident.taken_by_name ?? "un dispecer"}`,
+            chip: "bg-galben/15 text-galben-fg",
+            dot: "bg-galben",
+          }
+        : { label: "Rezolvat", chip: "bg-verde/15 text-verde-fg", dot: "bg-verde" },
+  );
 </script>
 
-<dialog bind:this={dialogEl} class="modal" onclose={onClose}>
-  <div class="modal-box max-w-3xl">
-    <button
-      class="btn btn-circle btn-ghost btn-sm absolute top-2 right-2"
-      aria-label="Închide"
-      onclick={() => dialogEl?.close()}
-    >
-      ✕
-    </button>
-    {#if load.kind === "loading"}
-      <div role="status" class="flex items-center gap-2">
-        <span class="loading loading-spinner loading-sm"></span>
-        Se încarcă…
-      </div>
-    {:else if load.kind === "error"}
-      <div role="alert" class="alert alert-error alert-soft">
-        {load.message}
-      </div>
-    {:else if load.kind === "ok"}
-      {@const i = load.incident}
-      {@const s = i.senior}
-      {@const e = i.event}
-      {@const outcome = OUTCOMES.find((o) => o.value === i.outcome)?.label ?? i.outcome}
+{#snippet row(label: string, value: string | null)}
+  <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-b border-line py-3.5">
+    <span class="sn-label">{label}</span>
+    <span>{value || "—"}</span>
+  </div>
+{/snippet}
 
-      <div class="flex flex-col gap-4">
-        <header>
-          <h2 class="text-xl font-bold">{s.full_name}</h2>
-          <p class="text-base-content/60">
-            {s.form_of_address} · {i.reason}
-          </p>
-        </header>
+{#snippet callLink(e164: string)}
+  <a href={tel(e164)} class="sn-btn sn-btn-link px-2.5 py-[5px] text-xs">Apelează</a>
+{/snippet}
 
-        <section>
-          <h3 class="mb-1 font-semibold">Senior</h3>
-          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-            <dt class="text-base-content/60">Telefon</dt>
-            <dd>
-              <a class="link" href={`tel:${s.phone_e164}`}>
-                {s.phone_e164}
-              </a>
-              <span class="badge badge-xs badge-ghost ml-1">
-                {s.phone_is_landline ? "fix" : "mobil"}
+<dialog
+  bind:this={dialogEl}
+  class="modal modal-end"
+  aria-labelledby="dossier-title"
+  onclose={onClose}
+>
+  <div
+    class="modal-box flex h-full w-[540px] max-w-full flex-col border-l-2 border-line bg-subtle p-0 text-fg shadow-[-24px_0_48px_rgba(1,4,9,.55)]"
+  >
+    <!-- Who, where, and the first actions -->
+    <div class="flex flex-col gap-2.5 border-b-2 border-line px-5 py-4">
+      <div class="flex items-center gap-2.5 text-xs text-fg-muted">
+        <span class="font-mono">#{shortId(incident.id)}</span>
+        <span
+          class={[
+            "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-semibold",
+            STATUS.chip,
+          ]}
+        >
+          <span class={["size-1.5", STATUS.dot]}></span>{STATUS.label}
+        </span>
+        <button
+          type="button"
+          title="Închide"
+          aria-label="Închide"
+          class="ml-auto grid size-[30px] cursor-pointer place-items-center border border-line text-fg-soft hover:border-fg-muted hover:text-fg"
+          onclick={() => dialogEl?.close()}
+        >
+          <Icon name="x" size={14} />
+        </button>
+      </div>
+      <div class="flex flex-wrap items-baseline gap-2.5">
+        <h2 id="dossier-title" class="text-2xl leading-[1.1] font-extrabold tracking-[-0.015em]">
+          {incident.senior_full_name}
+        </h2>
+        <span class="text-[13px] text-fg-muted">{incident.senior_form_of_address}</span>
+      </div>
+      <div class="flex">
+        <span
+          class="inline-flex flex-wrap items-center gap-2 border border-rosu bg-rosu/15 px-2.5 py-1 text-xs font-bold text-rosu-fg"
+        >
+          <span class="tracking-[0.06em]">COD ROȘU</span>
+          <span class="font-semibold text-fg">{incident.reason}</span>
+        </span>
+      </div>
+
+      {#if load.kind === "ok"}
+        {@const s = load.data.senior}
+        {@const e = load.data.event}
+        {@const line = address(s)}
+        <div class="text-sm">{line}</div>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
+            onclick={() => copy("addr", line)}
+          >
+            <Icon name="copy" size={13} />{copied === "addr" ? "Copiat" : "Copiază adresa"}
+          </button>
+          {#if s.intercom_code}
+            <button
+              type="button"
+              class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
+              onclick={() => copy("ic", s.intercom_code ?? "")}
+            >
+              <Icon name="key" size={13} />
+              <span class="font-mono font-medium">
+                {copied === "ic" ? "Copiat" : `Interfon: ${s.intercom_code}`}
               </span>
-            </dd>
-            <dt class="text-base-content/60">Adresă</dt>
-            <dd>{address(s)}</dd>
-            {#if s.intercom_code}
-              <dt class="text-base-content/60">Interfon</dt>
-              <dd>{s.intercom_code}</dd>
-            {/if}
-            {#if s.key_holder}
-              <dt class="text-base-content/60">Chei la</dt>
-              <dd>{s.key_holder}</dd>
-            {/if}
-            {#if s.landmark}
-              <dt class="text-base-content/60">Reper</dt>
-              <dd>{s.landmark}</dd>
-            {/if}
-          </dl>
-        </section>
-
-        <section>
-          <h3 class="mb-1 font-semibold">Aparținători</h3>
-          {#if i.caregivers.length === 0}
-            <p class="text-sm text-base-content/60">Niciun aparținător înregistrat.</p>
-          {:else}
-            <ul class="text-sm">
-              {#each i.caregivers as c (c.phone_e164)}
-                <li>
-                  {c.display_name}
-                  {c.relation ? ` (${c.relation})` : ""} ·
-                  <a class="link" href={`tel:${c.phone_e164}`}>
-                    {c.phone_e164}
-                  </a>
-                </li>
-              {/each}
-            </ul>
+            </button>
           {/if}
-        </section>
-
-        {#if e}
-          <section>
-            <h3 class="mb-1 font-semibold">Eveniment</h3>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-              <dt class="text-base-content/60">Tip</dt>
-              <dd>{EVENTS[e.type] ?? e.type}</dd>
-              <dt class="text-base-content/60">Măsurat la</dt>
-              <dd>{at(e.measured_at)}</dd>
-              {#if e.latitude !== null && e.longitude !== null}
-                <dt class="text-base-content/60">Locație</dt>
-                <dd>
-                  <a
-                    class="link"
-                    target="_blank"
-                    rel="noreferrer"
-                    href={`https://www.openstreetmap.org/?mlat=${e.latitude}&mlon=${e.longitude}#map=18/${e.latitude}/${e.longitude}`}
-                  >
-                    {e.latitude.toFixed(5)}, {e.longitude.toFixed(5)}
-                  </a>
-                  {e.location_accuracy_m !== null
-                    ? ` (±${Math.round(e.location_accuracy_m)} m)`
-                    : ""}
-                  {e.located_at ? `, ${at(e.located_at)}` : ""}
-                </dd>
-              {/if}
-            </dl>
-          </section>
-        {/if}
-
-        {#if i.status === "resolved"}
-          <section>
-            <h3 class="mb-1 font-semibold">Rezolvare</h3>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-              <dt class="text-base-content/60">Rezultat</dt>
-              <dd>{outcome}</dd>
-              <dt class="text-base-content/60">De</dt>
-              <dd>{i.resolved_by_name}, {at(i.resolved_at)}</dd>
-              {#if i.note}
-                <dt class="text-base-content/60">Notă</dt>
-                <dd>{i.note}</dd>
-              {/if}
-            </dl>
-          </section>
-        {/if}
-
-        <section>
-          <h3 class="mb-1 font-semibold">Apeluri</h3>
-          {#if i.calls.length === 0}
-            <p class="text-sm text-base-content/60">Niciun apel.</p>
+          {#if e && e.latitude !== null && e.longitude !== null}
+            {@const gps = `${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)}`}
+            <button
+              type="button"
+              class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
+              onclick={() => copy("gps", gps)}
+            >
+              <Icon name="navigation" size={13} />
+              <span class="font-mono font-medium"
+                >{copied === "gps" ? "Copiat" : `GPS: ${gps}`}</span
+              >
+            </button>
           {/if}
-          {#each i.calls as c (c.id)}
-            <details class="collapse-arrow collapse mb-2 border border-base-300">
-              <summary class="collapse-title flex flex-wrap items-center gap-2 text-sm">
-                <span>{at(c.started_at)}</span>
-                <span>
-                  {TRIGGERS[c.trigger] ?? c.trigger}, încercarea {c.attempt}
+        </div>
+        {#if incident.status === "open"}
+          <div class="mt-1 flex gap-2">
+            <button
+              type="button"
+              class="sn-btn sn-btn-danger h-[34px] px-3.5"
+              disabled={busy}
+              onclick={take}
+            >
+              <Icon name="zap" size={13} stroke={2.2} />Preiau cazul
+            </button>
+            <a href={tel(s.phone_e164)} class="sn-btn h-[34px] px-3.5">
+              <Icon name="phone" size={13} />Apelează senior
+            </a>
+          </div>
+        {/if}
+      {/if}
+      {#if error}
+        <p role="alert" class="text-rosu-fg">{error}</p>
+      {/if}
+    </div>
+
+    <div class="flex border-b-2 border-line px-3" role="tablist" aria-label="Dosar">
+      {#each TABS as t (t.key)}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === t.key}
+          class={[
+            "-mb-0.5 flex cursor-pointer items-center gap-1.5 border-b-2 px-2.5 py-[11px] text-[12.5px] font-semibold",
+            tab === t.key
+              ? "border-link text-fg"
+              : "border-transparent text-fg-muted hover:text-fg",
+          ]}
+          onclick={() => (tab = t.key)}
+        >
+          <span class="font-mono text-[11px] font-medium text-fg-subtle">{t.n}</span>{t.label}
+        </button>
+      {/each}
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-auto px-5 pt-[18px] pb-6" role="tabpanel">
+      {#if load.kind === "loading"}
+        <div role="status" class="loading-delay flex items-center gap-2 text-fg-muted">
+          <span class="loading loading-sm loading-spinner"></span>Se încarcă dosarul…
+        </div>
+      {:else if load.kind === "error"}
+        <p role="alert" class="text-rosu-fg">{load.message}</p>
+      {:else}
+        {@const d = load.data}
+        {@const s = d.senior}
+
+        {#if tab === "access"}
+          <div class="flex flex-col">
+            <div
+              class="grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line pb-3.5"
+            >
+              <span class="sn-label">Telefon senior</span>
+              <span class="font-mono text-[13px] font-medium">
+                {formatPhone(s.phone_e164)}
+                <span class="font-sans text-[10px] font-semibold tracking-[0.06em] text-fg-muted">
+                  {s.phone_is_landline ? "FIX" : "MOBIL"}
                 </span>
-                <span class="text-base-content/60">{STATES[c.state] ?? c.state}</span>
-                {#if c.final_severity}
-                  <span class={["badge badge-sm", SEVERITY_BADGE[c.final_severity]]}>
-                    {SEVERITIES[c.final_severity] ?? c.final_severity}
+              </span>
+              {@render callLink(s.phone_e164)}
+            </div>
+            {@render row("Reper orientare", s.landmark)}
+            {@render row("Cheie de rezervă", s.key_holder)}
+            {#if senior?.call_window}
+              {@render row("Interval de apel", senior.call_window)}
+            {/if}
+
+            <div class="sn-label border-t border-line pt-4 pb-2">Aparținători înregistrați</div>
+            {#if d.caregivers.length === 0}
+              <p class="border-b-2 border-line pb-3 text-fg-muted">
+                Niciun aparținător înregistrat.
+              </p>
+            {:else}
+              {#each d.caregivers as c, idx (c.phone_e164)}
+                <div
+                  class={[
+                    "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-2.5",
+                    idx === d.caregivers.length - 1
+                      ? "border-b-2 border-line"
+                      : "border-b border-line",
+                  ]}
+                >
+                  <span>
+                    <span class="font-semibold">{c.display_name}</span>
+                    {#if c.relation}<span class="text-fg-muted">· {c.relation}</span>{/if}
                   </span>
-                {/if}
-              </summary>
-              <div class="collapse-content text-sm">
-                {#if c.summary}
-                  <p class="mb-2">{c.summary}</p>
-                {/if}
-                {#each c.reports as r (`${r.at}-${r.source}`)}
-                  <p class="mb-1">
-                    <span class={["badge badge-xs", SEVERITY_BADGE[r.severity]]}>
-                      {SEVERITIES[r.severity] ?? r.severity}
-                    </span>
-                    {r.reason}
-                    {#if r.quote}
-                      <q class="ml-1 italic">{r.quote}</q>
-                    {/if}
-                  </p>
-                {/each}
-                {#if c.turns.length > 0}
-                  <ol class="mt-2 flex flex-col gap-1">
-                    {#each c.turns as t (`${t.at}-${t.content}`)}
-                      <li>
-                        <span class="font-semibold">{SPEAKERS[t.speaker] ?? t.speaker}:</span>
-                        {t.kind === "keys" ? `tasta ${t.content}` : t.content}
-                      </li>
-                    {/each}
-                  </ol>
+                  <span class="font-mono text-[13px] font-medium">{formatPhone(c.phone_e164)}</span>
+                  {@render callLink(c.phone_e164)}
+                </div>
+              {/each}
+            {/if}
+
+            {#if senior}
+              <div class="sn-label pt-4 pb-2">Medic de familie</div>
+              <div class="py-2.5">
+                <span class="font-semibold">{senior.medic.display_name}</span>
+                {#if senior.medic.practice}
+                  <span class="text-fg-muted">· {senior.medic.practice}</span>
                 {/if}
               </div>
-            </details>
-          {/each}
-        </section>
-      </div>
-    {/if}
+            {/if}
+          </div>
+        {:else if tab === "transcript"}
+          {#if d.calls.length === 0}
+            <p class="text-fg-muted">Niciun apel înregistrat pentru acest incident.</p>
+          {/if}
+          <div class="flex flex-col gap-8">
+            {#each d.calls as c (c.id)}
+              {@const length = duration(c.started_at, c.ended_at)}
+              <section class="flex flex-col gap-3.5">
+                <div
+                  class="flex flex-wrap gap-x-[18px] gap-y-1.5 border-b-2 border-line pb-3 text-xs text-fg-muted"
+                >
+                  <span>
+                    Apel inițiat la
+                    <span class="font-mono text-fg">
+                      {c.started_at ? clock.format(Date.parse(c.started_at)) : "—"}
+                    </span>
+                  </span>
+                  <span>{TRIGGERS[c.trigger] ?? c.trigger} · încercarea {c.attempt}</span>
+                  {#if length}
+                    <span>durată <span class="font-mono text-fg">{length}</span></span>
+                  {/if}
+                  <span>{STATES[c.state] ?? c.state}</span>
+                </div>
+
+                {#if c.summary}
+                  <p class="text-fg-soft">{c.summary}</p>
+                {/if}
+
+                {#each c.turns as t, n (n)}
+                  <div class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1">
+                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-subtle">
+                      {clock.format(Date.parse(t.at))}
+                    </span>
+                    <div class="flex flex-col gap-0.5">
+                      <span
+                        class={["sn-label", t.speaker === "senior" ? "text-fg-muted" : "text-link"]}
+                      >
+                        {t.speaker === "senior"
+                          ? "Senior"
+                          : t.speaker === "agent"
+                            ? "Sistem AI"
+                            : "Sistem"}
+                      </span>
+                      <span>{t.kind === "keys" ? `tasta ${t.content}` : `„${t.content}”`}</span>
+                    </div>
+                  </div>
+                {/each}
+
+                {#each c.reports as r, n (n)}
+                  <div
+                    class="-mx-5 grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1 border-y border-line bg-card px-5 py-2.5"
+                  >
+                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-subtle">
+                      {clock.format(Date.parse(r.at))}
+                    </span>
+                    <div class="flex flex-col gap-0.5">
+                      <span class={["sn-label", SEVERITY[r.severity]?.text ?? "text-fg-muted"]}>
+                        {SEVERITY[r.severity]?.label ?? r.severity} · semnalat
+                      </span>
+                      {#if r.quote}<span class="text-sm">„{r.quote}”</span>{/if}
+                      <span class="text-fg-soft">{r.reason}</span>
+                    </div>
+                  </div>
+                {/each}
+
+                {#if c.final_severity}
+                  <div
+                    class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-t-2 border-line pt-3.5"
+                  >
+                    <span class="sn-label">Severitate finală</span>
+                    <span class={["font-semibold", SEVERITY[c.final_severity]?.text]}>
+                      {SEVERITY[c.final_severity]?.label ?? c.final_severity}
+                    </span>
+                  </div>
+                {/if}
+                {#if c.handover_answered !== null}
+                  <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3">
+                    <span class="sn-label">Predare audio</span>
+                    {#if c.handover_answered}
+                      <span class="inline-flex items-center gap-1.5 font-semibold text-verde-fg">
+                        <Icon name="check" size={13} stroke={2.4} />
+                        Transferat cu succes la telefonul de serviciu DAS
+                      </span>
+                    {:else}
+                      <span class="font-semibold text-rosu-fg">Transferul nu a fost preluat</span>
+                    {/if}
+                  </div>
+                {/if}
+              </section>
+            {/each}
+          </div>
+        {:else if tab === "event"}
+          {@const e = d.event}
+          {#if !e}
+            <p class="text-fg-muted">
+              Incidentul nu vine de la ceas sau de la nodul ambiental; motivul este cel din apel.
+            </p>
+          {:else}
+            <div class="flex flex-col">
+              {@render row("Tip", EVENTS[e.type] ?? e.type)}
+              {@render row("Măsurat la", at(e.measured_at))}
+              {#if e.latitude !== null && e.longitude !== null}
+                <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-b border-line py-3.5">
+                  <span class="sn-label">Locație</span>
+                  <span class="flex flex-col gap-1">
+                    <a
+                      class="font-mono text-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      href={`https://www.openstreetmap.org/?mlat=${e.latitude}&mlon=${e.longitude}#map=18/${e.latitude}/${e.longitude}`}
+                    >
+                      {e.latitude.toFixed(5)}, {e.longitude.toFixed(5)}
+                    </a>
+                    <span class="text-xs text-fg-muted">
+                      {e.location_accuracy_m !== null
+                        ? `±${Math.round(e.location_accuracy_m)} m`
+                        : "precizie necunoscută"}{e.located_at ? ` · ${at(e.located_at)}` : ""}
+                    </span>
+                  </span>
+                </div>
+              {:else}
+                {@render row("Locație", "Fără locație în eveniment")}
+              {/if}
+            </div>
+          {/if}
+        {:else if tab === "resolve"}
+          {#if incident.status === "open"}
+            <div class="flex flex-col items-start gap-3 border border-line bg-canvas p-4">
+              <span>Preia cazul pentru a-l putea rezolva.</span>
+              <button
+                type="button"
+                class="sn-btn sn-btn-danger h-[34px] px-3.5"
+                disabled={busy}
+                onclick={take}
+              >
+                <Icon name="zap" size={13} stroke={2.2} />Preiau cazul
+              </button>
+            </div>
+          {:else if incident.status === "in_progress"}
+            <form class="flex flex-col gap-3.5" onsubmit={finish}>
+              <div class="sn-label" id="outcome-label">Rezultat</div>
+              <div
+                class="flex flex-col border border-line"
+                role="radiogroup"
+                aria-labelledby="outcome-label"
+              >
+                {#each OUTCOMES as o (o.value)}
+                  <label
+                    class={[
+                      "flex cursor-pointer items-center gap-2.5 border-b border-line px-3 py-[9px] last:border-b-0 hover:bg-card",
+                      outcome === o.value && "bg-link/12",
+                    ]}
+                  >
+                    <input
+                      type="radio"
+                      name="outcome"
+                      value={o.value}
+                      bind:group={outcome}
+                      class="peer sr-only"
+                    />
+                    <span
+                      class={[
+                        "size-3.5 flex-none border-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-link",
+                        outcome === o.value ? "border-link bg-link" : "border-line-strong",
+                      ]}
+                    ></span>
+                    {o.label}
+                    <span class="ml-auto font-mono text-[11px] text-fg-subtle">{o.value}</span>
+                  </label>
+                {/each}
+              </div>
+              <label class="flex flex-col gap-1.5">
+                <span class="sn-label">Notă de rezolvare · obligatorie</span>
+                <textarea
+                  class="sn-input min-h-24 resize-y p-2.5 text-[13px] leading-normal"
+                  placeholder="Descrieți pe scurt măsurile luate…"
+                  maxlength={1000}
+                  bind:value={note}></textarea>
+              </label>
+              <button
+                class="sn-btn sn-btn-success h-10 w-full px-3.5 text-sm"
+                disabled={busy || !canFinish}
+              >
+                Finalizează și arhivează incidentul<Icon name="arrow-right" size={14} />
+              </button>
+            </form>
+          {:else}
+            {@const label = OUTCOMES.find((o) => o.value === d.outcome)?.label ?? d.outcome}
+            <div class="flex flex-col gap-2 border border-verde bg-verde/10 p-4">
+              <span class="flex items-center gap-2 font-extrabold text-verde-fg">
+                <Icon name="circle-check" size={15} />Incident arhivat · {label}
+              </span>
+              {#if d.note}<span class="text-fg-soft">{d.note}</span>{/if}
+              <span class="text-xs text-fg-muted">
+                Rezolvat de {d.resolved_by_name ?? "—"}, {at(d.resolved_at)}
+              </span>
+            </div>
+          {/if}
+        {/if}
+      {/if}
+    </div>
   </div>
   <form method="dialog" class="modal-backdrop">
     <button>Închide</button>

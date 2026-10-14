@@ -1,69 +1,290 @@
 <script lang="ts">
-  import { ApiError, fetchIncidents, type IncidentStatus } from "../../services/api";
+  import { takeIncident, type Incident, type IncidentStatus } from "../../services/api";
+  import Icon, { type IconName } from "../../ui/Icon.svelte";
+  import { columns, matchesIncident, shortId, since } from "../../utils/incidents";
   import { time } from "../../utils/labels";
-  import { poll } from "../../utils/poll.svelte";
+  import { getLive } from "../shell/live.svelte";
+  import PageHeader from "../shell/PageHeader.svelte";
+  import { refusalMessage } from "./commands";
   import IncidentCard from "./IncidentCard.svelte";
+  import IncidentDetails, { type DossierTab } from "./IncidentDetails.svelte";
 
-  const REFRESH_MS = 15_000;
+  const live = getLive();
+  const incidents = live.incidents;
 
-  // Full class names, so Tailwind finds them in the source
-  const COLUMNS: { status: IncidentStatus; title: string; border: string; badge: string }[] = [
-    { status: "open", title: "Deschise", border: "border-error", badge: "badge-error" },
-    { status: "in_progress", title: "În lucru", border: "border-warning", badge: "badge-warning" },
-    { status: "resolved", title: "Rezolvate", border: "border-success", badge: "badge-success" },
+  // Board for triage, table for scanning everything at once (spec 07 §4.2–4.3). Full class
+  // names, so Tailwind finds them in the source.
+  const COLUMNS: {
+    status: IncidentStatus;
+    title: string;
+    icon: IconName;
+    top: string;
+    iconColor: string;
+    count: string;
+    empty: string;
+  }[] = [
+    {
+      status: "open",
+      title: "Deschise",
+      icon: "circle-dot",
+      top: "border-t-rosu",
+      iconColor: "text-rosu",
+      count: "bg-rosu/15 text-rosu-fg",
+      empty: "Niciun incident deschis.",
+    },
+    {
+      status: "in_progress",
+      title: "În lucru",
+      icon: "clock",
+      top: "border-t-galben",
+      iconColor: "text-galben",
+      count: "bg-galben/15 text-galben-fg",
+      empty: "Niciun incident în lucru.",
+    },
+    {
+      status: "resolved",
+      title: "Rezolvate",
+      icon: "circle-check",
+      top: "border-t-verde",
+      iconColor: "text-verde",
+      count: "bg-verde/15 text-verde-fg",
+      empty: "Niciun incident rezolvat în ultimele 24 de ore.",
+    },
   ];
 
-  function describe(e: unknown): string {
-    return e instanceof ApiError && e.status === 404
-      ? "API-ul nu oferă încă lista de incidente."
-      : `Nu am putut citi incidentele (${e instanceof Error ? e.message : String(e)}).`;
+  const STATUS_CHIP: Record<IncidentStatus, { label: string; chip: string }> = {
+    open: { label: "Deschis", chip: "bg-rosu/15 text-rosu-fg" },
+    in_progress: { label: "În lucru", chip: "bg-galben/15 text-galben-fg" },
+    resolved: { label: "Rezolvat", chip: "bg-verde/15 text-verde-fg" },
+  };
+
+  let view = $state<"board" | "table">("board");
+  let query = $state("");
+  let selected = $state<{ id: string; tab: DossierTab } | null>(null);
+  let bannerBusy = $state(false);
+  let bannerError = $state<string | null>(null);
+
+  const all = $derived(incidents.load.kind === "ok" ? incidents.load.data : []);
+  const now = $derived(incidents.load.kind === "ok" ? incidents.load.at : Date.now());
+  const byStatus = $derived(columns(all.filter((i) => matchesIncident(i, query))));
+  // The banner ignores the filter: a red is never hidden by a search
+  const openAll = $derived(columns(all).open);
+  const alert = $derived(openAll[0]);
+  const selectedIncident = $derived(selected ? all.find((i) => i.id === selected?.id) : undefined);
+  const rows = $derived([...byStatus.open, ...byStatus.in_progress, ...byStatus.resolved]);
+
+  function open(id: string, tab: DossierTab = "access") {
+    selected = { id, tab };
   }
 
-  const poller = poll(fetchIncidents, REFRESH_MS, describe);
+  function changed(i: Incident) {
+    incidents.update((list) => list.map((x) => (x.id === i.id ? i : x)));
+  }
+
+  function takeAlert(i: Incident) {
+    bannerBusy = true;
+    bannerError = null;
+    takeIncident(i.id)
+      .then(changed)
+      .catch((e: unknown) => {
+        bannerError = refusalMessage(e, "take");
+        incidents.reload();
+      })
+      .finally(() => {
+        bannerBusy = false;
+      });
+  }
 </script>
 
-{#if poller.load.kind === "loading"}
+{#if alert}
+  <!-- Cod Roșu: the longest-waiting open incident, above everything (UC-11, spec 07 §1) -->
+  <section
+    aria-label="Cod Roșu"
+    class="flex flex-wrap items-center gap-3 border-b-2 border-rosu bg-rosu-strong/20 px-5 py-2.5"
+  >
+    <span class={["size-2.5 flex-none bg-rosu", live.sound && "sn-pulse"]}></span>
+    <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
+      <span class="font-extrabold tracking-[0.06em] text-rosu-fg">COD ROȘU</span>
+      <span class="font-semibold">{alert.senior_full_name} — {alert.reason}</span>
+      <span class="text-fg-soft">deschis {since(alert.opened_at, now)}</span>
+      {#if openAll.length > 1}
+        <span class="text-fg-soft">· încă {openAll.length - 1} deschise</span>
+      {/if}
+    </div>
+    {#if bannerError}
+      <span role="alert" class="text-rosu-fg">{bannerError}</span>
+    {/if}
+    <button
+      type="button"
+      class="sn-btn sn-btn-danger"
+      disabled={bannerBusy}
+      onclick={() => takeAlert(alert)}
+    >
+      <Icon name="zap" size={13} stroke={2.2} />Preiau cazul
+    </button>
+    <button type="button" class="sn-btn sn-btn-outline" onclick={() => open(alert.id)}>
+      Vezi dosar
+    </button>
+  </section>
+{/if}
+
+<PageHeader title="Dispecerat Incidente">
+  <div class="flex gap-0.5" role="tablist" aria-label="Vizualizare">
+    {#each [{ key: "board", label: "Board", icon: "board" }, { key: "table", label: "Table", icon: "table" }] as const as v (v.key)}
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === v.key}
+        class={[
+          "-mb-0.5 flex cursor-pointer items-center gap-[7px] border-b-2 px-3 py-2 font-semibold",
+          view === v.key ? "border-link text-fg" : "border-transparent text-fg-muted hover:text-fg",
+        ]}
+        onclick={() => (view = v.key)}
+      >
+        <Icon name={v.icon} size={14} />{v.label}
+      </button>
+    {/each}
+  </div>
+  <label
+    class="sn-input mb-2 ml-auto flex h-8 w-full max-w-[360px] items-center gap-2 px-2.5 text-fg-muted"
+  >
+    <Icon name="search" size={14} />
+    <input
+      bind:value={query}
+      aria-label="Filtrează incidente"
+      placeholder="Filtrează: nume, motiv, dispecer, #id"
+      class="min-w-0 flex-1 bg-transparent font-mono text-xs text-fg outline-none placeholder:text-fg-muted"
+    />
+  </label>
+</PageHeader>
+
+{#if incidents.load.kind === "loading"}
   <div
     role="status"
-    class="loading-delay flex items-center justify-center gap-2 p-12 text-base-content/60"
+    class="loading-delay flex items-center justify-center gap-2 p-12 text-fg-muted"
   >
-    <span class="loading loading-spinner loading-md"></span>
-    <span class="text-sm">Se încarcă incidentele…</span>
+    <span class="loading loading-md loading-spinner"></span>
+    <span>Se încarcă incidentele…</span>
   </div>
-{:else if poller.load.kind === "error"}
-  <div role="alert" class="alert alert-error alert-soft">
-    {poller.load.message}
-  </div>
-{:else if poller.load.kind === "ok"}
-  <section>
-    {#if poller.load.error}
-      <div role="alert" class="alert alert-warning alert-soft mb-3">
-        {poller.load.error}
-      </div>
-    {/if}
-    <p class="mb-3 text-sm text-base-content/60">Actualizat la {time.format(poller.load.at)}</p>
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-start gap-4">
-      {#each COLUMNS as { status, title, border, badge } (status)}
-        {@const items = poller.load.data.filter((i) => i.status === status)}
-        <div>
-          <h2 class={["mb-3 flex items-center gap-2 border-b-4 pb-1.5 font-semibold", border]}>
-            {title} <span class={["badge badge-sm", badge]}>{items.length}</span>
-          </h2>
-          {#if items.length === 0}
-            <p class="text-sm text-base-content/60">Niciun incident.</p>
-          {/if}
-          {#each items as i (i.id)}
-            <IncidentCard
-              incident={i}
-              now={poller.load.at}
-              {border}
-              onChanged={(changed) =>
-                poller.update((list) => list.map((x) => (x.id === changed.id ? changed : x)))}
-              onStale={() => poller.reload()}
-            />
-          {/each}
-        </div>
+{:else if incidents.load.kind === "error"}
+  <p role="alert" class="m-4 border border-rosu bg-rosu/15 px-4 py-3 text-rosu-fg">
+    {incidents.load.message}
+  </p>
+{:else}
+  {#if incidents.load.error}
+    <p role="alert" class="mx-4 mt-3 border border-galben bg-galben/15 px-4 py-2 text-galben-fg">
+      {incidents.load.error} Afișez datele de la {time.format(incidents.load.at)}.
+    </p>
+  {/if}
+
+  {#if view === "board"}
+    <div class="grid min-h-0 flex-1 gap-3 p-4 md:grid-cols-3">
+      {#each COLUMNS as c (c.status)}
+        {@const items = byStatus[c.status]}
+        <section class="flex min-h-0 flex-col border border-line bg-subtle" aria-label={c.title}>
+          <div
+            class={[
+              "flex items-center gap-2 border-t-[3px] border-b border-b-line px-3.5 py-[11px]",
+              c.top,
+            ]}
+          >
+            <Icon name={c.icon} stroke={2.2} class={c.iconColor} />
+            <h2 class="text-sm font-extrabold">{c.title}</h2>
+            <span class={["sn-count", c.count]}>{items.length}</span>
+          </div>
+          <div class="flex min-h-0 flex-col gap-2 overflow-auto p-2.5">
+            {#each items as i (i.id)}
+              <IncidentCard
+                incident={i}
+                {now}
+                onOpen={(tab) => open(i.id, tab)}
+                onChanged={changed}
+                onStale={() => incidents.reload()}
+              />
+            {:else}
+              <p class="px-1 py-4 text-fg-muted">{query ? "Niciun rezultat." : c.empty}</p>
+            {/each}
+          </div>
+        </section>
       {/each}
     </div>
-  </section>
+  {:else}
+    <div class="min-h-0 flex-1 overflow-auto">
+      <table class="w-full border-collapse text-left">
+        <thead class="sticky top-0 z-[1] bg-subtle">
+          <tr class="sn-label border-b-2 border-line">
+            <th class="border-r border-card px-3 py-[9px] font-semibold">Incident</th>
+            <th class="border-r border-card px-3 py-[9px] font-semibold">Senior</th>
+            <th class="border-r border-card px-3 py-[9px] font-semibold">Motiv</th>
+            <th class="border-r border-card px-3 py-[9px] font-semibold">Stare</th>
+            <th class="border-r border-card px-3 py-[9px] font-semibold">Preluat de</th>
+            <th class="px-3 py-[9px] font-semibold">Acțiuni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each rows as i (i.id)}
+            <tr class="border-b border-line hover:bg-subtle">
+              <td class="border-r border-card px-3 py-2">
+                <span class="block font-mono text-[11.5px] text-fg-soft">#{shortId(i.id)}</span>
+                <span class="text-xs text-fg-muted" title={time.format(Date.parse(i.opened_at))}>
+                  {since(i.opened_at, now)}
+                </span>
+              </td>
+              <td class="border-r border-card px-3 py-2">
+                <span class="block text-[13.5px] font-semibold">{i.senior_full_name}</span>
+                <span class="text-xs text-fg-muted">{i.senior_form_of_address}</span>
+              </td>
+              <td
+                class={[
+                  "border-r border-card px-3 py-2",
+                  i.status === "open" && "font-semibold text-rosu-fg",
+                ]}
+              >
+                {i.reason}
+              </td>
+              <td class="border-r border-card px-3 py-2">
+                <span
+                  class={[
+                    "px-2 py-0.5 text-[11.5px] font-bold whitespace-nowrap",
+                    STATUS_CHIP[i.status].chip,
+                  ]}
+                >
+                  {STATUS_CHIP[i.status].label}
+                </span>
+              </td>
+              <td class="border-r border-card px-3 py-2 text-fg-soft">{i.taken_by_name ?? "—"}</td>
+              <td class="px-3 py-2">
+                <button
+                  type="button"
+                  class="sn-btn sn-btn-link px-2.5 py-[5px] text-xs"
+                  onclick={() => open(i.id, i.status === "in_progress" ? "resolve" : "access")}
+                >
+                  Vezi dosar
+                </button>
+              </td>
+            </tr>
+          {:else}
+            <tr>
+              <td colspan="6" class="px-5 py-6 text-fg-muted">
+                {query ? "Niciun incident nu corespunde filtrului." : "Niciun incident."}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+{/if}
+
+{#if selected && selectedIncident}
+  {#key selected}
+    <IncidentDetails
+      incident={selectedIncident}
+      tab={selected.tab}
+      {now}
+      onClose={() => (selected = null)}
+      onChanged={changed}
+      onStale={() => incidents.reload()}
+    />
+  {/key}
 {/if}
