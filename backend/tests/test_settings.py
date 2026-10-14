@@ -48,13 +48,14 @@ def test_allowed_combinations(monkeypatch):
 
 
 def test_s3_storage_settings():
-    s_default = Settings(database_url=LOCAL)
+    s_default = Settings(database_url=LOCAL, _env_file=None)
     assert s_default.s3_bucket_name == ""
     assert s_default.s3_endpoint == ""
     assert s_default.s3_region == "ams"
 
     s_custom = Settings(
         database_url=LOCAL,
+        _env_file=None,
         s3_bucket_name="my-bucket",
         s3_endpoint="https://storage.ams.railway.app",
         s3_access_key_id="test-key",
@@ -66,3 +67,15 @@ def test_s3_storage_settings():
     assert s_custom.s3_access_key_id == "test-key"
     assert s_custom.s3_secret_access_key == "test-secret"
     assert s_custom.s3_region == "ams"
+
+
+def test_s3_aws_aliases(monkeypatch):
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://t3.storageapi.dev")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "aws-key")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-central-1")
+    s = Settings(database_url=LOCAL, _env_file=None)
+    assert s.s3_endpoint == "https://t3.storageapi.dev"
+    assert s.s3_access_key_id == "aws-key"
+    assert s.s3_secret_access_key == "aws-secret"
+    assert s.s3_region == "eu-central-1"
