@@ -2,7 +2,7 @@
 // Railway never reads this file during a deploy; a person applies it from .railway/:
 //   railway config plan --environment staging
 //   railway config apply --environment staging
-import { defineRailway, github, postgres, preserve, project, service } from "railway/iac";
+import { bucket, defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
 const REPO = "paulhondola/Sentinela-Test";
 const REGION = "europe-west4-drams3a"; // EU West
@@ -25,9 +25,12 @@ export default defineRailway((ctx) => {
   const branch = env && BRANCH[env];
   if (!env || !branch) throw new Error(`No branch for Railway environment "${env}"`);
 
-  const db = postgres("Postgres");
+  // Postgres database pinned to EU West (europe-west4-drams3a)
+  const db = postgres("Postgres", { region: REGION });
+  // S3-compatible storage bucket in Europe (Amsterdam)
+  const storage = bucket("Storage", { region: "ams" });
 
-  const api = service("api", {
+  const api = service("Sentinela API", {
     // checkSuites: Wait for CI, so a red workflow never deploys
     source: github(REPO, { branch, rootDirectory: "/backend", checkSuites: true }),
     // watch paths: only backend changes redeploy the API and drop live calls
@@ -43,6 +46,12 @@ export default defineRailway((ctx) => {
       // ${{...}} is Railway's own reference syntax, resolved at deploy time
       PUBLIC_BASE_URL: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
       ALLOWED_ORIGIN: "https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}",
+      // S3-compatible bucket storage
+      S3_BUCKET_NAME: "${{storage.BUCKET_NAME}}",
+      S3_ENDPOINT: "${{storage.BUCKET_ENDPOINT}}",
+      S3_ACCESS_KEY_ID: "${{storage.BUCKET_ACCESS_KEY_ID}}",
+      S3_SECRET_ACCESS_KEY: "${{storage.BUCKET_SECRET_ACCESS_KEY}}",
+      S3_REGION: "ams",
       // Twilio (04 §4), set by a person with `railway variable set`; apply keeps them
       TWILIO_ACCOUNT_SID: preserve(),
       TWILIO_AUTH_TOKEN: preserve(),
@@ -50,7 +59,7 @@ export default defineRailway((ctx) => {
     },
   });
 
-  const dashboard = service("dashboard", {
+  const dashboard = service("DAS Dashboard", {
     source: github(REPO, { branch, rootDirectory: "/dashboard", checkSuites: true }),
     build: { builder: "DOCKERFILE", watchPatterns: ["/dashboard/**"] },
     replicas: { [REGION]: 1 },
@@ -58,5 +67,5 @@ export default defineRailway((ctx) => {
     env: { VITE_API_URL: "https://${{api.RAILWAY_PUBLIC_DOMAIN}}", ...FIREBASE_WEB },
   });
 
-  return project("Sentinela", { resources: [api, dashboard, db] });
+  return project("Sentinela", { resources: [api, dashboard, db, storage] });
 });

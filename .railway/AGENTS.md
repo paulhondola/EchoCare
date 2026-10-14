@@ -1,6 +1,6 @@
 # AGENTS.md: .railway
 
-Railway infrastructure as code. [railway.ts](railway.ts) declares the whole `Sentinela` project for both environments: the `api` and `dashboard` services, `Postgres`, and every setting and variable. Details: [README.md](README.md).
+Railway infrastructure as code. [railway.ts](railway.ts) declares the whole `Sentinela` project for both environments: the `api` and `dashboard` services, `Postgres`, the S3 `storage` bucket, and every setting and variable. Details: [README.md](README.md).
 
 ## Layout
 

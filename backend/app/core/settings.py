@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # ConversationRelay's voice for ro-RO; which one sounds right is spike S1.
     twilio_tts_provider: str = "Google"
     twilio_voice: str = "ro-RO-Wavenet-A"
+    # S3-compatible storage bucket (Railway storage for avatars, logs, blob data)
+    s3_bucket_name: str = ""
+    s3_endpoint: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = "ams"
 
     @field_validator("database_url")
     @classmethod
