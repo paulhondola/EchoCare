@@ -469,7 +469,7 @@ sequenceDiagram
 ```
 
 1. The watch compares the pulse with the wearer's own resting level and with movement. A high pulse during a walk is ignored. It also counts steps; a long stretch without any is an inactivity anomaly.
-2. The watch also watches the accelerometer for a fall **(P19, proposed)**: free fall (the total acceleration below 0.4 g for a few tens of milliseconds), then an impact above 2.5 g within a second, then 10 to 20 seconds with almost no movement. Sitting down hard, walking and climbing stairs must not match; the false-alarm rate is measured ([06-operations.md](06-operations.md) section 5).
+2. The watch also watches the accelerometer for a fall **(P19, proposed)**: an impact above 2 g, then at least 7 seconds with almost no movement (within 0.1 g of 1 g). Free fall is not required: at the wrist it is often missing in a real fall and present in ordinary movement. Walking, climbing stairs, slapping a table and sudden gestures do not match; sitting down hard or lying down quickly can, and the wrist prompt catches those. Measured in [spike-results.md](spike-results.md), S13.
 3. The watch vibrates and asks „Sunteți bine?” with Da and Nu. After a fall the prompt times out sooner and also beeps.
 4. Da ends it. Nu, or no reply before the prompt times out, sends an anomaly event to the phone app.
 5. The "Nu mă simt bine" button skips the prompt and sends the event at once.

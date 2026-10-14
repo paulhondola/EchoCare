@@ -169,7 +169,7 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 | S10 | Does an SMS from the project's Twilio number reach Orange, Vodafone and Digi phones? | Drop the caregiver notice; the caregiver signs in on the spot |
 | S11 | How does the US number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
 | S12 | Does the phone app keep its Bluetooth connection to the home node, and relay readings, while it is in the background for an hour? | Keep the phone app in the foreground on the demo phone; a foreground service in the app |
-| S13 | Can the Wear OS app read the accelerometer fast enough (about 50 readings a second) in the background to see a fall, and what does it cost in battery? | Fall detection only while the monitoring screen is open; the hidden "force fall" action for the demo |
+| S13 | Can the Wear OS app read the accelerometer fast enough (about 50 readings a second) in the background to see a fall, and what does it cost in battery? | Fall detection only while the monitoring screen is open; the hidden "force fall" action for the demo. Screen on: yes, 50 a second, and 45 trials set the thresholds ([spike-results.md](spike-results.md)). Background: open |
 
 **S1 and S8, how to answer them.** The telephony edge for both is built (#15): `scripts/place_call.py <number>` dials a registered senior's number with a scripted ConversationRelay call that repeats what it hears and ends on key 0. Run it on staging through `railway ssh -s api -e staging` with the Twilio variables set, then write here:
 

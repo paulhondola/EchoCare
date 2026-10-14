@@ -51,6 +51,7 @@ flowchart LR
 | [04-interfaces.md](04-interfaces.md) | Every interface between parts: endpoints, callbacks, messages, agent tools |
 | [05-data-model.md](05-data-model.md) | Entities, relationships, constraints, retention |
 | [06-operations.md](06-operations.md) | Failure handling, timers and demo mode, security and privacy, testing, spikes to run before the hackathon |
+| [spike-results.md](spike-results.md) | What the spikes found on real hardware, with the raw numbers |
 | [07-dashboard-stitch-spec.md](07-dashboard-stitch-spec.md) | DAS web dashboard, design system (GitHub Projects Kanban style), and Google Stitch prompt package |
 
 ## What changed from v3
@@ -136,7 +137,7 @@ Each is marked **(proposed)** where it is specified.
 | P16 | A campaign is one round of calls, started immediately | Kept |
 | P17 | FastAPI is hosted on Google Cloud Run | Replaced by G9 |
 | P18 | Push messages carry generic text and a senior id, no health details | Kept |
-| P19 | The watch also detects falls: free fall, impact, then stillness, followed by the wrist prompt. A fall is one more watch event type | Proposed |
+| P19 | The watch also detects falls: an impact above 2 g, then at least 7 seconds of stillness, followed by the wrist prompt. A fall is one more watch event type | Proposed; thresholds from spike S13 ([spike-results.md](spike-results.md)) |
 | P20 | An optional home node (ESP32 with a room temperature sensor, a motion sensor and an SOS button) talks over Bluetooth Low Energy to the senior's phone app only, never to FastAPI directly. Like the watch, it has no identity of its own. It serves the two courses that require a mobile app using hardware sensors (G1) | Proposed |
 | P21 | FastAPI owns the room temperature thresholds. A room reading that stays out of range for the hold time, no movement in the house during an active warning, or the node's SOS button starts a wellbeing call with starting severity yellow | Proposed |
 | P22 | A fresh room reading out of range overrides a "yes" to the shelter question: the server records the shelter answer as worrying. Sensors can only raise the level, like the model | Proposed |
