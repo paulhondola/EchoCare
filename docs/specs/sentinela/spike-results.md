@@ -46,6 +46,19 @@ Five trials of each movement, one movement per trial. Falls onto a bed, then 15 
 
 **Rule these numbers support:** a peak above 2 g, followed by at least 7 s within 0.1 g of 1 g. On these 45 trials it catches 15 of 15 falls and raises 6 false alarms out of 30, all from sitting down hard (4) and lying down quickly (2), which also end in stillness. None from walking, stairs, slaps or gestures. Those false alarms reach the wrist prompt only: a „Da” ends them, and no call is placed (UC-09).
 
+### Check of the detector on the watch
+
+The rule above, as `FallDetector` in `:shared`, run live in the sensor test screen. Same wearer, same day, a second set of trials.
+
+| Trials | Movement | Detected |
+|---|---|---|
+| 1–5 | Fall onto the bed, then still | 4 of 5. Trial 5 peaked at 1.99 g, just under the 2 g threshold, and was still only 0.2 s after it. Trial 1 also counted a second detection while the watch was being set up |
+| 6–10 | Slapping a table | 0 of 5 |
+| 11–15 | Walking | 0. Trial 13 lasted 0 s, a double press of the button, so the numbering is off by one from here |
+| 16–18 | Sitting down hard | 3 of 3, the known false alarm the wrist prompt is for |
+
+The detector behaves as the 45 trials predicted. One fall fell just short of the impact threshold; one sample is not enough to lower it.
+
 ### Limits
 
 - Falls were onto a bed. On a floor the impact is higher, so a 2 g threshold errs on the safe side.
