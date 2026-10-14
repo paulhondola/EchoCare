@@ -29,6 +29,8 @@ services:
     environment:
       DATABASE_URL: postgresql://sentinela:sentinela@db:5432/sentinela
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      # presigned URLs are opened on the host (phone: adb reverse tcp:9000 tcp:9000)
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-sentinela}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
@@ -36,7 +38,8 @@ services:
     ports: ["8000:8000"]
     depends_on:
       db: { condition: service_healthy }
-      minio: { condition: service_healthy }
+      # waits for the bucket, but nothing calls storage yet, so a broken MinIO doesn't stop the API
+      minio-create-bucket: { condition: service_completed_successfully, required: false }
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'"
     volumes:
       # bind mount, not sync: migrations generated inside the container must land on the host
@@ -50,8 +53,9 @@ services:
     image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      # the same keys and bucket as the api's S3_* variables, so overriding one overrides both
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
     ports:
       - "9000:9000" # S3 API endpoint
       - "9001:9001" # Web console
@@ -65,11 +69,11 @@ services:
   minio-create-bucket:
     image: cgr.dev/chainguard/minio:latest
     depends_on:
-      minio: { condition: service_healthy }
+      minio: { condition: service_healthy, required: false }
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin &&
-      /usr/bin/mc mb --ignore-existing local/sentinela &&
+      /usr/bin/mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin} &&
+      /usr/bin/mc mb --ignore-existing local/${S3_BUCKET_NAME:-sentinela} &&
       exit 0;
       "
 

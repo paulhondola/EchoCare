@@ -1,9 +1,12 @@
+import base64
+import json
+
 import boto3
 import pytest
 from moto import mock_aws
 
 from app.core.settings import Settings
-from app.core.storage import StorageNotConfiguredError, StorageService
+from app.core.storage import StorageError, StorageNotConfiguredError, StorageService
 
 
 @pytest.fixture
@@ -69,24 +72,27 @@ async def test_storage_crud(s3_settings):
         # Test Upload
         key = "avatars/senior-1.png"
         content = b"\x89PNG\r\n\x1a\nfakeimagecontent"
-        uploaded_key = await storage.upload(key, content, content_type="image/png")
-        assert uploaded_key == key
+        await storage.upload(key, content, content_type="image/png")
 
         # Test Download
         downloaded = await storage.download(key)
         assert downloaded == content
 
-        # Test Presigned URL for GET and PUT
+        # Test Presigned URL for GET, and the upload form for POST
         url_get = await storage.generate_presigned_url(key, expires_in=1800)
         assert "avatars/senior-1.png" in url_get
+        assert "X-Amz-Expires=1800" in url_get
+        with pytest.raises(ValueError):
+            await storage.generate_presigned_url(key, expires_in=8 * 24 * 3600)
 
-        url_put = await storage.generate_presigned_url(
-            key, expires_in=1800, method="put_object"
-        )
-        assert "avatars/senior-1.png" in url_put
+        form = await storage.generate_presigned_post(key, "image/png", max_bytes=1000)
+        assert form["fields"]["key"] == key
+        policy = json.loads(base64.b64decode(form["fields"]["policy"]))
+        assert {"Content-Type": "image/png"} in policy["conditions"]
+        assert ["content-length-range", 1, 1000] in policy["conditions"]
 
         # Test Delete
-        assert await storage.delete(key) is True
+        await storage.delete(key)
 
         # Test Download non-existent file
         with pytest.raises(FileNotFoundError):
@@ -109,6 +115,32 @@ async def test_storage_binary_io(s3_settings):
 
         downloaded = await storage.download("stream.bin")
         assert downloaded == b"binary-stream-data"
+
+
+@pytest.mark.asyncio
+async def test_storage_failures_are_storage_errors(s3_settings):
+    with mock_aws():  # no bucket: every call fails on the S3 side
+        storage = StorageService(s3_settings)
+        with pytest.raises(StorageError, match="NoSuchBucket"):
+            await storage.upload("k", b"x")
+        assert await storage.check_health() is False
+
+    # no http(s)://: botocore refuses the endpoint before any request
+    bad = s3_settings.model_copy(update={"s3_endpoint": "minio:9000"})
+    with pytest.raises(StorageError, match="Invalid endpoint"):
+        await StorageService(bad).generate_presigned_url("k")
+
+
+@pytest.mark.asyncio
+async def test_presigned_urls_use_public_endpoint(s3_settings):
+    settings = s3_settings.model_copy(
+        update={
+            "s3_endpoint": "http://minio:9000",
+            "s3_public_endpoint": "http://localhost:9000",
+        }
+    )
+    url = await StorageService(settings).generate_presigned_url("a.png")
+    assert url.startswith("http://localhost:9000/sentinela-test/a.png?")
 
 
 def test_get_storage_provider():

@@ -3,7 +3,7 @@ from enum import StrEnum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Hosts a laptop may migrate or run a scheduler against: the host's Postgres and Compose's db.
@@ -34,23 +34,14 @@ class Settings(BaseSettings):
     twilio_tts_provider: str = "Google"
     twilio_voice: str = "ro-RO-Wavenet-A"
     # S3-compatible storage bucket (Railway storage for avatars, logs, blob data)
-    s3_bucket_name: str = Field(
-        "", validation_alias=AliasChoices("s3_bucket_name", "aws_bucket_name")
-    )
-    s3_endpoint: str = Field(
-        "", validation_alias=AliasChoices("s3_endpoint", "aws_endpoint_url")
-    )
-    s3_access_key_id: str = Field(
-        "", validation_alias=AliasChoices("s3_access_key_id", "aws_access_key_id")
-    )
-    s3_secret_access_key: str = Field(
-        "",
-        validation_alias=AliasChoices("s3_secret_access_key", "aws_secret_access_key"),
-    )
-    s3_region: str = Field(
-        "ams",
-        validation_alias=AliasChoices("s3_region", "aws_default_region", "aws_region"),
-    )
+    s3_bucket_name: str = ""
+    s3_endpoint: str = ""
+    # The host in presigned URLs, for clients that can't reach s3_endpoint (Compose's
+    # minio:9000); empty means s3_endpoint.
+    s3_public_endpoint: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = "ams"
 
     @field_validator("database_url")
     @classmethod
