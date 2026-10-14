@@ -1,6 +1,6 @@
 # AGENTS.md: android/app
 
-The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and an empty DAS home (seniors §8). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+The phone and tablet app, `bia.sentinela`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and an empty DAS home (seniors §8). The medic registers and edits seniors with „Pacient nou” (seniors §9). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
 
 ## Layout
 
@@ -19,6 +19,9 @@ app/src/
 │   ├── home/Frame.kt      the shared top bar, the timed re-read, loading and failure states
 │   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
 │   ├── home/Senior*.kt    one senior's page
+│   ├── enroll/Form.kt     „Pacient nou”: steps, fields, validation, what each step sends, tested on the JVM (seniors §9)
+│   ├── enroll/Refusal.kt  both refusal bodies and what the form does with each, tested on the JVM (seniors §9.3)
+│   ├── enroll/Enroll*.kt  the medic's four-step form
 │   ├── ui/Components.kt   the dashboard's pieces: SnButton, Chip, FieldRow, Banner, CallButton, SnTextField
 │   ├── ui/Format.kt       phone numbers as people read them, tested on the JVM
 │   └── ui/theme/          one dark Material 3 theme: Palette.kt (spec 07 §2.1), Type.kt, Theme.kt

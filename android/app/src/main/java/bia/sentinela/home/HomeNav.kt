@@ -11,16 +11,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import bia.sentinela.R
 import bia.sentinela.auth.Screen
+import bia.sentinela.enroll.EnrollScreen
 import bia.sentinela.ui.SquareIconButton
 import bia.sentinela.ui.theme.Palette
 
@@ -39,19 +43,19 @@ fun HomeNav(
     key(home.role) {
         val nav = rememberNavController()
         val menu: @Composable () -> Unit = { HomeMenu(home.canSwitch, onSwitchRole, onSignOut) }
+        // Only the medic registers seniors (04 §2): the form's entry points are theirs (seniors §9.1)
+        val medic = home.role == "medic"
+        var sent by rememberSaveable { mutableStateOf(false) }
         NavHost(nav, startDestination = homeFor(home.role)) {
             composable<SeniorsRoute> {
                 SeniorsScreen(
-                    title = if (home.role ==
-                        "medic"
-                    ) {
-                        R.string.medic_home
-                    } else {
-                        R.string.caregiver_home
-                    },
+                    title = if (medic) R.string.medic_home else R.string.caregiver_home,
                     menu = menu,
-                    onOpen = { nav.navigate(SeniorRoute(it)) },
-                    onSessionEnd = onSessionEnd
+                    onOpen = { nav.navigate(openFor(home.role, it)) },
+                    onSessionEnd = onSessionEnd,
+                    onNew = if (medic) ({ nav.navigate(EnrollRoute()) }) else null,
+                    sent = sent,
+                    onSentShown = { sent = false }
                 )
             }
             composable<SeniorRoute> { entry ->
@@ -59,6 +63,19 @@ fun HomeNav(
                     id = entry.toRoute<SeniorRoute>().id,
                     onBack = { nav.popBackStack() },
                     menu = {},
+                    onSessionEnd = onSessionEnd,
+                    onEdit = if (medic) ({ nav.navigate(EnrollRoute(it)) }) else null
+                )
+            }
+            composable<EnrollRoute> {
+                EnrollScreen(
+                    // Popping by route makes a second tap a no-op, never the home popped too
+                    onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
+                    onSubmitted = {
+                        sent = true
+                        nav.popBackStack<SeniorsRoute>(inclusive = false)
+                    },
+                    onDone = { nav.toPage(it) },
                     onSessionEnd = onSessionEnd
                 )
             }
@@ -71,6 +88,15 @@ fun HomeNav(
                 }
             }
         }
+    }
+}
+
+/** „Gata”: back to the senior's page, the one „Editează” opened the form from, or a new one. */
+private fun NavController.toPage(id: String) {
+    if (previousBackStackEntry?.destination?.hasRoute<SeniorRoute>() == true) {
+        popBackStack()
+    } else {
+        navigate(SeniorRoute(id)) { popUpTo<EnrollRoute> { inclusive = true } }
     }
 }
 

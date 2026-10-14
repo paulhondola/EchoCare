@@ -555,7 +555,7 @@ All on the medic's screens, and all open one destination, the form:
 |---|---|
 | „Pacient nou”, a button on the medic's home | An empty form |
 | Tapping a draft's card on the medic's home | The form filled from `GET seniors/{id}`, at step 1 |
-| „Editează”, on the page of a senior the medic opened from their home | The same, for a senior in any state (SE9) |
+| „Editează”, on the page of a senior the medic opened from their home | The same, for a senior in `draft` or `submitted`: 04 §2 refuses an edit past `submitted` with `wrong_state`, so the button shows only in those two states |
 
 ### 9.2 The four steps
 
@@ -564,7 +564,7 @@ All on the medic's screens, and all open one destination, the form:
 | 1 · „Senior” | Full name, form of address, phone number, call window | Enabled when the first three are valid. Creates the senior with `POST seniors` the first time, and saves with `PUT seniors/{id}` after that |
 | 2 · „Adresă și acces” | Street, number, block, staircase, floor, apartment, intercom code, key holder, landmark | Saves with `PUT`. A draft may leave the street and number empty; past `draft` they are required |
 | 3 · „Aparținători” | The caregivers so far, each with a remove button, and a row to add one: name, relation, phone number | Sends nothing. „Adaugă” and remove each call the API at once |
-| 4 · „Verificare” | A read-only summary from `GET seniors/{id}`, and what is still missing | A draft: „Trimite la DAS”, enabled when the street and number are filled; it submits and returns to the home. Past `draft`: „Gata” returns to the page |
+| 4 · „Verificare” | A read-only summary from `GET seniors/{id}`, and what is still missing | A draft: „Trimite la DAS”, enabled when the street, the number and at least one caregiver are there (04 §2); it submits and returns to the home. Past `draft`: „Gata” returns to the page |
 
 - **`PUT` sends the whole registration** (§3.5), so the form keeps the fields of steps 1 and 2 together and sends both at each save.
 - **Back** goes to the previous step, and from step 1 leaves the form. What „Continuă” saved stays saved; what was typed since is dropped.
@@ -581,12 +581,15 @@ All on the medic's screens, and all open one destination, the form:
 | Answer | Shown |
 |---|---|
 | 422 on the senior's `phone` | Under the field: „Număr de telefon invalid.” |
-| 409 `phone_taken` | Under the field: „Acest număr este deja al altui senior.” |
 | 422 on a caregiver's `phone` | Under the field: „Număr invalid. Aparținătorul are nevoie de un număr de mobil.” |
-| 409 `already_done` | „Este deja aparținător pentru acest senior.” |
-| 422 `missing_fields` | On step 4, the missing fields by their labels |
-| 409 `wrong_state` | The senior is read again, and step 4 shows the state it is in |
+| 422 on another field | Under the field: „Valoare invalidă.” |
+| 409 `already_done` on adding a caregiver | „Este deja aparținător pentru acest senior.” |
+| 422 `incomplete` with `missing`, on submit or on an edit of a submitted senior | „Lipsesc: …”, the missing fields by their labels |
+| 422 `incomplete` on removing the last caregiver past `draft` | „Un senior trimis la DAS are nevoie de cel puțin un aparținător.” |
+| 409 `wrong_state`, or `already_done` on submit | The senior is read again, and step 4 shows the state it is in |
 | 404, 403 `not_allowed`, no connection, 401, 403 `not_registered` | As in slice 3's table. The form keeps what was typed when there is no connection |
+
+There is no `phone_taken` since the merge with `main` (line 8): a second senior on one mobile gets no grant.
 
 ### 9.4 Layout
 

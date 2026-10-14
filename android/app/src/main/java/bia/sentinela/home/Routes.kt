@@ -1,6 +1,7 @@
 package bia.sentinela.home
 
 import bia.sentinela.R
+import bia.sentinela.SeniorRow
 import bia.sentinela.ui.Tone
 import kotlinx.serialization.Serializable
 
@@ -22,12 +23,25 @@ data object OwnRoute
 @Serializable
 data object IncidentsRoute
 
+/** „Pacient nou”: the medic's form, empty, or filled from the senior [id] (seniors §9.1). */
+@Serializable
+data class EnrollRoute(val id: String? = null)
+
 /** Where [role] lands after sign-in. [role] is one of auth.ROLES. */
 fun homeFor(role: String): Any = when (role) {
     "medic", "caregiver" -> SeniorsRoute(role)
     "senior" -> OwnRoute
     else -> IncidentsRoute
 }
+
+/** A card opens the senior's page, except a medic's draft, which opens the form (seniors §9.1). */
+fun openFor(role: String, senior: SeniorRow): Any = when {
+    role == "medic" && senior.state == "draft" -> EnrollRoute(senior.id)
+    else -> SeniorRoute(senior.id)
+}
+
+/** „Editează” shows while the medic may still edit: PUT refuses past `submitted` (04 §2). */
+fun editable(state: String) = state == "draft" || state == "submitted"
 
 /**
  * The label of each enrollment state (05 §1). A state this build does not know has none and
