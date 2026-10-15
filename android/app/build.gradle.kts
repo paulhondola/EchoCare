@@ -47,7 +47,7 @@ android {
         debug {
             signingConfig = signingConfigs.getByName("shared")
             val apiUrl = localProps.getProperty("sentinela.apiUrl")
-                ?: "https://api-staging-11c9.up.railway.app"
+                ?: "https://sentinela-api-staging.up.railway.app"
             buildConfigField("String", "API_URL", "\"$apiUrl\"")
             // How often an open screen re-reads (06 §3). sentinela.rereadSeconds=10 for a demo.
             val reread = localProps.getProperty("sentinela.rereadSeconds") ?: "30"
@@ -55,7 +55,11 @@ android {
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
-            buildConfigField("String", "API_URL", "\"https://api-production-ac97.up.railway.app\"")
+            buildConfigField(
+                "String",
+                "API_URL",
+                "\"https://sentinela-api-production.up.railway.app\""
+            )
             buildConfigField("int", "REREAD_SECONDS", "30")
             optimization {
                 enable = true
