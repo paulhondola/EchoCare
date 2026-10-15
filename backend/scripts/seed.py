@@ -6,11 +6,15 @@ and caregivers; a second DAS employee; a cold-weather campaign; wellbeing calls 
 their transcripts, answers and status reports; watch check-ins; and incidents open, in
 progress and resolved, so every dashboard screen has something on it.
 
-Every row has a fixed id: a second run adds nothing, and --reset replaces exactly these
-rows with fresh ones, timed relative to now (resolved incidents leave the dashboard after
-a day, 04 §1). Rows made through the API or grant_das.py stay. The Firebase test numbers
-sign in to it (backend/README.md): +40700000001 as DAS, +40700000002 as the medic of
-most seniors, +40700000004 as Maria Popescu's son and +40700000005 as Maria Popescu.
+The seniors and their history have fixed uuid5 ids, so a second run adds nothing.
+--reset deletes every senior the seed made and everything about them, including calls,
+incidents, caregivers and edits made through the API since, then makes them again,
+timed relative to now (resolved incidents leave the dashboard after a day, 04 §1).
+Users, staff grants and the campaign stay and are reused, and so do the seniors made
+through the API, with their history. The Firebase test numbers sign in to it
+(backend/README.md): +40700000001 as DAS, +40700000002 as the medic of most seniors,
++40700000004 as Maria Popescu's son and +40700000005 as Maria Popescu, unless that number
+is already another senior's (AL7), which the run reports.
 
 Local databases only, like alembic/env.py. From backend/:
 
@@ -30,9 +34,8 @@ from typing import Any
 # Run as a file, Python puts scripts/ on the path, not the folder that holds app/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import Base, Session
@@ -68,6 +71,7 @@ from app.models import (
     WatchState,
     WelcomeOutcome,
 )
+from app.seniors.service import sync_senior_grant
 from app.status.engine import BUCHAREST, Certainty, Question, Severity
 from app.voice.calls import CallState, was_answered
 
@@ -112,6 +116,8 @@ class SeniorSpec:
     address: dict[str, str] = field(default_factory=dict)
 
 
+# The two landlines, Ion's and Constantin's, are valid Timișoara numbers in a 0256 000
+# block, unlikely to be anyone's; the mobiles are made up too (05 §5).
 # fmt: off
 SENIORS = (
     SeniorSpec(
@@ -124,7 +130,7 @@ SENIORS = (
          "landmark": "Blocul de lângă farmacie"},
     ),
     SeniorSpec(
-        "ion", "Ion Dumitrescu", "domnul Ion", "+40256201345",
+        "ion", "Ion Dumitrescu", "domnul Ion", "+40256000101",
         EnrollmentState.active, MEDIC, 33,
         ((Person("+40700000201", "Cristina Dumitrescu"), "fiică"),),
         {"street": "Strada Lipovei", "street_number": "45",
@@ -173,7 +179,7 @@ SENIORS = (
          "landmark": "Lângă stația de tramvai"},
     ),
     SeniorSpec(
-        "constantin", "Constantin Barbu", "domnul Constantin", "+40256434512",
+        "constantin", "Constantin Barbu", "domnul Constantin", "+40256000102",
         EnrollmentState.submitted, MEDIC_2, 2,
         ((Person("+40700000206", "Sorin Barbu"), "fiu"),),
         {"street": "Strada Gheorghe Lazăr", "street_number": "17",
@@ -210,17 +216,17 @@ SENIORS = (
 )
 # fmt: on
 
-SENIOR_IDS = [seed_id("senior", s.key) for s in SENIORS]
 CAMPAIGN_ID = seed_id("campaign", "cold")
+# The seed's ids are uuid5 and the API's uuidv7, so this finds every senior any version
+# of the seed made, even one since renamed or dropped from SENIORS.
+SEEDED = func.uuid_extract_version(Senior.id) == 5
 
 
 def people() -> list[Person]:
-    """Everyone the seed may create: staff, caregivers and seniors with a mobile."""
+    """Staff and caregivers; sync_senior_grant makes the seniors' own users."""
     found = {p.phone: p for p, _ in STAFF_GRANTS}
     for s in SENIORS:
         found.update((p.phone, p) for p, _ in s.caregivers)
-        if is_mobile(s.phone):
-            found.setdefault(s.phone, Person(s.phone, s.full_name))
     return list(found.values())
 
 
@@ -258,15 +264,21 @@ class History:
         return self.now - timedelta(minutes=minutes)
 
     def grant(
-        self, person: Person, role: Role, senior: str = "", **values: Any
+        self,
+        person: Person,
+        role: Role,
+        senior: str = "",
+        relation: str | None = None,
+        granted_by: uuid.UUID | None = None,
     ) -> None:
+        # Every row has every key: a multi-row insert takes its columns from the first.
         self.grants.append(
             {
-                "id": seed_id("grant", person.phone, role, senior),
                 "user_id": self.users[person.phone],
                 "role": role,
                 "senior_id": self.seniors[senior].id if senior else None,
-                **values,
+                "relation": relation,
+                "granted_by": granted_by,
             }
         )
 
@@ -284,14 +296,8 @@ class History:
         )
         self.seniors[spec.key] = senior
         medic = self.users[spec.medic.phone]
-        # A mobile number is the senior's own grant (UC-01 step 3, AL7).
-        if not senior.phone_is_landline:
-            own = Person(spec.phone, spec.full_name)
-            self.grant(own, Role.senior, spec.key, granted_by=medic)
         for person, relation in spec.caregivers:
-            self.grant(
-                person, Role.caregiver, spec.key, relation=relation, granted_by=medic
-            )
+            self.grant(person, Role.caregiver, spec.key, relation, granted_by=medic)
 
     def call(
         self,
@@ -493,10 +499,9 @@ class History:
             )
         )
 
-    def day(self, minutes_ago: float, shift: int = 0) -> str:
-        """The weekday in Timișoara at that time, as said, or `shift` days off."""
-        weekday = self.ago(minutes_ago).astimezone(BUCHAREST).weekday()
-        return DAY_NAMES[(weekday + shift) % 7]
+    def day(self, minutes_ago: float) -> str:
+        """The weekday in Timișoara at that time, as said."""
+        return DAY_NAMES[self.ago(minutes_ago).astimezone(BUCHAREST).weekday()]
 
     def welcome(self, senior: str, days_ago: float, refused: str | None = None) -> None:
         """The welcome call and its consent (UC-04); `refused` is the senior's no."""
@@ -600,7 +605,8 @@ class History:
             (SENIOR, shelter[1]),
         ]
         if hand_over:
-            name_first = s.form_of_address.capitalize()
+            # Not capitalize(), which would lowercase the name: "Domnul ion".
+            name_first = s.form_of_address[:1].upper() + s.form_of_address[1:]
             lines += [(AGENT, f"{name_first}, {HAND_OVER}"), (SYSTEM, TRANSFERRED)]
         else:
             goodbye = (
@@ -668,26 +674,26 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     h.status("maria", call)
     h.watch("maria", WatchCondition.ok, 4, battery=82, pulse=74)
 
-    # Ion Dumitrescu: a landline, no watch. Unwell, the wrong day and a cold home: red,
-    # handed over minutes ago and not picked up yet, so the incident is still open.
+    # Ion Dumitrescu: a landline, no watch. Unwell, then no heating at home: red on the
+    # last answer, handed over minutes ago and not picked up yet, so the incident is still
+    # open. Red acts at once (03 §6), so the hand-over follows the answer that made it.
     h.welcome("ion", 31)
     first = h.call("ion", "campaign-1", CallTrigger.campaign, 40, CallState.unanswered)
     unwell = "Nu prea bine, mă doare capul de dimineață."
     cold = "Nu, încă nu ne-au dat căldura. E frig la mine."
-    wrong_day = h.day(10, shift=4)
     call = h.cold_call(
         "ion",
         "campaign-2",
         10,
         previous=first,
         feeling=("unwell", unwell),
-        day=(wrong_day, f"{wrong_day.capitalize()}... cred."),
+        day=today(10),
         shelter=("no", cold),
         final=Severity.red,
         hand_over=True,
-        reason="Se simte rău, nu știe ce zi este și nu are căldură",
-        summary="Domnul Ion spune că îl doare capul de dimineață, nu a știut ziua și "
-        "nu are căldură în casă. Transferat către DAS.",
+        reason="Se simte rău și nu are căldură",
+        summary="Domnul Ion spune că îl doare capul de dimineață și nu are căldură în "
+        "casă. Transferat către DAS.",
     )
     h.report(
         call,
@@ -702,20 +708,12 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         call,
         ReportSource.rules,
         Severity.red,
-        "Se simte rău și nu știe ce zi este",
-        certainty=Certainty.medium,
-        position=4,
-    )
-    h.report(
-        call,
-        ReportSource.rules,
-        Severity.red,
         call.reason,
         certainty=Certainty.high,
         quote=cold,
         position=6,
     )
-    opened = h.turn_at(call, 4)
+    opened = h.turn_at(call, 6)
     h.status("ion", call, since=opened)
     h.incident("ion", call, opened)
 
@@ -994,18 +992,15 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
 
 
 async def add_people(session: AsyncSession) -> dict[str, uuid.UUID]:
-    """Each number's user, made with a seed id unless the number already has one."""
+    """Each number's user, made unless the number already has one. Users stay through
+    --reset, with their sign-in, push tokens and duty."""
     everyone = people()
+    # user_for in bulk, with the medics' practice.
     await session.execute(
         insert(User)
         .values(
             [
-                {
-                    "id": seed_id("user", p.phone),
-                    "phone_e164": p.phone,
-                    "display_name": p.name,
-                    "practice": p.practice,
-                }
+                {"phone_e164": p.phone, "display_name": p.name, "practice": p.practice}
                 for p in everyone
             ]
         )
@@ -1022,9 +1017,28 @@ async def save(session: AsyncSession, history: History) -> None:
     # In foreign key order, a flush per step: the models declare no relationships.
     session.add_all(history.seniors.values())
     await session.flush()
-    # ON CONFLICT DO NOTHING: an existing grant, or a number already some senior's (AL7).
+    # ON CONFLICT DO NOTHING: a staff grant the number already holds.
     await session.execute(insert(Grant).values(history.grants).on_conflict_do_nothing())
-    session.add(history.campaign)
+    for senior in history.seniors.values():
+        await sync_senior_grant(session, senior)
+    # A mobile already another senior's gets no grant of its own (AL7).
+    seniors = {s.id: s for s in history.seniors.values()}
+    granted = set(
+        await session.scalars(
+            select(Grant.senior_id).where(
+                Grant.role == Role.senior, Grant.senior_id.in_(list(seniors))
+            )
+        )
+    )
+    for s in seniors.values():
+        if not s.phone_is_landline and s.id not in granted:
+            print(
+                f"{s.phone_e164} is already another senior's: it signs in to them, "
+                f"not to {s.full_name} (AL7).",
+                file=sys.stderr,
+            )
+    # Kept through --reset, fresh times and all: other seniors' calls may name it.
+    await session.merge(history.campaign)
     await session.flush()
     session.add_all(history.calls)  # in order, so a redial follows its first attempt
     await session.flush()
@@ -1033,28 +1047,17 @@ async def save(session: AsyncSession, history: History) -> None:
 
 
 async def remove(session: AsyncSession) -> None:
-    """The seed's own rows, and whatever has since been added to its seniors."""
-    calls = select(Call.id).where(Call.senior_id.in_(SENIOR_IDS))
+    """The seed's seniors and everything about them, including what was added through
+    the API since; their caregiver and senior grants go with them (ON DELETE CASCADE).
+    Users, staff grants and the campaign stay."""
+    seniors = select(Senior.id).where(SEEDED)
+    calls = select(Call.id).where(Call.senior_id.in_(seniors))
     for table in (CallTurn, Answer, StatusReport):
         await session.execute(delete(table).where(table.call_id.in_(calls)))
     for table in (Incident, SeniorStatus, WatchState, Consent, Event):
-        await session.execute(delete(table).where(table.senior_id.in_(SENIOR_IDS)))
-    await session.execute(delete(Call).where(Call.senior_id.in_(SENIOR_IDS)))
-    await session.execute(delete(Campaign).where(Campaign.id == CAMPAIGN_ID))
-    staff_grants = [seed_id("grant", p.phone, role, "") for p, role in STAFF_GRANTS]
-    await session.execute(delete(Grant).where(Grant.id.in_(staff_grants)))
-    # Their caregiver and senior grants go with them (ON DELETE CASCADE).
-    await session.execute(delete(Senior).where(Senior.id.in_(SENIOR_IDS)))
-    for person in people():
-        user_id = seed_id("user", person.phone)
-        has_grants = select(Grant.id).where(Grant.user_id == user_id).exists()
-        try:
-            async with session.begin_nested():
-                await session.execute(
-                    delete(User).where(User.id == user_id, ~has_grants)
-                )
-        except IntegrityError:
-            pass  # still named by rows made through the API, such as their seniors
+        await session.execute(delete(table).where(table.senior_id.in_(seniors)))
+    await session.execute(delete(Call).where(Call.senior_id.in_(seniors)))
+    await session.execute(delete(Senior).where(SEEDED))
 
 
 async def seed(reset: bool = False, now: datetime | None = None) -> str:
@@ -1063,9 +1066,7 @@ async def seed(reset: bool = False, now: datetime | None = None) -> str:
     if not is_local_db(url):
         raise SystemExit(f"Refusing to seed {db_host(url)}: mock data stays local.")
     async with Session() as session:
-        there = await session.scalar(
-            select(Senior.id).where(Senior.id.in_(SENIOR_IDS)).limit(1)
-        )
+        there = await session.scalar(select(Senior.id).where(SEEDED).limit(1))
         if there and not reset:
             return "already seeded"
         if there:

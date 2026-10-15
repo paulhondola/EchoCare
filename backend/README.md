@@ -113,7 +113,7 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
 uv run python scripts/seed.py
 ```
 
-A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` replaces only the seed's own rows with fresh ones. Rows made through the API or `grant_das.py` stay. It refuses any database but a local one.
+A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. It refuses any database but a local one.
 
 ```bash
 uv run python scripts/seed.py --reset
