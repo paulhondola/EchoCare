@@ -36,6 +36,7 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 | Same, with the ngrok tunnel for Twilio | `docker compose --profile tunnel up --watch` |
 | Postgres and dashboard only, to run the API on the host | `docker compose up --watch db dashboard` |
 | Check the stack is up | `curl localhost:8000/api/health` → `{"status":"ok","env":"local"}` |
+| Fill the local database with mock data ([backend/README.md](backend/README.md#mock-data)) | `cd backend && uv run python scripts/seed.py` (`--reset` for fresh times) |
 | Wipe both local databases (ask first) | `docker compose down -v` |
 | Install the Git hooks, once per clone | `lefthook install` |
 | Run the hooks without committing or pushing | `lefthook run pre-commit` / `lefthook run pre-push` |

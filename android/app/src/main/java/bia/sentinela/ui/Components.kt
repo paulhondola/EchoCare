@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -218,14 +219,21 @@ fun CallButton(e164: String) {
     )
 }
 
-/** The dashboard's inset field: square, dark, blue border while typing. */
+/**
+ * The dashboard's inset field: square, dark, blue border while typing, red with [error] under it.
+ * [mono] for numbers and codes; names and places in Archivo.
+ */
 @Composable
 fun SnTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
     keyboardType: KeyboardType,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    mono: Boolean = true,
+    hint: String? = null,
+    error: String? = null,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SectionLabel(label)
@@ -235,16 +243,28 @@ fun SnTextField(
             Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = label },
-            textStyle = Mono.copy(fontSize = 16.sp, color = Palette.Fg),
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            textStyle = (if (mono) Mono else MaterialTheme.typography.bodyLarge)
+                .copy(fontSize = 16.sp, color = Palette.Fg),
+            placeholder = hint?.let { { Text(it, color = Palette.FgSubtle) } },
+            isError = error != null,
+            keyboardOptions = KeyboardOptions(
+                capitalization = capitalization,
+                keyboardType = keyboardType
+            ),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Palette.Inset,
                 unfocusedContainerColor = Palette.Inset,
+                errorContainerColor = Palette.Inset,
                 focusedBorderColor = Palette.Link,
                 unfocusedBorderColor = Palette.Line,
-                cursorColor = Palette.Link
+                errorBorderColor = Palette.Rosu,
+                cursorColor = Palette.Link,
+                errorCursorColor = Palette.Rosu
             )
         )
+        error?.let {
+            Text(it, color = Palette.RosuFg, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }

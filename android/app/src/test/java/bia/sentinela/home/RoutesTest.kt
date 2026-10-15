@@ -1,10 +1,13 @@
 package bia.sentinela.home
 
 import bia.sentinela.R
+import bia.sentinela.SeniorRow
 import bia.sentinela.auth.ROLES
 import bia.sentinela.ui.Tone
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 // seniors §8.2: which home each role gets.
@@ -50,5 +53,26 @@ class RoutesTest {
         assertEquals(STATE_LABELS.keys, STATE_TONES.keys)
         assertEquals(Tone.Verde, STATE_TONES["active"])
         assertEquals(Tone.Galben, STATE_TONES["unreachable"])
+    }
+
+    private fun row(state: String) =
+        SeniorRow("s1", "Maria Popescu", "doamna Maria", "+40256123456", true, state)
+
+    @Test
+    fun aMedicsDraftOpensTheFormAndAnythingElseThePage() {
+        // seniors §9.1: the form, at step 1, filled from GET seniors/{id}.
+        assertEquals(EnrollRoute("s1"), openFor("medic", row("draft")))
+        assertEquals(SeniorRoute("s1"), openFor("medic", row("submitted")))
+        assertEquals(SeniorRoute("s1"), openFor("caregiver", row("draft")))
+    }
+
+    @Test
+    fun editingStopsWhereTheServerStopsIt() {
+        // 04 §2: PUT is refused past `submitted` with wrong_state.
+        assertTrue(editable("draft"))
+        assertTrue(editable("submitted"))
+        for (state in listOf("accepted", "active", "refused", "wrong_number", "unreachable", "x")) {
+            assertFalse(state, editable(state))
+        }
     }
 }

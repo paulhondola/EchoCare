@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Sentinela</string>
 
     <!-- Sign-in (auth-layer §8.2) -->
@@ -58,4 +58,44 @@
     <string name="no_connection">Fără conexiune.</string>
     <string name="not_found">Nu a fost găsit.</string>
     <string name="not_allowed">Nu aveți acces la această acțiune.</string>
+
+    <!-- Pacient nou (seniors §9.4) -->
+    <string name="new_patient">Pacient nou</string>
+    <string name="edit">Editează</string>
+    <string name="step_senior">Senior</string>
+    <string name="step_address">Adresă și acces</string>
+    <string name="step_caregivers">Aparținători</string>
+    <string name="step_review">Verificare</string>
+    <!-- "din" is "of", not a counted noun -->
+    <string name="step_counter" tools:ignore="PluralsCandidate">Pasul %1$d din %2$d</string>
+    <string name="field_full_name">Nume complet</string>
+    <string name="field_form_of_address">Formulă de adresare</string>
+    <string name="form_of_address_hint">de exemplu: doamna Maria</string>
+    <string name="field_call_window">Interval preferat pentru apel</string>
+    <string name="field_street">Stradă</string>
+    <string name="field_street_number">Număr</string>
+    <string name="field_block">Bloc</string>
+    <string name="field_staircase">Scară</string>
+    <string name="field_floor">Etaj</string>
+    <string name="field_apartment">Apartament</string>
+    <string name="field_intercom">Interfon</string>
+    <string name="field_key_holder">Cine are cheie</string>
+    <string name="field_landmark">Reper</string>
+    <string name="field_caregiver_name">Nume</string>
+    <string name="field_relation">Relație</string>
+    <string name="new_caregiver">Aparținător nou</string>
+    <string name="next_step">Continuă</string>
+    <string name="add">Adaugă</string>
+    <string name="remove">Elimină</string>
+    <string name="submit">Trimite la DAS</string>
+    <string name="done">Gata</string>
+    <string name="missing">Lipsesc: %1$s</string>
+    <string name="missing_caregiver">Aparținător</string>
+    <string name="sent">Trimis la DAS.</string>
+    <!-- Refusals (seniors §9.3); invalid_phone above is the senior's -->
+    <string name="caregiver_phone_invalid">Număr invalid. Aparținătorul are nevoie de un număr de mobil.</string>
+    <string name="already_caregiver">Este deja aparținător pentru acest senior.</string>
+    <string name="last_caregiver">Un senior trimis la DAS are nevoie de cel puțin un aparținător.</string>
+    <string name="field_invalid">Valoare invalidă.</string>
+    <string name="too_long">Cel mult %1$d de caractere.</string>
 </resources>

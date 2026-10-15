@@ -24,13 +24,15 @@ import bia.sentinela.ui.FieldRow
 import bia.sentinela.ui.PhoneNumber
 import bia.sentinela.ui.Rule
 import bia.sentinela.ui.SectionLabel
+import bia.sentinela.ui.SnButton
 import bia.sentinela.ui.formatPhone
 import bia.sentinela.ui.theme.Mono
 import bia.sentinela.ui.theme.Palette
 
 /**
  * One senior's page: everything GET /seniors/{id} returns, the same for every role (seniors SE7).
- * [id] is null on the senior's own home, which has the menu and no back arrow.
+ * [id] is null on the senior's own home, which has the menu and no back arrow. [onEdit] opens the
+ * medic's form.
  */
 @Composable
 fun SeniorScreen(
@@ -38,40 +40,65 @@ fun SeniorScreen(
     onBack: (() -> Unit)?,
     menu: @Composable () -> Unit,
     onSessionEnd: (Failure) -> Unit,
+    onEdit: ((String) -> Unit)? = null,
     vm: SeniorViewModel = hiltViewModel()
 ) {
     RereadWhileShown { vm.reread(id) }
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
         LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
-            Page(senior, own = id == null)
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 20.dp)
+                    .widthIn(max = 600.dp)
+            ) {
+                // „Editează” for the medic, while the server still takes an edit (seniors §9.1)
+                val edit = onEdit?.takeIf { editable(senior.state) }
+                SeniorDetails(
+                    senior,
+                    callSenior = id != null,
+                    action = edit?.let {
+                        { SnButton(stringResource(R.string.edit), { it(senior.id) }) }
+                    }
+                )
+            }
         }
     }
 }
 
-/** Laid out like the dashboard's dossier: labelled rows, 1dp between rows, 2dp under a group. */
+/**
+ * One senior, laid out like the dashboard's dossier: labelled rows, 1dp between rows, 2dp under a
+ * group. The page and the form's step 4 show it. [callSenior] is false on the senior's own page,
+ * since they do not need a button to call themselves; [calls] false hides every call button.
+ */
 @Composable
-private fun Page(senior: SeniorPage, own: Boolean) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-            .widthIn(max = 600.dp)
-    ) {
-        Column(
-            Modifier.padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+fun SeniorDetails(
+    senior: SeniorPage,
+    callSenior: Boolean,
+    calls: Boolean = true,
+    action: (@Composable () -> Unit)? = null
+) {
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            Text(senior.fullName, style = MaterialTheme.typography.headlineSmall)
-            StateLabel(senior.state)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(senior.fullName, style = MaterialTheme.typography.headlineSmall)
+                StateLabel(senior.state)
+            }
+            action?.invoke()
         }
         Rule()
 
-        // The senior does not need a button to call themselves
         FieldRow(
             stringResource(R.string.label_phone),
-            action = if (own) null else ({ CallButton(senior.phone) })
+            action = if (calls && callSenior) ({ CallButton(senior.phone) }) else null
         ) {
             PhoneNumber(senior.phone, senior.landline)
         }
@@ -117,7 +144,7 @@ private fun Page(senior: SeniorPage, own: Boolean) {
                         )
                         Text(formatPhone(c.phone), style = Mono, color = Palette.FgSoft)
                     }
-                    CallButton(c.phone)
+                    if (calls) CallButton(c.phone)
                 }
                 Rule(strong = i == senior.caregivers.lastIndex)
             }
