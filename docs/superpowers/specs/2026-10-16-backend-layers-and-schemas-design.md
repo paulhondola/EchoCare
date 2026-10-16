@@ -54,7 +54,7 @@ app/
 ├── staff/                schemas* · service · router
 ├── seniors/     models · schemas* · service · router
 ├── incidents/   models · schemas* · service · router        views.py removed
-├── voice/       models ·            service* · router  + calls · dialogue · twilio
+├── voice/       models ·            service* · router  + calls · dialogue · session · twilio
 ├── system/               schemas† · service · router       + /api/health
 └── status/      alarms · engine     pure logic
                                      * new   † renamed from models.py
@@ -69,7 +69,7 @@ app/
 | `schemas.py` | Pydantic request bodies and responses, and their field types and validators | `models`: enums only, never ORM classes. Kept by review; the layers contract allows any import downward |
 | `service.py` | rules and queries; takes an `AsyncSession`; no endpoints | `schemas`, `models` |
 | `router.py` | the controller: endpoints and request plumbing (dependencies, query-parameter parsing). Parse, call the service, return a schema | anything in its package |
-| other logic files (`voice/calls.py`, `voice/dialogue.py`, `voice/twilio.py`, `status/engine.py`, `status/alarms.py`) | one job each, named after it; at the same level as `service.py` | as needed, never `router` |
+| other logic files (`voice/calls.py`, `voice/dialogue.py`, `voice/session.py`, `voice/twilio.py`, `status/engine.py`, `status/alarms.py`) | one job each, named after it; at the same level as `service.py` | as needed, never `router` |
 
 A package includes only the files it needs. Converting between ORM and Pydantic objects (`SeniorView.model_validate(senior, from_attributes=True)`) happens in `service.py` or `router.py`.
 

@@ -1,18 +1,21 @@
+import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import refuse
+from app.core.db import engine
 from app.incidents.models import Event, Incident, IncidentStatus
 from app.incidents.schemas import (
     CallDetail,
     IncidentDetail,
     IncidentSummary,
     ReportView,
+    ResolutionForm,
     TriggerEventView,
     TurnView,
 )
@@ -20,6 +23,8 @@ from app.seniors.models import Senior
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
 from app.status.engine import Severity
 from app.voice.models import Call, CallTurn, StatusReport
+
+log = logging.getLogger("sentinela.incidents")
 
 
 def opens_incident(result: Severity, unresolved: bool) -> bool:
@@ -244,3 +249,90 @@ async def current_incident(session: AsyncSession, incident_id: uuid.UUID) -> Inc
     if incident is None:
         raise refuse(404, "not_found")
     return incident
+
+
+# Resolved incidents are kept (05 §5); the list shows only the last day's (04 §1).
+RESOLVED_SHOWN = timedelta(hours=24)
+
+
+async def shown_incidents(
+    statuses: set[IncidentStatus] | None,
+) -> list[IncidentSummary]:
+    """GET /incidents: every unresolved one, and those resolved in the last day."""
+    query = incidents_query(statuses).where(
+        or_(
+            Incident.resolved_at.is_(None),
+            Incident.resolved_at > func.now() - RESOLVED_SHOWN,
+        )
+    )
+    async with engine.connect() as conn:
+        rows = (await conn.execute(query)).mappings().all()
+    return [IncidentSummary.model_validate(dict(row)) for row in rows]
+
+
+async def take(
+    session: AsyncSession, incident_id: uuid.UUID, user_id: uuid.UUID
+) -> IncidentSummary:
+    """open -> in_progress for `user_id`, only where it is still open (05 §3); a
+    refusal is raised as `take_refusal` names it (04 §2)."""
+    taken = await session.execute(
+        update(Incident)
+        .where(Incident.id == incident_id, Incident.status == IncidentStatus.open)
+        .values(
+            status=IncidentStatus.in_progress,
+            taken_by=user_id,
+            taken_at=func.now(),
+        )
+        .returning(Incident.id)
+    )
+    if taken.first() is None:
+        incident = await current_incident(session, incident_id)
+        reason = take_refusal(incident.status, incident.taken_by, user_id)
+        if reason is not None:
+            log.info("refused %s: user %s, incident %s", reason, user_id, incident_id)
+            if reason != "already_done":
+                raise refuse(409, reason)
+            # Only someone else having it names who (04 §2).
+            taker = incident.taken_by and await session.get(User, incident.taken_by)
+            raise refuse(
+                409, reason, taken_by_name=taker.display_name if taker else None
+            )
+    await session.commit()
+    return await incident_summary(session, incident_id)
+
+
+async def resolve(
+    session: AsyncSession,
+    incident_id: uuid.UUID,
+    user_id: uuid.UUID,
+    form: ResolutionForm,
+) -> IncidentSummary:
+    """in_progress -> resolved by `user_id`, only where it is still in progress; a
+    refusal is raised as `resolve_refusal` names it (04 §2)."""
+    resolved = await session.execute(
+        update(Incident)
+        .where(
+            Incident.id == incident_id,
+            Incident.status == IncidentStatus.in_progress,
+        )
+        .values(
+            status=IncidentStatus.resolved,
+            resolved_by=user_id,
+            resolved_at=func.now(),
+            outcome=form.outcome,
+            note=form.note,
+        )
+        .returning(Incident.id)
+    )
+    if resolved.first() is None:
+        incident = await current_incident(session, incident_id)
+        reason = resolve_refusal(
+            incident.status,
+            (incident.resolved_by, incident.outcome, incident.note),
+            (user_id, form.outcome.name, form.note),
+        )
+        if reason is not None:
+            log.info("refused %s: user %s, incident %s", reason, user_id, incident_id)
+            raise refuse(409, reason)
+    await session.commit()
+    return await incident_summary(session, incident_id)

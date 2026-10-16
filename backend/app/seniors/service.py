@@ -8,7 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
 from app.seniors.models import EnrollmentState, Senior
-from app.seniors.schemas import CaregiverView, MedicView, SeniorForm, SeniorView
+from app.seniors.schemas import (
+    CaregiverForm,
+    CaregiverView,
+    MedicView,
+    SeniorForm,
+    SeniorSummary,
+    SeniorView,
+)
 from app.staff.service import user_for
 
 log = logging.getLogger("sentinela.seniors")
@@ -204,3 +211,123 @@ def enrollments_query() -> Select:
         .where(Senior.enrollment_state == EnrollmentState.submitted)
         .order_by(Senior.created_at, Senior.id)
     )
+
+
+async def register(
+    session: AsyncSession, caller: Caller, form: SeniorForm
+) -> SeniorView:
+    """A new draft for the calling medic, with the senior's own grant (UC-01)."""
+    senior = Senior(medic_id=caller.user.id, **form.columns())
+    session.add(senior)
+    await session.flush()  # the database makes the id
+    await sync_senior_grant(session, senior)
+    await session.commit()
+    return await senior_view(session, senior)
+
+
+async def edit(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: SeniorForm
+) -> SeniorView:
+    """The registration replaced while `draft` or `submitted`; a submitted one keeps
+    its address (04 §2)."""
+    senior = await own_senior(session, caller, senior_id)  # locked: no move meanwhile
+    if senior.enrollment_state not in (
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    missing = missing_address(form)
+    if senior.enrollment_state == EnrollmentState.submitted and missing:
+        log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(422, "incomplete", missing=missing)
+    updated = await session.scalar(
+        update(Senior)
+        .where(Senior.id == senior_id)
+        .values(**form.columns())
+        .returning(Senior)
+        .execution_options(populate_existing=True)
+    )
+    await sync_senior_grant(session, updated)
+    await session.commit()
+    return await senior_view(session, updated)
+
+
+async def grant_caregiver(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: CaregiverForm
+) -> CaregiverView:
+    """A caregiver grant for the number; one it already holds is `already_done`."""
+    await own_senior(session, caller, senior_id)
+    user = await user_for(session, form.phone, form.display_name)
+    granted = await session.scalar(
+        insert(Grant)
+        .values(
+            user_id=user.id,
+            role=Role.caregiver,
+            senior_id=senior_id,
+            relation=form.relation,
+            granted_by=caller.user.id,
+        )
+        .on_conflict_do_nothing()
+        .returning(Grant.id)
+    )
+    if granted is None:
+        await session.rollback()
+        raise refuse(409, "already_done")
+    await session.commit()
+    return CaregiverView(
+        user_id=user.id,
+        display_name=user.display_name,
+        phone_e164=user.phone_e164,
+        relation=form.relation,
+    )
+
+
+async def revoke_caregiver(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, user_id: uuid.UUID
+) -> None:
+    """Deletes the caregiver grant; past `draft` the last one stays (04 §2)."""
+    senior = await own_senior(session, caller, senior_id)
+    await session.execute(
+        delete(Grant).where(
+            Grant.senior_id == senior_id,
+            Grant.user_id == user_id,
+            Grant.role == Role.caregiver,
+        )
+    )
+    if senior.enrollment_state != EnrollmentState.draft and not await has_caregiver(
+        session, senior_id
+    ):
+        log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(422, "incomplete", missing=["caregiver"])
+    await session.commit()
+
+
+async def submit(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SeniorSummary:
+    """draft -> submitted, once nothing DAS needs is missing (UC-01 step 6)."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state == EnrollmentState.draft:
+        missing = await missing_to_submit(session, senior)
+        if missing:
+            log.info(
+                "refused incomplete: user %s, senior %s", caller.user.id, senior_id
+            )
+            raise refuse(422, "incomplete", missing=missing)
+    await move(
+        session, caller, senior, EnrollmentState.draft, EnrollmentState.submitted
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def accept(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SeniorSummary:
+    """submitted -> accepted, by DAS (UC-04 step 1)."""
+    senior = await reach_senior(session, caller, senior_id)
+    await move(
+        session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
