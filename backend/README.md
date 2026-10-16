@@ -62,6 +62,12 @@ uv run ruff check .
 uv run ruff format .
 ```
 
+`lint-imports` checks the import contracts in `pyproject.toml`: the layers inside each package, empty `__init__.py` files, and no cycles between packages.
+
+```bash
+uv run lint-imports
+```
+
 Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `sentinela_test` on a fresh volume; on an older one, create it once:
 
 ```bash

@@ -7,15 +7,16 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 ```
 backend/
 ├── app/
-│   ├── main.py        FastAPI app; mounts domain routers on /api, docs at /api/docs
-│   ├── core/          settings, async db engine/session, phone E.164 normalization
-│   ├── models/        declarative Base and all SQLAlchemy database models re-exported
-│   ├── auth/          Firebase token verification, caller authentication, push tokens, router
-│   ├── staff/         staff roles (medic, DAS), permissions, router
-│   ├── seniors/       seniors, caregivers, consents, enrollments, router
-│   ├── incidents/     incident lifecycle, refusal reasons, detailed views, router
-│   ├── status/        alarm phrase normalization, status matrix & engine
-│   └── voice/         Twilio signatures, Call lifecycle, dialogue relay, router
+│   ├── main.py        assembly: logging, CORS, the /api router, mounts every router
+│   ├── core/          settings, async db engine/session, phone E.164 normalization, S3 storage
+│   ├── models/        the one ORM aggregator, for Alembic, scripts and tests; app/ never imports it
+│   ├── auth/          Firebase token verification, callers, grants, /me
+│   ├── staff/         staff roles (medic, DAS)
+│   ├── seniors/       seniors, caregivers, consents, enrollments
+│   ├── incidents/     incident lifecycle, refusal reasons, incident detail
+│   ├── voice/         Twilio signatures and dialing, call lifecycle, dialogue relay
+│   ├── system/        /api/health and the dashboard's system health
+│   └── status/        alarm phrases, status matrix and engine; pure logic
 ├── scripts/
 │   ├── grant_das.py   the setup script (G6), run inside the api container
 │   ├── dev_token.py   a real sign-in token for a test number, for curl and Swagger
@@ -29,6 +30,8 @@ backend/
 └── Dockerfile         the image Compose and Railway both build
 ```
 
+Each feature package uses the files it needs from: `models.py` (SQLAlchemy ORM tables and the enums they store), `schemas.py` (Pydantic bodies and responses), `service.py` (rules and queries), `router.py` (endpoints only). `__init__.py` files are empty.
+
 ## Scope
 
 - Endpoints, call handling, the scheduler, the status engine and the database all live here. The contract is [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md), the tables are [05-data-model.md](../docs/specs/sentinela/05-data-model.md).
@@ -38,13 +41,14 @@ backend/
 
 ## Commands
 
-From `backend/`. CI ([backend.yml](../.github/workflows/backend.yml)) runs the first four.
+From `backend/`. CI ([backend.yml](../.github/workflows/backend.yml)) runs the first five.
 
 | Task | Command |
 |---|---|
 | Install, including dev tools | `uv sync` |
 | Lint | `uv run ruff check .` |
 | Format check / apply | `uv run ruff format --check .` / `uv run ruff format .` |
+| Import contracts | `uv run lint-imports` |
 | Test | `uv run pytest` |
 | Run on the host (Postgres from Compose) | `uv run uvicorn app.main:app --reload` |
 | Add a dependency | `uv add <pkg>` (dev: `uv add --dev <pkg>`) |
@@ -61,4 +65,7 @@ Run migrations inside the Compose `api` container: `alembic/` is bind-mounted, s
 - **Tests never use `sentinela`.** A test that needs a database uses `sentinela_test`. Logic that needs none, such as the status engine and alarm phrases, is tested without one (06 §5).
 - **API changes only add.** Installed Android apps lag behind (ADR-001 §2.3): new response fields optional, old fields kept.
 - **`/api/health` touches the database on purpose.** Railway's health check uses it to hold back a broken deploy.
+- **Import a name from the module that defines it.** No re-exports in `__init__.py`, no imports inside functions. Tests patch a name in the module that uses it.
+- **ORM in `models.py`, Pydantic in `schemas.py`.** An ORM class is the plain noun (`Senior`); a Pydantic request body ends in `Form`, a response in `View`, `Summary` or `Detail`. `schemas.py` imports only enums from `models.py`.
+- **`uv run lint-imports` must pass.** The contracts are in `pyproject.toml`. Fix the code, not the contract, unless the design changed (spec 2026-10-16 §6).
 - Any change under `backend/`, this file included, redeploys staging's `api` after merge and drops live calls.
