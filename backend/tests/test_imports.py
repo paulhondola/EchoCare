@@ -22,7 +22,10 @@ BACKEND = Path(__file__).parent.parent
         "app.incidents.models",
         "app.seniors.models",
         "app.voice.models",
+        "scripts.dev_token",
+        "scripts.grant_das",
         "scripts.place_call",
+        "scripts.seed",
     ],
 )
 def test_imports_first(module):

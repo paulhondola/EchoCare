@@ -62,7 +62,7 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-`lint-imports` checks the import contracts in `pyproject.toml`: the layers inside each package, empty `__init__.py` files, and no cycles between packages.
+`lint-imports` checks the import contracts in `pyproject.toml`: the layers inside each package, no FastAPI or HTTP client in models and schemas, a pure status engine, and no cycles between packages. `tests/test_contracts.py` checks that `__init__.py` files import nothing.
 
 ```bash
 uv run lint-imports

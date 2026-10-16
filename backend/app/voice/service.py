@@ -5,8 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.voice.calls import ENDED, CallState, after_callback
-from app.voice.dialogue import ANSWERED
+from app.voice.calls import ANSWERED, ENDED, CallState, after_callback
 from app.voice.models import Call
 
 log = logging.getLogger("sentinela.voice")
