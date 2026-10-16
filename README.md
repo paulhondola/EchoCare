@@ -30,10 +30,6 @@ Teammates who only run the stack, such as the Android and Wear OS owners, need o
 Copy the example environment files once. None of the copies are committed.
 
 ```bash
-cp .env.example .env
-```
-
-```bash
 cp backend/.env.example backend/.env
 ```
 
@@ -41,7 +37,7 @@ cp backend/.env.example backend/.env
 cp dashboard/.env.example dashboard/.env
 ```
 
-Fill in `dashboard/.env` with the Firebase web config (Firebase console → Project settings → Your apps → the web app). For the tunnel, put your ngrok authtoken in the root `.env` and your ngrok domain in `PUBLIC_BASE_URL` in `backend/.env`.
+Fill in `dashboard/.env` with the Firebase web config (Firebase console → Project settings → Your apps → the web app).
 
 Start Postgres, the API (migrated) and the dashboard, all reloading on save:
 
@@ -55,12 +51,6 @@ docker compose up --watch
 | http://localhost:8000/api/docs | API docs |
 | http://localhost:5173 | Dashboard, showing "API: ok (local)" |
 | localhost:5432 | Postgres: user, password and database `echocare`; `echocare_test` for tests |
-
-With the ngrok tunnel, for Twilio and real phones (request inspector at http://localhost:4040):
-
-```bash
-docker compose --profile tunnel up --watch
-```
 
 Wipe both local databases for a clean start:
 

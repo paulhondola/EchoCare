@@ -11,10 +11,10 @@ const BRANCH: Record<string, string> = { staging: "main", production: "release" 
 // Firebase web config: public identifiers that ship in the browser bundle, not secrets.
 // One Firebase project serves every environment (ADR-001). Same values as dashboard/.env.
 const FIREBASE_WEB = {
-  VITE_FIREBASE_API_KEY: "AIzaSyBWFvTyqk904SsoT_uFXIzXgyHBBxhz5m0",
+  VITE_FIREBASE_API_KEY: "AIzaSyC1a4PXcIBmNCvKb5W3us7WWwoD7xjPWkw",
   VITE_FIREBASE_AUTH_DOMAIN: "echocare-app.firebaseapp.com",
   VITE_FIREBASE_PROJECT_ID: "echocare-app",
-  VITE_FIREBASE_APP_ID: "1:994957703097:web:2bbc70f74e432f74af6868",
+  VITE_FIREBASE_APP_ID: "1:171353703999:web:39b0a68d03a8c8e0391a8a",
 };
 
 const unset = Object.entries(FIREBASE_WEB).filter(([, v]) => !v || v === "TODO");

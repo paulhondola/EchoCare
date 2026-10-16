@@ -40,7 +40,7 @@ cp .env.example .env
 |---|---|---|
 | `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
 | `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
-| `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
+| `PUBLIC_BASE_URL` | `http://localhost:8000` | The API's public address, for Twilio callbacks and signature checks |
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |

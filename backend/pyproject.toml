@@ -26,6 +26,7 @@ asyncio_default_test_loop_scope = "session"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "httpx2>=2.13.1",
     "import-linter>=2.15",
     "moto[s3]>=5.2.4",
     "pytest>=9.1.1",

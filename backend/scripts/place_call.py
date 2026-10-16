@@ -2,9 +2,8 @@
 
 A script, not an endpoint: an endpoint would stay in the API for old clients. The
 senior must exist (POST /api/seniors); the call is a `test` one on their record.
-Twilio must reach PUBLIC_BASE_URL, so run it inside the api container: locally with
-the tunnel profile (`docker compose exec api`), on staging through
-`railway ssh -s api -e staging`:
+Twilio must reach PUBLIC_BASE_URL, so run it on staging through
+`railway ssh -s api -e staging` (or in the api container with a public address):
 
     python scripts/place_call.py 0722123456
 """

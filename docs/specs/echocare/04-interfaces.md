@@ -118,7 +118,7 @@ FastAPI asks Twilio's Voice API to place a call with:
 
 Twilio answers with the call's `sid`, stored as `twilio_call_id`. Every callback address carries our call id, so a callback that arrives before that answer still finds its call. Ending a call early, as for a machine, is `POST …/Calls/{sid}.json` with `Status=completed`.
 
-**Signatures.** Twilio signs each callback with `X-Twilio-Signature`: HMAC-SHA1 with the auth token over the full address it called followed by every POST parameter, name then value, sorted by name, in base64. FastAPI rebuilds the address from `PUBLIC_BASE_URL`, since behind Railway's proxy or the tunnel the request's own address differs. The WebSocket connect is signed the same way over its `wss://` address with no parameters. A missing or wrong signature is refused with 403, and without `TWILIO_AUTH_TOKEN` every callback is.
+**Signatures.** Twilio signs each callback with `X-Twilio-Signature`: HMAC-SHA1 with the auth token over the full address it called followed by every POST parameter, name then value, sorted by name, in base64. FastAPI rebuilds the address from `PUBLIC_BASE_URL`, since behind Railway's proxy the request's own address differs. The WebSocket connect is signed the same way over its `wss://` address with no parameters. A missing or wrong signature is refused with 403, and without `TWILIO_AUTH_TOKEN` every callback is.
 
 ### 4.2 Callbacks (channel 6)
 

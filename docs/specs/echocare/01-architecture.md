@@ -260,7 +260,7 @@ The rules and status engine has no dependencies on purpose: every rule and every
 
 A new deploy starts before the old one stops, so for a few seconds two copies run. The scheduler's database lock keeps one of them idle. Calls live on the old copy drop, so nothing is deployed after the Sunday-morning freeze.
 
-During development Twilio must still reach channels 6 and 7: a tunnel to a laptop, or a Railway environment per branch.
+During development Twilio must still reach channels 6 and 7 via deployed environments (such as Railway staging).
 
 ## 10. Deliberately absent
 

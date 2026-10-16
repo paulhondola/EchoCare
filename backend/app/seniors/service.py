@@ -152,7 +152,7 @@ async def forms_of_address(
     rows = await session.execute(
         select(Senior.id, Senior.form_of_address).where(Senior.id.in_(senior_ids))
     )
-    return dict(rows.tuples().all())
+    return dict(rows.all())
 
 
 REQUIRED_TO_SUBMIT = ("street", "street_number")
