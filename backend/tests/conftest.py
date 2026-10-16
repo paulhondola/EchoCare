@@ -23,7 +23,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import bearer, refuse, verify_token
+from app.auth.service import bearer, refuse, verify_token
 from app.core.db import Session, engine
 from app.main import app
 from app.models import Grant, Role, Senior, User

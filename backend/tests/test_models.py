@@ -12,9 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.core.db import Base
-from app.incidents import UNRESOLVED
+from app.incidents.models import UNRESOLVED
 from app.models import SENIOR_ROLES, Call, Event, EventType, Grant, Role
-from app.status import Severity
+from app.status.engine import Severity
 from app.voice.calls import LIVE
 
 BACKEND = Path(__file__).parent.parent

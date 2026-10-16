@@ -2,13 +2,9 @@ import uuid
 
 import pytest
 
-from app.incidents import (
-    IncidentStatus,
-    opens_incident,
-    resolve_refusal,
-    take_refusal,
-)
-from app.status import Severity
+from app.incidents.models import IncidentStatus
+from app.incidents.service import opens_incident, resolve_refusal, take_refusal
+from app.status.engine import Severity
 
 OPEN = IncidentStatus.open
 IN_PROGRESS = IncidentStatus.in_progress

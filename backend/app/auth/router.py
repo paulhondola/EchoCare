@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import Caller, current_caller
 from app.core.db import get_session
-from app.seniors import forms_of_address
+from app.seniors.service import forms_of_address
 
 router = APIRouter()
 

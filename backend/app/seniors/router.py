@@ -20,6 +20,7 @@ from app.seniors.service import (
     enrollments_query,
     has_caregiver,
     missing_address,
+    missing_to_submit,
     move,
     own_senior,
     reach_senior,
@@ -178,9 +179,7 @@ async def submit_senior(
     """
     senior = await own_senior(session, caller, senior_id)
     if senior.enrollment_state == EnrollmentState.draft:
-        from app.seniors import service
-
-        missing = await service.missing_to_submit(session, senior)
+        missing = await missing_to_submit(session, senior)
         if missing:
             log.info(
                 "refused incomplete: user %s, senior %s", caller.user.id, senior_id

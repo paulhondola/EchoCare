@@ -9,7 +9,8 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from app.incidents import IncidentStatus, incidents_query, parse_statuses
+from app.incidents.models import IncidentStatus
+from app.incidents.router import incidents_query, parse_statuses
 from app.models import Incident, Role
 
 

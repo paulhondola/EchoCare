@@ -13,9 +13,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import refuse
+from app.auth.service import refuse
 from app.core.db import Session, get_session
 from app.core.settings import get_settings
+from app.seniors.models import Senior
 from app.voice.calls import (
     ENDED,
     LIVE,
@@ -34,7 +35,7 @@ from app.voice.dialogue import (
     twiml,
 )
 from app.voice.models import Call, CallTurn, Speaker, TurnKind
-from app.voice.twilio import public_url, signed, voice_url
+from app.voice.twilio import hang_up, public_url, signed, voice_url
 
 log = logging.getLogger("sentinela.voice")
 
@@ -89,8 +90,6 @@ async def move_call(
 @router.post("/voice/answer")
 async def answer(call: uuid.UUID, _: Params, session: Db) -> Response:
     """Picked up: connect to ConversationRelay in ro-RO (04 §4.2)."""
-    from app.models import Senior
-
     try:
         form_of_address = await session.scalar(
             select(Senior.form_of_address)
@@ -139,9 +138,7 @@ async def amd(call: uuid.UUID, params: Params, session: Db) -> Response:
     sid = params.get("CallSid")
     if moved is CallState.unanswered and sid:
         try:
-            from app import voice
-
-            await voice.hang_up(sid)
+            await hang_up(sid)
         except httpx.HTTPError:
             log.warning(
                 "call %s: could not hang up on the machine", call, exc_info=True
@@ -164,8 +161,6 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
         await ws.close(code=1008)
         return
     async with Session() as session:
-        from app.models import Senior
-
         row = (
             await session.execute(
                 select(Call.twilio_call_id, Senior.form_of_address)
