@@ -401,6 +401,24 @@ async def test_a_new_number_moves_the_senior_grant(client, db, staff):
     assert holders.all() == ["+40700000006"]
 
 
+async def test_a_das_edit_records_who_moved_the_senior_grant(client, db, staff):
+    maria = await register(client)
+    await set_state(db, maria["id"], EnrollmentState.active)
+    r = await client.put(
+        f"/api/seniors/{maria['id']}",
+        json={**MARIA, "phone": "0700 000 006"},
+        headers=signed_in(DAS),
+    )
+    assert r.status_code == 200
+    das_id = await db.scalar(select(User.id).where(User.phone_e164 == DAS))
+    granted_by = await db.scalar(
+        select(Grant.granted_by)
+        .join(User, User.id == Grant.user_id)
+        .where(Grant.role == Role.senior, User.phone_e164 == "+40700000006")
+    )
+    assert granted_by == das_id
+
+
 async def test_a_landline_number_drops_the_senior_grant(client, db, staff):
     maria = await register(client)
     r = await client.put(
@@ -440,6 +458,10 @@ async def test_others_cannot_change_a_senior(client, staff, token):
     ana = (await get(client, path, MEDIC)).json()["caregivers"][0]
     r = await client.delete(
         f"{path}/caregivers/{ana['user_id']}", headers=signed_in(token)
+    )
+    assert refusal(r) == expected
+    r = await patch_caregiver(
+        client, maria["id"], ana["user_id"], {"relation": "nora"}, token
     )
     assert refusal(r) == expected
 

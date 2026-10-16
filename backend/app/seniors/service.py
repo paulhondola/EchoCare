@@ -116,12 +116,15 @@ async def editable_senior(
     return senior
 
 
-async def sync_senior_grant(session: AsyncSession, senior: Senior) -> bool:
+async def sync_senior_grant(
+    session: AsyncSession, senior: Senior, *, granted_by: uuid.UUID | None = None
+) -> bool:
     """A mobile number is the senior's own grant; a landline has none (UC-01 step 3).
 
     A changed number drops the old number's grant. Returns whether the senior holds
     its number's grant afterwards: `True` for a landline, `False` when the number
     already holds another senior's, which the caller refuses as `phone_taken` (SE10).
+    The new grant records `granted_by`, the registering medic unless the caller says who.
     """
     await session.execute(
         delete(Grant).where(
@@ -142,7 +145,7 @@ async def sync_senior_grant(session: AsyncSession, senior: Senior) -> bool:
             user_id=user.id,
             role=Role.senior,
             senior_id=senior.id,
-            granted_by=senior.medic_id,
+            granted_by=granted_by or senior.medic_id,
         )
         .on_conflict_do_nothing()
     )
@@ -261,7 +264,7 @@ async def register(
     senior = Senior(medic_id=caller.user.id, **form.columns())
     session.add(senior)
     await session.flush()  # the database makes the id
-    if not await sync_senior_grant(session, senior):
+    if not await sync_senior_grant(session, senior, granted_by=caller.user.id):
         log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior.id)
         await session.rollback()  # expires every row, so log first
         raise refuse(409, "phone_taken")
@@ -289,7 +292,8 @@ async def edit(
         .execution_options(populate_existing=True)
     )
     # A senior left sharing a mobile by AL7 keeps their number and stays editable
-    if not await sync_senior_grant(session, updated) and form.phone != was:
+    synced = await sync_senior_grant(session, updated, granted_by=caller.user.id)
+    if not synced and form.phone != was:
         log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior_id)
         await session.rollback()  # expires every row, so log first
         raise refuse(409, "phone_taken")

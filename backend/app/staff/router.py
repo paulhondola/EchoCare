@@ -76,7 +76,7 @@ async def remove_staff_role(
     _: Annotated[Caller, Depends(require_roles(Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
-    """Removes a staff role; the last das employee stays (04 §1)."""
+    """Removes a staff role; the last das employee stays (04 §2, Q6)."""
     await revoke_staff(session, user_id, Role(role))
 
 

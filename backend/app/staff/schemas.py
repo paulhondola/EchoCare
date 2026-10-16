@@ -55,7 +55,7 @@ class StaffEditForm(BaseModel):
 
 
 class OnDutyForm(BaseModel):
-    """PUT /staff/on-duty's body (04 §1): the DAS employee who takes the hand-over."""
+    """PUT /staff/on-duty's body (04 §2): the DAS employee who takes the hand-over."""
 
     user_id: uuid.UUID
 

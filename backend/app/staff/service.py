@@ -18,8 +18,9 @@ log = logging.getLogger("echocare.staff")
 
 STAFF_ROLES = (Role.das, Role.medic)
 
-# One lock for the writes that count or clear across all DAS rows (spec 2026-10-16 §5.3):
-# the partial unique index on on_duty would turn their race into a 500.
+# One lock for the writes that count or clear across all DAS rows: it serializes the
+# last-das check (Q6) and the one-on-duty switch (P10), whose race on the partial unique
+# index on on_duty would otherwise be a 500.
 STAFF_LOCK = 20261016
 
 
