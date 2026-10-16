@@ -5,8 +5,8 @@ import pytest
 
 from app.core.settings import get_settings
 from app.models import Speaker, TurnKind
-from app.voice import GOODBYE, Relay, greeting
 from app.voice.calls import CallState, after_callback, answered_by_machine
+from app.voice.dialogue import GOODBYE, Relay, greeting
 from app.voice.twilio import public_url, signature, signed
 
 C = CallState

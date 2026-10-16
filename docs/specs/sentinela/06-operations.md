@@ -175,5 +175,5 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 
 | Spike | Answer | Date |
 |---|---|---|
-| S1 | *Not run yet.* Record: whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/fixtures/twilio_callbacks.json` | |
+| S1 | *Not run yet.* Record: whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/voice/fixtures/twilio_callbacks.json` | |
 | S8 | *Not run yet.* Record: whether one call holds its WebSocket for three minutes, and what a redeploy during a call does to it | |

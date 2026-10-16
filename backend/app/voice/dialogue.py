@@ -5,7 +5,6 @@ from xml.sax.saxutils import escape, quoteattr
 
 from fastapi import Response
 
-from app.voice.calls import CallState
 from app.voice.models import Speaker, TurnKind
 
 log = logging.getLogger("sentinela.voice")
@@ -13,16 +12,6 @@ log = logging.getLogger("sentinela.voice")
 LANGUAGE = "ro-RO"
 GOODBYE = "Vă mulțumesc. La revedere."
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
-
-# On the way to an ended call these states mean someone picked up (03 §9).
-ANSWERED = frozenset(
-    {
-        CallState.in_progress,
-        CallState.completed,
-        CallState.handed_over,
-        CallState.dropped,
-    }
-)
 
 
 def greeting(form_of_address: str) -> str:

@@ -13,10 +13,13 @@ from sqlalchemy.exc import OperationalError
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from app import voice
 from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn
+from app.voice import router as voice_router
+from app.voice import service as voice_service
+from app.voice import session as voice_session
+from app.voice.dialogue import GOODBYE, SORRY
 from app.voice.twilio import signature
 
 FIXTURES = json.loads(
@@ -126,7 +129,7 @@ async def test_a_machine_is_hung_up_and_unanswered(client, db, call, monkeypatch
     async def fake_hang_up(sid):
         hung_up.append(sid)
 
-    monkeypatch.setattr(voice, "hang_up", fake_hang_up)
+    monkeypatch.setattr(voice_service, "hang_up", fake_hang_up)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
     r = await callback(client, "amd", call.id, FIXTURES["amd_machine"])
@@ -137,7 +140,7 @@ async def test_a_machine_is_hung_up_and_unanswered(client, db, call, monkeypatch
 
 
 async def test_a_person_is_left_alone(client, db, call, monkeypatch):
-    monkeypatch.setattr(voice, "hang_up", pytest.fail)
+    monkeypatch.setattr(voice_service, "hang_up", pytest.fail)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
     r = await callback(client, "amd", call.id, FIXTURES["amd_human"])
@@ -185,7 +188,7 @@ async def test_a_database_failure_at_pickup_says_sorry(client, call):
     del app.dependency_overrides[get_session]
     # Romanian, never Twilio's English application error (06 §1)
     assert r.status_code == 200
-    assert voice.SORRY in r.text and "<Hangup/>" in r.text
+    assert SORRY in r.text and "<Hangup/>" in r.text
 
 
 class Socket:
@@ -224,7 +227,7 @@ async def answered(client, call):
 async def test_our_close_ends_completed(client, db, call):
     await answered(client, call)
     ws = Socket(call.id, [SETUP, {"type": "dtmf", "digit": "0"}])
-    await voice.relay(ws, call.id)
+    await voice_router.relay(ws, call.id)  # through the signature check
     assert ws.sent[-1] == {"type": "end"}
     assert (await stored(db, call)).state == "completed"
     # Twilio's completed after our close changes nothing
@@ -236,13 +239,13 @@ async def test_our_close_ends_completed(client, db, call):
         .where(CallTurn.call_id == call.id)
         .order_by(CallTurn.position)
     )
-    assert turns.all()[1:] == ["0", voice.GOODBYE]
+    assert turns.all()[1:] == ["0", GOODBYE]
 
 
 async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
     await answered(client, call)
     ws = Socket(call.id, [SETUP, "not json", "[1, 2]", {"type": "dtmf", "digit": "0"}])
-    await voice.relay(ws, call.id)
+    await voice_session.serve(ws, call.id)
     assert (ws.closed, ws.sent[-1]) == (None, {"type": "end"})
 
 
@@ -256,7 +259,7 @@ async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
 async def test_the_relay_needs_the_calls_own_setup_first(client, db, call, first):
     await answered(client, call)
     ws = Socket(call.id, [first, {"type": "dtmf", "digit": "0"}])
-    await voice.relay(ws, call.id)
+    await voice_session.serve(ws, call.id)
     assert (ws.closed, ws.sent) == (1008, [])
     assert (await stored(db, call)).state == "in_progress"
 
@@ -267,5 +270,5 @@ async def test_an_ended_call_takes_no_relay(client, db, call):
         params = {**FIXTURES["status_common"], "CallStatus": status}
         await callback(client, "status", call.id, params)
     ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
-    await voice.relay(ws, call.id)
+    await voice_session.serve(ws, call.id)
     assert (ws.accepted, ws.closed) == (False, 1008)

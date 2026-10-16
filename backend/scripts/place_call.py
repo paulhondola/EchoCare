@@ -24,7 +24,7 @@ from app.core.db import Session
 from app.core.phones import normalize
 from app.core.settings import get_settings
 from app.models import Call, CallTrigger, Senior
-from app.status import Severity
+from app.status.engine import Severity
 from app.voice.calls import CallState
 from app.voice.twilio import dial
 

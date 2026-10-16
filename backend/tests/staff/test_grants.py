@@ -3,7 +3,7 @@
 from sqlalchemy import func, select
 
 from app.models import User
-from app.staff import user_for
+from app.staff.service import user_for
 
 PHONE = "+40700000004"
 

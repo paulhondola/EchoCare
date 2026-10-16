@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from firebase_admin import auth as fb
 
-from app import auth
+from app.auth.service import verify_token
 
 TOKEN = HTTPAuthorizationCredentials(scheme="Bearer", credentials="a.b.c")
 
@@ -29,7 +29,7 @@ def firebase(monkeypatch):
 
 def test_no_token_is_not_signed_in():
     with pytest.raises(HTTPException) as e:
-        auth.verify_token(None)
+        verify_token(None)
     assert refusal(e) == (401, "not_signed_in")
     assert e.value.headers == {"WWW-Authenticate": "Bearer"}
 
@@ -38,7 +38,7 @@ def test_verifies_without_a_key():
     """No service account (auth-layer AL11): a bad token is refused for what it is,
     not for want of a credential."""
     with pytest.raises(HTTPException) as e:
-        auth.verify_token(TOKEN)
+        verify_token(TOKEN)
     assert refusal(e) == (401, "not_signed_in")
 
 
@@ -54,10 +54,10 @@ def test_verifies_without_a_key():
 def test_errors(firebase, error, expected):
     firebase(error)
     with pytest.raises(HTTPException) as e:
-        auth.verify_token(TOKEN)
+        verify_token(TOKEN)
     assert refusal(e) == expected
 
 
 def test_claims_pass_through(firebase):
     firebase({"uid": "u1", "phone_number": "+40700000001"})
-    assert auth.verify_token(TOKEN) == {"uid": "u1", "phone_number": "+40700000001"}
+    assert verify_token(TOKEN) == {"uid": "u1", "phone_number": "+40700000001"}

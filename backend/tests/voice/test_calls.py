@@ -1,6 +1,6 @@
 import pytest
 
-from app.status import Certainty
+from app.status.engine import Certainty
 from app.voice.calls import (
     ENDED,
     LIVE,

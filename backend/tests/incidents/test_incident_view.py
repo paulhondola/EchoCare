@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.dialects import postgresql
 
-from app.incidents.views import calls_query, caregivers_query, incident_query
+from app.incidents.service import calls_query, caregivers_query, incident_query
 from app.models import (
     Call,
     CallTurn,

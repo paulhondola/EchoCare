@@ -95,7 +95,7 @@ data class CaregiverForm(
 // The FastAPI contract (04-interfaces.md). One function per endpoint, added as features need them.
 // Built in NetworkModule.
 interface SentinelaApi {
-    @GET("me")
+    @GET("profile")
     suspend fun me(): Me
 
     /** The seniors the caller reaches as [role]; the server narrows the list (seniors SE6). */

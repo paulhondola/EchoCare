@@ -62,6 +62,12 @@ uv run ruff check .
 uv run ruff format .
 ```
 
+`lint-imports` checks the import contracts in `pyproject.toml`: the layers inside each package, no FastAPI or HTTP client in models and schemas, a pure status engine, and no cycles between packages. `tests/architecture/test_contracts.py` checks that `__init__.py` files import nothing.
+
+```bash
+uv run lint-imports
+```
+
 Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `sentinela_test` on a fresh volume; on an older one, create it once:
 
 ```bash
@@ -96,7 +102,7 @@ TOKEN=$(uv run python scripts/dev_token.py +40700000001 111111)
 ```
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/me
+curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/profile
 ```
 
 A DAS grants medics through the API:

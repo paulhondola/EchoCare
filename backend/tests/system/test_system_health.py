@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy.exc import OperationalError
 
+from app.core.settings import get_settings
 from app.models import Role
 
 DAS = "+40700000001"
@@ -50,3 +52,22 @@ async def test_system_health_degraded_when_db_down(client, add_user):
     assert data["status"] == "degraded"
     assert data["database"]["status"] == "unreachable"
     assert isinstance(data["database"]["latency_ms"], float)
+
+
+async def test_health_is_open_and_reports_the_env(client):
+    # Railway's health check signs in as nobody (06 §1).
+    r = await client.get("/api/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok", "env": get_settings().app_env}
+
+
+async def test_health_fails_when_db_down(client):
+    # A failing check holds back a broken deploy (06 §1).
+    with (
+        patch(
+            "app.system.router.check_database_health",
+            side_effect=OperationalError("mock", {}, Exception()),
+        ),
+        pytest.raises(OperationalError),
+    ):
+        await client.get("/api/health")

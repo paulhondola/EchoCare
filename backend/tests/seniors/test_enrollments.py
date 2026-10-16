@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import update
 
 from app.models import EnrollmentState, Role, Senior
-from app.seniors import service
+from app.seniors import service as seniors_service
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -143,14 +143,16 @@ async def test_removing_the_caregiver_during_a_submit(client, staff, monkeypatch
     # Submit pauses between its check and its move, and the removal comes in that
     # gap. The senior's row lock makes it wait, so DAS never gets a request without
     # a caregiver (04 §2).
-    checked = service.missing_to_submit
+    checked = seniors_service.missing_to_submit
+    paused = []
 
     async def slow_check(session, senior):
         missing = await checked(session, senior)
+        paused.append(senior.id)
         await asyncio.sleep(0.3)
         return missing
 
-    monkeypatch.setattr(service, "missing_to_submit", slow_check)
+    monkeypatch.setattr(seniors_service, "missing_to_submit", slow_check)
     maria = await register(client)
     detail = await client.get(f"/api/seniors/{maria}", headers=signed_in(MEDIC))
     ana = detail.json()["caregivers"][0]["user_id"]
@@ -169,6 +171,7 @@ async def test_removing_the_caregiver_during_a_submit(client, staff, monkeypatch
         422,
         {"detail": {"reason": "incomplete", "missing": ["caregiver"]}},
     )
+    assert paused, "the patch never reached submit"
 
 
 @pytest.mark.parametrize(
