@@ -75,6 +75,8 @@ railway domain -s dashboard -e staging
 
 Then add the dashboard's domain to Firebase → Authentication → Settings → Authorized domains.
 
+The file cannot create or rename these domains, so it writes each environment's hosts out in `HOSTS` in `railway.ts`. After generating or renaming a domain, update `HOSTS` to match, plan and apply: the `api` and `dashboard` variables change, and both services redeploy. The Android release build's `API_URL` in `android/app/build.gradle.kts` must match the production API host too.
+
 **Creating environments.** Create one with the command below. Its branch also needs an entry in `BRANCH` in `railway.ts`; the file refuses environments it does not know.
 
 ```bash

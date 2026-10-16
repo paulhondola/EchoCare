@@ -58,7 +58,7 @@ android {
             buildConfigField(
                 "String",
                 "API_URL",
-                "\"https://echocare-api-production.up.railway.app\""
+                "\"https://echocare-api-prod.up.railway.app\""
             )
             buildConfigField("int", "REREAD_SECONDS", "30")
             optimization {
