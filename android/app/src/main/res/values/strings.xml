@@ -95,6 +95,7 @@
     <!-- Refusals (seniors §9.3); invalid_phone above is the senior's -->
     <string name="caregiver_phone_invalid">Număr invalid. Aparținătorul are nevoie de un număr de mobil.</string>
     <string name="already_caregiver">Este deja aparținător pentru acest senior.</string>
+    <string name="phone_taken">Acest număr este deja al altui senior.</string>
     <string name="last_caregiver">Un senior trimis la DAS are nevoie de cel puțin un aparținător.</string>
     <string name="field_invalid">Valoare invalidă.</string>
     <string name="too_long">Cel mult %1$d de caractere.</string>

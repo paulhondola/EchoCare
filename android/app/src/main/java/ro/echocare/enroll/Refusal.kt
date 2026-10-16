@@ -25,6 +25,9 @@ sealed interface Refusal {
 
     data object AlreadyDone : Refusal
 
+    /** 409 `phone_taken`: the mobile already belongs to another senior (SE10). */
+    data object PhoneTaken : Refusal
+
     /** The senior moved on meanwhile. */
     data object WrongState : Refusal
 
@@ -49,6 +52,8 @@ fun refusalOf(status: Int?, body: String?): Refusal {
         status == 422 -> Refusal.Invalid(emptyList())
 
         status == 409 && reason == "already_done" -> Refusal.AlreadyDone
+
+        status == 409 && reason == "phone_taken" -> Refusal.PhoneTaken
 
         // wrong_state, or a reason a later server adds: the senior is read again
         status == 409 -> Refusal.WrongState
@@ -137,6 +142,8 @@ fun thenAfter(action: Action, refusal: Refusal): Then = when (refusal) {
     } else {
         Then.Reread
     }
+
+    Refusal.PhoneTaken -> Then.Mark(mapOf(Field.Phone to R.string.phone_taken))
 
     Refusal.WrongState -> Then.Reread
 
