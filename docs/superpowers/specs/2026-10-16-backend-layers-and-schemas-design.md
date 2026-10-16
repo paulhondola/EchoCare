@@ -147,18 +147,13 @@ Dev dependency `import-linter` 2.15 (supports Python 3.14, released 2026-09-04):
 root_package = "app"
 include_external_packages = true
 
+# Wildcards, not lists, so a new package under app/ is held to every contract (spec §10).
+
 [[tool.importlinter.contracts]]
 name = "Inside a feature: router, then service, then schemas, then models"
 type = "layers"
-containers = [
-    "app.auth",
-    "app.incidents",
-    "app.seniors",
-    "app.staff",
-    "app.system",
-    "app.voice",
-]
-layers = ["router", "(service)", "(schemas)", "(models)"]
+containers = ["app.*"]
+layers = ["(router)", "(service)", "(schemas)", "(models)"]
 
 [[tool.importlinter.contracts]]
 name = "Only app.main imports a router"
@@ -169,52 +164,22 @@ allowed_importers = ["app.main"]
 [[tool.importlinter.contracts]]
 name = "Package __init__ files import nothing; app.models is the one aggregator"
 type = "forbidden"
-source_modules = [
-    "app.auth",
-    "app.core",
-    "app.incidents",
-    "app.seniors",
-    "app.staff",
-    "app.status",
-    "app.system",
-    "app.voice",
-]
+source_modules = ["app", "app.*"]
 forbidden_modules = ["app.**"]
 as_packages = false
+# app.* also matches these two, which are modules that import by design.
+ignore_imports = ["app.main -> app.**", "app.models -> app.**"]
 
 [[tool.importlinter.contracts]]
 name = "The status engine is pure logic (01 §8)"
 type = "forbidden"
 source_modules = ["app.status"]
-forbidden_modules = [
-    "fastapi",
-    "httpx",
-    "sqlalchemy",
-    "app.auth",
-    "app.core",
-    "app.incidents",
-    "app.main",
-    "app.models",
-    "app.seniors",
-    "app.staff",
-    "app.system",
-    "app.voice",
-]
+forbidden_modules = ["fastapi", "httpx", "sqlalchemy", "app.*"]
 
 [[tool.importlinter.contracts]]
 name = "app.models is for Alembic, scripts and tests, not for app/"
 type = "forbidden"
-source_modules = [
-    "app.auth",
-    "app.core",
-    "app.incidents",
-    "app.main",
-    "app.seniors",
-    "app.staff",
-    "app.status",
-    "app.system",
-    "app.voice",
-]
+source_modules = ["app.*"]
 forbidden_modules = ["app.models"]
 
 [[tool.importlinter.contracts]]
@@ -233,6 +198,8 @@ ignore_imports = ["app.*.router -> app.**"]
 | Pure status engine | the engine picking up a database, web or HTTP dependency, against `01 §8` |
 | `app.models` outside `app/` only | going back to the global aggregator inside the app |
 | No cycles between packages | e.g. `seniors` ↔ `incidents`. Routers' outgoing imports are excluded because routers are the top layer and nothing imports them; this is what lets `/me` in `auth.router` read seniors |
+
+The contracts name packages with wildcards (`app.*`), not lists, so a package added later is held to all six without editing them; `tests/test_contracts.py` plants a violation in a new package and checks each contract still catches it. Every layer is optional, because a package such as `core` or `status` has no router.
 
 The contract set is a starting point: if a contract fails on the finished code for a reason this design did not foresee, fix the code when the code is wrong, and change the contract only when the design is.
 

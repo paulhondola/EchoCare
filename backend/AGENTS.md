@@ -30,7 +30,7 @@ backend/
 └── Dockerfile         the image Compose and Railway both build
 ```
 
-Each feature package uses the files it needs from: `models.py` (SQLAlchemy ORM tables and the enums they store), `schemas.py` (Pydantic bodies and responses), `service.py` (rules and queries), `router.py` (endpoints only). `__init__.py` files are empty.
+Each feature package uses the files it needs from: `models.py` (SQLAlchemy ORM tables and the enums they store), `schemas.py` (Pydantic bodies and responses), `service.py` (rules and queries), `router.py` (endpoints and request plumbing: dependencies, query-parameter parsing). `__init__.py` files are empty.
 
 ## Scope
 
