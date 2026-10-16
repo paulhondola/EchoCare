@@ -1,6 +1,6 @@
 # 06 · Operations
 
-Part of the [Sentinela specification](README.md). What happens when things fail, the timers and how demo mode shortens them, security and privacy, how each part is tested, and what to try before the hackathon.
+Part of the [EchoCare specification](README.md). What happens when things fail, the timers and how demo mode shortens them, security and privacy, how each part is tested, and what to try before the hackathon.
 
 ## 1. Failure handling
 

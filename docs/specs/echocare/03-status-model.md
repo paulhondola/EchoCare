@@ -1,6 +1,6 @@
 # 03 · Status model
 
-Part of the [Sentinela specification](README.md). This file defines the three codes, how a conversation becomes severity and certainty, the alarm phrases, and the fixed table that turns a call into actions.
+Part of the [EchoCare specification](README.md). This file defines the three codes, how a conversation becomes severity and certainty, the alarm phrases, and the fixed table that turns a call into actions.
 
 The principle, kept from v3: **the model converses and extracts facts; fixed rules decide** (G10). The model can raise the level, never lower it.
 

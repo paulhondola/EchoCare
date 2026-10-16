@@ -1,10 +1,10 @@
-# Sentinela: system specification (MVP)
+# EchoCare: system specification (MVP)
 
 **Status:** draft for team review · 2026-10-08, revised 2026-10-09 after the review session
 **Scope:** how the apps communicate, through which means and interfaces. No code.
 **Baseline:** [`../esti-bine-specificatii-v3.md`](../esti-bine-specificatii-v3.md). Where this spec and v3 disagree, this spec wins for the MVP.
 
-## What Sentinela is
+## What EchoCare is
 
 An early-warning system for heat and cold illness in seniors who live alone. During a weather warning (heatwave or frost) the system phones each enrolled senior, an AI agent talks with them in Romanian, and the server turns what they said into one of three codes (green, yellow, red) that the caregiver, the medic and DAS all see. A red hands the call to a person at DAS. A senior who also wears a Wear OS watch gets a second trigger: an abnormal reading on the wrist, relayed by their phone, starts the same call. A senior with the optional home node, a small sensor box on a shelf, gets a third: a room that stays too cold or too hot, no movement in the house during a warning, or its SOS button. The room temperature it measures also checks what the senior says on the call: „am căldură” in a room at 14°C does not count as fine **(P19–P22, proposed)**.
 
@@ -55,7 +55,7 @@ flowchart LR
 
 ## What changed from v3
 
-| Topic | v3 | Sentinela MVP |
+| Topic | v3 | EchoCare MVP |
 |---|---|---|
 | Call triggers | Weather warning campaign | Campaign (DAS button, heat or cold), watch event, home node event (proposed), senior request, welcome call |
 | Clients | One React project with three zones | One Android app with four roles (senior, caregiver, medic, DAS on duty), a Wear OS app, and a React web dashboard for DAS |

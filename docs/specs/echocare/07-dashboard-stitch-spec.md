@@ -1,6 +1,6 @@
 # 07 · DAS Web Dashboard & Google Stitch Design System
 
-Part of the [Sentinela specification](README.md). This specification defines the visual design system, information architecture, component specifications, and ready-to-copy **Google Stitch** prompt packages for the DAS (Direcția de Asistență Socială) Emergency Dispatch Web Dashboard (MVP §G15, UC-04, UC-07, UC-11, UC-12, UC-14, 04 §1).
+Part of the [EchoCare specification](README.md). This specification defines the visual design system, information architecture, component specifications, and ready-to-copy **Google Stitch** prompt packages for the DAS (Direcția de Asistență Socială) Emergency Dispatch Web Dashboard (MVP §G15, UC-04, UC-07, UC-11, UC-12, UC-14, 04 §1).
 
 The visual language and ergonomics are modeled directly after the **GitHub Projects (v2 Memex)** board and high-density telemetry consoles: dark tactical surfaces, compact bordered item cards, label pills, tabular monospace data, view switching (`Board` vs `Table`), and seamless right-side slide-over inspection drawers.
 
@@ -92,7 +92,7 @@ The dashboard is structured into a persistent left navigation sidebar and a full
 │ AppSidebar      │ TopNav: EmergencyAlertBar (sticky if Cod Roșu open)              │
 │ (240px fixed)   ├──────────────────────────────────────────────────────────────────┤
 │                 │ Workspace Header: Title, View Switcher [Board | Table], Search   │
-│ • SENTINELA DAS ├──────────────────────────────────────────────────────────────────┤
+│ • ECHOCARE DAS ├──────────────────────────────────────────────────────────────────┤
 │                 │                                                                  │
 │ [🚨 Incidente 3]│  [ GitHub-style Kanban Columns / Telemetry Table ]               │
 │ [👥 Seniori 48] │                                                                  │
@@ -186,7 +186,7 @@ Use the following ready-to-copy prompts in **Google Stitch** to generate the des
 
 ### Prompt 1: Design System Foundations & Tokens
 ```text
-Project: Sentinela DAS Emergency Dispatch Dashboard
+Project: EchoCare DAS Emergency Dispatch Dashboard
 Role: UI/UX Design System Designer
 Task: Create the Design System Token Manifest and Atomic UI Components in Google Stitch.
 
@@ -220,12 +220,12 @@ Components to generate:
 
 ### Prompt 2: Screen 1 — Incidente (GitHub Project Kanban Board)
 ```text
-Project: Sentinela DAS Emergency Dispatch Dashboard
+Project: EchoCare DAS Emergency Dispatch Dashboard
 Screen: Incidente (Emergency Incident Kanban Board)
 
 Layout Specification:
 - Fixed Left Sidebar (240px):
-  - Brand: "SENTINELA DAS" with glowing green indicator "SISTEM ACTIV (2.1ms)".
+  - Brand: "ECHOCARE DAS" with glowing green indicator "SISTEM ACTIV (2.1ms)".
   - Menu Items: Incidente (badge: 2 red), Monitorizare Seniori (48), Cereri Înrolare (2), Personal (4), Campanii Meteo.
   - Footer: Audio alert toggle button "Alerte Sonore: Active", logged-in user "Dispecer: Elena Vasilescu", Logout button.
 
@@ -251,7 +251,7 @@ Layout Specification:
 
 ### Prompt 3: Screen 2 — Monitorizare Seniori (Telemetry Table View)
 ```text
-Project: Sentinela DAS Emergency Dispatch Dashboard
+Project: EchoCare DAS Emergency Dispatch Dashboard
 Screen: Monitorizare Seniori (Senior Registry Telemetry Table)
 
 Layout Specification:
@@ -287,7 +287,7 @@ Layout Specification:
 
 ### Prompt 4: Screen 3 — Slide-Over Inspection Drawer
 ```text
-Project: Sentinela DAS Emergency Dispatch Dashboard
+Project: EchoCare DAS Emergency Dispatch Dashboard
 Screen: Slide-Over Inspection Drawer (540px right panel overlaid on Kanban Board)
 
 Layout Specification:
@@ -313,7 +313,7 @@ Layout Specification:
 - Tab 2 Content (Transcriere Apel AI Turn-by-Turn):
   - Apel inițiat la: 14:32:10 (Twilio SIP, durată 2m 14s)
   - Transcriere sincronizată:
-    - 14:32:15 Sistem AI: "Bună ziua, doamna Maria. Sentinela vă sună. Cum vă simțiți astăzi?"
+    - 14:32:15 Sistem AI: "Bună ziua, doamna Maria. EchoCare vă sună. Cum vă simțiți astăzi?"
     - 14:32:22 Senior: "Nu mă simt deloc bine maică... Îmi bate inima foarte tare și tremur."
     - 14:32:30 Sistem AI: "Înțeleg, doamna Maria. Rămâneți liniștită, vă transfer imediat către dispecerat."
   - Audio Handover Status: [Transferat cu succes la telefonul de serviciu DAS]
@@ -326,7 +326,7 @@ Layout Specification:
 
 ### Prompt 5: Screen 4 — Campanii Meteo & Serviciu Dispecerat
 ```text
-Project: Sentinela DAS Emergency Dispatch Dashboard
+Project: EchoCare DAS Emergency Dispatch Dashboard
 Screen: Campanii Meteo & Personal de Serviciu (Ops Control)
 
 Layout Specification:
@@ -354,7 +354,7 @@ Layout Specification:
 
 - [x] Design tokens documented with CSS custom properties matching GitHub Projects dark theme.
 - [x] Component interaction patterns specified for all core workflows (Incidents, Registry, Slide-over, Duty, Campaigns).
-- [x] High-urgency audio siren and sticky alert banner specified per Sentinela spec UC-11 and 06 §operations.
+- [x] High-urgency audio siren and sticky alert banner specified per EchoCare spec UC-11 and 06 §operations.
 - [x] Monospace telemetry requirements codified for tabular alignment of biometric and temporal data.
 - [x] Ready-to-use Google Stitch multi-prompt generation package compiled in Part 5.
 - [x] System Health backend endpoint (`GET /api/system/health`) and frontend status indicator completed and committed.

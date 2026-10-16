@@ -1,6 +1,6 @@
 # 04 · Interfaces
 
-Part of the [Sentinela specification](README.md). This file lists every interface between parts: what it is called, who may use it, what goes in and what comes out. Channel numbers refer to [01-architecture.md](01-architecture.md) section 4.
+Part of the [EchoCare specification](README.md). This file lists every interface between parts: what it is called, who may use it, what goes in and what comes out. Channel numbers refer to [01-architecture.md](01-architecture.md) section 4.
 
 Names and addresses are indicative. They fix the shape of each interface, not its final spelling.
 
@@ -64,7 +64,7 @@ A command answers as soon as its work is stored or queued. Results show up throu
 
 ### Home node ↔ phone app (Bluetooth Low Energy, P20, proposed)
 
-The node is a GATT server with one Sentinela service; the phone app is the client. Values are small JSON texts, so the firmware and the app share no binary format.
+The node is a GATT server with one EchoCare service; the phone app is the client. Values are small JSON texts, so the firmware and the app share no binary format.
 
 | Characteristic | Direction | Content |
 |---|---|---|
@@ -167,7 +167,7 @@ The WebSocket is `/voice/relay?call=<id>`, the one-time call id of 01 §4 channe
 
 ### 4.5 Caregiver notice SMS (channel 5, proposed)
 
-When a medic adds a caregiver, FastAPI sends one SMS from the project's number: „Ați fost adăugat ca aparținător pentru [form of address] în Sentinela. Instalați aplicația și intrați cu acest număr.” It carries no health details. It depends on spike S10; without it, the caregiver signs in on the spot.
+When a medic adds a caregiver, FastAPI sends one SMS from the project's number: „Ați fost adăugat ca aparținător pentru [form of address] în EchoCare. Instalați aplicația și intrați cu acest număr.” It carries no health details. It depends on spike S10; without it, the caregiver signs in on the spot.
 
 ## 5. FastAPI ↔ model provider (channel 8)
 
@@ -247,7 +247,7 @@ sequenceDiagram
 
 | Field | Alert | Refresh |
 |---|---|---|
-| Visible notification | Title „Sentinela”; text „O persoană pe care o urmăriți are nevoie de atenție.” | None |
+| Visible notification | Title „EchoCare”; text „O persoană pe care o urmăriți are nevoie de atenție.” | None |
 | Data | Type `code_changed` (or `incident` for DAS), the senior's id, and the incident's id for DAS | Type `refresh`, what changed (`senior`, `incidents`), the senior's or incident's id |
 
 Messages carry no name, no code and no reason **(P18, proposed)**. Tapping an alert opens the senior's page, or for DAS the incident, which the app reads from FastAPI.

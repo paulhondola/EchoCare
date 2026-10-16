@@ -1,6 +1,6 @@
 # 05 · Data model
 
-Part of the [Sentinela specification](README.md). One PostgreSQL database holds everything, and only FastAPI reaches it (G2, G8). Tables are defined in FastAPI's models (SQLAlchemy 2) and changed through migrations (Alembic).
+Part of the [EchoCare specification](README.md). One PostgreSQL database holds everything, and only FastAPI reaches it (G2, G8). Tables are defined in FastAPI's models (SQLAlchemy 2) and changed through migrations (Alembic).
 
 Field lists are indicative: they show what each entity must carry, not final column names.
 

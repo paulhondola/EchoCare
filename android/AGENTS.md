@@ -6,8 +6,8 @@ One Gradle build, two APKs: the phone app for the senior, caregiver, medic and D
 
 | Module | What | Agent guide |
 |---|---|---|
-| `:app` | Phone and tablet app, `applicationId` and namespace `bia.sentinela` | [app/AGENTS.md](app/AGENTS.md) |
-| `:wear` | Wear OS app, same `applicationId`, namespace `bia.sentinela.wear` | [wear/AGENTS.md](wear/AGENTS.md) |
+| `:app` | Phone and tablet app, `applicationId` and namespace `ro.echocare` | [app/AGENTS.md](app/AGENTS.md) |
+| `:wear` | Wear OS app, `applicationId` `ro.echocare`, namespace `ro.echocare.wear` | [wear/AGENTS.md](wear/AGENTS.md) |
 | `:shared` | Plain Kotlin, no Android imports, used by both | [shared/AGENTS.md](shared/AGENTS.md) |
 
 ```
@@ -17,7 +17,7 @@ android/
 ├── .editorconfig                 ktlint: android_studio style, Composable names allowed (ADR-002)
 ├── gradle/libs.versions.toml     every dependency and plugin version
 ├── gradle/gradle-daemon-jvm.properties   pins JDK 25
-├── local.properties              git-ignored: sdk.dir, keystore, optional sentinela.apiUrl
+├── local.properties              git-ignored: sdk.dir, keystore, optional echocare.apiUrl
 └── .idea/                        only .name, vcs.xml, inspectionProfiles/, codeStyles/, runConfigurations/ are committed
 ```
 
@@ -39,7 +39,7 @@ From `android/`. CI ([android.yml](../.github/workflows/android.yml)) runs the f
 | Screenshot | `android screen capture --device=emulator-5554 -o phone.png` |
 | Search Android docs | `android docs search "<keywords>"` |
 
-`android run` does not compile; build first. Pass `--device` (or `adb -s`) when more than one emulator is running. For a debug build to reach the laptop's Compose stack, `local.properties` needs `sentinela.apiUrl=http://10.0.2.2:8000`; without it, debug talks to staging.
+`android run` does not compile; build first. Pass `--device` (or `adb -s`) when more than one emulator is running. For a debug build to reach the laptop's Compose stack, `local.properties` needs `echocare.apiUrl=http://10.0.2.2:8000`; without it, debug talks to staging.
 
 ## Rules
 

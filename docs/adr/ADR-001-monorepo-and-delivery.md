@@ -3,7 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-10-09
 **Deciders:** the team of four (owners of backend, dashboard, Android, Wear OS)
-**Builds on:** [Sentinela specification](../specs/sentinela/README.md), mainly G1, G2, G3, G5, G9, G15 and spike S8
+**Builds on:** [EchoCare specification](../specs/echocare/README.md), mainly G1, G2, G3, G5, G9, G15 and spike S8
 
 ## Context
 
@@ -34,7 +34,7 @@ The forces at play:
 ### Layout
 
 ```
-sentinela/
+echocare/
 ├── backend/                     FastAPI service. Railway root directory /backend
 │   ├── app/
 │   │   ├── engine/              rules and status engine, pure (01 §8)
@@ -343,7 +343,7 @@ Railpack, Railway's builder without a Dockerfile, can detect a Vite project and 
 flowchart LR
     subgraph L["local, one per backend developer"]
         LAPI["api, uvicorn --reload<br/>+ dashboard dev server"]
-        LDB[("Docker Postgres<br/>sentinela + sentinela_test")]
+        LDB[("Docker Postgres<br/>echocare + echocare_test")]
         TUN["tunnel<br/>static domain"]
         LAPI --- LDB
         TUN --> LAPI
@@ -371,7 +371,7 @@ flowchart LR
 | Variable | `local` (`backend/.env`, not committed) | `staging` (Railway) | `production` (Railway) |
 |---|---|---|---|
 | `APP_ENV` | `local` | `staging` | `production` |
-| `DATABASE_URL` | `postgresql://sentinela:sentinela@localhost:5432/sentinela` | `${{postgres.DATABASE_URL}}` | `${{postgres.DATABASE_URL}}` |
+| `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | `${{postgres.DATABASE_URL}}` | `${{postgres.DATABASE_URL}}` |
 | `PUBLIC_BASE_URL` | `https://<your static domain>`, the tunnel | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}` |
 | `ALLOWED_ORIGIN` | `http://localhost:5173`, Vite's dev server | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` |
 | `SCHEDULER_ENABLED` | `true` | `true` | `true` |
@@ -396,9 +396,9 @@ services:
   db:
     image: postgres:18            # match the major version of Railway's Postgres service
     environment:
-      POSTGRES_USER: sentinela
-      POSTGRES_PASSWORD: sentinela
-      POSTGRES_DB: sentinela
+      POSTGRES_USER: echocare
+      POSTGRES_PASSWORD: echocare
+      POSTGRES_DB: echocare
     ports: ["5432:5432"]          # for pytest, alembic and a database client on the host
     # 18+ keeps data in /var/lib/postgresql/18/docker and refuses a mount at .../data
     volumes: [pgdata:/var/lib/postgresql]
@@ -407,7 +407,7 @@ services:
       - source: create-test-db
         target: /docker-entrypoint-initdb.d/10-test-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sentinela"]
+      test: ["CMD-SHELL", "pg_isready -U echocare"]
       interval: 2s
       retries: 15
 
@@ -415,7 +415,7 @@ services:
     build: ./backend              # the same Dockerfile Railway builds
     env_file: backend/.env        # Twilio, Firebase, model provider keys; not committed
     environment:
-      DATABASE_URL: postgresql://sentinela:sentinela@db:5432/sentinela
+      DATABASE_URL: postgresql://echocare:echocare@db:5432/echocare
     ports: ["8000:8000"]
     depends_on:
       db: { condition: service_healthy }
@@ -452,7 +452,7 @@ services:
 
 configs:
   create-test-db:
-    content: "CREATE DATABASE sentinela_test;"
+    content: "CREATE DATABASE echocare_test;"
 
 volumes:
   pgdata:
@@ -464,7 +464,7 @@ volumes:
 | `docker compose --profile tunnel up --watch` | The same, plus the ngrok tunnel to the API, for Twilio and real phones |
 | `docker compose exec api alembic upgrade head` | Applies a new migration without restarting. `--reload` restarts uvicorn, not the migration step |
 | `docker compose exec api alembic revision --autogenerate -m "…"` | Writes the migration into `backend/alembic/versions` on the host, through the bind mount |
-| `DATABASE_URL=postgresql://sentinela:sentinela@localhost:5432/sentinela_test uv run pytest`, in `backend/` | Tests on the host against `sentinela_test`, which they may wipe freely. The image has no dev dependencies, so pytest is not run inside it |
+| `DATABASE_URL=postgresql://echocare:echocare@localhost:5432/echocare_test uv run pytest`, in `backend/` | Tests on the host against `echocare_test`, which they may wipe freely. The image has no dev dependencies, so pytest is not run inside it |
 | `docker compose up --watch db dashboard`, then `uv run uvicorn app.main:app --reload` on the host | **For debugging:** the API outside Docker, with breakpoints in the IDE. Postgres and the dashboard stay in Compose |
 | `docker compose down -v` | Wipes both databases, for a clean start |
 
@@ -488,7 +488,7 @@ The tunnel also makes local behave like Railway. A public HTTPS edge terminates 
 | Client | Address |
 |---|---|
 | Dashboard | Already in Compose, at `localhost:5173`. `localhost` is authorized in Firebase by default |
-| Android emulator | `http://10.0.2.2:8000`, set as `sentinela.apiUrl` in `local.properties`. Android 17 blocks apps from private addresses without the runtime permission `ACCESS_LOCAL_NETWORK`, which debug builds declare; grant it once per install with `adb shell pm grant bia.sentinela android.permission.ACCESS_LOCAL_NETWORK`. Without it the request times out rather than being refused |
+| Android emulator | `http://10.0.2.2:8000`, set as `echocare.apiUrl` in `local.properties`. Android 17 blocks apps from private addresses without the runtime permission `ACCESS_LOCAL_NETWORK`, which debug builds declare; grant it once per install with `adb shell pm grant ro.echocare android.permission.ACCESS_LOCAL_NETWORK`. Without it the request times out rather than being refused |
 | A real phone, yours or a teammate's | The tunnel's static domain |
 
 #### Moving a change through the environments
@@ -593,9 +593,9 @@ flowchart LR
 So both the `debug` and `release` build types, in `:app` and `:wear`, use one keystore. Its SHA fingerprints are registered once in Firebase. The apps never go to the Play Store, so the key has no store identity to protect. Keep it out of Git anyway: share it among the four developers through a password manager, and give it to CI as a base64 secret. Each developer points `local.properties` at their copy:
 
 ```properties
-sentinela.keystore=/path/to/sentinela.jks
-sentinela.keystore.password=…
-sentinela.key.password=…
+echocare.keystore=/path/to/echocare.jks
+echocare.keystore.password=…
+echocare.key.password=…
 ```
 
 The keystore is PKCS12 with alias `key0`, and the key password equals the store password. Android Studio's "New Key Store" dialog asks for the two separately; a different key password builds nothing ("Given final block not properly padded"). `keytool -genkeypair -storetype PKCS12 -alias key0 …` cannot make that mistake. CI writes the same three lines from the secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`, so the build scripts have no CI branch and no fallback to a per-machine debug key.
@@ -676,7 +676,7 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 
 ## Action items
 
-1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config. *`android/` done in PR #6: `applicationId` `bia.sentinela`.*
+1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config. *`android/` done in PR #6: `applicationId` `ro.echocare`.*
 2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments. Each backend developer puts their ngrok authtoken in the root `.env`.
 3. [ ] Generate the shared keystore, store it in the team's password manager, add it to GitHub secrets, and register its SHA-1 and SHA-256 in Firebase. *Generated and in GitHub secrets; password manager and Firebase still to do.*
 4. [ ] Railway: one project, EU West, environments `staging` (follows `main`) and `production` (follows `release`). Apply `.railway/railway.ts` to each (services `api`, `dashboard` and `Postgres`, root directories, watch paths, Wait for CI, variables), then generate each service's public domain.
@@ -687,4 +687,4 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 9. [ ] Add to spike S1: Twilio's signature check passes behind Railway's proxy.
 10. [ ] Add to spike S8: open WebSockets survive the traffic switch during a deploy with `drainingSeconds = 200`.
 11. [ ] Add a ruleset to `release` that blocks pushes after the Sunday-morning freeze.
-12. [ ] Once accepted, add it to the decision log in the [spec README](../specs/sentinela/README.md) as G17.
+12. [ ] Once accepted, add it to the decision log in the [spec README](../specs/echocare/README.md) as G17.

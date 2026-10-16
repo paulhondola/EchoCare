@@ -1,6 +1,6 @@
 # 02 · Use cases
 
-Part of the [Sentinela specification](README.md). Each use case names who is involved, what starts it, the steps, and what is true afterwards. The channels and interface names used here are defined in [01-architecture.md](01-architecture.md) and [04-interfaces.md](04-interfaces.md); how a call becomes a code is in [03-status-model.md](03-status-model.md).
+Part of the [EchoCare specification](README.md). Each use case names who is involved, what starts it, the steps, and what is true afterwards. The channels and interface names used here are defined in [01-architecture.md](01-architecture.md) and [04-interfaces.md](04-interfaces.md); how a call becomes a code is in [03-status-model.md](03-status-model.md).
 
 In the sequence diagrams, "Database" stands for PostgreSQL, which only FastAPI reaches.
 
@@ -204,7 +204,7 @@ Variations:
 | After | The watch reports through the phone app |
 
 1. The watch is paired with the senior's phone through Wear OS's own companion app. This is the operating system's pairing, not ours.
-2. The Sentinela Wear OS app finds the phone app over the Data Layer and starts monitoring.
+2. The EchoCare Wear OS app finds the phone app over the Data Layer and starts monitoring.
 3. The phone app shows „Ceas conectat” and the latest pulse.
 
 Variations:
@@ -224,7 +224,7 @@ There are no pairing codes and no device tokens (G5). The watch belongs to whoev
 | After | The node reports through the phone app; its light shows the senior's code |
 
 1. In the senior's role, the app's settings offer „Conectează senzorul din casă”.
-2. The app scans for devices advertising the Sentinela service and lists them by the last four characters of their address, which are also printed on the box.
+2. The app scans for devices advertising the EchoCare service and lists them by the last four characters of their address, which are also printed on the box.
 3. The senior or the caregiver picks the box. The phone bonds with it; the node accepts one bonded phone at a time.
 4. The app shows „Senzor din casă conectat” with the room temperature, and starts relaying readings.
 

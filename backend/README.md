@@ -39,7 +39,7 @@ cp .env.example .env
 | Variable | Local value | What it does |
 |---|---|---|
 | `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
-| `DATABASE_URL` | `postgresql://sentinela:sentinela@localhost:5432/sentinela` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
+| `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
 | `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
@@ -68,10 +68,10 @@ uv run ruff format .
 uv run lint-imports
 ```
 
-Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `sentinela_test` on a fresh volume; on an older one, create it once:
+Tests that need a database use `echocare_test`, never `echocare`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `echocare_test` on a fresh volume; on an older one, create it once:
 
 ```bash
-docker compose exec db createdb -U sentinela sentinela_test
+docker compose exec db createdb -U echocare echocare_test
 ```
 
 ## Sign in by hand

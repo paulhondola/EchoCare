@@ -6,8 +6,8 @@ This is the skeleton: the phone app signs in and shows a placeholder per role, a
 
 | Module | What | Becomes |
 |---|---|---|
-| [app/](app/) | Phone and tablet app, package `bia.sentinela` | Phone sign-in, then the screens of the granted role: senior („Sunați-mă”, watch relay), caregiver, medic (tablet layout), DAS (red incidents) |
-| [wear/](wear/) | Wear OS app, same `applicationId`, namespace `bia.sentinela.wear` | One screen and one background job: pulse and step monitoring, „Sunteți bine?”, check-ins (UC-09, UC-13) |
+| [app/](app/) | Phone and tablet app, package `ro.echocare` | Phone sign-in, then the screens of the granted role: senior („Sunați-mă”, watch relay), caregiver, medic (tablet layout), DAS (red incidents) |
+| [wear/](wear/) | Wear OS app, applicationId `ro.echocare`, namespace `ro.echocare.wear` | One screen and one background job: pulse and step monitoring, „Sunteți bine?”, check-ins (UC-09, UC-13) |
 | [shared/](shared/) | Plain Kotlin, no Android imports | Data Layer paths, event and check-in types, the watch's threshold logic, all tested on the JVM |
 
 ## Tools
@@ -38,22 +38,22 @@ echo 'export PATH="$HOME/Library/Android/sdk/platform-tools:$PATH"' >> ~/.zshrc 
 
 ## Set up once
 
-**1. Get the shared keystore.** Every build, debug included, is signed with one team key (see [Design decisions](#design-decisions)). Copy `sentinela.jks` and its password from the team's password manager to a folder **outside the repository**.
+**1. Get the shared keystore.** Every build, debug included, is signed with one team key (see [Design decisions](#design-decisions)). Copy `echocare.jks` and its password from the team's password manager to a folder **outside the repository**.
 
 **2. Point `local.properties` at it.** Studio creates `android/local.properties` with `sdk.dir` on the first sync. It is git-ignored. Add:
 
 ```properties
-sentinela.keystore=/Users/you/Keys/sentinela.jks
-sentinela.keystore.password=…
-sentinela.key.password=…
-sentinela.apiUrl=http://10.0.2.2:8000
+echocare.keystore=/Users/you/Keys/echocare.jks
+echocare.keystore.password=…
+echocare.key.password=…
+echocare.apiUrl=http://10.0.2.2:8000
 ```
 
 | Key | What it does |
 |---|---|
-| `sentinela.keystore` | Absolute path to the shared keystore |
-| `sentinela.keystore.password`, `sentinela.key.password` | The same password twice: the keystore is PKCS12, which has one password |
-| `sentinela.apiUrl` | Optional. Overrides the API address of **debug** builds. `http://10.0.2.2:8000` is your laptop's Compose stack as seen from an emulator. Leave it out to use staging |
+| `echocare.keystore` | Absolute path to the shared keystore |
+| `echocare.keystore.password`, `echocare.key.password` | The same password twice: the keystore is PKCS12, which has one password |
+| `echocare.apiUrl` | Optional. Overrides the API address of **debug** builds. `http://10.0.2.2:8000` is your laptop's Compose stack as seen from an emulator. Leave it out to use staging |
 
 **3. Open `android/` in Android Studio, not the repository root.** The Gradle build starts in this folder. Studio still finds Git one level up, through the committed `.idea/vcs.xml`.
 
@@ -111,7 +111,7 @@ docker compose up --watch
 Choose the run configuration `app` with the device **Senior Phone**, or `wear` with **Senior Watch**, and press Run. Android 17 blocks apps from private addresses such as `10.0.2.2` unless they hold the runtime permission `ACCESS_LOCAL_NETWORK`. Debug builds declare it, but Studio's install does not grant it, so after a fresh install from Studio grant it once:
 
 ```bash
-adb shell pm grant bia.sentinela android.permission.ACCESS_LOCAL_NETWORK
+adb shell pm grant ro.echocare android.permission.ACCESS_LOCAL_NETWORK
 ```
 
 ### From the terminal, with Android CLI
@@ -158,13 +158,13 @@ An emulator's screen goes to sleep after a while. `layout` then shows only the s
 
 | Variant | API | Screen | How |
 |---|---|---|---|
-| `debug` | local Compose, through `sentinela.apiUrl` | **API ok (local)**, or **API unreachable: …** with the stack down | As above |
-| `debug` | staging | **API ok (staging)** | Remove `sentinela.apiUrl` from `local.properties` and rebuild. Staging is public HTTPS, so no permission is needed |
+| `debug` | local Compose, through `echocare.apiUrl` | **API ok (local)**, or **API unreachable: …** with the stack down | As above |
+| `debug` | staging | **API ok (staging)** | Remove `echocare.apiUrl` from `local.properties` and rebuild. Staging is public HTTPS, so no permission is needed |
 | `release` | production | **API ok (production)** | `./gradlew :app:assembleRelease`, then `android run` with `app/build/outputs/apk/release/app-release.apk`, or the `release` variant in Studio (View → Tool Windows → Build Variants) |
 
 | Variant | API | R8 | Cleartext HTTP, local network |
 |---|---|---|---|
-| `debug` | staging, or `sentinela.apiUrl` | Off | Allowed, through [app/src/debug/AndroidManifest.xml](app/src/debug/AndroidManifest.xml) |
+| `debug` | staging, or `echocare.apiUrl` | Off | Allowed, through [app/src/debug/AndroidManifest.xml](app/src/debug/AndroidManifest.xml) |
 | `release` | production | On | Not allowed |
 
 Both variants are signed with the shared key, so a release build installs over a debug build and the other way round.
@@ -185,7 +185,7 @@ Then add the skills that match this project, one per command. Each is a set of o
 for skill in wear-compose-m3 navigation-3 adaptive edge-to-edge r8-analyzer testing-setup android-permissions-security; do android skills add --agent=claude-code "$skill"; done
 ```
 
-| Skill | Why it fits Sentinela |
+| Skill | Why it fits EchoCare |
 |---|---|
 | `wear-compose-m3` | The watch app's Compose for Wear OS, Material 3 |
 | `navigation-3` | The role screens, when Navigation arrives |
@@ -221,13 +221,13 @@ CI signs with the keystore from the GitHub secrets `ANDROID_KEYSTORE_BASE64` and
 | Decision | Why |
 |---|---|
 | **One Gradle build, three modules** (`:app`, `:wear`, `:shared`) | ADR-001. The phone and watch share their `applicationId`, signing key and version in one place, so they cannot drift apart. The Data Layer only connects apps with the same package and key |
-| **Same `applicationId`, different `namespace`** | `applicationId` (`bia.sentinela`) is the install identity and must match on both devices. `namespace` holds the generated `R` and `BuildConfig` classes, so it must be unique per module |
+| **Same `applicationId`, different `namespace`** | `applicationId` (`ro.echocare`) is the install identity and must match on both devices. `namespace` holds the generated `R` and `BuildConfig` classes, so it must be unique per module |
 | **`:shared` is plain Kotlin** | The watch's threshold logic decides whether a senior gets a call. Without Android imports, its tests run on the JVM in CI, with no emulator (06 §5) |
 | **One app for four roles** | G3. After sign-in, the grants from `GET /me` choose which screens appear. Permissions are enforced by FastAPI, not by the app |
 | **The watch is not standalone** | G5. It has no identity and never calls the API: events go through the senior's signed-in phone. The manifest says `standalone=false` |
 | **Started from the Studio wizard, then trimmed** | Empty Activity, Empty Wear App and Kotlin Library templates. The watch's example tile and complication are removed: the spec asks for one screen and one job |
 | **Compose with Material 3; Wear Compose with Material 3 on the watch** | Studio's default for new projects, and the team's toolkit |
-| **Retrofit and kotlinx.serialization** | [Api.kt](app/src/main/java/bia/sentinela/Api.kt) holds one interface, `SentinelaApi`, with one function per endpoint of [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md). The base URL is `API_URL + "/api/"`, so endpoints keep the spec's names. The Firebase token is attached in one OkHttp interceptor, in [Modules.kt](app/src/main/java/bia/sentinela/Modules.kt) |
+| **Retrofit and kotlinx.serialization** | [Api.kt](app/src/main/java/ro/echocare/Api.kt) holds one interface, `EchoCareApi`, with one function per endpoint of [04-interfaces.md](../docs/specs/echocare/04-interfaces.md). The base URL is `API_URL + "/api/"`, so endpoints keep the spec's names. The Firebase token is attached in one OkHttp interceptor, in [Modules.kt](app/src/main/java/ro/echocare/Modules.kt) |
 | **`ignoreUnknownKeys = true`** | An installed APK keeps talking to a newer API (ADR-001 §2.3). Spec enumerations will also be decoded as strings with a fallback, never as plain enums, which crash on an unknown value |
 | **API address fixed per build type** | `debug` → staging, `release` → production (ADR-001 §2.2), as a `BuildConfig` field. Only `local.properties` can override debug |
 | **Hilt; no Navigation, no Room yet** | Hilt arrived with sign-in (auth-layer AL16). The others come with the first feature that needs them. Navigation will arrive with the role screens. A local database is unlikely: all data lives in FastAPI (01 §5) |
@@ -240,8 +240,8 @@ CI signs with the keystore from the GitHub secrets `ANDROID_KEYSTORE_BASE64` and
 
 | Symptom | Cause and fix |
 |---|---|
-| `INSTALL_FAILED_UPDATE_INCOMPATIBLE: … signatures do not match`, from Studio, `android run` or `adb` | The device has a build signed with another key, typically from before the shared keystore. Uninstall once: `adb -s <serial> uninstall bia.sentinela` |
-| `Failed to read key key0 … Given final block not properly padded` | `sentinela.key.password` is wrong. Studio's New Key Store dialog lets the key password differ from the store password, which PKCS12 does not support. Recreate the keystore with `keytool -genkeypair -storetype PKCS12 -alias key0 …` |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE: … signatures do not match`, from Studio, `android run` or `adb` | The device has a build signed with another key, typically from before the shared keystore. Uninstall once: `adb -s <serial> uninstall ro.echocare` |
+| `Failed to read key key0 … Given final block not properly padded` | `echocare.key.password` is wrong. Studio's New Key Store dialog lets the key password differ from the store password, which PKCS12 does not support. Recreate the keystore with `keytool -genkeypair -storetype PKCS12 -alias key0 …` |
 | The build fails at signing and names the signing config `shared` | The three keystore lines are missing from `local.properties`, or the path is wrong |
 | `API unreachable: failed to connect to /10.0.2.2 … after 10000ms` | `ACCESS_LOCAL_NETWORK` is not granted, or the Compose stack is down. A timeout rather than "connection refused" usually means the permission: install with `android run … --install-options=-g`, or grant it with `adb shell pm grant` (see [Run it](#run-it)) |
 | `API unreachable: HTTP 404` | The API image is older than the `/api` prefix. Start it with `docker compose up --watch`, or rebuild with `docker compose up -d --build api` |

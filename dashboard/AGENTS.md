@@ -8,7 +8,7 @@ The DAS web dashboard (spec G15): a Svelte 5 + SvelteKit 3 single-page app ([ADR
 dashboard/
 ├── src/
 │   ├── app.html                     SvelteKit root template
-│   ├── styles.css                   Tailwind v4 + DaisyUI 5 entry: the dark `sentinela` theme, spec 07 tokens, sn-* classes, @font-face
+│   ├── styles.css                   Tailwind v4 + DaisyUI 5 entry: the dark `echocare` theme, spec 07 tokens, sn-* classes, @font-face
 │   ├── fonts/                       Archivo and JetBrains Mono, self-hosted woff2 cut from the Android app's fonts, with their OFL licences
 │   ├── routes/
 │   │   ├── +layout.ts               export const ssr = false;
@@ -47,9 +47,9 @@ dashboard/
 
 ## Scope
 
-- The DAS team's screens: incidents, the red hand-over, live updates. What they show and do is in [02-use-cases.md](../docs/specs/sentinela/02-use-cases.md) and [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md).
+- The DAS team's screens: incidents, the red hand-over, live updates. What they show and do is in [02-use-cases.md](../docs/specs/echocare/02-use-cases.md) and [04-interfaces.md](../docs/specs/echocare/04-interfaces.md).
 - All data comes from the API at `import.meta.env.VITE_API_URL`. No database access and no business rules here; permissions are enforced by FastAPI.
-- Styling is Tailwind v4 (`@tailwindcss/vite`) on the design in [07-dashboard-stitch-spec.md](../docs/specs/sentinela/07-dashboard-stitch-spec.md): one dark theme, square corners, 2px section rules, flush-left button labels, Archivo with JetBrains Mono for ids, times and numbers. Take colours from the tokens in `styles.css` (`canvas`, `subtle`, `card`, `line`, `fg-muted`, `link`, and `rosu`, `galben`, `verde` for the codes), buttons from `sn-btn` and its variants, and icons from `ui/Icon.svelte`. DaisyUI 5 stays for inputs, spinners and modals, themed to match. Write full class names in quotes (e.g. `class={["tab", active && "tab-active"]}`): Tailwind only finds classes it can read whole in the source.
+- Styling is Tailwind v4 (`@tailwindcss/vite`) on the design in [07-dashboard-stitch-spec.md](../docs/specs/echocare/07-dashboard-stitch-spec.md): one dark theme, square corners, 2px section rules, flush-left button labels, Archivo with JetBrains Mono for ids, times and numbers. Take colours from the tokens in `styles.css` (`canvas`, `subtle`, `card`, `line`, `fg-muted`, `link`, and `rosu`, `galben`, `verde` for the codes), buttons from `sn-btn` and its variants, and icons from `ui/Icon.svelte`. DaisyUI 5 stays for inputs, spinners and modals, themed to match. Write full class names in quotes (e.g. `class={["tab", active && "tab-active"]}`): Tailwind only finds classes it can read whole in the source.
 - Single-page application mode with SvelteKit 3: no `load` functions; all reads run client-side after sign-in. The Shell polls incidents, seniors, enrollments, staff and health once through `poll()` (`src/utils/poll.svelte.ts`) and pages read them with `getLive()`, so the sidebar's counters and the pages share each read. Relative imports are used instead of `#lib` or `$lib`.
 
 ## Commands
@@ -65,7 +65,7 @@ From `dashboard/`. CI ([dashboard.yml](../.github/workflows/dashboard.yml)) runs
 | Unit tests | `npx vp test` |
 | Build to `dist/` | `npm run build` |
 | Serve the built `dist/` | `npm run preview` |
-| Build the production image (from the repo root) | `docker build -t sentinela-dashboard --build-arg VITE_API_URL=http://localhost:8000 dashboard` |
+| Build the production image (from the repo root) | `docker build -t echocare-dashboard --build-arg VITE_API_URL=http://localhost:8000 dashboard` |
 
 The toolchain is Vite+ ([ADR-002](../docs/adr/ADR-002-git-hooks.md), [ADR-003](../docs/adr/ADR-003-dashboard-svelte.md)): `vp check` runs oxfmt, oxlint and a type check through tsgolint, while `svelte-check --tsgo` covers `.svelte` template types and accessibility warnings.
 

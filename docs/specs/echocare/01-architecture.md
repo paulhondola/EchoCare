@@ -1,6 +1,6 @@
 # 01 · Architecture
 
-Part of the [Sentinela specification](README.md). IDs such as G2 and P10 refer to the decision log there.
+Part of the [EchoCare specification](README.md). IDs such as G2 and P10 refer to the decision log there.
 
 ## 1. Shape
 
@@ -303,7 +303,7 @@ The PIR needs 30 to 60 seconds to settle after power-on; its jumper is set to re
 
 **What the node does**
 
-- Advertises one Sentinela GATT service and accepts a connection only from its bonded phone. The characteristics are in [04-interfaces.md](04-interfaces.md) section 3.
+- Advertises one EchoCare GATT service and accepts a connection only from its bonded phone. The characteristics are in [04-interfaces.md](04-interfaces.md) section 3.
 - Reads the SHT31 every reading interval, smooths it with a short moving average, and notifies the phone. A value outside a plausible range (−10 to 50°C) is not sent.
 - Notifies motion when it starts, and keeps the time of the last motion for the next reading.
 - On a long press of the button (two seconds), beeps once and notifies the phone with an id it generates; beeps twice when the phone says FastAPI recorded it. Until then it keeps the press and sends it again after a reconnection.
