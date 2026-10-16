@@ -14,20 +14,20 @@ android {
     // Must match :app, or the Data Layer drops every message (ADR-001 §2.1).
     signingConfigs {
         create("shared") {
-            storeFile = localProps.getProperty("sentinela.keystore")?.let(::file)
-            storePassword = localProps.getProperty("sentinela.keystore.password")
+            storeFile = localProps.getProperty("echocare.keystore")?.let(::file)
+            storePassword = localProps.getProperty("echocare.keystore.password")
             keyAlias = "key0" // Android Studio's default alias in the shared keystore
-            keyPassword = localProps.getProperty("sentinela.key.password")
+            keyPassword = localProps.getProperty("echocare.key.password")
         }
     }
 
-    namespace = "bia.sentinela.wear"
+    namespace = "ro.echocare.wear"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "bia.sentinela"
+        applicationId = "ro.echocare"
         minSdk = 36
         targetSdk = 37
         versionCode = 1

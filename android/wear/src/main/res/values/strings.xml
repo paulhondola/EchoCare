@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Sentinela</string>
+    <string name="app_name">EchoCare</string>
     <string name="hello_world">Hello, %1$s!</string>
 </resources>
