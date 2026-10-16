@@ -44,6 +44,16 @@ class StaffGrantForm(BaseModel):
         return self
 
 
+class StaffEditForm(BaseModel):
+    """PATCH /staff/{user_id}'s body (04 §2): a field left out stays as it is.
+
+    The phone number is not editable (Q8): it is the sign-in identity.
+    """
+
+    display_name: Name | None = None
+    practice: Practice | None = None
+
+
 class StaffMemberView(BaseModel):
     display_name: str
     phone_e164: str

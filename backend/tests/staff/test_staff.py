@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 
 import pytest
 from sqlalchemy import select
@@ -175,3 +176,55 @@ async def test_the_staff_list_is_for_das(client, add_user, das, token, status, r
     headers = signed_in(token) if token else {}
     r = await client.get("/api/staff", headers=headers)
     assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+
+
+async def patch_staff(client, user_id, body, token=DAS):
+    return await client.patch(
+        f"/api/staff/{user_id}", json=body, headers=signed_in(token)
+    )
+
+
+async def test_das_edits_a_medic(client, db, das):
+    medic = (await post(client, MEDIC)).json()
+    user = await db.scalar(select(User).where(User.phone_e164 == medic["phone_e164"]))
+    r = await patch_staff(
+        client,
+        user.id,
+        {
+            "display_name": "Dr. Ion Popescu",
+            "practice": "CMI Nou",
+            "phone": "0700 000 099",
+        },
+    )
+    assert r.status_code == 200
+    assert r.json() == {
+        "id": str(user.id),
+        "display_name": "Dr. Ion Popescu",
+        "phone_e164": medic["phone_e164"],
+        "practice": "CMI Nou",
+        "roles": ["medic"],
+        "on_duty": False,
+    }  # the phone stays (Q8)
+
+
+async def test_an_empty_patch_changes_nothing(client, das):  # Review Focus 3
+    r = await patch_staff(client, das.id, {})
+    assert (r.status_code, r.json()["display_name"]) == (200, "DAS Test")
+
+
+async def test_practice_needs_a_medic(client, das):
+    r = await patch_staff(client, das.id, {"practice": "CMI"})
+    assert (r.status_code, r.json()) == (422, {"detail": {"reason": "not_medic"}})
+
+
+async def test_only_staff_can_be_edited(client, add_user, das):
+    nobody = await add_user("+40700000004")  # a user row without a das or medic grant
+    for user_id in (nobody.id, uuid.uuid4()):
+        r = await patch_staff(client, user_id, {"display_name": "X"})
+        assert (r.status_code, r.json()) == (404, {"detail": {"reason": "not_found"}})
+
+
+async def test_a_medic_cannot_edit_staff(client, add_user, das):
+    await add_user("+40700000003", Role.medic)
+    r = await patch_staff(client, das.id, {"display_name": "X"}, token="+40700000003")
+    assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_allowed"}})
