@@ -34,12 +34,12 @@ export default defineRailway((ctx) => {
     // checkSuites: Wait for CI, so a red workflow never deploys
     source: github(REPO, { branch, rootDirectory: "/backend", checkSuites: true }),
     // watch paths: only backend changes redeploy the API and drop live calls
-    build: { builder: "DOCKERFILE", watchPatterns: ["/backend/**"] },
+    build: { builder: "DOCKERFILE", dockerfilePath: "/backend/Dockerfile", watchPatterns: ["/backend/**"] },
     preDeploy: "alembic upgrade head",
     healthcheck: "/api/health",
     replicas: { [REGION]: 1 },
     // drainingSeconds: an old copy keeps its calls (3 min limit) after SIGTERM
-    deploy: { sleepApplication: false, drainingSeconds: 200 },
+    deploy: { sleepApplication: true, drainingSeconds: 200 },
     env: {
       APP_ENV: env,
       DATABASE_URL: db.env.DATABASE_URL,
@@ -63,6 +63,7 @@ export default defineRailway((ctx) => {
     source: github(REPO, { branch, rootDirectory: "/dashboard", checkSuites: true }),
     build: { builder: "DOCKERFILE", watchPatterns: ["/dashboard/**"] },
     replicas: { [REGION]: 1 },
+    deploy: { sleepApplication: true },
     // Vite writes this into the bundle at build time (an ARG in the Dockerfile)
     env: { VITE_API_URL: "https://${{api.RAILWAY_PUBLIC_DOMAIN}}", ...FIREBASE_WEB },
   });
