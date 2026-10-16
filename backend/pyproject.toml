@@ -38,8 +38,9 @@ root_package = "app"
 include_external_packages = true
 
 # Wildcards, not lists, so a new package under app/, at any depth, is held to every
-# contract (spec §10). Empty __init__ files are checked in tests/test_contracts.py:
-# with as_packages = false, app.** would match every module, not just the packages.
+# contract (spec §10). Empty __init__ files are checked in
+# tests/architecture/test_contracts.py: with as_packages = false, app.** would match
+# every module, not just the packages.
 
 [[tool.importlinter.contracts]]
 name = "Inside a feature: router, then service, then schemas, then models"
@@ -64,7 +65,7 @@ name = "The status engine is pure logic (01 §8)"
 type = "forbidden"
 source_modules = ["app.status"]
 # Every runtime dependency by import name, and pydantic, which fastapi brings.
-# tests/test_contracts.py fails when a new dependency is missing here.
+# tests/architecture/test_contracts.py fails when a new dependency is missing here.
 forbidden_modules = [
     "alembic",
     "asyncpg",

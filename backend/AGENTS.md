@@ -25,7 +25,10 @@ backend/
 ├── alembic/
 │   ├── env.py         refuses to migrate any non-local database off Railway
 │   └── versions/      migrations, frozen once on main
-├── tests/             pytest, run on the host
+├── tests/             pytest, run on the host; conftest.py holds the shared fixtures
+│   ├── <package>/     one folder per app/ package (auth/, voice/, …), its tests inside
+│   ├── architecture/  the import contracts and import order
+│   └── tooling/       scripts/
 ├── pyproject.toml     dependencies; uv.lock is committed
 └── Dockerfile         the image Compose and Railway both build
 ```
@@ -61,7 +64,7 @@ Run migrations inside the Compose `api` container: `alembic/` is bind-mounted, s
 
 - **Migrations only add.** New columns nullable or with a default; nothing renamed or dropped in the same deploy. Old and new copies run against the same schema during a deploy.
 - **A migration on `main` is frozen.** Staging has applied it. Fix it with a new migration.
-- **Don't bypass the environment guards.** `alembic/env.py` refuses non-local hosts, and `check_environment()` refuses a laptop scheduler on a cloud database. Their tests are in `tests/test_settings.py`; keep them passing.
+- **Don't bypass the environment guards.** `alembic/env.py` refuses non-local hosts, and `check_environment()` refuses a laptop scheduler on a cloud database. Their tests are in `tests/core/test_settings.py`; keep them passing.
 - **Tests never use `sentinela`.** A test that needs a database uses `sentinela_test`. Logic that needs none, such as the status engine and alarm phrases, is tested without one (06 §5).
 - **API changes only add.** Installed Android apps lag behind (ADR-001 §2.3): new response fields optional, old fields kept.
 - **`/api/health` touches the database on purpose.** Railway's health check uses it to hold back a broken deploy.

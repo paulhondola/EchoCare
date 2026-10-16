@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).parent.parent
+BACKEND = Path(__file__).parents[2]
 LINT_IMPORTS = Path(sys.executable).parent / "lint-imports"
 
 CASES = {
