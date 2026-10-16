@@ -17,6 +17,7 @@ from app.seniors.schemas import (
 )
 from app.seniors.service import (
     accept,
+    delete_draft,
     edit,
     edit_caregiver,
     enrollments_query,
@@ -74,6 +75,19 @@ async def update_senior(
     (SE9, 04 §2). Past draft the address stays: an edit that drops it is
     `incomplete`."""
     return await edit(session, caller, senior_id, body)
+
+
+@router.delete("/seniors/{senior_id}", status_code=204)
+async def delete_senior(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Deletes a draft with its consents and grants, by its registering medic (Q10).
+    Past draft, or once a call refers to the senior, it is 409 `wrong_state`. A repeat
+    is 404, the row being gone."""
+    await delete_draft(session, caller, senior_id)
+    return Response(status_code=204)
 
 
 @router.post("/seniors/{senior_id}/caregivers", status_code=201)

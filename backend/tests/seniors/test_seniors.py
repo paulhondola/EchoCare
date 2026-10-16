@@ -1,12 +1,14 @@
 """Seniors, caregiver and senior grants, and who reaches whom (#16, auth-layer §3.6)."""
 
 import asyncio
+import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.core.db import engine
-from app.models import EnrollmentState, Grant, Role, Senior, User
+from app.models import Call, Consent, EnrollmentState, Grant, Role, Senior, User
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -464,6 +466,8 @@ async def test_signed_out_and_unknown(client, staff, headers, status, reason):
         assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
     r = await patch_caregiver(client, maria["id"], staff.id, {}, headers=headers)
     assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
 
 
 async def test_das_cannot_register(client, staff):
@@ -562,3 +566,65 @@ async def test_das_edits_a_caregiver(client, db, staff):
         client, maria["id"], ana["user_id"], {"relation": "nora"}, DAS
     )
     assert r.status_code == 200
+
+
+async def test_the_medic_deletes_a_draft(client, db, staff):
+    maria = await register(client)
+    senior_id = uuid.UUID(maria["id"])
+    await add_caregiver(client, maria["id"])
+    db.add(
+        Consent(
+            senior_id=senior_id,
+            decision="given",
+            method="signature",
+            text_version="v1",
+            signature_strokes=[[[0.1, 0.2]]],
+            recorded_by=staff.id,
+        )
+    )
+    await db.commit()
+    path = f"/api/seniors/{maria['id']}"
+    assert (await client.delete(path, headers=signed_in(MEDIC))).status_code == 204
+    assert refusal(await get(client, path, MEDIC)) == NOT_FOUND
+    assert await db.scalar(select(Grant).where(Grant.senior_id == senior_id)) is None
+    assert (
+        await db.scalar(select(Consent).where(Consent.senior_id == senior_id))
+    ) is None
+    # the person stays
+    assert (
+        await db.scalar(select(User).where(User.phone_e164 == CAREGIVER))
+    ) is not None
+    # a repeat
+    assert refusal(await client.delete(path, headers=signed_in(MEDIC))) == NOT_FOUND
+
+
+async def test_only_a_draft_is_deleted(client, db, staff):
+    maria = await register(client)
+    await set_state(db, maria["id"], EnrollmentState.submitted)
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(MEDIC))
+    assert refusal(r) == (409, {"detail": {"reason": "wrong_state"}})
+
+
+async def test_a_draft_with_a_call_stays(client, db, staff):
+    maria = await register(client)
+    db.add(
+        Call(
+            senior_id=uuid.UUID(maria["id"]),
+            trigger="test",
+            starting_severity="green",
+            due_at=datetime.now(UTC),
+            state="completed",
+        )
+    )
+    await db.commit()
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(MEDIC))
+    assert refusal(r) == (409, {"detail": {"reason": "wrong_state"}})
+    assert (await get(client, f"/api/seniors/{maria['id']}", MEDIC)).status_code == 200
+
+
+@pytest.mark.parametrize("token", [OTHER_MEDIC, DAS, CAREGIVER])
+async def test_others_cannot_delete(client, db, staff, token):
+    maria = await register(client)
+    await add_caregiver(client, maria["id"])
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(token))
+    assert refusal(r) == (NOT_FOUND if token == OTHER_MEDIC else NOT_ALLOWED)

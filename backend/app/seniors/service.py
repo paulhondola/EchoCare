@@ -3,11 +3,12 @@ import uuid
 
 from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
-from app.seniors.models import EnrollmentState, Senior
+from app.seniors.models import Consent, EnrollmentState, Senior
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -384,6 +385,27 @@ async def revoke_caregiver(
         await session.rollback()  # expires every row, so log first
         raise refuse(422, "incomplete", missing=["caregiver"])
     await session.commit()
+
+
+async def delete_draft(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> None:
+    """Deletes a draft and its consents; grants go by ON DELETE CASCADE. Any other row
+    still pointing at the senior, a call for one, stops the delete (Q10, §5.4)."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state != EnrollmentState.draft:
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    # `voice` imports `seniors`, so the calls are not checked by name: the foreign key,
+    # which fires as the statement runs, refuses them.
+    try:
+        await session.execute(delete(Consent).where(Consent.senior_id == senior_id))
+        await session.execute(delete(Senior).where(Senior.id == senior_id))
+        await session.commit()
+    except IntegrityError:
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "wrong_state") from None
 
 
 async def submit(
