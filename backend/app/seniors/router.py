@@ -65,12 +65,12 @@ async def create_senior(
 async def update_senior(
     senior_id: uuid.UUID,
     body: SeniorForm,
-    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorView:
-    """The whole registration again, while it is a draft or a request DAS has not
-    accepted yet (04 §2). A request keeps its place and stays one DAS can act on: an
-    edit that drops the address is `incomplete`."""
+    """The whole registration again, in any state, by the registering medic or DAS
+    (SE9, 04 §2). Past draft the address stays: an edit that drops it is
+    `incomplete`."""
     return await edit(session, caller, senior_id, body)
 
 
@@ -78,11 +78,12 @@ async def update_senior(
 async def add_caregiver(
     senior_id: uuid.UUID,
     body: CaregiverForm,
-    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> CaregiverView:
-    """The number becomes a caregiver grant for this senior (UC-01 step 3). No notice
-    SMS yet. A number already caring for this senior is `already_done`."""
+    """The number becomes a caregiver grant for this senior (UC-01 step 3), added by
+    the registering medic or DAS (SE9). No notice SMS yet. A number already caring for
+    this senior is `already_done`."""
     return await grant_caregiver(session, caller, senior_id, body)
 
 
@@ -90,12 +91,13 @@ async def add_caregiver(
 async def remove_caregiver(
     senior_id: uuid.UUID,
     user_id: uuid.UUID,
-    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
-    """Deletes the grant, so access stops at once (05 §5). The user row stays; with no
-    grant left their next request is `not_registered`. A repeat changes nothing. Past
-    draft, the last caregiver stays: removing them is `incomplete` (04 §2)."""
+    """Deletes the grant, so access stops at once (05 §5), for the registering medic or
+    DAS (SE9). The user row stays; with no grant left their next request is
+    `not_registered`. A repeat changes nothing. Past draft, the last caregiver stays:
+    removing them is `incomplete` (04 §2)."""
     await revoke_caregiver(session, caller, senior_id, user_id)
     return Response(status_code=204)
 

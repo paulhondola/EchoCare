@@ -86,6 +86,23 @@ async def own_senior(
     return senior
 
 
+async def editable_senior(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> Senior:
+    """A senior the caller may edit: the registering medic, or DAS within reach (SE9).
+
+    Locked like `own_senior`, so edits and caregiver changes on one senior run one at
+    a time. Out of reach is 404, and DAS does not reach a draft; reached but neither
+    the registering medic nor DAS is 403 `not_allowed`.
+    """
+    senior = await reach_senior(session, caller, senior_id, lock=True)
+    registering_medic = Role.medic in caller.roles and senior.medic_id == caller.user.id
+    if not registering_medic and Role.das not in caller.roles:
+        log.info("refused not_allowed: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(403, "not_allowed")
+    return senior
+
+
 async def sync_senior_grant(session: AsyncSession, senior: Senior) -> None:
     """A mobile number is the senior's own grant; a landline has none (UC-01 step 3).
 
@@ -228,17 +245,12 @@ async def register(
 async def edit(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: SeniorForm
 ) -> SeniorView:
-    """The registration replaced while `draft` or `submitted`; a submitted one keeps
-    its address (04 §2)."""
-    senior = await own_senior(session, caller, senior_id)  # locked: no move meanwhile
-    if senior.enrollment_state not in (
-        EnrollmentState.draft,
-        EnrollmentState.submitted,
-    ):
-        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
-        raise refuse(409, "wrong_state")
+    """The registration replaced in any state; past `draft` it keeps its address
+    (SE9, 04 §2)."""
+    # Locked, so no move happens meanwhile
+    senior = await editable_senior(session, caller, senior_id)
     missing = missing_address(form)
-    if senior.enrollment_state == EnrollmentState.submitted and missing:
+    if senior.enrollment_state != EnrollmentState.draft and missing:
         log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(422, "incomplete", missing=missing)
     updated = await session.scalar(
@@ -257,7 +269,7 @@ async def grant_caregiver(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: CaregiverForm
 ) -> CaregiverView:
     """A caregiver grant for the number; one it already holds is `already_done`."""
-    await own_senior(session, caller, senior_id)
+    await editable_senior(session, caller, senior_id)
     user = await user_for(session, form.phone, form.display_name)
     granted = await session.scalar(
         insert(Grant)
@@ -287,7 +299,7 @@ async def revoke_caregiver(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, user_id: uuid.UUID
 ) -> None:
     """Deletes the caregiver grant; past `draft` the last one stays (04 §2)."""
-    senior = await own_senior(session, caller, senior_id)
+    senior = await editable_senior(session, caller, senior_id)
     await session.execute(
         delete(Grant).where(
             Grant.senior_id == senior_id,
