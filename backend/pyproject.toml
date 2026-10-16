@@ -26,8 +26,90 @@ asyncio_default_test_loop_scope = "session"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "import-linter>=2.15",
     "moto[s3]>=5.2.4",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
 ]
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Inside a feature: router, then service, then schemas, then models"
+type = "layers"
+containers = [
+    "app.auth",
+    "app.incidents",
+    "app.seniors",
+    "app.staff",
+    "app.system",
+    "app.voice",
+]
+layers = ["router", "(service)", "(schemas)", "(models)"]
+
+[[tool.importlinter.contracts]]
+name = "Only app.main imports a router"
+type = "protected"
+protected_modules = ["app.*.router"]
+allowed_importers = ["app.main"]
+
+[[tool.importlinter.contracts]]
+name = "Package __init__ files import nothing; app.models is the one aggregator"
+type = "forbidden"
+source_modules = [
+    "app.auth",
+    "app.core",
+    "app.incidents",
+    "app.seniors",
+    "app.staff",
+    "app.status",
+    "app.system",
+    "app.voice",
+]
+forbidden_modules = ["app.**"]
+as_packages = false
+
+[[tool.importlinter.contracts]]
+name = "The status engine is pure logic (01 §8)"
+type = "forbidden"
+source_modules = ["app.status"]
+forbidden_modules = [
+    "fastapi",
+    "httpx",
+    "sqlalchemy",
+    "app.auth",
+    "app.core",
+    "app.incidents",
+    "app.main",
+    "app.models",
+    "app.seniors",
+    "app.staff",
+    "app.system",
+    "app.voice",
+]
+
+[[tool.importlinter.contracts]]
+name = "app.models is for Alembic, scripts and tests, not for app/"
+type = "forbidden"
+source_modules = [
+    "app.auth",
+    "app.core",
+    "app.incidents",
+    "app.main",
+    "app.seniors",
+    "app.staff",
+    "app.status",
+    "app.system",
+    "app.voice",
+]
+forbidden_modules = ["app.models"]
+
+[[tool.importlinter.contracts]]
+name = "No import cycles between packages; routers sit above them all"
+type = "acyclic_siblings"
+ancestors = ["app"]
+depth = 0
+ignore_imports = ["app.*.router -> app.**"]
