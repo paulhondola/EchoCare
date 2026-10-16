@@ -3,18 +3,27 @@ import uuid
 
 from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
-from app.seniors.models import EnrollmentState, Senior
+from app.seniors.models import (
+    Consent,
+    ConsentDecision,
+    ConsentMethod,
+    EnrollmentState,
+    Senior,
+)
 from app.seniors.schemas import (
+    CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
     MedicView,
     SeniorForm,
     SeniorSummary,
     SeniorView,
+    SignatureForm,
 )
 from app.staff.service import user_for
 
@@ -86,12 +95,36 @@ async def own_senior(
     return senior
 
 
-async def sync_senior_grant(session: AsyncSession, senior: Senior) -> None:
+async def editable_senior(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> Senior:
+    """A senior the caller may edit: the registering medic, or DAS within reach (SE9).
+
+    Locked like `own_senior`, so edits and caregiver changes on one senior run one at
+    a time. Out of reach is 404; reached but neither the registering medic nor DAS
+    past `draft` is 403 `not_allowed`.
+    """
+    senior = await reach_senior(session, caller, senior_id, lock=True)
+    registering_medic = Role.medic in caller.roles and senior.medic_id == caller.user.id
+    # SE9: DAS edits what she reaches as DAS, past draft; a caregiver grant is not that
+    reaches_as_das = (
+        Role.das in caller.roles and senior.enrollment_state != EnrollmentState.draft
+    )
+    if not registering_medic and not reaches_as_das:
+        log.info("refused not_allowed: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(403, "not_allowed")
+    return senior
+
+
+async def sync_senior_grant(
+    session: AsyncSession, senior: Senior, *, granted_by: uuid.UUID | None = None
+) -> bool:
     """A mobile number is the senior's own grant; a landline has none (UC-01 step 3).
 
-    A changed number drops the old number's grant. When the number already holds a
-    senior grant, for a couple sharing one mobile, the second senior gets none and
-    still receives every call (AL7).
+    A changed number drops the old number's grant. Returns whether the senior holds
+    its number's grant afterwards: `True` for a landline, `False` when the number
+    already holds another senior's, which the caller refuses as `phone_taken` (SE10).
+    The new grant records `granted_by`, the registering medic unless the caller says who.
     """
     await session.execute(
         delete(Grant).where(
@@ -103,18 +136,29 @@ async def sync_senior_grant(session: AsyncSession, senior: Senior) -> None:
         )
     )
     if senior.phone_is_landline:
-        return
+        return True
     user = await user_for(session, senior.phone_e164, senior.full_name[:120])
-    # No conflict target: covers both the per-senior key and the AL7 index.
+    # No conflict target: covers both the per-senior key and the SE10 index.
     await session.execute(
         insert(Grant)
         .values(
             user_id=user.id,
             role=Role.senior,
             senior_id=senior.id,
-            granted_by=senior.medic_id,
+            granted_by=granted_by or senior.medic_id,
         )
         .on_conflict_do_nothing()
+    )
+    return await session.scalar(
+        select(
+            select(Grant.id)
+            .where(
+                Grant.user_id == user.id,
+                Grant.senior_id == senior.id,
+                Grant.role == Role.senior,
+            )
+            .exists()
+        )
     )
 
 
@@ -220,7 +264,10 @@ async def register(
     senior = Senior(medic_id=caller.user.id, **form.columns())
     session.add(senior)
     await session.flush()  # the database makes the id
-    await sync_senior_grant(session, senior)
+    if not await sync_senior_grant(session, senior, granted_by=caller.user.id):
+        log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior.id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "phone_taken")
     await session.commit()
     return await senior_view(session, senior)
 
@@ -228,19 +275,15 @@ async def register(
 async def edit(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: SeniorForm
 ) -> SeniorView:
-    """The registration replaced while `draft` or `submitted`; a submitted one keeps
-    its address (04 §2)."""
-    senior = await own_senior(session, caller, senior_id)  # locked: no move meanwhile
-    if senior.enrollment_state not in (
-        EnrollmentState.draft,
-        EnrollmentState.submitted,
-    ):
-        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
-        raise refuse(409, "wrong_state")
+    """The registration replaced in any state; past `draft` it keeps its address
+    (SE9, 04 §2)."""
+    # Locked, so no move happens meanwhile
+    senior = await editable_senior(session, caller, senior_id)
     missing = missing_address(form)
-    if senior.enrollment_state == EnrollmentState.submitted and missing:
+    if senior.enrollment_state != EnrollmentState.draft and missing:
         log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(422, "incomplete", missing=missing)
+    was = senior.phone_e164  # the update below overwrites `senior`
     updated = await session.scalar(
         update(Senior)
         .where(Senior.id == senior_id)
@@ -248,7 +291,12 @@ async def edit(
         .returning(Senior)
         .execution_options(populate_existing=True)
     )
-    await sync_senior_grant(session, updated)
+    # A senior left sharing a mobile by AL7 keeps their number and stays editable
+    synced = await sync_senior_grant(session, updated, granted_by=caller.user.id)
+    if not synced and form.phone != was:
+        log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "phone_taken")
     await session.commit()
     return await senior_view(session, updated)
 
@@ -257,7 +305,7 @@ async def grant_caregiver(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: CaregiverForm
 ) -> CaregiverView:
     """A caregiver grant for the number; one it already holds is `already_done`."""
-    await own_senior(session, caller, senior_id)
+    await editable_senior(session, caller, senior_id)
     user = await user_for(session, form.phone, form.display_name)
     granted = await session.scalar(
         insert(Grant)
@@ -283,11 +331,57 @@ async def grant_caregiver(
     )
 
 
+async def edit_caregiver(
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    user_id: uuid.UUID,
+    form: CaregiverEditForm,
+) -> CaregiverView:
+    """The caregiver's name (everywhere, Q13) and relation; a staff member's name is
+    theirs to change, so it is refused (Q22)."""
+    await editable_senior(session, caller, senior_id)
+    row = (
+        await session.execute(
+            select(Grant, User)
+            .join(User, User.id == Grant.user_id)
+            .where(
+                Grant.senior_id == senior_id,
+                Grant.user_id == user_id,
+                Grant.role == Role.caregiver,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(404, "not_found")
+    grant, user = row
+    if form.display_name is not None:
+        staff = select(Grant.id).where(
+            Grant.user_id == user_id, Grant.role.in_((Role.das, Role.medic))
+        )
+        if await session.scalar(select(staff.exists())):
+            log.info(
+                "refused not_allowed: user %s, senior %s", caller.user.id, senior_id
+            )
+            raise refuse(403, "not_allowed")
+        user.display_name = form.display_name
+    if form.relation is not None:
+        grant.relation = form.relation
+    await session.commit()
+    return CaregiverView(
+        user_id=user.id,
+        display_name=user.display_name,
+        phone_e164=user.phone_e164,
+        relation=grant.relation,
+    )
+
+
 async def revoke_caregiver(
     session: AsyncSession, caller: Caller, senior_id: uuid.UUID, user_id: uuid.UUID
 ) -> None:
     """Deletes the caregiver grant; past `draft` the last one stays (04 §2)."""
-    senior = await own_senior(session, caller, senior_id)
+    senior = await editable_senior(session, caller, senior_id)
     await session.execute(
         delete(Grant).where(
             Grant.senior_id == senior_id,
@@ -302,6 +396,27 @@ async def revoke_caregiver(
         await session.rollback()  # expires every row, so log first
         raise refuse(422, "incomplete", missing=["caregiver"])
     await session.commit()
+
+
+async def delete_draft(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> None:
+    """Deletes a draft and its consents; grants go by ON DELETE CASCADE. Any other row
+    still pointing at the senior, a call for one, stops the delete (Q10, §5.4)."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state != EnrollmentState.draft:
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    # `voice` imports `seniors`, so the calls are not checked by name: the foreign key,
+    # which fires as the statement runs, refuses them.
+    try:
+        await session.execute(delete(Consent).where(Consent.senior_id == senior_id))
+        await session.execute(delete(Senior).where(Senior.id == senior_id))
+        await session.commit()
+    except IntegrityError:
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "wrong_state") from None
 
 
 async def submit(
@@ -331,3 +446,57 @@ async def accept(
         session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
     )
     return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def withdraw_consent(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SeniorSummary:
+    """active -> withdrawn, with a consent row for it, by the registering medic or DAS
+    (Q15). The row is added first and `move` commits both; a refusal commits neither."""
+    senior = await editable_senior(session, caller, senior_id)
+    latest = await session.scalar(
+        select(Consent.text_version)
+        .where(Consent.senior_id == senior_id)
+        .order_by(Consent.at.desc(), Consent.id.desc())
+        .limit(1)
+    )
+    registering_medic = Role.medic in caller.roles and senior.medic_id == caller.user.id
+    session.add(
+        Consent(
+            senior_id=senior_id,
+            decision=ConsentDecision.withdrawn,
+            method=ConsentMethod.medic if registering_medic else ConsentMethod.das,
+            text_version=latest or "none",
+            recorded_by=caller.user.id,
+        )
+    )
+    await move(
+        session, caller, senior, EnrollmentState.active, EnrollmentState.withdrawn
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def save_signature(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: SignatureForm
+) -> None:
+    """A signed consent for a senior not yet active, by the registering medic. The
+    latest signature counts, so a repeat adds a row (Q16)."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state not in (
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+        EnrollmentState.accepted,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    session.add(
+        Consent(
+            senior_id=senior_id,
+            decision=ConsentDecision.given,
+            method=ConsentMethod.signature,
+            text_version=form.text_version,
+            signature_strokes=form.model_dump(mode="json")["strokes"],
+            recorded_by=caller.user.id,
+        )
+    )
+    await session.commit()

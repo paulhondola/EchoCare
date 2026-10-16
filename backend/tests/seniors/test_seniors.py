@@ -1,12 +1,14 @@
 """Seniors, caregiver and senior grants, and who reaches whom (#16, auth-layer §3.6)."""
 
 import asyncio
+import uuid
+from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.core.db import engine
-from app.models import EnrollmentState, Grant, Role, Senior, User
+from app.models import Call, Consent, EnrollmentState, Grant, Role, Senior, User
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -107,14 +109,49 @@ async def test_a_landline_senior_has_no_grant(client, db, staff):
     assert await db.scalar(select(Grant).where(Grant.role == Role.senior)) is None
 
 
-async def test_a_couple_sharing_a_mobile(client, db, staff):
-    # The second senior gets no app role and still receives every call (AL7).
-    first = await register(client)
-    await register(
-        client, {**MARIA, "full_name": "Ion Pop", "form_of_address": "domnul Ion"}
+PHONE_TAKEN = (409, {"detail": {"reason": "phone_taken"}})
+
+
+async def test_one_mobile_one_senior(client, db, staff):
+    await register(client)
+    r = await client.post(
+        "/api/seniors",
+        json={**MARIA, "full_name": "Ion Pop", "form_of_address": "domnul Ion"},
+        headers=signed_in(MEDIC),
     )
-    grants = (await db.scalars(select(Grant).where(Grant.role == Role.senior))).all()
-    assert [str(g.senior_id) for g in grants] == [first["id"]]
+    assert refusal(r) == PHONE_TAKEN
+    # nothing stored
+    assert await db.scalar(select(func.count()).select_from(Senior)) == 1
+
+
+async def test_an_edit_to_another_seniors_mobile(client, staff):
+    await register(client)
+    ion = await register(
+        client, {**MARIA, "full_name": "Ion Pop", "phone": "0700 000 008"}
+    )
+    r = await client.put(
+        f"/api/seniors/{ion['id']}", json=MARIA, headers=signed_in(MEDIC)
+    )
+    assert refusal(r) == PHONE_TAKEN
+    r = await get(client, f"/api/seniors/{ion['id']}", MEDIC)
+    assert r.json()["phone_e164"] == "+40700000008"
+
+
+async def test_a_shared_mobile_from_before_stays_editable(client, add_senior, staff):
+    await register(client)
+    # no grant, as AL7 left it
+    ion = await add_senior(SENIOR, name="Ion Pop", medic=staff)
+    r = await client.put(
+        f"/api/seniors/{ion.id}",
+        json={**MARIA, "full_name": "Ion Pop", "street": "Str. Nouă"},
+        headers=signed_in(MEDIC),
+    )
+    assert (r.status_code, r.json()["street"]) == (200, "Str. Nouă")
+
+
+async def test_a_landline_can_be_shared(client, staff):
+    await register(client, {**MARIA, "phone": "0256 123 456"})
+    await register(client, {**MARIA, "full_name": "Ion Pop", "phone": "0256 123 456"})
 
 
 async def test_the_caregiver_story(client, staff):
@@ -231,12 +268,12 @@ async def test_das_sees_a_senior_once_submitted(client, db, staff):
         (maria["id"], "submitted")
     ]
     assert (await get(client, path, DAS)).status_code == 200
-    # Reached, but DAS is not a medic
+    # DAS edits what she reaches (SE9)
     r = await client.put(path, json=MARIA, headers=signed_in(DAS))
-    assert refusal(r) == NOT_ALLOWED
+    assert r.status_code == 200
 
 
-async def test_the_medic_edits_a_draft_or_a_request(client, db, staff):
+async def test_the_medic_edits_in_any_state(client, db, staff):
     maria = await register(client)
     path = f"/api/seniors/{maria['id']}"
     # A draft may lack the address
@@ -263,7 +300,12 @@ async def test_the_medic_edits_a_draft_or_a_request(client, db, staff):
 
     await set_state(db, maria["id"], EnrollmentState.accepted)
     r = await client.put(path, json=MARIA, headers=signed_in(MEDIC))
-    assert refusal(r) == (409, {"detail": {"reason": "wrong_state"}})
+    assert r.status_code == 200
+    r = await client.put(path, json={**MARIA, "street": ""}, headers=signed_in(MEDIC))
+    assert refusal(r) == (
+        422,
+        {"detail": {"reason": "incomplete", "missing": ["street"]}},
+    )
 
 
 async def test_the_last_caregiver_stays_past_draft(client, db, staff):
@@ -287,8 +329,9 @@ async def test_the_last_caregiver_stays_past_draft(client, db, staff):
     assert [c["display_name"] for c in r.json()["caregivers"]] == ["Ana Pop"]
 
 
-async def test_another_medic_who_is_also_das(client, db, add_user):
-    # She reaches a submitted senior as DAS; as a medic she is not the senior's.
+async def test_another_medic_who_is_also_das_edits_as_das(client, db, add_user):
+    # She reaches a submitted senior as DAS, so she may edit it (SE9); as a medic she
+    # is not the senior's, so submit stays the registering medic's.
     await add_user(MEDIC, Role.medic, name="Dr. Pop")
     await add_user(OTHER_MEDIC, Role.medic, Role.das, name="Dr. Alt")
     maria = await register(client)
@@ -297,17 +340,49 @@ async def test_another_medic_who_is_also_das(client, db, add_user):
     path = f"/api/seniors/{maria['id']}"
     other = signed_in(OTHER_MEDIC)
     assert (await get(client, path, OTHER_MEDIC)).status_code == 200
-    for r in [
-        await client.put(path, json=MARIA, headers=other),
-        await add_caregiver(
-            client, maria["id"], {**ANA, "phone": "0700 000 007"}, OTHER_MEDIC
-        ),
-        await client.delete(f"{path}/caregivers/{ana['user_id']}", headers=other),
-        await client.post(f"{path}/submit", headers=other),
-    ]:
-        assert refusal(r) == NOT_ALLOWED
+    r = await client.put(path, json=MARIA, headers=other)
+    assert r.status_code == 200
+    r = await add_caregiver(
+        client, maria["id"], {**ANA, "phone": "0700 000 007"}, OTHER_MEDIC
+    )
+    assert r.status_code == 201
+    ion = r.json()
+    r = await client.delete(f"{path}/caregivers/{ana['user_id']}", headers=other)
+    assert r.status_code == 204
+    r = await client.post(f"{path}/submit", headers=other)
+    assert refusal(r) == NOT_ALLOWED
     r = await get(client, path, MEDIC)
-    assert [c["user_id"] for c in r.json()["caregivers"]] == [ana["user_id"]]
+    assert [c["user_id"] for c in r.json()["caregivers"]] == [ion["user_id"]]
+
+
+async def test_das_edits_an_active_senior(client, db, staff):
+    maria = await register(client)
+    await add_caregiver(client, maria["id"])
+    await set_state(db, maria["id"], EnrollmentState.active)
+    path = f"/api/seniors/{maria['id']}"
+    r = await client.put(
+        path, json={**MARIA, "landmark": "lângă farmacie"}, headers=signed_in(DAS)
+    )
+    assert (r.status_code, r.json()["landmark"]) == (200, "lângă farmacie")
+    ion = await add_caregiver(
+        client,
+        maria["id"],
+        {**ANA, "display_name": "Ion", "phone": "0700 000 007"},
+        DAS,
+    )
+    assert ion.status_code == 201
+    r = await client.delete(
+        f"{path}/caregivers/{ion.json()['user_id']}", headers=signed_in(DAS)
+    )
+    assert r.status_code == 204
+
+
+async def test_das_does_not_reach_a_draft(client, staff):
+    maria = await register(client)
+    r = await client.put(
+        f"/api/seniors/{maria['id']}", json=MARIA, headers=signed_in(DAS)
+    )
+    assert refusal(r) == NOT_FOUND
 
 
 async def test_a_new_number_moves_the_senior_grant(client, db, staff):
@@ -324,6 +399,24 @@ async def test_a_new_number_moves_the_senior_grant(client, db, staff):
         .where(Grant.role == Role.senior)
     )
     assert holders.all() == ["+40700000006"]
+
+
+async def test_a_das_edit_records_who_moved_the_senior_grant(client, db, staff):
+    maria = await register(client)
+    await set_state(db, maria["id"], EnrollmentState.active)
+    r = await client.put(
+        f"/api/seniors/{maria['id']}",
+        json={**MARIA, "phone": "0700 000 006"},
+        headers=signed_in(DAS),
+    )
+    assert r.status_code == 200
+    das_id = await db.scalar(select(User.id).where(User.phone_e164 == DAS))
+    granted_by = await db.scalar(
+        select(Grant.granted_by)
+        .join(User, User.id == Grant.user_id)
+        .where(Grant.role == Role.senior, User.phone_e164 == "+40700000006")
+    )
+    assert granted_by == das_id
 
 
 async def test_a_landline_number_drops_the_senior_grant(client, db, staff):
@@ -367,6 +460,18 @@ async def test_others_cannot_change_a_senior(client, staff, token):
         f"{path}/caregivers/{ana['user_id']}", headers=signed_in(token)
     )
     assert refusal(r) == expected
+    r = await patch_caregiver(
+        client, maria["id"], ana["user_id"], {"relation": "nora"}, token
+    )
+    assert refusal(r) == expected
+
+
+async def patch_caregiver(client, senior_id, user_id, body, token=MEDIC, headers=None):
+    return await client.patch(
+        f"/api/seniors/{senior_id}/caregivers/{user_id}",
+        json=body,
+        headers=signed_in(token) if headers is None else headers,
+    )
 
 
 @pytest.mark.parametrize(
@@ -381,6 +486,10 @@ async def test_signed_out_and_unknown(client, staff, headers, status, reason):
     for path in ("/api/seniors", f"/api/seniors/{maria['id']}"):
         r = await client.get(path, headers=headers)
         assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+    r = await patch_caregiver(client, maria["id"], staff.id, {}, headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
 
 
 async def test_das_cannot_register(client, staff):
@@ -425,3 +534,119 @@ async def test_invalid_caregivers(client, staff, change):
     maria = await register(client)
     r = await add_caregiver(client, maria["id"], {**ANA, **change})
     assert r.status_code == 422
+
+
+async def test_the_medic_edits_a_caregiver(client, staff):
+    maria = await register(client)
+    ana = (await add_caregiver(client, maria["id"])).json()
+    r = await patch_caregiver(
+        client,
+        maria["id"],
+        ana["user_id"],
+        {"display_name": "Ana Ionescu", "relation": "nora"},
+    )
+    assert r.json() == {**ana, "display_name": "Ana Ionescu", "relation": "nora"}
+    # everywhere (Q13)
+    assert (await get(client, "/api/profile", CAREGIVER)).json()[
+        "display_name"
+    ] == "Ana Ionescu"
+
+
+async def test_an_empty_caregiver_patch(client, staff):
+    maria = await register(client)
+    ana = (await add_caregiver(client, maria["id"])).json()
+    r = await patch_caregiver(client, maria["id"], ana["user_id"], {})
+    assert (r.status_code, r.json()) == (200, ana)
+
+
+async def test_a_staff_caregiver_keeps_their_name(client, staff):
+    maria = await register(client)
+    dr = (
+        await add_caregiver(client, maria["id"], {**ANA, "phone": OTHER_MEDIC})
+    ).json()
+    r = await patch_caregiver(client, maria["id"], dr["user_id"], {"display_name": "X"})
+    assert refusal(r) == NOT_ALLOWED
+    r = await patch_caregiver(client, maria["id"], dr["user_id"], {"relation": "vecin"})
+    assert (r.status_code, r.json()["display_name"], r.json()["relation"]) == (
+        200,
+        "Dr. Alt",
+        "vecin",
+    )
+
+
+async def test_patching_someone_who_is_not_her_caregiver(client, staff):
+    maria = await register(client)
+    r = await patch_caregiver(client, maria["id"], staff.id, {"relation": "x"})
+    assert refusal(r) == NOT_FOUND
+
+
+async def test_das_edits_a_caregiver(client, db, staff):
+    maria = await register(client)
+    ana = (await add_caregiver(client, maria["id"])).json()
+    await set_state(db, maria["id"], EnrollmentState.submitted)
+    r = await patch_caregiver(
+        client, maria["id"], ana["user_id"], {"relation": "nora"}, DAS
+    )
+    assert r.status_code == 200
+
+
+async def test_the_medic_deletes_a_draft(client, db, staff):
+    maria = await register(client)
+    senior_id = uuid.UUID(maria["id"])
+    await add_caregiver(client, maria["id"])
+    db.add(
+        Consent(
+            senior_id=senior_id,
+            decision="given",
+            method="signature",
+            text_version="v1",
+            signature_strokes=[[[0.1, 0.2]]],
+            recorded_by=staff.id,
+        )
+    )
+    await db.commit()
+    path = f"/api/seniors/{maria['id']}"
+    assert (await client.delete(path, headers=signed_in(MEDIC))).status_code == 204
+    assert refusal(await get(client, path, MEDIC)) == NOT_FOUND
+    assert await db.scalar(select(Grant).where(Grant.senior_id == senior_id)) is None
+    assert (
+        await db.scalar(select(Consent).where(Consent.senior_id == senior_id))
+    ) is None
+    # the person stays
+    assert (
+        await db.scalar(select(User).where(User.phone_e164 == CAREGIVER))
+    ) is not None
+    # a repeat
+    assert refusal(await client.delete(path, headers=signed_in(MEDIC))) == NOT_FOUND
+
+
+async def test_only_a_draft_is_deleted(client, db, staff):
+    maria = await register(client)
+    await set_state(db, maria["id"], EnrollmentState.submitted)
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(MEDIC))
+    assert refusal(r) == (409, {"detail": {"reason": "wrong_state"}})
+
+
+async def test_a_draft_with_a_call_stays(client, db, staff):
+    maria = await register(client)
+    db.add(
+        Call(
+            senior_id=uuid.UUID(maria["id"]),
+            trigger="test",
+            starting_severity="green",
+            due_at=datetime.now(UTC),
+            state="completed",
+        )
+    )
+    await db.commit()
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(MEDIC))
+    assert refusal(r) == (409, {"detail": {"reason": "wrong_state"}})
+    assert (await get(client, f"/api/seniors/{maria['id']}", MEDIC)).status_code == 200
+
+
+@pytest.mark.parametrize("token", [OTHER_MEDIC, DAS, CAREGIVER])
+async def test_others_cannot_delete(client, db, staff, token):
+    maria = await register(client)
+    await add_caregiver(client, maria["id"])
+    r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(token))
+    assert refusal(r) == (NOT_FOUND if token == OTHER_MEDIC else NOT_ALLOWED)

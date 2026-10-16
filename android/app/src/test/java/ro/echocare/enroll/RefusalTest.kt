@@ -109,6 +109,16 @@ class RefusalTest {
     }
 
     @Test
+    fun phoneTakenMarksThePhone() {
+        val body = """{"detail": {"reason": "phone_taken"}}"""
+        assertEquals(Refusal.PhoneTaken, refusalOf(409, body))
+        assertEquals(
+            Then.Mark(mapOf(Field.Phone to R.string.phone_taken)),
+            thenAfter(Action.Save, Refusal.PhoneTaken)
+        )
+    }
+
+    @Test
     fun aRefusedCaregiverSaysWhy() {
         assertEquals(
             Then.Mark(mapOf(Field.CaregiverPhone to R.string.caregiver_phone_invalid)),

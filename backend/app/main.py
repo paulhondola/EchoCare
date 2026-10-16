@@ -4,6 +4,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
+from app.calls.router import router as calls_router
 from app.core.settings import check_environment, get_settings
 from app.incidents.router import router as incidents_router
 from app.seniors.router import router as seniors_router
@@ -41,6 +42,7 @@ api.include_router(auth_router)
 api.include_router(staff_router)
 api.include_router(seniors_router)
 api.include_router(incidents_router)
+api.include_router(calls_router)
 api.include_router(voice_router)
 api.include_router(system_router)
 

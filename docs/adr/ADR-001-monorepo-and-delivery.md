@@ -150,14 +150,14 @@ Revisit after the hackathon, if needed, with "Focused PR environments" so that o
 
 **Twilio works with both environments without changing the number's configuration.** Every call is outbound, and each call carries its own answer and status addresses (04 §4.1), so each environment receives its own callbacks.
 
-**Variables tie the services together**, using Railway's references to other services:
+**Variables tie the services together.** Database and bucket values use Railway's references to other services. The public hosts do not: `${{...RAILWAY_PUBLIC_DOMAIN}}` kept resolving to the pre-rename domains after the EchoCare rename, which left the bundle calling a dead host and the API allowing a dead origin. `railway.ts` writes each environment's hosts out (`HOSTS`), so a domain change is a reviewable diff:
 
 | Variable | On | Value |
 |---|---|---|
 | `DATABASE_URL` | `api` | `${{Postgres.DATABASE_URL}}`, private network. Railway names the service `Postgres`, and references are case-sensitive |
-| `ALLOWED_ORIGIN` | `api` | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` (the single CORS origin, 01 §4 channel 3) |
-| `PUBLIC_BASE_URL` | `api` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`, used for Twilio addresses and for checking Twilio's signature |
-| `VITE_API_URL` | `dashboard` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`. Vite writes it into the bundle at build time, so changing it means rebuilding |
+| `ALLOWED_ORIGIN` | `api` | `https://` plus the dashboard's public host, written out in `railway.ts` (the single CORS origin, 01 §4 channel 3) |
+| `PUBLIC_BASE_URL` | `api` | `https://` plus the API's public host, written out in `railway.ts`; used for Twilio addresses and for checking Twilio's signature |
+| `VITE_API_URL` | `dashboard` | `https://` plus the API's public host, written out in `railway.ts`. Vite writes it into the bundle at build time, so changing it means rebuilding |
 | `DEMO_MODE` | `api` | On in every environment for the hackathon (06 §3); per-environment values are in "Three environments" below |
 
 **Twilio's signature check behind Railway's proxy.** Twilio signs the public `https://…` address. Inside the container, the request arrives as plain `http` on an internal host, so a check against the address the request arrived at fails on every callback. Build the address from `PUBLIC_BASE_URL` plus the path, and run uvicorn with `--proxy-headers`. Test this in spike S1.
@@ -232,14 +232,13 @@ const api = service("api", {
   env: {
     APP_ENV: env,
     DATABASE_URL: db.env.DATABASE_URL,
-    // ${{...}} is Railway's own reference syntax, resolved at deploy time
-    PUBLIC_BASE_URL: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
-    ALLOWED_ORIGIN: "https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}",
+    PUBLIC_BASE_URL: `https://${host.api}`,
+    ALLOWED_ORIGIN: `https://${host.dashboard}`,
   },
 });
 ```
 
-`build`, `deploy`, `checkSuites` and `drainingSeconds` are typed in the SDK but not shown in Railway's IaC reference page. The reference strings use plain quotes, not a template literal, so TypeScript leaves `${{...}}` for Railway.
+`build`, `deploy`, `checkSuites` and `drainingSeconds` are typed in the SDK but not shown in Railway's IaC reference page. Values that use Railway's own `${{...}}` syntax (the bucket's) are written in plain quotes, not a template literal, so TypeScript leaves them for Railway.
 
 **`dashboard/Dockerfile`** (indicative):
 
@@ -370,8 +369,8 @@ flowchart LR
 |---|---|---|---|
 | `APP_ENV` | `local` | `staging` | `production` |
 | `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | `${{postgres.DATABASE_URL}}` | `${{postgres.DATABASE_URL}}` |
-| `PUBLIC_BASE_URL` | `http://localhost:8000` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}` |
-| `ALLOWED_ORIGIN` | `http://localhost:5173`, Vite's dev server | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` | `https://${{dashboard.RAILWAY_PUBLIC_DOMAIN}}` |
+| `PUBLIC_BASE_URL` | `http://localhost:8000` | `https://echocare-api-staging.up.railway.app` | `https://echocare-api-prod.up.railway.app` |
+| `ALLOWED_ORIGIN` | `http://localhost:5173`, Vite's dev server | `https://echocare-dashboard-staging.up.railway.app` | `https://echocare-dashboard-prod.up.railway.app` |
 | `SCHEDULER_ENABLED` | `true` | `true` | `true` |
 | `DEMO_MODE` | `true` | `true` | `true` for the demo; `false` is the pilot setting |
 | Twilio credentials and number | Same account and number in all three | ← | ← |
