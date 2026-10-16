@@ -4,7 +4,7 @@
 //   railway config apply --environment staging
 import { bucket, defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
-const REPO = "paulhondola/Sentinela-Test";
+const REPO = "paulhondola/EchoCare";
 const REGION = "europe-west4-drams3a"; // EU West
 // Each environment deploys from its own branch; promotion is a PR from main into release.
 const BRANCH: Record<string, string> = { staging: "main", production: "release" };
