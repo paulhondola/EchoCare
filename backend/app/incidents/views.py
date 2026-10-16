@@ -1,85 +1,22 @@
 import uuid
 from datetime import datetime
-from typing import Annotated
 
-from pydantic import BaseModel, BeforeValidator
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.auth.models import Grant, Role, User
 from app.incidents.models import Event, Incident
+from app.incidents.schemas import (
+    CallDetail,
+    IncidentDetail,
+    ReportView,
+    TriggerEventView,
+    TurnView,
+)
 from app.seniors.models import Senior
+from app.seniors.schemas import CaregiverSummary, SeniorDetail
 from app.voice.models import Call, CallTurn, StatusReport
-
-# Severity and Certainty are IntEnums; clients read their names, "red", not "2".
-Level = Annotated[str, BeforeValidator(lambda v: getattr(v, "name", v))]
-
-
-from app.seniors.service import Caregiver, SeniorDetail
-
-
-class TriggerEvent(BaseModel):
-    """The event that queued the opening call, with the phone's location if it had one."""
-
-    type: str
-    measured_at: datetime
-    latitude: float | None
-    longitude: float | None
-    location_accuracy_m: float | None
-    located_at: datetime | None
-
-
-class Turn(BaseModel):
-    speaker: str
-    kind: str
-    content: str
-    at: datetime
-
-
-class Report(BaseModel):
-    """A severity reached during the call, with the senior's words (05 §2)."""
-
-    source: str
-    severity: Level
-    certainty: Level | None
-    reason: str
-    quote: str | None
-    at: datetime
-
-
-class CallDetail(BaseModel):
-    id: uuid.UUID
-    trigger: str
-    attempt: int
-    state: str
-    started_at: datetime | None
-    ended_at: datetime | None
-    final_severity: Level | None
-    final_certainty: Level | None
-    reason: str | None
-    summary: str | None
-    handover_answered: bool | None
-    reports: list[Report]
-    turns: list[Turn]
-
-
-class IncidentDetail(BaseModel):
-    id: uuid.UUID
-    status: str
-    reason: str
-    opened_at: datetime
-    taken_by_name: str | None
-    taken_at: datetime | None
-    resolved_by_name: str | None
-    resolved_at: datetime | None
-    outcome: str | None
-    note: str | None
-    handover_answered: bool
-    senior: SeniorDetail
-    caregivers: list[Caregiver]
-    event: TriggerEvent | None
-    calls: list[CallDetail]
 
 
 def incident_query(incident_id: uuid.UUID) -> Select:
@@ -152,21 +89,23 @@ async def load_incident(
     )
     call_ids = [c.id for c in calls]
 
-    turns: dict[uuid.UUID, list[Turn]] = {i: [] for i in call_ids}
-    reports: dict[uuid.UUID, list[Report]] = {i: [] for i in call_ids}
+    turns: dict[uuid.UUID, list[TurnView]] = {i: [] for i in call_ids}
+    reports: dict[uuid.UUID, list[ReportView]] = {i: [] for i in call_ids}
     if call_ids:
         for t in await session.scalars(
             select(CallTurn)
             .where(CallTurn.call_id.in_(call_ids))
             .order_by(CallTurn.call_id, CallTurn.position)
         ):
-            turns[t.call_id].append(Turn.model_validate(t, from_attributes=True))
+            turns[t.call_id].append(TurnView.model_validate(t, from_attributes=True))
         for r in await session.scalars(
             select(StatusReport)
             .where(StatusReport.call_id.in_(call_ids))
             .order_by(StatusReport.at)
         ):
-            reports[r.call_id].append(Report.model_validate(r, from_attributes=True))
+            reports[r.call_id].append(
+                ReportView.model_validate(r, from_attributes=True)
+            )
 
     event = (
         await session.scalar(
@@ -194,13 +133,15 @@ async def load_incident(
         # A later red added to the incident may be the one whose hand-over was answered.
         handover_answered=any(c.handover_answered for c in calls),
         senior=SeniorDetail.model_validate(senior, from_attributes=True),
-        caregivers=[Caregiver.model_validate(dict(c)) for c in caregivers],
-        event=event and TriggerEvent.model_validate(event, from_attributes=True),
+        caregivers=[CaregiverSummary.model_validate(dict(c)) for c in caregivers],
+        event=event and TriggerEventView.model_validate(event, from_attributes=True),
         calls=[call_detail(c, reports[c.id], turns[c.id]) for c in calls],
     )
 
 
-def call_detail(call: Call, reports: list[Report], turns: list[Turn]) -> CallDetail:
+def call_detail(
+    call: Call, reports: list[ReportView], turns: list[TurnView]
+) -> CallDetail:
     columns = CallDetail.model_fields.keys() - {"reports", "turns"}
     fields = {name: getattr(call, name) for name in columns}
     return CallDetail.model_validate({**fields, "reports": reports, "turns": turns})

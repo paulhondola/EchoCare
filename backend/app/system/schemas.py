@@ -4,13 +4,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class DatabaseHealth(BaseModel):
+class DatabaseHealthView(BaseModel):
     status: Literal["ok", "unreachable"]
     latency_ms: float | None = None
 
 
-class SystemHealth(BaseModel):
+class SystemHealthView(BaseModel):
     status: Literal["ok", "degraded"]
     env: str
-    database: DatabaseHealth
+    database: DatabaseHealthView
     timestamp: datetime

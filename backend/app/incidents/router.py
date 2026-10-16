@@ -1,10 +1,9 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, StringConstraints
 from sqlalchemy import Select, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -12,29 +11,16 @@ from sqlalchemy.orm import aliased
 from app.auth.models import Role, User
 from app.auth.service import Caller, refuse, require_roles
 from app.core.db import engine, get_session
-from app.incidents.models import Incident, IncidentOutcome, IncidentStatus
+from app.incidents.models import Incident, IncidentStatus
+from app.incidents.schemas import IncidentDetail, IncidentSummary, ResolutionForm
 from app.incidents.service import resolve_refusal, take_refusal
-from app.incidents.views import IncidentDetail, load_incident
+from app.incidents.views import load_incident
 from app.seniors.models import Senior
 from app.voice.models import Call
 
 log = logging.getLogger("sentinela.incidents")
 
 router = APIRouter()
-
-
-# One row of GET /incidents (04 §1). Names follow the incidents and seniors tables (05 §1)
-# and match the dashboard's Incident type (dashboard/src/api.ts).
-class IncidentSummary(BaseModel):
-    id: uuid.UUID
-    senior_full_name: str
-    senior_form_of_address: str
-    status: IncidentStatus
-    reason: str
-    opened_at: datetime
-    taken_by_name: str | None
-    taken_at: datetime | None
-    handover_answered: bool
 
 
 def parse_statuses(status: str | None) -> set[IncidentStatus] | None:
@@ -173,22 +159,10 @@ async def take_incident(
     return await incident_summary(session, incident_id)
 
 
-Note = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)
-]
-
-
-class Resolution(BaseModel):
-    """POST /incidents/{id}/resolve's body (04 §2)."""
-
-    outcome: IncidentOutcome
-    note: Note
-
-
 @router.post("/incidents/{incident_id}/resolve")
 async def resolve_incident(
     incident_id: uuid.UUID,
-    body: Resolution,
+    body: ResolutionForm,
     caller: Annotated[Caller, Depends(require_roles(Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> IncidentSummary:

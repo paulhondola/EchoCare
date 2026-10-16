@@ -11,12 +11,14 @@ from app.auth.models import Grant, Role
 from app.auth.service import Caller, current_caller, refuse, require_roles
 from app.core.db import get_session
 from app.seniors.models import EnrollmentState, Senior
-from app.seniors.service import (
+from app.seniors.schemas import (
     CaregiverForm,
     CaregiverView,
     SeniorForm,
     SeniorSummary,
     SeniorView,
+)
+from app.seniors.service import (
     enrollments_query,
     has_caregiver,
     missing_address,

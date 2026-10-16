@@ -1,170 +1,17 @@
 import logging
 import uuid
-from typing import Annotated, Any
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    BeforeValidator,
-    StringConstraints,
-    field_validator,
-)
 from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
-from app.core.phones import is_mobile, normalize
 from app.seniors.models import EnrollmentState, Senior
+from app.seniors.schemas import CaregiverView, MedicView, SeniorForm, SeniorView
 from app.staff.service import user_for
 
 log = logging.getLogger("sentinela.seniors")
-
-
-class SeniorDetail(BaseModel):
-    """Registration, address and access details (G13)."""
-
-    id: uuid.UUID
-    full_name: str
-    form_of_address: str
-    phone_e164: str
-    phone_is_landline: bool
-    street: str | None
-    street_number: str | None
-    block: str | None
-    staircase: str | None
-    floor: str | None
-    apartment: str | None
-    intercom_code: str | None
-    key_holder: str | None
-    landmark: str | None
-
-
-class Caregiver(BaseModel):
-    display_name: str
-    phone_e164: str
-    relation: str | None
-
-
-def no_nul(value: str) -> str:
-    # Postgres text cannot hold a NUL. Refuse it here, as a 422, not there, as a 500.
-    if "\x00" in value:
-        raise ValueError("the text contains a NUL character")
-    return value
-
-
-def text(max_length: int, min_length: int = 0) -> Any:
-    return Annotated[
-        str,
-        StringConstraints(
-            strip_whitespace=True, min_length=min_length, max_length=max_length
-        ),
-        AfterValidator(no_nul),
-    ]
-
-
-# Enrollment states read back as their names; an unknown one as the bare string.
-State = Annotated[str, BeforeValidator(lambda v: getattr(v, "value", v))]
-
-# The registration form's optional fields (UC-01 steps 1 and 2); empty means none.
-OPTIONAL = (
-    "call_window",
-    "street",
-    "street_number",
-    "block",
-    "staircase",
-    "floor",
-    "apartment",
-    "intercom_code",
-    "key_holder",
-    "landmark",
-)
-
-
-class SeniorForm(BaseModel):
-    """POST /seniors and PUT /seniors/{id}'s body: the whole registration (UC-01)."""
-
-    full_name: text(200, 1)
-    form_of_address: text(120, 1)  # "doamna Maria"
-    phone: str  # a landline or a mobile; which is worked out from the number
-    call_window: text(60) | None = None
-    street: text(200) | None = None
-    street_number: text(20) | None = None
-    block: text(20) | None = None
-    staircase: text(20) | None = None
-    floor: text(20) | None = None
-    apartment: text(20) | None = None
-    intercom_code: text(40) | None = None
-    key_holder: text(200) | None = None
-    landmark: text(200) | None = None
-
-    @field_validator("phone")
-    @classmethod
-    def e164(cls, raw: str) -> str:
-        return normalize(raw)
-
-    @field_validator(*OPTIONAL)
-    @classmethod
-    def empty_is_none(cls, value: str | None) -> str | None:
-        # A form's empty field stores nothing, not "".
-        return value or None
-
-    def columns(self) -> dict[str, Any]:
-        return {
-            **self.model_dump(exclude={"phone"}),
-            "phone_e164": self.phone,
-            "phone_is_landline": not is_mobile(self.phone),
-        }
-
-
-class CaregiverForm(BaseModel):
-    """POST /seniors/{id}/caregivers's body (UC-01 step 3)."""
-
-    display_name: text(120, 1)
-    relation: text(60, 1)  # "fiica"
-    phone: str
-
-    @field_validator("phone")
-    @classmethod
-    def mobile_e164(cls, raw: str) -> str:
-        e164 = normalize(raw)
-        if not is_mobile(e164):
-            raise ValueError("caregivers sign in by SMS: the number must be a mobile")
-        return e164
-
-
-class SeniorSummary(BaseModel):
-    """One row of GET /seniors (04 §1), with the fields that exist today."""
-
-    id: uuid.UUID
-    full_name: str
-    form_of_address: str
-    # The number and whether it is a landline, for the apps' senior cards (seniors §3.3).
-    phone_e164: str
-    phone_is_landline: bool
-    enrollment_state: State
-
-
-class CaregiverView(Caregiver):
-    user_id: uuid.UUID  # for DELETE /seniors/{id}/caregivers/{userId}
-
-
-class MedicView(BaseModel):
-    """The medic who registered the senior, on the senior's page (seniors §3.3)."""
-
-    display_name: str
-    practice: str | None
-
-
-class SeniorView(SeniorDetail):
-    """GET /seniors/{id} (04 §1): registration, address, medic and caregivers. One
-    shape for every role (seniors SE7)."""
-
-    call_window: str | None
-    enrollment_state: State
-    medic: MedicView
-    caregivers: list[CaregiverView]
 
 
 def reach(caller: Caller, role: Role | None = None) -> ColumnElement[bool]:
