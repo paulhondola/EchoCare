@@ -6,7 +6,7 @@
 import logging
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,10 @@ from app.staff.schemas import StaffEditForm, StaffListingView
 log = logging.getLogger("echocare.staff")
 
 STAFF_ROLES = (Role.das, Role.medic)
+
+# One lock for the writes that count or clear across all DAS rows (spec 2026-10-16 §5.3):
+# the partial unique index on on_duty would turn their race into a 500.
+STAFF_LOCK = 20261016
 
 
 async def user_for(session: AsyncSession, phone_e164: str, display_name: str) -> User:
@@ -119,3 +123,43 @@ async def edit_staff(
         setattr(user, field, value)
     await session.commit()
     return (await staff_listings(session, user_id))[0]
+
+
+async def revoke_staff(session: AsyncSession, user_id: uuid.UUID, role: Role) -> None:
+    """Deletes the grant; no such grant is fine. The last `das` stays (409 wrong_state).
+
+    Removing `das` also takes the person off duty. Incidents they hold stay theirs.
+    """
+    await session.execute(select(func.pg_advisory_xact_lock(STAFF_LOCK)))
+    if role == Role.das:
+        holders = (
+            await session.scalars(select(Grant.user_id).where(Grant.role == Role.das))
+        ).all()
+        if holders == [user_id]:
+            log.info("refused wrong_state: last das %s", user_id)
+            await session.rollback()
+            raise refuse(409, "wrong_state")
+        await session.execute(
+            update(User).where(User.id == user_id).values(on_duty=False)
+        )
+    await session.execute(
+        delete(Grant).where(Grant.user_id == user_id, Grant.role == role)
+    )
+    await session.commit()
+
+
+async def set_on_duty(session: AsyncSession, user_id: uuid.UUID | None) -> None:
+    """Puts one DAS employee on duty and everyone else off; None puts nobody on duty."""
+    await session.execute(select(func.pg_advisory_xact_lock(STAFF_LOCK)))
+    if user_id is not None and not await session.scalar(
+        select(Grant.id).where(Grant.user_id == user_id, Grant.role == Role.das)
+    ):
+        log.info("refused not_allowed: on duty %s holds no das grant", user_id)
+        await session.rollback()
+        raise refuse(403, "not_allowed")
+    await session.execute(update(User).where(User.on_duty).values(on_duty=False))
+    if user_id is not None:
+        await session.execute(
+            update(User).where(User.id == user_id).values(on_duty=True)
+        )
+    await session.commit()

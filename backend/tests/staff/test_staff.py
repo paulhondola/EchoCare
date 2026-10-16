@@ -228,3 +228,114 @@ async def test_a_medic_cannot_edit_staff(client, add_user, das):
     await add_user("+40700000003", Role.medic)
     r = await patch_staff(client, das.id, {"display_name": "X"}, token="+40700000003")
     assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_allowed"}})
+
+
+async def listed(client):
+    r = await client.get("/api/staff", headers=signed_in(DAS))
+    return {s["phone_e164"]: s for s in r.json()}
+
+
+async def test_removing_a_medic_role(client, das, add_user):
+    medic = await add_user("+40700000002", Role.medic)
+    path = f"/api/staff/{medic.id}/roles/medic"
+    assert (await client.delete(path, headers=signed_in(DAS))).status_code == 204
+    assert (
+        await client.delete(path, headers=signed_in(DAS))
+    ).status_code == 204  # a repeat
+    assert "+40700000002" not in await listed(client)
+
+
+async def test_removing_das_takes_them_off_duty(client, db, das, add_user):
+    other = await add_user("+40700000003", Role.das)
+    other.on_duty = True
+    await db.commit()
+    r = await client.delete(f"/api/staff/{other.id}/roles/das", headers=signed_in(DAS))
+    assert r.status_code == 204
+    await db.refresh(other)
+    assert other.on_duty is False
+
+
+async def test_the_last_das_stays(client, db, das):
+    r = await client.delete(f"/api/staff/{das.id}/roles/das", headers=signed_in(DAS))
+    assert (r.status_code, r.json()) == (409, {"detail": {"reason": "wrong_state"}})
+    assert await db.scalar(select(Grant).where(Grant.user_id == das.id)) is not None
+
+
+async def test_removing_your_own_das_role(client, das, add_user):  # Review Focus 2
+    await add_user("+40700000003", Role.das)
+    r = await client.delete(f"/api/staff/{das.id}/roles/das", headers=signed_in(DAS))
+    assert r.status_code == 204
+    r = await client.get("/api/profile", headers=signed_in(DAS))
+    assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_registered"}})
+
+
+async def test_only_staff_roles_are_removed_here(client, das):
+    r = await client.delete(
+        f"/api/staff/{das.id}/roles/caregiver", headers=signed_in(DAS)
+    )
+    assert r.status_code == 422
+
+
+async def test_on_duty_switches(client, das, add_user):
+    other = await add_user("+40700000003", Role.das)
+    for user, phone in ((das, DAS), (other, "+40700000003")):
+        r = await client.put(
+            "/api/staff/on-duty", json={"user_id": str(user.id)}, headers=signed_in(DAS)
+        )
+        assert r.status_code == 204
+        assert [p for p, s in (await listed(client)).items() if s["on_duty"]] == [phone]
+    r = await client.delete("/api/staff/on-duty", headers=signed_in(DAS))
+    assert r.status_code == 204
+    assert not any(s["on_duty"] for s in (await listed(client)).values())
+
+
+async def test_on_duty_needs_a_das(client, das, add_user):
+    medic = await add_user("+40700000002", Role.medic)
+    r = await client.put(
+        "/api/staff/on-duty", json={"user_id": str(medic.id)}, headers=signed_in(DAS)
+    )
+    assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_allowed"}})
+
+
+async def test_two_on_duty_switches_at_once(client, das, add_user):  # Review Focus 1
+    other = await add_user("+40700000003", Role.das)
+    rs = await asyncio.gather(
+        *(
+            client.put(
+                "/api/staff/on-duty",
+                json={"user_id": str(u.id)},
+                headers=signed_in(DAS),
+            )
+            for u in (das, other)
+        )
+    )
+    assert [r.status_code for r in rs] == [204, 204]
+    assert sum(s["on_duty"] for s in (await listed(client)).values()) == 1
+
+
+@pytest.mark.parametrize(
+    ("verb", "path", "body"),
+    [
+        ("PATCH", f"/api/staff/{uuid.uuid4()}", {}),
+        ("DELETE", f"/api/staff/{uuid.uuid4()}/roles/medic", None),
+        ("PUT", "/api/staff/on-duty", {"user_id": str(uuid.uuid4())}),
+        ("DELETE", "/api/staff/on-duty", None),
+    ],
+)
+@pytest.mark.parametrize(
+    ("token", "status", "reason"),
+    [
+        (None, 401, "not_signed_in"),
+        ("+40700000009", 403, "not_registered"),
+        ("+40700000002", 403, "not_allowed"),  # a medic
+    ],
+)
+async def test_staff_changes_are_for_das(
+    client, add_user, das, verb, path, body, token, status, reason
+):
+    await add_user("+40700000002", Role.medic)
+    headers = signed_in(token) if token else {}
+    r = await client.request(verb, path, json=body, headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+    if status == 401:
+        assert r.headers["www-authenticate"] == "Bearer"
