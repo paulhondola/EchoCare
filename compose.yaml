@@ -4,9 +4,9 @@ services:
   db:
     image: postgres:18 # match the major version of Railway's Postgres service
     environment:
-      POSTGRES_USER: sentinela
-      POSTGRES_PASSWORD: sentinela
-      POSTGRES_DB: sentinela
+      POSTGRES_USER: echocare
+      POSTGRES_PASSWORD: echocare
+      POSTGRES_DB: echocare
     ports: ["5432:5432"] # for pytest, alembic and a database client on the host
     # 18+ keeps data in /var/lib/postgresql/18/docker and refuses a mount at .../data
     volumes: [pgdata:/var/lib/postgresql]
@@ -15,7 +15,7 @@ services:
       - source: create-test-db
         target: /docker-entrypoint-initdb.d/10-test-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sentinela"]
+      test: ["CMD-SHELL", "pg_isready -U echocare"]
       interval: 2s
       retries: 15
 
@@ -27,11 +27,11 @@ services:
       - path: backend/.env # Twilio, Firebase, model provider keys; not committed
         required: false
     environment:
-      DATABASE_URL: postgresql://sentinela:sentinela@db:5432/sentinela
+      DATABASE_URL: postgresql://echocare:echocare@db:5432/echocare
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       # presigned URLs are opened on the host (phone: adb reverse tcp:9000 tcp:9000)
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-sentinela}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-echocare}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
       S3_REGION: ${S3_REGION:-ams}
@@ -73,7 +73,7 @@ services:
     entrypoint: >
       /bin/sh -c "
       /usr/bin/mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin} &&
-      /usr/bin/mc mb --ignore-existing local/${S3_BUCKET_NAME:-sentinela} &&
+      /usr/bin/mc mb --ignore-existing local/${S3_BUCKET_NAME:-echocare} &&
       exit 0;
       "
 
@@ -104,7 +104,7 @@ services:
 
 configs:
   create-test-db:
-    content: "CREATE DATABASE sentinela_test;"
+    content: "CREATE DATABASE echocare_test;"
 
 volumes:
   pgdata:

@@ -1,4 +1,4 @@
-// Sentinela on Railway (ADR-001): one file for every environment.
+// EchoCare on Railway (ADR-001): one file for every environment.
 // Railway never reads this file during a deploy; a person applies it from .railway/:
 //   railway config plan --environment staging
 //   railway config apply --environment staging
@@ -12,8 +12,8 @@ const BRANCH: Record<string, string> = { staging: "main", production: "release" 
 // One Firebase project serves every environment (ADR-001). Same values as dashboard/.env.
 const FIREBASE_WEB = {
   VITE_FIREBASE_API_KEY: "AIzaSyBWFvTyqk904SsoT_uFXIzXgyHBBxhz5m0",
-  VITE_FIREBASE_AUTH_DOMAIN: "sentinela-8f474.firebaseapp.com",
-  VITE_FIREBASE_PROJECT_ID: "sentinela-8f474",
+  VITE_FIREBASE_AUTH_DOMAIN: "echocare-app.firebaseapp.com",
+  VITE_FIREBASE_PROJECT_ID: "echocare-app",
   VITE_FIREBASE_APP_ID: "1:994957703097:web:2bbc70f74e432f74af6868",
 };
 
@@ -67,5 +67,5 @@ export default defineRailway((ctx) => {
     env: { VITE_API_URL: "https://${{api.RAILWAY_PUBLIC_DOMAIN}}", ...FIREBASE_WEB },
   });
 
-  return project("Sentinela", { resources: [api, dashboard, db, storage] });
+  return project("EchoCare", { resources: [api, dashboard, db, storage] });
 });
