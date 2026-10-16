@@ -222,20 +222,18 @@ NEW_CAREGIVER = {"display_name": "Ioana", "relation": "fiică", "phone": "0700 0
 
 
 @pytest.mark.parametrize(
-    ("token", "closing", "refused", "edits_refused"),
+    ("token", "closing", "refused"),
     [
-        (OTHER_MEDIC, "submit", (403, NOT_ALLOWED), True),
+        (OTHER_MEDIC, "submit", (403, NOT_ALLOWED)),
         # Accept finds the draft through the caregiver grant; a draft is not accepted.
-        # DAS edits whatever she reaches (SE9), so only her closing command is refused.
-        (DAS, "accept", (409, WRONG_STATE), False),
+        (DAS, "accept", (409, WRONG_STATE)),
     ],
 )
 async def test_reading_as_a_caregiver_gives_no_command(
-    client, db, add_user, add_senior, token, closing, refused, edits_refused
+    client, db, add_user, add_senior, token, closing, refused
 ):
     # The caregiver grant of another medic or of DAS lets them read the draft and
-    # nothing more: submit is for the medic who registered her (04 §2), and a medic
-    # who did not register her may not edit it either (SE9).
+    # nothing more: the medic's commands are for the medic who registered her (04 §2).
     medic = await add_user(MEDIC, Role.medic)
     other_medic = await add_user(OTHER_MEDIC, Role.medic)
     das = await add_user(DAS, Role.das)
@@ -250,14 +248,12 @@ async def test_reading_as_a_caregiver_gives_no_command(
     page = f"/api/seniors/{senior.id}"
     headers = signed_in(token)
     assert (await client.get(page, headers=headers)).status_code == 200
-    commands = [("POST", f"{page}/{closing}", None, refused)]
-    if edits_refused:
-        commands = [
-            ("PUT", page, CHANGE, (403, NOT_ALLOWED)),
-            ("POST", f"{page}/caregivers", NEW_CAREGIVER, (403, NOT_ALLOWED)),
-            ("DELETE", f"{page}/caregivers/{other_medic.id}", None, (403, NOT_ALLOWED)),
-            *commands,
-        ]
+    commands = [
+        ("PUT", page, CHANGE, (403, NOT_ALLOWED)),
+        ("POST", f"{page}/caregivers", NEW_CAREGIVER, (403, NOT_ALLOWED)),
+        ("DELETE", f"{page}/caregivers/{other_medic.id}", None, (403, NOT_ALLOWED)),
+        ("POST", f"{page}/{closing}", None, refused),
+    ]
     caregivers = (
         select(func.count()).select_from(Grant).where(Grant.role == Role.caregiver)
     )

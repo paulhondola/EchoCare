@@ -92,12 +92,16 @@ async def editable_senior(
     """A senior the caller may edit: the registering medic, or DAS within reach (SE9).
 
     Locked like `own_senior`, so edits and caregiver changes on one senior run one at
-    a time. Out of reach is 404, and DAS does not reach a draft; reached but neither
-    the registering medic nor DAS is 403 `not_allowed`.
+    a time. Out of reach is 404; reached but neither the registering medic nor DAS
+    past `draft` is 403 `not_allowed`.
     """
     senior = await reach_senior(session, caller, senior_id, lock=True)
     registering_medic = Role.medic in caller.roles and senior.medic_id == caller.user.id
-    if not registering_medic and Role.das not in caller.roles:
+    # SE9: DAS edits what she reaches as DAS, past draft; a caregiver grant is not that
+    reaches_as_das = (
+        Role.das in caller.roles and senior.enrollment_state != EnrollmentState.draft
+    )
+    if not registering_medic and not reaches_as_das:
         log.info("refused not_allowed: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(403, "not_allowed")
     return senior
