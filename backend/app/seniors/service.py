@@ -9,6 +9,7 @@ from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
 from app.seniors.models import EnrollmentState, Senior
 from app.seniors.schemas import (
+    CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
     MedicView,
@@ -315,6 +316,52 @@ async def grant_caregiver(
         display_name=user.display_name,
         phone_e164=user.phone_e164,
         relation=form.relation,
+    )
+
+
+async def edit_caregiver(
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    user_id: uuid.UUID,
+    form: CaregiverEditForm,
+) -> CaregiverView:
+    """The caregiver's name (everywhere, Q13) and relation; a staff member's name is
+    theirs to change, so it is refused (Q22)."""
+    await editable_senior(session, caller, senior_id)
+    row = (
+        await session.execute(
+            select(Grant, User)
+            .join(User, User.id == Grant.user_id)
+            .where(
+                Grant.senior_id == senior_id,
+                Grant.user_id == user_id,
+                Grant.role == Role.caregiver,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(404, "not_found")
+    grant, user = row
+    if form.display_name is not None:
+        staff = select(Grant.id).where(
+            Grant.user_id == user_id, Grant.role.in_((Role.das, Role.medic))
+        )
+        if await session.scalar(select(staff.exists())):
+            log.info(
+                "refused not_allowed: user %s, senior %s", caller.user.id, senior_id
+            )
+            raise refuse(403, "not_allowed")
+        user.display_name = form.display_name
+    if form.relation is not None:
+        grant.relation = form.relation
+    await session.commit()
+    return CaregiverView(
+        user_id=user.id,
+        display_name=user.display_name,
+        phone_e164=user.phone_e164,
+        relation=grant.relation,
     )
 
 

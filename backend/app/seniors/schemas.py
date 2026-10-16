@@ -124,6 +124,13 @@ class CaregiverForm(BaseModel):
         return e164
 
 
+class CaregiverEditForm(BaseModel):
+    """PATCH /seniors/{id}/caregivers/{userId}'s body: what is given changes (Q13)."""
+
+    display_name: text(120, 1) | None = None
+    relation: text(60, 1) | None = None
+
+
 class SeniorSummary(BaseModel):
     """One row of GET /seniors (04 §1), with the fields that exist today."""
 

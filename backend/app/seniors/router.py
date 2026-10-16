@@ -8,6 +8,7 @@ from app.auth.models import Role
 from app.auth.service import Caller, current_caller, require_roles
 from app.core.db import get_session
 from app.seniors.schemas import (
+    CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
     SeniorForm,
@@ -17,6 +18,7 @@ from app.seniors.schemas import (
 from app.seniors.service import (
     accept,
     edit,
+    edit_caregiver,
     enrollments_query,
     grant_caregiver,
     reach_senior,
@@ -85,6 +87,20 @@ async def add_caregiver(
     the registering medic or DAS (SE9). No notice SMS yet. A number already caring for
     this senior is `already_done`."""
     return await grant_caregiver(session, caller, senior_id, body)
+
+
+@router.patch("/seniors/{senior_id}/caregivers/{user_id}")
+async def update_caregiver(
+    senior_id: uuid.UUID,
+    user_id: uuid.UUID,
+    body: CaregiverEditForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> CaregiverView:
+    """The caregiver's name and relation, whichever is given, by the registering medic
+    or DAS (SE9, Q13). The name is the user's, so it changes everywhere. A staff
+    member's name stays theirs: 403 `not_allowed` (Q22). Not her caregiver: 404."""
+    return await edit_caregiver(session, caller, senior_id, user_id, body)
 
 
 @router.delete("/seniors/{senior_id}/caregivers/{user_id}", status_code=204)

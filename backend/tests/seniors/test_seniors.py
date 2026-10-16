@@ -442,6 +442,14 @@ async def test_others_cannot_change_a_senior(client, staff, token):
     assert refusal(r) == expected
 
 
+async def patch_caregiver(client, senior_id, user_id, body, token=MEDIC, headers=None):
+    return await client.patch(
+        f"/api/seniors/{senior_id}/caregivers/{user_id}",
+        json=body,
+        headers=signed_in(token) if headers is None else headers,
+    )
+
+
 @pytest.mark.parametrize(
     ("headers", "status", "reason"),
     [
@@ -454,6 +462,8 @@ async def test_signed_out_and_unknown(client, staff, headers, status, reason):
     for path in ("/api/seniors", f"/api/seniors/{maria['id']}"):
         r = await client.get(path, headers=headers)
         assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
+    r = await patch_caregiver(client, maria["id"], staff.id, {}, headers=headers)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
 
 
 async def test_das_cannot_register(client, staff):
@@ -498,3 +508,57 @@ async def test_invalid_caregivers(client, staff, change):
     maria = await register(client)
     r = await add_caregiver(client, maria["id"], {**ANA, **change})
     assert r.status_code == 422
+
+
+async def test_the_medic_edits_a_caregiver(client, staff):
+    maria = await register(client)
+    ana = (await add_caregiver(client, maria["id"])).json()
+    r = await patch_caregiver(
+        client,
+        maria["id"],
+        ana["user_id"],
+        {"display_name": "Ana Ionescu", "relation": "nora"},
+    )
+    assert r.json() == {**ana, "display_name": "Ana Ionescu", "relation": "nora"}
+    # everywhere (Q13)
+    assert (await get(client, "/api/profile", CAREGIVER)).json()[
+        "display_name"
+    ] == "Ana Ionescu"
+
+
+async def test_an_empty_caregiver_patch(client, staff):
+    maria = await register(client)
+    ana = (await add_caregiver(client, maria["id"])).json()
+    r = await patch_caregiver(client, maria["id"], ana["user_id"], {})
+    assert (r.status_code, r.json()) == (200, ana)
+
+
+async def test_a_staff_caregiver_keeps_their_name(client, staff):
+    maria = await register(client)
+    dr = (
+        await add_caregiver(client, maria["id"], {**ANA, "phone": OTHER_MEDIC})
+    ).json()
+    r = await patch_caregiver(client, maria["id"], dr["user_id"], {"display_name": "X"})
+    assert refusal(r) == NOT_ALLOWED
+    r = await patch_caregiver(client, maria["id"], dr["user_id"], {"relation": "vecin"})
+    assert (r.status_code, r.json()["display_name"], r.json()["relation"]) == (
+        200,
+        "Dr. Alt",
+        "vecin",
+    )
+
+
+async def test_patching_someone_who_is_not_her_caregiver(client, staff):
+    maria = await register(client)
+    r = await patch_caregiver(client, maria["id"], staff.id, {"relation": "x"})
+    assert refusal(r) == NOT_FOUND
+
+
+async def test_das_edits_a_caregiver(client, db, staff):
+    maria = await register(client)
+    ana = (await add_caregiver(client, maria["id"])).json()
+    await set_state(db, maria["id"], EnrollmentState.submitted)
+    r = await patch_caregiver(
+        client, maria["id"], ana["user_id"], {"relation": "nora"}, DAS
+    )
+    assert r.status_code == 200
