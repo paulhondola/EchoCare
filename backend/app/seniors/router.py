@@ -8,23 +8,29 @@ from app.auth.models import Role
 from app.auth.service import Caller, current_caller, require_roles
 from app.core.db import get_session
 from app.seniors.schemas import (
+    CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
     SeniorForm,
     SeniorSummary,
     SeniorView,
+    SignatureForm,
 )
 from app.seniors.service import (
     accept,
+    delete_draft,
     edit,
+    edit_caregiver,
     enrollments_query,
     grant_caregiver,
     reach_senior,
     register,
     revoke_caregiver,
+    save_signature,
     senior_view,
     seniors_query,
     submit,
+    withdraw_consent,
 )
 
 router = APIRouter()
@@ -65,37 +71,66 @@ async def create_senior(
 async def update_senior(
     senior_id: uuid.UUID,
     body: SeniorForm,
-    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorView:
-    """The whole registration again, while it is a draft or a request DAS has not
-    accepted yet (04 §2). A request keeps its place and stays one DAS can act on: an
-    edit that drops the address is `incomplete`."""
+    """The whole registration again, in any state, by the registering medic or DAS
+    (SE9, 04 §2). Past draft the address stays: an edit that drops it is
+    `incomplete`."""
     return await edit(session, caller, senior_id, body)
+
+
+@router.delete("/seniors/{senior_id}", status_code=204)
+async def delete_senior(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Deletes a draft with its consents and grants, by its registering medic (Q10).
+    Past draft, or once a call refers to the senior, it is 409 `wrong_state`. A repeat
+    is 404, the row being gone."""
+    await delete_draft(session, caller, senior_id)
+    return Response(status_code=204)
 
 
 @router.post("/seniors/{senior_id}/caregivers", status_code=201)
 async def add_caregiver(
     senior_id: uuid.UUID,
     body: CaregiverForm,
-    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> CaregiverView:
-    """The number becomes a caregiver grant for this senior (UC-01 step 3). No notice
-    SMS yet. A number already caring for this senior is `already_done`."""
+    """The number becomes a caregiver grant for this senior (UC-01 step 3), added by
+    the registering medic or DAS (SE9). No notice SMS yet. A number already caring for
+    this senior is `already_done`."""
     return await grant_caregiver(session, caller, senior_id, body)
+
+
+@router.patch("/seniors/{senior_id}/caregivers/{user_id}")
+async def update_caregiver(
+    senior_id: uuid.UUID,
+    user_id: uuid.UUID,
+    body: CaregiverEditForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> CaregiverView:
+    """The caregiver's name and relation, whichever is given, by the registering medic
+    or DAS (SE9, Q13). The name is the user's, so it changes everywhere. A staff
+    member's name stays theirs: 403 `not_allowed` (Q22). Not her caregiver: 404."""
+    return await edit_caregiver(session, caller, senior_id, user_id, body)
 
 
 @router.delete("/seniors/{senior_id}/caregivers/{user_id}", status_code=204)
 async def remove_caregiver(
     senior_id: uuid.UUID,
     user_id: uuid.UUID,
-    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
-    """Deletes the grant, so access stops at once (05 §5). The user row stays; with no
-    grant left their next request is `not_registered`. A repeat changes nothing. Past
-    draft, the last caregiver stays: removing them is `incomplete` (04 §2)."""
+    """Deletes the grant, so access stops at once (05 §5), for the registering medic or
+    DAS (SE9). The user row stays; with no grant left their next request is
+    `not_registered`. A repeat changes nothing. Past draft, the last caregiver stays:
+    removing them is `incomplete` (04 §2)."""
     await revoke_caregiver(session, caller, senior_id, user_id)
     return Response(status_code=204)
 
@@ -122,6 +157,32 @@ async def accept_senior(
     """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is not queued
     yet; until it exists, `accepted` is the last state a senior reaches."""
     return await accept(session, caller, senior_id)
+
+
+@router.post("/seniors/{senior_id}/consent-withdrawn")
+async def withdraw_senior_consent(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorSummary:
+    """active -> withdrawn, recorded by the registering medic or DAS (Q15). Adds a
+    `withdrawn` consent row in the same transaction. Already withdrawn is
+    `already_done`; any other state, `wrong_state`."""
+    return await withdraw_consent(session, caller, senior_id)
+
+
+@router.post("/seniors/{senior_id}/signature", status_code=204)
+async def sign_senior_consent(
+    senior_id: uuid.UUID,
+    body: SignatureForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """The senior's signature as a consent row, by the registering medic, while she is
+    `draft`, `submitted` or `accepted` (Q16). The latest one counts, so a repeat adds a
+    row rather than being refused."""
+    await save_signature(session, caller, senior_id, body)
+    return Response(status_code=204)
 
 
 @router.get("/enrollments")

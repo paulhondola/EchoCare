@@ -12,10 +12,11 @@ import google.auth.credentials
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import ROLE_ORDER, Grant, Role, User
+from app.auth.models import ROLE_ORDER, Grant, PushToken, Role, User
 from app.core.db import get_session
 from app.core.phones import mask, normalize
 
@@ -125,6 +126,30 @@ async def current_caller(
         user.firebase_uid = claims["uid"]
         await session.commit()
     return Caller(user, grants)
+
+
+async def save_push_token(session: AsyncSession, caller: Caller, token: str) -> None:
+    """The token is the caller's now, even if another user held it: it belongs to
+    whoever signed in on the device last (Q19)."""
+    await session.execute(
+        insert(PushToken)
+        .values(user_id=caller.user.id, token=token)
+        .on_conflict_do_update(
+            index_elements=[PushToken.token],
+            set_={"user_id": caller.user.id, "updated_at": func.now()},
+        )
+    )
+    await session.commit()
+
+
+async def drop_push_token(session: AsyncSession, caller: Caller, token: str) -> None:
+    """Only the caller's own row; someone else's token, or none, is a no-op (Q19)."""
+    await session.execute(
+        delete(PushToken).where(
+            PushToken.token == token, PushToken.user_id == caller.user.id
+        )
+    )
+    await session.commit()
 
 
 def require_roles(*roles: Role):

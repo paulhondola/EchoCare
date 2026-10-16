@@ -261,6 +261,8 @@ The call is a fixed script whose answers are keys or short spoken words (G7). If
 
 A welcome call never changes a code; the code is created when consent is given.
 
+A senior who later withdraws consent becomes `withdrawn`. The medic or DAS records it; the senior leaves the campaigns and gets no more calls. There is no way back yet.
+
 ## 4. Wellbeing calls
 
 ### UC-05 Weather campaign call (green path)

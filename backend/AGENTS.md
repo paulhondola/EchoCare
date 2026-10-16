@@ -15,6 +15,7 @@ backend/
 │   ├── seniors/       seniors, caregivers, consents, enrollments
 │   ├── incidents/     incident lifecycle, refusal reasons, incident detail
 │   ├── voice/         Twilio signatures and dialing, call lifecycle, dialogue relay
+│   ├── calls/         call history and transcripts
 │   ├── system/        /api/health and the dashboard's system health
 │   └── status/        alarm phrases, status matrix and engine; pure logic
 ├── scripts/

@@ -1,0 +1,74 @@
+import logging
+import uuid
+
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.models import Role
+from app.auth.service import Caller, refuse
+from app.calls.schemas import AnswerView, CallSummary, TranscriptDetail
+from app.incidents.schemas import ReportView, TurnView
+from app.incidents.service import call_detail
+from app.seniors.models import Senior
+from app.seniors.service import reach, reach_senior
+from app.voice.models import Answer, Call, CallTrigger, CallTurn, StatusReport
+
+log = logging.getLogger("echocare.calls")
+
+
+async def call_history(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> list[CallSummary]:
+    """The senior's calls, newest first, queued ones included; test calls are left out
+    (04 §1, 05 §1). Out of reach is 404, as for the senior herself (AL8)."""
+    await reach_senior(session, caller, senior_id)
+    calls = await session.scalars(
+        select(Call)
+        .where(Call.senior_id == senior_id, Call.trigger != CallTrigger.test)
+        .order_by(Call.created_at.desc(), Call.id.desc())
+    )
+    return [CallSummary.model_validate(c, from_attributes=True) for c in calls]
+
+
+async def transcript(
+    session: AsyncSession, caller: Caller, call_id: uuid.UUID
+) -> TranscriptDetail:
+    """One call with its turns, reports and answers, for the senior's registering
+    medic and for DAS past `draft` (04 §1). A caregiver or the senior reaches the
+    calls but not what was said, so they get 404 like a stranger."""
+    call = await session.scalar(
+        select(Call)
+        .join(Senior, Senior.id == Call.senior_id)
+        .where(
+            Call.id == call_id,
+            or_(reach(caller, Role.medic), reach(caller, Role.das)),
+        )
+    )
+    if call is None:
+        log.info("refused not_found: user %s, call %s", caller.user.id, call_id)
+        raise refuse(404, "not_found")
+
+    turns = [
+        TurnView.model_validate(t, from_attributes=True)
+        for t in await session.scalars(
+            select(CallTurn)
+            .where(CallTurn.call_id == call_id)
+            .order_by(CallTurn.position)
+        )
+    ]
+    reports = [
+        ReportView.model_validate(r, from_attributes=True)
+        for r in await session.scalars(
+            select(StatusReport)
+            .where(StatusReport.call_id == call_id)
+            .order_by(StatusReport.at)
+        )
+    ]
+    answers = [
+        AnswerView.model_validate(a, from_attributes=True)
+        for a in await session.scalars(
+            select(Answer).where(Answer.call_id == call_id).order_by(Answer.at)
+        )
+    ]
+    detail = call_detail(call, reports, turns)
+    return TranscriptDetail(**detail.model_dump(), answers=answers)

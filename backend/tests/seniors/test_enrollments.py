@@ -224,7 +224,9 @@ async def test_only_das_lists_enrollments(client, staff, token):
 
 async def test_enrollments_oldest_first(client, staff):
     first = await register(client)
-    second = await register(client, {**MARIA, "full_name": "Ana Ionescu"})
+    second = await register(
+        client, {**MARIA, "full_name": "Ana Ionescu", "phone": "0700 000 008"}
+    )
     for senior_id in (second, first):
         await submit(client, senior_id)
     assert [s["id"] for s in (await enrollments(client)).json()] == [first, second]

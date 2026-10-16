@@ -1,12 +1,14 @@
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     BeforeValidator,
+    Field,
     StringConstraints,
     field_validator,
+    model_validator,
 )
 
 from app.core.phones import is_mobile, normalize
@@ -122,6 +124,35 @@ class CaregiverForm(BaseModel):
         if not is_mobile(e164):
             raise ValueError("caregivers sign in by SMS: the number must be a mobile")
         return e164
+
+
+class CaregiverEditForm(BaseModel):
+    """PATCH /seniors/{id}/caregivers/{userId}'s body: what is given changes (Q13)."""
+
+    display_name: text(120, 1) | None = None
+    relation: text(60, 1) | None = None
+
+
+MAX_SIGNATURE_POINTS = 5000
+
+# A point on the signature pad, as a share of its width and height.
+Coordinate = Annotated[float, Field(ge=0, le=1)]
+
+
+class SignatureForm(BaseModel):
+    """POST /seniors/{id}/signature's body: the strokes the senior drew (Q16)."""
+
+    text_version: text(40, 1)
+    strokes: Annotated[
+        list[Annotated[list[tuple[Coordinate, Coordinate]], Field(min_length=1)]],
+        Field(min_length=1),
+    ]
+
+    @model_validator(mode="after")
+    def not_too_many_points(self) -> Self:
+        if sum(len(stroke) for stroke in self.strokes) > MAX_SIGNATURE_POINTS:
+            raise ValueError(f"at most {MAX_SIGNATURE_POINTS} points in total")
+        return self
 
 
 class SeniorSummary(BaseModel):
