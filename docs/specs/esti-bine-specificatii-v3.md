@@ -436,7 +436,7 @@ La pilot, sistemul va suna de pe un număr de Timișoara, cu prefix local.
 | 2 | Cumpărarea unui număr din SUA |
 | 3 | Voice → Geo Permissions: activarea României |
 | 4 | Voice → Settings → Privacy & Security: acceptarea termenilor pentru funcții AI („Predictive and Generative AI/ML Features Addendum”). Fără ei, ConversationRelay întoarce eroarea 95250. |
-| 5 | Server public cu `wss://` (ngrok sau deploy), cerut de ConversationRelay |
+| 5 | Server public cu `wss://` (deploy), cerut de ConversationRelay |
 
 ### 12.3 Ce trebuie testat înainte
 

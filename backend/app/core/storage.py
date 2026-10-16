@@ -19,7 +19,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from app.core.settings import Settings, get_settings
 
-log = logging.getLogger("sentinela.storage")
+log = logging.getLogger("echocare.storage")
 
 # SigV4 refuses presigned URLs that live longer than a week.
 MAX_PRESIGN_SECONDS = 7 * 24 * 3600

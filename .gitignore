@@ -13,6 +13,7 @@ dist/
 # Claude Code: personal settings and the remember plugin's session notes
 .claude/settings.local.json
 .remember/
+.superpowers/
 
 # lefthook: personal overrides, such as rc: for a Git GUI's PATH (ADR-002)
 lefthook-local.yml

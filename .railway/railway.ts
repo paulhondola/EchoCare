@@ -1,20 +1,20 @@
-// Sentinela on Railway (ADR-001): one file for every environment.
+// EchoCare on Railway (ADR-001): one file for every environment.
 // Railway never reads this file during a deploy; a person applies it from .railway/:
 //   railway config plan --environment staging
 //   railway config apply --environment staging
 import { bucket, defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
-const REPO = "paulhondola/Sentinela-Test";
+const REPO = "paulhondola/EchoCare";
 const REGION = "europe-west4-drams3a"; // EU West
 // Each environment deploys from its own branch; promotion is a PR from main into release.
 const BRANCH: Record<string, string> = { staging: "main", production: "release" };
 // Firebase web config: public identifiers that ship in the browser bundle, not secrets.
 // One Firebase project serves every environment (ADR-001). Same values as dashboard/.env.
 const FIREBASE_WEB = {
-  VITE_FIREBASE_API_KEY: "AIzaSyBWFvTyqk904SsoT_uFXIzXgyHBBxhz5m0",
-  VITE_FIREBASE_AUTH_DOMAIN: "sentinela-8f474.firebaseapp.com",
-  VITE_FIREBASE_PROJECT_ID: "sentinela-8f474",
-  VITE_FIREBASE_APP_ID: "1:994957703097:web:2bbc70f74e432f74af6868",
+  VITE_FIREBASE_API_KEY: "AIzaSyC1a4PXcIBmNCvKb5W3us7WWwoD7xjPWkw",
+  VITE_FIREBASE_AUTH_DOMAIN: "echocare-app.firebaseapp.com",
+  VITE_FIREBASE_PROJECT_ID: "echocare-app",
+  VITE_FIREBASE_APP_ID: "1:171353703999:web:39b0a68d03a8c8e0391a8a",
 };
 
 const unset = Object.entries(FIREBASE_WEB).filter(([, v]) => !v || v === "TODO");
@@ -27,6 +27,7 @@ export default defineRailway((ctx) => {
 
   // Postgres database pinned to EU West (europe-west4-drams3a)
   const db = postgres("Postgres", { region: REGION });
+  db.deploy = { ...db.deploy, sleepApplication: true };
   // S3-compatible storage bucket in Europe (Amsterdam)
   const storage = bucket("storage", { region: "ams" });
 
@@ -34,12 +35,14 @@ export default defineRailway((ctx) => {
     // checkSuites: Wait for CI, so a red workflow never deploys
     source: github(REPO, { branch, rootDirectory: "/backend", checkSuites: true }),
     // watch paths: only backend changes redeploy the API and drop live calls
-    build: { builder: "DOCKERFILE", watchPatterns: ["/backend/**"] },
+    build: { builder: "DOCKERFILE", dockerfilePath: "/backend/Dockerfile", watchPatterns: ["/backend/**"] },
+    // run DB migrations
     preDeploy: "alembic upgrade head",
+    // Health Endpoint
     healthcheck: "/api/health",
     replicas: { [REGION]: 1 },
-    // drainingSeconds: an old copy keeps its calls (3 min limit) after SIGTERM
-    deploy: { sleepApplication: false, drainingSeconds: 200 },
+    // Enable serverless
+    deploy: { sleepApplication: true },
     env: {
       APP_ENV: env,
       DATABASE_URL: db.env.DATABASE_URL,
@@ -61,11 +64,13 @@ export default defineRailway((ctx) => {
 
   const dashboard = service("dashboard", {
     source: github(REPO, { branch, rootDirectory: "/dashboard", checkSuites: true }),
-    build: { builder: "DOCKERFILE", watchPatterns: ["/dashboard/**"] },
+    build: { builder: "DOCKERFILE", dockerfilePath: "/dashboard/Dockerfile", watchPatterns: ["/dashboard/**"] },
     replicas: { [REGION]: 1 },
+    // Enable Serverless
+    deploy: { sleepApplication: true },
     // Vite writes this into the bundle at build time (an ARG in the Dockerfile)
     env: { VITE_API_URL: "https://${{api.RAILWAY_PUBLIC_DOMAIN}}", ...FIREBASE_WEB },
   });
 
-  return project("Sentinela", { resources: [api, dashboard, db, storage] });
+  return project("EchoCare", { resources: [api, dashboard, db, storage] });
 });

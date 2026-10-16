@@ -17,7 +17,7 @@ import httpx
 
 from app.core.settings import get_settings
 
-log = logging.getLogger("sentinela.twilio")
+log = logging.getLogger("echocare.twilio")
 
 API = "https://api.twilio.com/2010-04-01"
 
@@ -45,8 +45,8 @@ def signed(header: str, urls: Iterable[str], params: list[tuple[str, str]]) -> b
 
 
 def public_url(path: str, query: str = "", scheme: str | None = None) -> str:
-    """The address Twilio called, rebuilt from PUBLIC_BASE_URL: behind Railway's proxy
-    or the ngrok tunnel, the request's own URL is not the one Twilio signed."""
+    """The address Twilio called, rebuilt from PUBLIC_BASE_URL: behind Railway's proxy,
+    the request's own URL is not the one Twilio signed."""
     base = get_settings().public_base_url.rstrip("/")
     if scheme is not None:
         base = scheme + base[base.index(":") :]

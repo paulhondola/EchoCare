@@ -1,6 +1,6 @@
-# Sentinela-Test
+# EchoCare
 
-Sentinela checks on seniors living alone with automated phone calls, a Wear OS watch and an Android app, and hands emergencies to a dispatch team (DAS) through a web dashboard. The design is in [docs/specs/sentinela](docs/specs/sentinela/README.md); how the repository is built and delivered is in [ADR-001](docs/adr/ADR-001-monorepo-and-delivery.md).
+EchoCare checks on seniors living alone with automated phone calls, a Wear OS watch and an Android app, and hands emergencies to a dispatch team (DAS) through a web dashboard. The design is in [docs/specs/echocare](docs/specs/echocare/README.md); how the repository is built and delivered is in [ADR-001](docs/adr/ADR-001-monorepo-and-delivery.md).
 
 | Folder | What | Setup and commands |
 |---|---|---|
@@ -30,10 +30,6 @@ Teammates who only run the stack, such as the Android and Wear OS owners, need o
 Copy the example environment files once. None of the copies are committed.
 
 ```bash
-cp .env.example .env
-```
-
-```bash
 cp backend/.env.example backend/.env
 ```
 
@@ -41,7 +37,7 @@ cp backend/.env.example backend/.env
 cp dashboard/.env.example dashboard/.env
 ```
 
-Fill in `dashboard/.env` with the Firebase web config (Firebase console → Project settings → Your apps → the web app). For the tunnel, put your ngrok authtoken in the root `.env` and your ngrok domain in `PUBLIC_BASE_URL` in `backend/.env`.
+Fill in `dashboard/.env` with the Firebase web config (Firebase console → Project settings → Your apps → the web app).
 
 Start Postgres, the API (migrated) and the dashboard, all reloading on save:
 
@@ -54,13 +50,7 @@ docker compose up --watch
 | http://localhost:8000/api/health | API health check: `{"status":"ok","env":"local"}` |
 | http://localhost:8000/api/docs | API docs |
 | http://localhost:5173 | Dashboard, showing "API: ok (local)" |
-| localhost:5432 | Postgres: user, password and database `sentinela`; `sentinela_test` for tests |
-
-With the ngrok tunnel, for Twilio and real phones (request inspector at http://localhost:4040):
-
-```bash
-docker compose --profile tunnel up --watch
-```
+| localhost:5432 | Postgres: user, password and database `echocare`; `echocare_test` for tests |
 
 Wipe both local databases for a clean start:
 

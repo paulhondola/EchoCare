@@ -20,17 +20,17 @@ defaults:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # tests/conftest.py points at sentinela_test on localhost (auth-layer §6.4)
+    # tests/conftest.py points at echocare_test on localhost (auth-layer §6.4)
     services:
       postgres:
         image: postgres:18 # the major version of Railway's Postgres and Compose's
         env:
-          POSTGRES_USER: sentinela
-          POSTGRES_PASSWORD: sentinela
-          POSTGRES_DB: sentinela_test
+          POSTGRES_USER: echocare
+          POSTGRES_PASSWORD: echocare
+          POSTGRES_DB: echocare_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U sentinela"
+          --health-cmd "pg_isready -U echocare"
           --health-interval 2s
           --health-retries 15
     steps:
@@ -42,4 +42,5 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run lint-imports
       - run: uv run pytest

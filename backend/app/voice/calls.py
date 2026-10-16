@@ -45,6 +45,15 @@ TRANSITIONS: dict[CallState, frozenset[CallState]] = {
 # Live calls: at most one per senior, enforced by a partial unique index (05 §3).
 LIVE = frozenset({CallState.queued, CallState.ringing, CallState.in_progress})
 ENDED = frozenset(state for state, nexts in TRANSITIONS.items() if not nexts)
+# On the way to an ended call these states mean someone picked up (03 §9).
+ANSWERED = frozenset(
+    {
+        CallState.in_progress,
+        CallState.completed,
+        CallState.handed_over,
+        CallState.dropped,
+    }
+)
 
 
 class InvalidTransition(ValueError):

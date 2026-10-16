@@ -1,12 +1,12 @@
 # AGENTS.md: android/wear
 
-The Wear OS app for the senior's watch: `applicationId` `bia.sentinela`, namespace `bia.sentinela.wear`. Today it is one screen. Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+The Wear OS app for the senior's watch: `applicationId` `ro.echocare`, namespace `ro.echocare.wear`. Today it is one screen. Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
 
 ## Layout
 
 ```
 wear/src/main/
-├── java/bia/sentinela/wear/presentation/
+├── java/ro/echocare/wear/presentation/
 │   ├── MainActivity.kt    Compose for Wear OS entry
 │   └── theme/             Wear Material 3 theme
 ├── keepRules/             R8 keep rules for release
@@ -17,7 +17,7 @@ wear/src/main/
 ## Scope
 
 - Becomes one screen and one background job: pulse and step monitoring, the „Sunteți bine?” prompt, check-ins (G14, UC-09, UC-13). Thresholds come from `:shared`.
-- **The watch is not standalone** (G5). It has no identity and never calls the API. Everything goes to the senior's phone over the Wearable Data Layer, on the paths in `bia.sentinela.shared.DataLayer`.
+- **The watch is not standalone** (G5). It has no identity and never calls the API. Everything goes to the senior's phone over the Wearable Data Layer, on the paths in `ro.echocare.shared.DataLayer`.
 - No tiles or complications; the spec asks for one screen and one job.
 
 ## Commands

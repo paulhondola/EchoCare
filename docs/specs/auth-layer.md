@@ -1,8 +1,8 @@
 # Auth layer
 
 **Status:** approved design · 2026-10-11 · branch `auth-layer`
-**Implements:** G6 and UC-02 (phone sign-in, grants), the API half of UC-14 (grant staff), [01 §6](sentinela/01-architecture.md), [04 §0, §1 `/me`, §2 `/staff`, §7](sentinela/04-interfaces.md), [06 §4](sentinela/06-operations.md) (access).
-**Read with:** the system spec in [sentinela/](sentinela/README.md). Where the two disagree, this file wins for the auth layer, and slice 1 brings the system spec in line (§6.6).
+**Implements:** G6 and UC-02 (phone sign-in, grants), the API half of UC-14 (grant staff), [01 §6](echocare/01-architecture.md), [04 §0, §1 `/profile`, §2 `/staff`, §7](echocare/04-interfaces.md), [06 §4](echocare/06-operations.md) (access).
+**Read with:** the system spec in [echocare/](echocare/README.md). Where the two disagree, this file wins for the auth layer, and slice 1 brings the system spec in line (§6.6).
 
 Sections 1 to 5 are shared reference that every slice reads. Sections 6, 7 and 8 are self-contained briefs, one per agent, each ending on a completion criterion. Section 9 is the rollout a person runs.
 
@@ -19,7 +19,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 
 | ID | Decision | Note |
 |---|---|---|
-| AL1 | In scope: the backend identity core, the `users` and `grants` tables, `GET /api/me`, `POST /api/staff` (API only), `grant_das.py`, `dev_token.py`, dashboard sign-in, Android sign-in | Out of scope: §10 |
+| AL1 | In scope: the backend identity core, the `users` and `grants` tables, `GET /api/profile`, `POST /api/staff` (API only), `grant_das.py`, `dev_token.py`, dashboard sign-in, Android sign-in | Out of scope: §10 |
 | AL2 | A caller's permissions are the **union** of all their grants. The client's role choice picks screens only | G3 |
 | AL3 | The role picker appears when the grants span **more than one distinct role**. Several caregiver grants are one role | Rewords 01 §6 "several grants" |
 | AL4 | The phone number is the identity key on every request. `firebase_uid` is stored, written when empty, and overwritten with a warning log when it differs | The MVP assumes numbers do not change. The uid is kept for a later second sign-in method or a change-number flow |
@@ -42,7 +42,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | Where | Change |
 |---|---|
 | 01 §6 and UC-02 step 5 | The picker chooses among roles (AL3) |
-| 04 §1 `/me` | No warning flag and no senior names until the campaign and senior tables exist |
+| 04 §1 `/profile` | No warning flag and no senior names until the campaign and senior tables exist |
 | 05 `users` | No `on_duty` until the on-duty feature |
 
 ## 3. Shared contract
@@ -73,7 +73,7 @@ The body is FastAPI's own shape: `{"detail": {"reason": "<reason>"}}`. A 401 als
 | 422 | `incomplete` | Submitting a registration without the address or a caregiver, or leaving a submitted one without them: an edit that drops the address, removing the last caregiver. `missing` names what is missing (04 §2) | Shows what to fill in |
 | 503 | `auth_unavailable` | Google's public keys cannot be fetched | Shows „Autentificarea nu este disponibilă acum. Încercați din nou.” and stays signed in |
 
-### 3.3 `GET /api/me`
+### 3.3 `GET /api/profile`
 
 Any caller with at least one grant.
 
@@ -201,7 +201,7 @@ Test numbers suit staff and caregivers. A **senior's** number must be a real tea
 | `app/db.py` | adds an `async_sessionmaker` and a `get_session` dependency next to the existing `engine` |
 | `app/auth.py` | Firebase initialisation; `verify_token`, a plain `def` dependency that returns the claims; `Caller` (the user, the grants, a `roles` set); the `current_caller` and `require_roles(*roles)` dependencies; the refusals of §3.2; the logging of AL15 |
 | `app/staff.py` | `grant_staff(session, display_name, phone_e164, role, practice, granted_by) -> created: bool`, shared by the route and the script |
-| `app/main.py` | `GET /api/me` and `POST /api/staff` on the `api` router; an `HTTPBearer(auto_error=False)` scheme so Swagger shows *Authorize* |
+| `app/main.py` | `GET /api/profile` and `POST /api/staff` on the `api` router; an `HTTPBearer(auto_error=False)` scheme so Swagger shows *Authorize* |
 | `scripts/grant_das.py` | `python scripts/grant_das.py "<name>" <phone>`: validates like §3.4, grants `das` with no `granted_by`, prints `granted` or `already granted`, exits 0; an invalid number exits 2 |
 | `scripts/dev_token.py` | `python scripts/dev_token.py <phone> <code>`, for a test number of §5: calls `https://identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=<web API key>` with `{"phoneNumber": …, "recaptchaToken": "dev"}`, then `accounts:signInWithPhoneNumber` with the `sessionInfo` and the code, using stdlib `urllib`, and prints the `idToken`. The web API key is the public `VITE_FIREBASE_API_KEY` from `.railway/railway.ts` |
 | `alembic/versions/<rev>_users_and_grants.py` | the migration (§4) |
@@ -230,17 +230,17 @@ Each step is done when its criterion holds.
 3. **Models and migration.** Write the models and add the import to `alembic/env.py`. Then generate the migration inside Compose, as `backend/AGENTS.md` says, and review it against §4. *Done:* `alembic upgrade head` on a fresh `sentinela_test` creates exactly `users` and `grants` with every constraint in §4, and `alembic downgrade base` removes them.
 4. **Keyless startup.** *Done:* a test in `tests/test_verify.py` shows that, with no credential on the machine, `verify_token` answers a malformed token with 401 `not_signed_in`.
 5. **`app/auth.py`.** *Done:* the refusal matrix in §6.4 passes.
-6. **`app/staff.py` and both routes.** *Done:* the `/me` and `/staff` tests in §6.4 pass, and `/api/docs` shows *Authorize*.
+6. **`app/staff.py` and both routes.** *Done:* the `/profile` and `/staff` tests in §6.4 pass, and `/api/docs` shows *Authorize*.
 7. **Scripts.** *Done:* a test runs `grant_das.py`'s entry function twice against the test database and sees `granted`, then `already granted`. `dev_token.py` is checked in step 10.
 8. **CI.** Add a `postgres:18` service to `.github/workflows/backend.yml` with user and password `sentinela` and database `sentinela_test`, and set `DATABASE_URL` for the test step. *Done:* the workflow passes on the branch.
 9. **Docs.** Make the changes in §6.6. *Done:* every row of §6.6 is changed.
-10. **Real-token check.** Start Compose, grant `+40700000001` with `grant_das.py`, run `dev_token.py +40700000001 111111`, then `curl -H "Authorization: Bearer <token>" localhost:8000/api/me`. *Done:* the response is 200 with a `das` grant. If the response is 401 because the token has no `phone_number` claim, stop and report it with the token's decoded claims, and leave the verifier unchanged.
+10. **Real-token check.** Start Compose, grant `+40700000001` with `grant_das.py`, run `dev_token.py +40700000001 111111`, then `curl -H "Authorization: Bearer <token>" localhost:8000/api/profile`. *Done:* the response is 200 with a `das` grant. If the response is 401 because the token has no `phone_number` claim, stop and report it with the token's decoded claims, and leave the verifier unchanged.
 
 ### 6.4 Test checklist
 
 The verifier is replaced with `app.dependency_overrides[verify_token]`. `Bearer +40…` becomes `{"uid": "test-<number>", "phone_number": "<number>"}`. `Bearer invalid` raises the 401. `Bearer no-phone` returns claims without `phone_number`. Between tests, run `TRUNCATE grants, users CASCADE`.
 
-**Refusal matrix**, on both `GET /api/me` and `POST /api/staff`:
+**Refusal matrix**, on both `GET /api/profile` and `POST /api/staff`:
 
 | Case | Expected |
 |---|---|
@@ -254,7 +254,7 @@ The verifier is replaced with `app.dependency_overrides[verify_token]`. `Bearer 
 
 Every 401 carries `WWW-Authenticate: Bearer`.
 
-**`/me`**
+**`/profile`**
 - A DAS-and-medic user gets both grants in the order of §3.3.
 - A user with two caregiver grants (inserted directly) gets two entries.
 
@@ -295,13 +295,13 @@ The contract and the docs move together (root `AGENTS.md`).
 
 | File | Change |
 |---|---|
-| `docs/specs/sentinela/04-interfaces.md` §0 | `Authorization: Bearer`; the reasons and the body shape of §3.2 |
-| same file, §1 | The `/me` row matches §3.3, and says the warning flag and senior names arrive with their tables |
+| `docs/specs/echocare/04-interfaces.md` §0 | `Authorization: Bearer`; the reasons and the body shape of §3.2 |
+| same file, §1 | The `/profile` row matches §3.3, and says the warning flag and senior names arrive with their tables |
 | same file, §2 | The "Grant staff" row matches §3.4 |
-| `docs/specs/sentinela/01-architecture.md` §6 | AL2, AL3, AL4, AL7, AL8, and the medic rule in §3.6 |
-| `docs/specs/sentinela/02-use-cases.md` UC-02 step 5 | "Several roles" instead of "several grants" |
-| `docs/specs/sentinela/05-data-model.md` §3 and §4 | At most one senior grant per user (enforced with the seniors migration); the `firebase_uid` overwrite rule |
-| `docs/specs/sentinela/06-operations.md` §4 | The logging rule (AL15) |
+| `docs/specs/echocare/01-architecture.md` §6 | AL2, AL3, AL4, AL7, AL8, and the medic rule in §3.6 |
+| `docs/specs/echocare/02-use-cases.md` UC-02 step 5 | "Several roles" instead of "several grants" |
+| `docs/specs/echocare/05-data-model.md` §3 and §4 | At most one senior grant per user (enforced with the seniors migration); the `firebase_uid` overwrite rule |
+| `docs/specs/echocare/06-operations.md` §4 | The logging rule (AL15) |
 | `backend/AGENTS.md` | The layout gains the new modules and `scripts/` |
 | `backend/README.md` | The test numbers (§5); how to grant locally; how to use `dev_token.py` with Swagger's *Authorize* and with curl |
 
@@ -336,10 +336,10 @@ The server normalizes again.
 | State | Shows |
 |---|---|
 | Signed out | `SignIn` |
-| Signed in, `/me` returns 200 with a `das` grant | „Conectat ca {display_name}” and an *Ieșire* button. Later features replace this view |
-| `/me` returns 200 without a `das` grant | „Acest număr nu are acces la dispecerat.”, then sign out |
-| `/me` returns 403 `not_registered` | „Numărul nu este înregistrat. Contactați medicul de familie.”, then sign out |
-| `/me` returns 503 | „Autentificarea nu este disponibilă acum. Încercați din nou.”, still signed in |
+| Signed in, `/profile` returns 200 with a `das` grant | „Conectat ca {display_name}” and an *Ieșire* button. Later features replace this view |
+| `/profile` returns 200 without a `das` grant | „Acest număr nu are acces la dispecerat.”, then sign out |
+| `/profile` returns 403 `not_registered` | „Numărul nu este înregistrat. Contactați medicul de familie.”, then sign out |
+| `/profile` returns 503 | „Autentificarea nu este disponibilă acum. Încercați din nou.”, still signed in |
 
 **Romanian copy:**
 
@@ -403,7 +403,7 @@ If Hilt or KSP cannot build under AGP 9.4.1 even with matching versions, stop an
   - OkHttp with an interceptor that adds `Authorization: Bearer` from `Tasks.await(user.getIdToken(false))`, which runs on OkHttp's thread.
   - An `Authenticator` that answers a 401 by retrying once with `getIdToken(true)`; it gives up on a request that was already retried.
   - Retrofit, at `BuildConfig.API_URL + "/api/"`, with the existing lenient `Json`.
-  - `SentinelaApi`, which gains `@GET("me") suspend fun me(): Me`.
+  - `SentinelaApi`, which gains `@GET("profile") suspend fun me(): Me`.
 
   The `Api` object is removed.
 - **`Me` decodes roles as strings.** Clients drop a role this build does not know (android/app/AGENTS.md: decode leniently).
@@ -416,9 +416,9 @@ If Hilt or KSP cannot build under AGP 9.4.1 even with matching versions, stop an
 - **The menu** in `Home` holds *Ieșire*, and *Schimbă rolul* when there are several roles.
 - **The skeleton health screen goes.**
 
-**What the app does with each answer from `/me`**, as a pure function in `bia.sentinela.auth`, unit-tested on the JVM:
+**What the app does with each answer from `/profile`**, as a pure function in `bia.sentinela.auth`, unit-tested on the JVM:
 
-| `/me` answer | Next screen |
+| `/profile` answer | Next screen |
 |---|---|
 | 200 with one distinct role | `Home(role)` |
 | 200 with several roles and a valid saved role | `Home(saved)` |
@@ -481,8 +481,8 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 | On duty: `PUT /staff/on-duty` and the flag in `GET /staff` | The hand-over work (P10) |
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |
 | The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7 | Built with the data model, in migration `741f75a7dbe1` |
-| The senior-scoped helper for §3.6; `/me`'s senior names | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
-| `warning_active` on `/me` | The campaign work (UC-05) |
+| The senior-scoped helper for §3.6; `/profile`'s senior names | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
+| `warning_active` on `/profile` | The campaign work (UC-05) |
 | App Check, rate limits | Before a pilot |
 
 ## 11. Facts still to confirm

@@ -33,7 +33,7 @@
 </script>
 
 <svelte:head>
-  <title>{live.open?.length ? `(${live.open.length}) ` : ""}Sentinela DAS</title>
+  <title>{live.open?.length ? `(${live.open.length}) ` : ""}EchoCare DAS</title>
 </svelte:head>
 
 <div class="grid min-h-screen md:h-screen md:grid-cols-[240px_minmax(0,1fr)]">

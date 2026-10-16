@@ -19,7 +19,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   return res;
 }
 
-/** GET /api/me (auth-layer §3.3). */
+/** GET /api/profile (auth-layer §3.3). */
 export type Me = {
   display_name: string;
   phone_e164: string;
@@ -28,7 +28,7 @@ export type Me = {
 
 /** The body on a 200, otherwise the refusal's reason (auth-layer §3.2). */
 export async function getMe(): Promise<Me | string> {
-  const res = await apiFetch("/api/me");
+  const res = await apiFetch("/api/profile");
   if (res.ok) return (await res.json()) as Me;
   const body = (await res.json().catch(() => null)) as { detail?: { reason?: string } } | null;
   return body?.detail?.reason ?? `http_${res.status}`;

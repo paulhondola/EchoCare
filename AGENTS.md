@@ -2,7 +2,7 @@
 
 Guide for coding agents in this repository. People start with [README.md](README.md).
 
-Sentinela checks on seniors living alone with automated phone calls in Romanian, a Wear OS watch and an Android app, and hands emergencies to a dispatch team (DAS) through a web dashboard. One repository, one native toolchain per folder, no build orchestrator ([ADR-001](docs/adr/ADR-001-monorepo-and-delivery.md)).
+EchoCare checks on seniors living alone with automated phone calls in Romanian, a Wear OS watch and an Android app, and hands emergencies to a dispatch team (DAS) through a web dashboard. One repository, one native toolchain per folder, no build orchestrator ([ADR-001](docs/adr/ADR-001-monorepo-and-delivery.md)).
 
 ## Layout
 
@@ -12,18 +12,18 @@ Sentinela checks on seniors living alone with automated phone calls in Romanian,
 | `dashboard/` | DAS web dashboard | Svelte 5, SvelteKit 3, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
 | `android/` | Phone app `:app`, watch app `:wear`, plain-Kotlin `:shared` | Kotlin, Compose, Gradle | [android/AGENTS.md](android/AGENTS.md) |
 | `.railway/` | Railway settings as code, staging and production | TypeScript, Railway CLI | [.railway/AGENTS.md](.railway/AGENTS.md) |
-| `docs/specs/sentinela/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
+| `docs/specs/echocare/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
 | `docs/adr/` | Architecture decisions | Markdown | |
 | `docs/specs/esti-bine-specificatii-v3.md`, `unihack.md` | The earlier v3 spec and the hackathon brief, in Romanian. History, not the current design | Markdown | |
 | `.github/workflows/` | One CI workflow per folder, path-filtered | GitHub Actions | |
-| `compose.yaml` | Local stack: Postgres 18, API, dashboard, optional ngrok tunnel | Docker Compose | |
+| `compose.yaml` | Local stack: Postgres 18, API, dashboard | Docker Compose | |
 | `lefthook.yml` | Git hooks: each folder's checks on commit, Android's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
 
 Run each toolchain from its own folder. There is no root `package.json`, Makefile or task runner.
 
 ## The spec is the source of truth
 
-Code and comments cite the spec by ID: `G6` (goal), `UC-09` (use case), `04 §6` (file `04-interfaces.md`, section 6), `S5` (spike), `ADR-001 §2.1`. Before building a feature, read the matching file in [docs/specs/sentinela/](docs/specs/sentinela/README.md). The API contract is `04-interfaces.md` and the tables are `05-data-model.md`. Cite IDs the same way in new comments.
+Code and comments cite the spec by ID: `G6` (goal), `UC-09` (use case), `04 §6` (file `04-interfaces.md`, section 6), `S5` (spike), `ADR-001 §2.1`. Before building a feature, read the matching file in [docs/specs/echocare/](docs/specs/echocare/README.md). The API contract is `04-interfaces.md` and the tables are `05-data-model.md`. Cite IDs the same way in new comments.
 
 ## Commands
 
@@ -31,11 +31,11 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 
 | Task | Command |
 |---|---|
-| Create the local env files, once | `cp .env.example .env && cp backend/.env.example backend/.env && cp dashboard/.env.example dashboard/.env` |
+| Create the local env files, once | `cp backend/.env.example backend/.env && cp dashboard/.env.example dashboard/.env` |
 | Start the whole stack, reloading on save | `docker compose up --watch` |
-| Same, with the ngrok tunnel for Twilio | `docker compose --profile tunnel up --watch` |
 | Postgres and dashboard only, to run the API on the host | `docker compose up --watch db dashboard` |
 | Check the stack is up | `curl localhost:8000/api/health` → `{"status":"ok","env":"local"}` |
+| Fill the local database with mock data ([backend/README.md](backend/README.md#mock-data)) | `cd backend && uv run python scripts/seed.py` (`--reset` for fresh times) |
 | Wipe both local databases (ask first) | `docker compose down -v` |
 | Install the Git hooks, once per clone | `lefthook install` |
 | Run the hooks without committing or pushing | `lefthook run pre-commit` / `lefthook run pre-push` |
@@ -44,8 +44,7 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 |---|---|
 | http://localhost:8000/api/docs | API and its OpenAPI docs |
 | http://localhost:5173 | Dashboard |
-| localhost:5432 | Postgres; user, password and database `sentinela`; tests use `sentinela_test` |
-| http://localhost:4040 | ngrok request inspector, with the tunnel profile |
+| localhost:5432 | Postgres; user, password and database `echocare`; tests use `echocare_test` |
 
 ## How changes ship
 

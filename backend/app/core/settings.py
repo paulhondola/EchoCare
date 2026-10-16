@@ -71,7 +71,7 @@ def check_environment(settings: Settings) -> None:
     """Stop a laptop's API from competing with a cloud environment's scheduler (ADR-001).
 
     A local API pointed at staging's database would race staging's scheduler for the
-    database lock (G9) and could dial staging's queue with the tunnel's address.
+    database lock (G9) and could dial staging's queue with a local address.
     """
     if (
         settings.scheduler_enabled

@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.db import Session
 from app.core.phones import is_mobile, normalize
 from app.models import Role
-from app.staff import grant_staff
+from app.staff.service import grant_staff
 
 
 async def grant_das(display_name: str, phone: str) -> str:

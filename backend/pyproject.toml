@@ -1,5 +1,5 @@
 [project]
-name = "sentinela-backend"
+name = "echocare-backend"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
@@ -26,8 +26,71 @@ asyncio_default_test_loop_scope = "session"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "httpx2>=2.13.1",
+    "import-linter>=2.15",
     "moto[s3]>=5.2.4",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
 ]
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+# Wildcards, not lists, so a new package under app/, at any depth, is held to every
+# contract (spec §10). Empty __init__ files are checked in
+# tests/architecture/test_contracts.py: with as_packages = false, app.** would match
+# every module, not just the packages.
+
+[[tool.importlinter.contracts]]
+name = "Inside a feature: router, then service, then schemas, then models"
+type = "layers"
+containers = ["app.**"]
+layers = ["(router)", "(service)", "(schemas)", "(models)"]
+
+[[tool.importlinter.contracts]]
+name = "Only app.main imports a router"
+type = "protected"
+protected_modules = ["app.**.router"]
+allowed_importers = ["app.main"]
+
+[[tool.importlinter.contracts]]
+name = "Models and schemas import no web framework or HTTP client (01 §8)"
+type = "forbidden"
+source_modules = ["app.**.models", "app.**.schemas"]
+forbidden_modules = ["fastapi", "httpx"]
+
+[[tool.importlinter.contracts]]
+name = "The status engine is pure logic (01 §8)"
+type = "forbidden"
+source_modules = ["app.status"]
+# Every runtime dependency by import name, and pydantic, which fastapi brings.
+# tests/architecture/test_contracts.py fails when a new dependency is missing here.
+forbidden_modules = [
+    "alembic",
+    "asyncpg",
+    "boto3",
+    "fastapi",
+    "firebase_admin",
+    "httpx",
+    "phonenumbers",
+    "pydantic",
+    "pydantic_settings",
+    "sqlalchemy",
+    "uvicorn",
+    "app.*",
+]
+
+[[tool.importlinter.contracts]]
+name = "app.models is for Alembic, scripts and tests, not for app/"
+type = "forbidden"
+source_modules = ["app.*"]
+forbidden_modules = ["app.models"]
+
+[[tool.importlinter.contracts]]
+name = "No import cycles between packages; routers sit above them all"
+type = "acyclic_siblings"
+ancestors = ["app"]
+depth = 0
+ignore_imports = ["app.**.router -> app.**"]

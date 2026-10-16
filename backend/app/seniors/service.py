@@ -1,170 +1,24 @@
 import logging
 import uuid
-from typing import Annotated, Any
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    BeforeValidator,
-    StringConstraints,
-    field_validator,
-)
 from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
-from app.core.phones import is_mobile, normalize
 from app.seniors.models import EnrollmentState, Senior
+from app.seniors.schemas import (
+    CaregiverForm,
+    CaregiverView,
+    MedicView,
+    SeniorForm,
+    SeniorSummary,
+    SeniorView,
+)
 from app.staff.service import user_for
 
-log = logging.getLogger("sentinela.seniors")
-
-
-class SeniorDetail(BaseModel):
-    """Registration, address and access details (G13)."""
-
-    id: uuid.UUID
-    full_name: str
-    form_of_address: str
-    phone_e164: str
-    phone_is_landline: bool
-    street: str | None
-    street_number: str | None
-    block: str | None
-    staircase: str | None
-    floor: str | None
-    apartment: str | None
-    intercom_code: str | None
-    key_holder: str | None
-    landmark: str | None
-
-
-class Caregiver(BaseModel):
-    display_name: str
-    phone_e164: str
-    relation: str | None
-
-
-def no_nul(value: str) -> str:
-    # Postgres text cannot hold a NUL. Refuse it here, as a 422, not there, as a 500.
-    if "\x00" in value:
-        raise ValueError("the text contains a NUL character")
-    return value
-
-
-def text(max_length: int, min_length: int = 0) -> Any:
-    return Annotated[
-        str,
-        StringConstraints(
-            strip_whitespace=True, min_length=min_length, max_length=max_length
-        ),
-        AfterValidator(no_nul),
-    ]
-
-
-# Enrollment states read back as their names; an unknown one as the bare string.
-State = Annotated[str, BeforeValidator(lambda v: getattr(v, "value", v))]
-
-# The registration form's optional fields (UC-01 steps 1 and 2); empty means none.
-OPTIONAL = (
-    "call_window",
-    "street",
-    "street_number",
-    "block",
-    "staircase",
-    "floor",
-    "apartment",
-    "intercom_code",
-    "key_holder",
-    "landmark",
-)
-
-
-class SeniorForm(BaseModel):
-    """POST /seniors and PUT /seniors/{id}'s body: the whole registration (UC-01)."""
-
-    full_name: text(200, 1)
-    form_of_address: text(120, 1)  # "doamna Maria"
-    phone: str  # a landline or a mobile; which is worked out from the number
-    call_window: text(60) | None = None
-    street: text(200) | None = None
-    street_number: text(20) | None = None
-    block: text(20) | None = None
-    staircase: text(20) | None = None
-    floor: text(20) | None = None
-    apartment: text(20) | None = None
-    intercom_code: text(40) | None = None
-    key_holder: text(200) | None = None
-    landmark: text(200) | None = None
-
-    @field_validator("phone")
-    @classmethod
-    def e164(cls, raw: str) -> str:
-        return normalize(raw)
-
-    @field_validator(*OPTIONAL)
-    @classmethod
-    def empty_is_none(cls, value: str | None) -> str | None:
-        # A form's empty field stores nothing, not "".
-        return value or None
-
-    def columns(self) -> dict[str, Any]:
-        return {
-            **self.model_dump(exclude={"phone"}),
-            "phone_e164": self.phone,
-            "phone_is_landline": not is_mobile(self.phone),
-        }
-
-
-class CaregiverForm(BaseModel):
-    """POST /seniors/{id}/caregivers's body (UC-01 step 3)."""
-
-    display_name: text(120, 1)
-    relation: text(60, 1)  # "fiica"
-    phone: str
-
-    @field_validator("phone")
-    @classmethod
-    def mobile_e164(cls, raw: str) -> str:
-        e164 = normalize(raw)
-        if not is_mobile(e164):
-            raise ValueError("caregivers sign in by SMS: the number must be a mobile")
-        return e164
-
-
-class SeniorSummary(BaseModel):
-    """One row of GET /seniors (04 §1), with the fields that exist today."""
-
-    id: uuid.UUID
-    full_name: str
-    form_of_address: str
-    # The number and whether it is a landline, for the apps' senior cards (seniors §3.3).
-    phone_e164: str
-    phone_is_landline: bool
-    enrollment_state: State
-
-
-class CaregiverView(Caregiver):
-    user_id: uuid.UUID  # for DELETE /seniors/{id}/caregivers/{userId}
-
-
-class MedicView(BaseModel):
-    """The medic who registered the senior, on the senior's page (seniors §3.3)."""
-
-    display_name: str
-    practice: str | None
-
-
-class SeniorView(SeniorDetail):
-    """GET /seniors/{id} (04 §1): registration, address, medic and caregivers. One
-    shape for every role (seniors SE7)."""
-
-    call_window: str | None
-    enrollment_state: State
-    medic: MedicView
-    caregivers: list[CaregiverView]
+log = logging.getLogger("echocare.seniors")
 
 
 def reach(caller: Caller, role: Role | None = None) -> ColumnElement[bool]:
@@ -298,7 +152,7 @@ async def forms_of_address(
     rows = await session.execute(
         select(Senior.id, Senior.form_of_address).where(Senior.id.in_(senior_ids))
     )
-    return dict(rows.tuples().all())
+    return dict(rows.all())
 
 
 REQUIRED_TO_SUBMIT = ("street", "street_number")
@@ -357,3 +211,123 @@ def enrollments_query() -> Select:
         .where(Senior.enrollment_state == EnrollmentState.submitted)
         .order_by(Senior.created_at, Senior.id)
     )
+
+
+async def register(
+    session: AsyncSession, caller: Caller, form: SeniorForm
+) -> SeniorView:
+    """A new draft for the calling medic, with the senior's own grant (UC-01)."""
+    senior = Senior(medic_id=caller.user.id, **form.columns())
+    session.add(senior)
+    await session.flush()  # the database makes the id
+    await sync_senior_grant(session, senior)
+    await session.commit()
+    return await senior_view(session, senior)
+
+
+async def edit(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: SeniorForm
+) -> SeniorView:
+    """The registration replaced while `draft` or `submitted`; a submitted one keeps
+    its address (04 §2)."""
+    senior = await own_senior(session, caller, senior_id)  # locked: no move meanwhile
+    if senior.enrollment_state not in (
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    missing = missing_address(form)
+    if senior.enrollment_state == EnrollmentState.submitted and missing:
+        log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(422, "incomplete", missing=missing)
+    updated = await session.scalar(
+        update(Senior)
+        .where(Senior.id == senior_id)
+        .values(**form.columns())
+        .returning(Senior)
+        .execution_options(populate_existing=True)
+    )
+    await sync_senior_grant(session, updated)
+    await session.commit()
+    return await senior_view(session, updated)
+
+
+async def grant_caregiver(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: CaregiverForm
+) -> CaregiverView:
+    """A caregiver grant for the number; one it already holds is `already_done`."""
+    await own_senior(session, caller, senior_id)
+    user = await user_for(session, form.phone, form.display_name)
+    granted = await session.scalar(
+        insert(Grant)
+        .values(
+            user_id=user.id,
+            role=Role.caregiver,
+            senior_id=senior_id,
+            relation=form.relation,
+            granted_by=caller.user.id,
+        )
+        .on_conflict_do_nothing()
+        .returning(Grant.id)
+    )
+    if granted is None:
+        await session.rollback()
+        raise refuse(409, "already_done")
+    await session.commit()
+    return CaregiverView(
+        user_id=user.id,
+        display_name=user.display_name,
+        phone_e164=user.phone_e164,
+        relation=form.relation,
+    )
+
+
+async def revoke_caregiver(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, user_id: uuid.UUID
+) -> None:
+    """Deletes the caregiver grant; past `draft` the last one stays (04 §2)."""
+    senior = await own_senior(session, caller, senior_id)
+    await session.execute(
+        delete(Grant).where(
+            Grant.senior_id == senior_id,
+            Grant.user_id == user_id,
+            Grant.role == Role.caregiver,
+        )
+    )
+    if senior.enrollment_state != EnrollmentState.draft and not await has_caregiver(
+        session, senior_id
+    ):
+        log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(422, "incomplete", missing=["caregiver"])
+    await session.commit()
+
+
+async def submit(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SeniorSummary:
+    """draft -> submitted, once nothing DAS needs is missing (UC-01 step 6)."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state == EnrollmentState.draft:
+        missing = await missing_to_submit(session, senior)
+        if missing:
+            log.info(
+                "refused incomplete: user %s, senior %s", caller.user.id, senior_id
+            )
+            raise refuse(422, "incomplete", missing=missing)
+    await move(
+        session, caller, senior, EnrollmentState.draft, EnrollmentState.submitted
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def accept(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SeniorSummary:
+    """submitted -> accepted, by DAS (UC-04 step 1)."""
+    senior = await reach_senior(session, caller, senior_id)
+    await move(
+        session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)

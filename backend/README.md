@@ -39,8 +39,8 @@ cp .env.example .env
 | Variable | Local value | What it does |
 |---|---|---|
 | `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
-| `DATABASE_URL` | `postgresql://sentinela:sentinela@localhost:5432/sentinela` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
-| `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
+| `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
+| `PUBLIC_BASE_URL` | `http://localhost:8000` | The API's public address, for Twilio callbacks and signature checks |
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
@@ -62,10 +62,16 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-Tests that need a database use `sentinela_test`, never `sentinela`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `sentinela_test` on a fresh volume; on an older one, create it once:
+`lint-imports` checks the import contracts in `pyproject.toml`: the layers inside each package, no FastAPI or HTTP client in models and schemas, a pure status engine, and no cycles between packages. `tests/architecture/test_contracts.py` checks that `__init__.py` files import nothing.
 
 ```bash
-docker compose exec db createdb -U sentinela sentinela_test
+uv run lint-imports
+```
+
+Tests that need a database use `echocare_test`, never `echocare`, so Compose's `db` must be running. Each run migrates it down and up again, so it also proves the migrations. Compose creates `echocare_test` on a fresh volume; on an older one, create it once:
+
+```bash
+docker compose exec db createdb -U echocare echocare_test
 ```
 
 ## Sign in by hand
@@ -96,7 +102,7 @@ TOKEN=$(uv run python scripts/dev_token.py +40700000001 111111)
 ```
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/me
+curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/profile
 ```
 
 A DAS grants medics through the API:
@@ -104,6 +110,33 @@ A DAS grants medics through the API:
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"display_name": "Medic Test", "phone": "+40700000002", "role": "medic", "practice": "CMI Test"}' localhost:8000/api/staff
 ```
+
+## Mock data
+
+[scripts/seed.py](scripts/seed.py) fills the local database with fictitious people and their history: twelve seniors in every enrollment state, their medics and caregivers, a cold-weather campaign, calls with transcripts, and incidents open, in progress and resolved. It grants `+40700000001` DAS and `+40700000002` medic, and makes `+40700000004` and `+40700000005` Maria Popescu's son and Maria Popescu, so each test number signs in to something. From `backend/`:
+
+```bash
+uv run python scripts/seed.py
+```
+
+A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. It refuses any database but a local one.
+
+```bash
+uv run python scripts/seed.py --reset
+```
+
+**Staging and production: planned, not ready.** ADR-001 expects staging to hold the seed plus the team's test phones, and production the demo cast, seeded once before the freeze. Seeding stays a person's action, never part of a deploy: no pre-deploy command, no start-up hook. It would run inside the `api` container, as `grant_das.py` does, since a laptop cannot reach `postgres.railway.internal`:
+
+```bash
+railway ssh -s api -e staging
+```
+
+Two things must change before that:
+
+- **The guard.** The script refuses every database but a local one, including from inside Railway. It would follow `alembic/env.py`: allowed inside a Railway deployment, still refused from a laptop.
+- **The phone numbers.** The seeded seniors' numbers are made up and may belong to real people; two are Timișoara landlines. Locally nothing dials them, but with Twilio set up a campaign or `place_call.py` would. The active seniors need the team's own phones first.
+
+On the day, run `--reset` shortly before the demo, so the open incident is minutes old and the resolved ones are still on the board. Never during a live demo: `--reset` deletes every incident and call attached to a seeded senior.
 
 ## Migrations
 

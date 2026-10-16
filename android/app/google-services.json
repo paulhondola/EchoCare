@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "994957703097",
-    "project_id": "sentinela-8f474",
-    "storage_bucket": "sentinela-8f474.firebasestorage.app"
+    "project_number": "171353703999",
+    "project_id": "echocare-app",
+    "storage_bucket": "echocare-app.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:994957703097:android:1b3979102037b6feaf6868",
+        "mobilesdk_app_id": "1:171353703999:android:58807f78889bd9a5391a8a",
         "android_client_info": {
-          "package_name": "bia.sentinela"
+          "package_name": "ro.echocare"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDJ4nqFeJThNevVMm5AbVev5JCk2cZZ2Dc"
+          "current_key": "AIzaSyAa45Im2-qXJhFgPDAMMn4nTy1TUBz3yrc"
         }
       ],
       "services": {
