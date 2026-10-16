@@ -26,7 +26,7 @@ def test_signature_matches_twilios_example():
 
 
 def test_signed_needs_the_token_and_the_address():
-    url = "https://sentinela.test/api/voice/status?call=x"
+    url = "https://echocare.test/api/voice/status?call=x"
     good = signature("test-auth-token", url, [("CallStatus", "ringing")])
     assert signed(good, [url], [("CallStatus", "ringing")])
     assert not signed(good, [url], [("CallStatus", "completed")])
@@ -36,15 +36,15 @@ def test_signed_needs_the_token_and_the_address():
 
 def test_without_a_token_nothing_is_signed(monkeypatch):
     monkeypatch.setattr(get_settings(), "twilio_auth_token", "")
-    url = "https://sentinela.test/api/voice/status"
+    url = "https://echocare.test/api/voice/status"
     assert not signed(signature("", url, []), [url], [])
 
 
 def test_public_url_for_the_websocket():
     assert public_url("/api/voice/relay", "call=1", "wss") == (
-        "wss://sentinela.test/api/voice/relay?call=1"
+        "wss://echocare.test/api/voice/relay?call=1"
     )
-    assert public_url("/api/voice/status") == "https://sentinela.test/api/voice/status"
+    assert public_url("/api/voice/status") == "https://echocare.test/api/voice/status"
 
 
 @pytest.mark.parametrize(

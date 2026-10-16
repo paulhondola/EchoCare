@@ -11,7 +11,7 @@ from app.voice.calls import ANSWERED, ENDED, CallState, after_callback
 from app.voice.models import Call
 from app.voice.twilio import hang_up
 
-log = logging.getLogger("sentinela.voice")
+log = logging.getLogger("echocare.voice")
 
 
 async def move_call(

@@ -18,7 +18,7 @@ from app.seniors.schemas import (
 )
 from app.staff.service import user_for
 
-log = logging.getLogger("sentinela.seniors")
+log = logging.getLogger("echocare.seniors")
 
 
 def reach(caller: Caller, role: Role | None = None) -> ColumnElement[bool]:

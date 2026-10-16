@@ -13,15 +13,15 @@ from app.voice.router import router as voice_router
 
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
 logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
-logging.getLogger("sentinela").setLevel(logging.INFO)
-logging.getLogger("sentinela.incidents").setLevel(logging.INFO)
+logging.getLogger("echocare").setLevel(logging.INFO)
+logging.getLogger("echocare.incidents").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
 
 # Everything under /api, docs included, so the API and the dashboard can share one domain.
 app = FastAPI(
-    title="Sentinela",
+    title="EchoCare",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

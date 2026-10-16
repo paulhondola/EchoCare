@@ -17,7 +17,7 @@ import httpx
 
 from app.core.settings import get_settings
 
-log = logging.getLogger("sentinela.twilio")
+log = logging.getLogger("echocare.twilio")
 
 API = "https://api.twilio.com/2010-04-01"
 

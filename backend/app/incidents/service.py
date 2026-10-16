@@ -24,7 +24,7 @@ from app.seniors.schemas import CaregiverSummary, SeniorDetail
 from app.status.engine import Severity
 from app.voice.models import Call, CallTurn, StatusReport
 
-log = logging.getLogger("sentinela.incidents")
+log = logging.getLogger("echocare.incidents")
 
 
 def opens_incident(result: Severity, unresolved: bool) -> bool:

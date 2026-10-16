@@ -30,7 +30,7 @@ async def test_not_signed_in(client, headers):
 
 
 async def test_unknown_number(client, caplog):
-    caplog.set_level(logging.INFO, logger="sentinela.auth")
+    caplog.set_level(logging.INFO, logger="echocare.auth")
     r = await client.get("/api/profile", headers=signed_in("+40700000009"))
     assert (r.status_code, r.json()) == (403, NOT_REGISTERED)
     assert "+40700***009" in caplog.text
@@ -93,7 +93,7 @@ async def test_one_entry_per_caregiver_grant(client, db, add_user, add_senior):
 
 
 async def test_firebase_uid_written_kept_and_replaced(client, db, add_user, caplog):
-    caplog.set_level(logging.WARNING, logger="sentinela.auth")
+    caplog.set_level(logging.WARNING, logger="echocare.auth")
     await add_user(DAS, Role.das)
     stored = select(User.firebase_uid).where(User.phone_e164 == DAS)
 

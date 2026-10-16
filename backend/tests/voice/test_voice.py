@@ -45,7 +45,7 @@ async def call(db, add_senior) -> Call:
 
 async def callback(client, path, call_id, params, *, sign=True):
     """POSTs a form as Twilio would, signed for the public address (conftest.py)."""
-    url = f"https://sentinela.test/api/voice/{path}?call={call_id}"
+    url = f"https://echocare.test/api/voice/{path}?call={call_id}"
     header = signature(TOKEN if sign else "wrong-token", url, params.items())
     return await client.post(
         f"/api/voice/{path}?call={call_id}",
@@ -66,7 +66,7 @@ async def test_answer_connects_to_conversation_relay(client, call):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/xml")
     assert "<Connect><ConversationRelay" in r.text
-    assert f'url="wss://sentinela.test/api/voice/relay?call={call.id}"' in r.text
+    assert f'url="wss://echocare.test/api/voice/relay?call={call.id}"' in r.text
     assert 'language="ro-RO"' in r.text
     assert "Bună ziua, doamna Maria." in r.text
 
@@ -84,7 +84,7 @@ async def test_a_bad_signature_gets_403(client, db, call):
 
 async def test_a_signature_for_another_call_gets_403(client, call):
     # The call id is part of the signed address.
-    url = f"https://sentinela.test/api/voice/answer?call={call.id}"
+    url = f"https://echocare.test/api/voice/answer?call={call.id}"
     header = signature(TOKEN, url.replace(str(call.id), str(uuid.uuid4())), [])
     r = await client.post(
         f"/api/voice/answer?call={call.id}", headers={"X-Twilio-Signature": header}
@@ -196,7 +196,7 @@ class Socket:
 
     def __init__(self, call_id, messages):
         self.url = SimpleNamespace(path="/api/voice/relay", query=f"call={call_id}")
-        url = f"wss://sentinela.test/api/voice/relay?call={call_id}"
+        url = f"wss://echocare.test/api/voice/relay?call={call_id}"
         self.headers = {"x-twilio-signature": signature(TOKEN, url, [])}
         self.incoming = [m if isinstance(m, str) else json.dumps(m) for m in messages]
         self.sent, self.accepted, self.closed = [], False, None

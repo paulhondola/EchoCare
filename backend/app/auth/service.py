@@ -19,14 +19,14 @@ from app.auth.models import ROLE_ORDER, Grant, Role, User
 from app.core.db import get_session
 from app.core.phones import mask, normalize
 
-log = logging.getLogger("sentinela.auth")
+log = logging.getLogger("echocare.auth")
 
 # auto_error=False: a missing or non-Bearer header gets our own 401 body. It also
 # gives Swagger its Authorize button.
 bearer = HTTPBearer(auto_error=False)
 
 # One Firebase project serves every environment (auth-layer AL13).
-FIREBASE_PROJECT_ID = "sentinela-8f474"
+FIREBASE_PROJECT_ID = "echocare-app"
 
 
 class _NoKey(credentials.Base):

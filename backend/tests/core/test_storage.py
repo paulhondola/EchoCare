@@ -12,9 +12,9 @@ from app.core.storage import StorageError, StorageNotConfiguredError, StorageSer
 @pytest.fixture
 def s3_settings():
     return Settings(
-        database_url="postgresql://sentinela:sentinela@localhost:5432/sentinela_test",
+        database_url="postgresql://echocare:echocare@localhost:5432/echocare_test",
         _env_file=None,
-        s3_bucket_name="sentinela-test",
+        s3_bucket_name="echocare-test",
         s3_endpoint="https://s3.eu-west-1.amazonaws.com",
         s3_access_key_id="test-key",
         s3_secret_access_key="test-secret",
@@ -25,7 +25,7 @@ def s3_settings():
 @pytest.fixture
 def unconfigured_settings():
     return Settings(
-        database_url="postgresql://sentinela:sentinela@localhost:5432/sentinela_test",
+        database_url="postgresql://echocare:echocare@localhost:5432/echocare_test",
         _env_file=None,
         s3_bucket_name="",
     )
@@ -140,7 +140,7 @@ async def test_presigned_urls_use_public_endpoint(s3_settings):
         }
     )
     url = await StorageService(settings).generate_presigned_url("a.png")
-    assert url.startswith("http://localhost:9000/sentinela-test/a.png?")
+    assert url.startswith("http://localhost:9000/echocare-test/a.png?")
 
 
 def test_get_storage_provider():

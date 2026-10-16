@@ -20,7 +20,7 @@ from app.voice.dialogue import Relay, greeting
 from app.voice.models import Call, CallTurn, Speaker, TurnKind
 from app.voice.service import move_call
 
-log = logging.getLogger("sentinela.voice")
+log = logging.getLogger("echocare.voice")
 
 
 class Socket(Protocol):
