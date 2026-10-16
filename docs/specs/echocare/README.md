@@ -153,7 +153,7 @@ Each is marked **(proposed)** where it is specified.
 - Assigning incidents to field teams, reopening a resolved incident, and a full case history (the MVP has take and resolve with an outcome and a note)
 - The agent asking where the senior is, and turning a spoken place into coordinates
 - Inbound calls to the project's number (needs a Romanian number, or the senior pays an international call)
-- Withdrawing consent by voice on any call ("spuneți «stop» sau apăsați 8"); in the MVP the medic records a withdrawal
+- Withdrawing consent by voice on any call ("spuneți «stop» sau apăsați 8"); in the MVP the medic or DAS records a withdrawal
 - Any channel for a caregiver on an iPhone
 
 ## Open questions for review

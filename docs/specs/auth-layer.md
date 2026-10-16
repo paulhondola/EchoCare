@@ -476,7 +476,7 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 
 | Item | Belongs to |
 |---|---|
-| Push tokens: `PUT/DELETE /me/push-tokens`, the `push_tokens` table, the FCM dependency on Android | The push work (G4) |
+| Push tokens: `PUT/DELETE /profile/push-tokens`, the `push_tokens` table, the FCM dependency on Android | The push work (G4) |
 | `GET /staff` and the dashboard's „Personal” screen | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
 | On duty: `PUT /staff/on-duty` and the flag in `GET /staff` | The hand-over work (P10) |
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |

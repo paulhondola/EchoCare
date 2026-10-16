@@ -5,7 +5,7 @@
 **Implements:** UC-01 (register a senior), UC-04 step 1 (accept, without the welcome call), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](echocare/04-interfaces.md).
 **Read with:** the system spec in [echocare/](echocare/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
 
-**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](echocare/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE9 (only the medic who registered a senior edits them, in `draft` or `submitted`), SE10 (a second senior on one mobile gets no grant, as AL7 says; there is no `phone_taken`), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
+**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](echocare/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). SE9 and SE10 are in force again (CRUD completion, 2026-10-16): the registering medic and DAS edit a registration and its caregivers in any state, and a second senior on one mobile is refused with `phone_taken`. `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
 
 Sections 1 to 5 are shared reference that every slice reads. Sections 6 to 9 are self-contained briefs, one per pull request, each ending on a completion criterion. Section 10 is the rollout.
 
@@ -519,7 +519,7 @@ The last row is how a grant revoked mid-session ends the session. The reason is 
 | Caregiver home | „Seniorii mei” |
 | DAS home | „Nu sunt incidente.” |
 | Empty list | „Nu aveți niciun senior.” |
-| States | `draft` „Ciornă”, `submitted` „Trimis la DAS”, `accepted` „Acceptat”, `active` „Activ”, `refused` „Refuzat”, `wrong_number` „Număr greșit”, `unreachable` „De negăsit”. An unknown state shows no label |
+| States | `draft` „Ciornă”, `submitted` „Trimis la DAS”, `accepted` „Acceptat”, `active` „Activ”, `refused` „Refuzat”, `wrong_number` „Număr greșit”, `unreachable` „De negăsit”. `withdrawn` has no label yet. An unknown state shows no label |
 | Landline mark | „fix” |
 | Page sections | „Adresă și acces”, „Interval pentru apel”, „Medic”, „Aparținători” |
 | No caregivers | „Niciun aparținător.” |
@@ -555,7 +555,7 @@ All on the medic's screens, and all open one destination, the form:
 |---|---|
 | „Pacient nou”, a button on the medic's home | An empty form |
 | Tapping a draft's card on the medic's home | The form filled from `GET seniors/{id}`, at step 1 |
-| „Editează”, on the page of a senior the medic opened from their home | The same, for a senior in `draft` or `submitted`: 04 §2 refuses an edit past `submitted` with `wrong_state`, so the button shows only in those two states |
+| „Editează”, on the page of a senior the medic opened from their home | The same, for a senior in `draft` or `submitted`. The API edits in any state (SE9), but the button shows only in those two states until the app is updated |
 
 ### 9.2 The four steps
 
@@ -587,9 +587,8 @@ All on the medic's screens, and all open one destination, the form:
 | 422 `incomplete` with `missing`, on submit or on an edit of a submitted senior | „Lipsesc: …”, the missing fields by their labels |
 | 422 `incomplete` on removing the last caregiver past `draft` | „Un senior trimis la DAS are nevoie de cel puțin un aparținător.” |
 | 409 `wrong_state`, or `already_done` on submit | The senior is read again, and step 4 shows the state it is in |
+| 409 `phone_taken` on saving the senior | Under the phone field: „Acest număr este deja al altui senior.” |
 | 404, 403 `not_allowed`, no connection, 401, 403 `not_registered` | As in slice 3's table. The form keeps what was typed when there is no connection |
-
-There is no `phone_taken` since the merge with `main` (line 8): a second senior on one mobile gets no grant.
 
 ### 9.4 Layout
 
