@@ -69,7 +69,7 @@ async def test_grant_a_new_medic(client, db, das):
 async def test_the_new_medic_signs_in(client, das):
     # Typed as "0700 000 002", reported by Firebase as +40700000002: one user.
     await post(client, MEDIC)
-    r = await client.get("/api/me", headers=signed_in("+40700000002"))
+    r = await client.get("/api/profile", headers=signed_in("+40700000002"))
     assert r.status_code == 200
     assert [(g["role"], g["senior_id"]) for g in r.json()["grants"]] == [
         ("medic", None)

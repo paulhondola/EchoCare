@@ -11,8 +11,8 @@ class GrantView(BaseModel):
     relation: str | None = None  # caregivers
 
 
-class MeView(BaseModel):
-    """GET /me (auth-layer §3.3). Fields are only ever added: old apps read new servers."""
+class ProfileView(BaseModel):
+    """GET /profile (auth-layer §3.3). Fields are only ever added: old apps read new servers."""
 
     display_name: str
     phone_e164: str

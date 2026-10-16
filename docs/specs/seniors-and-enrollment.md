@@ -15,7 +15,7 @@ A medic registers a senior with caregivers, DAS accepts the senior, and each num
 
 1. DAS, `+40700000001`, opens „Personal” on the dashboard and adds `+40700000002` as a medic.
 2. The medic signs in on Android, opens „Pacient nou”, registers „doamna Maria” with the caregiver `+40700000004`, and submits.
-3. The caregiver signs in on a second emulator and sees doamna Maria. Their `GET /me` names her.
+3. The caregiver signs in on a second emulator and sees doamna Maria. Their `GET /profile` names her.
 4. Another medic gets 404 for her.
 5. DAS could not see her as a draft, sees her once she is submitted, and accepts her. A second accept is refused.
 6. The medic removes the caregiver. The caregiver's next request answers `not_registered` and the app signs them out.
@@ -24,7 +24,7 @@ A medic registers a senior with caregivers, DAS accepts the senior, and each num
 
 | ID | Decision | Note |
 |---|---|---|
-| SE1 | In scope: the reach rule; the senior, caregiver and enrollment endpoints; `GET /staff`; the `/me` additions; the dashboard's „Personal” screen; Android navigation with a home per role; the medic's „Pacient nou” form | Out of scope: §11 |
+| SE1 | In scope: the reach rule; the senior, caregiver and enrollment endpoints; `GET /staff`; the `/profile` additions; the dashboard's „Personal” screen; Android navigation with a home per role; the medic's „Pacient nou” form | Out of scope: §11 |
 | SE2 | No migration. The `seniors` table, the foreign key on `grants.senior_id` and the one-senior-grant index shipped in `741f75a7dbe1`, and `tests/test_models.py` already tests both constraints | #16's first task is done; its note about #15 is stale, because the head is `b3e9c1d47a52` |
 | SE3 | A draft needs a full name, a form of address and a valid phone number | The table's NOT NULL columns |
 | SE4 | Submitting also needs a street and a street number. Caregivers are optional | DAS must be able to find the door (G13); a senior with no family can still be enrolled |
@@ -172,7 +172,7 @@ Caregivers are sorted by name. This object is called **the senior's page** below
 ]
 ```
 
-**`GET /me`.** Each grant gains two fields, `null` where they do not apply (auth-layer §3.3, optional additions):
+**`GET /profile`.** Each grant gains two fields, `null` where they do not apply (auth-layer §3.3, optional additions):
 
 ```json
 { "role": "caregiver", "senior_id": "0199b6f0-7c1e-7a55-b8d2-5d0c8c3a7f21", "senior_form_of_address": "doamna Maria", "relation": "fiică" }
@@ -266,10 +266,10 @@ A test number is enough for a senior here, because nothing dials it yet. When ca
 | `app/staff.py` | `grant_staff()` calls `user_for_number()`. Gains `list_staff(session)` for `GET /staff` |
 | `app/reach.py` | `reaches(caller, *roles)` and `reachable_senior(session, caller, senior_id, *roles) -> Senior`, which raises 404 `not_found` (§3.1). With `lock=True` it holds the row until the transaction ends, for a command that reads the state and then writes |
 | `app/seniors.py` | An `APIRouter` with the reads and commands of §3.3 and §3.4 for seniors, caregivers and enrollment; their request and response models; the grant rules of §3.5 |
-| `app/main.py` | `GET /staff`; the `/me` additions; `api.include_router(seniors.router)` |
+| `app/main.py` | `GET /staff`; the `/profile` additions; `api.include_router(seniors.router)` |
 | `tests/conftest.py` | `add_senior` accepts the medic who registers the senior |
 | `tests/test_grants.py`, `test_reach.py`, `test_seniors.py`, `test_caregivers.py`, `test_enrollment.py` | §6.4 |
-| `tests/test_staff.py`, `tests/test_me.py` | The `GET /staff` and `/me` cases of §6.4 |
+| `tests/test_staff.py`, `tests/test_profile.py` | The `GET /staff` and `/profile` cases of §6.4 |
 
 ### 6.2 Facts that are hard to find by looking
 
@@ -295,7 +295,7 @@ Each step is done when its criterion holds.
 4. **`POST /seniors` and `PUT /seniors/{id}`**, with the senior's grant. *Done:* the senior cases pass.
 5. **Caregivers.** *Done:* the caregiver cases pass.
 6. **Submit, accept and `GET /enrollments`.** *Done:* the enrollment cases pass.
-7. **`/me` additions.** *Done:* the `/me` cases pass. Existing assertions that compare a whole grant, in `tests/test_me.py` and `tests/test_staff.py`, gain the two new fields.
+7. **`/profile` additions.** *Done:* the `/profile` cases pass. Existing assertions that compare a whole grant, in `tests/test_profile.py` and `tests/test_staff.py`, gain the two new fields.
 8. **`GET /staff`.** *Done:* the staff cases pass.
 9. **Docs.** *Done:* every row of §6.6 is changed.
 10. **Real-token check.** On Compose, with tokens from `dev_token.py`, run the story of §1 steps 2 to 6 with curl. *Done:* each step's answer is reported. If `+40700000004` is not yet a test number in the console, stop and report it.
@@ -329,7 +329,7 @@ The stand-in verifier and the fixtures are those of auth-layer §6.4.
 
 **Seniors**
 - A medic creates a draft with only the three required fields; the page comes back with `null` for the rest.
-- A landline sets `phone_is_landline` and makes no user and no grant. A mobile makes the user and the senior grant, and that number's `/me` names the senior.
+- A landline sets `phone_is_landline` and makes no user and no grant. A mobile makes the user and the senior grant, and that number's `/profile` names the senior.
 - A full name of 150 characters makes a user named with its first 120.
 - A blank name, a blank form of address, an unparseable number and an over-long field are each a 422.
 - A mobile that is another senior's is 409 `phone_taken`, and no senior is created.
@@ -355,7 +355,7 @@ The stand-in verifier and the fixtures are those of auth-layer §6.4.
 - A medic calling accept, and DAS calling submit, each get 403 `not_allowed`.
 - Two accepts at once give one 200 and one 409.
 
-**`/me`**
+**`/profile`**
 - A caregiver grant carries the senior's form of address and the relation. A `das` grant carries `null` for both.
 
 **`GET /staff`**
@@ -456,7 +456,7 @@ Slice 2 is done when all of these hold:
   - Adding the same number and role again shows the `already_done` text.
   - A landline shows the phone text.
   - A reload on `/personal` stays on „Personal”.
-- That medic's number gets a 200 from `GET /api/me` with a `medic` grant, using a token from `dev_token.py`.
+- That medic's number gets a 200 from `GET /api/profile` with a `medic` grant, using a token from `dev_token.py`.
 
 Report each of these observations. Open the PR only when the person who dispatched you asks for it.
 

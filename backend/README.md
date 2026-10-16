@@ -102,7 +102,7 @@ TOKEN=$(uv run python scripts/dev_token.py +40700000001 111111)
 ```
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/me
+curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/profile
 ```
 
 A DAS grants medics through the API:

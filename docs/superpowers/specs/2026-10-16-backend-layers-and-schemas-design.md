@@ -122,7 +122,7 @@ Renames (the JSON stays the same; only schema titles in `/api/openapi.json` chan
 
 | Today | After | Kind |
 |---|---|---|
-| `Me` | `MeView` | response, `GET /api/me` |
+| `Me` | `ProfileView` | response, `GET /api/profile` (was `/me`) |
 | `StaffGrant` | `StaffGrantForm` | request body |
 | `StaffMember` | `StaffMemberView` | response |
 | `StaffListing` | `StaffListingView` | response |

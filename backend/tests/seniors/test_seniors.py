@@ -87,7 +87,7 @@ async def test_the_medic_registers_a_draft(client, staff):
 
 async def test_a_mobile_senior_signs_in_as_herself(client, staff):
     maria = await register(client)
-    r = await get(client, "/api/me", SENIOR)
+    r = await get(client, "/api/profile", SENIOR)
     assert r.status_code == 200
     assert r.json()["grants"] == [
         {
@@ -129,7 +129,7 @@ async def test_the_caregiver_story(client, staff):
         "fiica",
     )
 
-    r = await get(client, "/api/me", CAREGIVER)
+    r = await get(client, "/api/profile", CAREGIVER)
     assert r.json()["grants"] == [
         {
             "role": "caregiver",

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.schemas import GrantView, MeView
+from app.auth.schemas import GrantView, ProfileView
 from app.auth.service import Caller, current_caller
 from app.core.db import get_session
 from app.seniors.service import forms_of_address
@@ -11,15 +11,15 @@ from app.seniors.service import forms_of_address
 router = APIRouter()
 
 
-@router.get("/me")
-async def me(
+@router.get("/profile")
+async def profile(
     caller: Annotated[Caller, Depends(current_caller)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> MeView:
+) -> ProfileView:
     names = await forms_of_address(
         session, {g.senior_id for g in caller.grants if g.senior_id is not None}
     )
-    return MeView(
+    return ProfileView(
         display_name=caller.user.display_name,
         phone_e164=caller.user.phone_e164,
         grants=[
