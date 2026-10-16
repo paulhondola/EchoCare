@@ -27,6 +27,7 @@ export default defineRailway((ctx) => {
 
   // Postgres database pinned to EU West (europe-west4-drams3a)
   const db = postgres("Postgres", { region: REGION });
+  db.deploy = { ...db.deploy, sleepApplication: true };
   // S3-compatible storage bucket in Europe (Amsterdam)
   const storage = bucket("storage", { region: "ams" });
 
@@ -35,11 +36,13 @@ export default defineRailway((ctx) => {
     source: github(REPO, { branch, rootDirectory: "/backend", checkSuites: true }),
     // watch paths: only backend changes redeploy the API and drop live calls
     build: { builder: "DOCKERFILE", dockerfilePath: "/backend/Dockerfile", watchPatterns: ["/backend/**"] },
+    // run DB migrations
     preDeploy: "alembic upgrade head",
+    // Health Endpoint
     healthcheck: "/api/health",
     replicas: { [REGION]: 1 },
-    // drainingSeconds: an old copy keeps its calls (3 min limit) after SIGTERM
-    deploy: { sleepApplication: true, drainingSeconds: 200 },
+    // Enable serverless
+    deploy: { sleepApplication: true },
     env: {
       APP_ENV: env,
       DATABASE_URL: db.env.DATABASE_URL,
@@ -61,8 +64,9 @@ export default defineRailway((ctx) => {
 
   const dashboard = service("dashboard", {
     source: github(REPO, { branch, rootDirectory: "/dashboard", checkSuites: true }),
-    build: { builder: "DOCKERFILE", watchPatterns: ["/dashboard/**"] },
+    build: { builder: "DOCKERFILE", dockerfilePath: "/dashboard/Dockerfile", watchPatterns: ["/dashboard/**"] },
     replicas: { [REGION]: 1 },
+    // Enable Serverless
     deploy: { sleepApplication: true },
     // Vite writes this into the bundle at build time (an ARG in the Dockerfile)
     env: { VITE_API_URL: "https://${{api.RAILWAY_PUBLIC_DOMAIN}}", ...FIREBASE_WEB },
