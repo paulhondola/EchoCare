@@ -15,6 +15,13 @@ router = APIRouter()
 settings = get_settings()
 
 
+@router.get("/health")
+async def health() -> dict[str, str]:
+    # Fails when the database is unreachable, so Railway holds back a broken deploy (06 §1).
+    await check_database_health()
+    return {"status": "ok", "env": settings.app_env}
+
+
 @router.get("/system/health")
 async def system_health(
     _: Annotated[Caller, Depends(require_roles(Role.das))],

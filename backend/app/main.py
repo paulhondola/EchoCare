@@ -2,18 +2,10 @@ import logging
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from app.auth.router import router as auth_router
-from app.core.db import engine
 from app.core.settings import check_environment, get_settings
-from app.incidents.router import (
-    incidents_query,
-    parse_statuses,
-)
-from app.incidents.router import (
-    router as incidents_router,
-)
+from app.incidents.router import router as incidents_router
 from app.seniors.router import router as seniors_router
 from app.staff.router import router as staff_router
 from app.system.router import router as system_router
@@ -44,14 +36,6 @@ app.add_middleware(
 api = APIRouter(prefix="/api")
 
 
-@api.get("/health")
-async def health() -> dict[str, str]:
-    # Fails when the database is unreachable, so Railway holds back a broken deploy (06 §1).
-    async with engine.connect() as conn:
-        await conn.execute(text("SELECT 1"))
-    return {"status": "ok", "env": settings.app_env}
-
-
 # Assemble domain routers onto /api
 api.include_router(auth_router)
 api.include_router(staff_router)
@@ -63,4 +47,4 @@ api.include_router(system_router)
 # after every route is declared: include_router copies the routes it has at this point
 app.include_router(api)
 
-__all__ = ["app", "incidents_query", "parse_statuses"]
+__all__ = ["app"]

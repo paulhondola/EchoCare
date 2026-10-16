@@ -4,19 +4,22 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import Select, func, or_, select, update
+from sqlalchemy import func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from app.auth.models import Role, User
 from app.auth.service import Caller, refuse, require_roles
 from app.core.db import engine, get_session
 from app.incidents.models import Incident, IncidentStatus
 from app.incidents.schemas import IncidentDetail, IncidentSummary, ResolutionForm
-from app.incidents.service import resolve_refusal, take_refusal
-from app.incidents.views import load_incident
-from app.seniors.models import Senior
-from app.voice.models import Call
+from app.incidents.service import (
+    current_incident,
+    incident_summary,
+    incidents_query,
+    load_incident,
+    resolve_refusal,
+    take_refusal,
+)
 
 log = logging.getLogger("sentinela.incidents")
 
@@ -31,47 +34,6 @@ def parse_statuses(status: str | None) -> set[IncidentStatus] | None:
         return {IncidentStatus(s.strip()) for s in status.split(",") if s.strip()}
     except ValueError:
         raise refuse(422, "unknown_status") from None
-
-
-def incidents_query(
-    statuses: set[IncidentStatus] | None, incident_id: uuid.UUID | None = None
-) -> Select:
-    taker, opening, call = aliased(User), aliased(Call), aliased(Call)
-    # Answered on any of its calls: the opening red, or a later red added to it (05 §1).
-    handover_answered = (
-        select(call.id)
-        .where(
-            call.senior_id == Incident.senior_id,
-            call.handover_answered.is_(True),
-            call.created_at >= func.coalesce(opening.created_at, Incident.opened_at),
-            or_(
-                Incident.resolved_at.is_(None), call.created_at <= Incident.resolved_at
-            ),
-        )
-        .exists()
-    )
-    query = (
-        select(
-            Incident.id,
-            Senior.full_name.label("senior_full_name"),
-            Senior.form_of_address.label("senior_form_of_address"),
-            Incident.status,
-            Incident.reason,
-            Incident.opened_at,
-            taker.display_name.label("taken_by_name"),
-            Incident.taken_at,
-            handover_answered.label("handover_answered"),
-        )
-        .join(Senior, Senior.id == Incident.senior_id)
-        .outerjoin(taker, taker.id == Incident.taken_by)
-        .outerjoin(opening, opening.id == Incident.opened_by_call_id)
-        .order_by(Incident.opened_at.desc())
-    )
-    if statuses is not None:
-        query = query.where(Incident.status.in_(statuses))
-    if incident_id is not None:
-        query = query.where(Incident.id == incident_id)
-    return query
 
 
 # Resolved incidents are kept (05 §5); the list shows only the last day's (04 §1).
@@ -105,20 +67,6 @@ async def get_incident(
     if detail is None:
         raise refuse(404, "not_found")
     return detail
-
-
-async def incident_summary(
-    session: AsyncSession, incident_id: uuid.UUID
-) -> IncidentSummary:
-    row = (await session.execute(incidents_query(None, incident_id))).mappings().one()
-    return IncidentSummary.model_validate(dict(row))
-
-
-async def current_incident(session: AsyncSession, incident_id: uuid.UUID) -> Incident:
-    incident = await session.get(Incident, incident_id, populate_existing=True)
-    if incident is None:
-        raise refuse(404, "not_found")
-    return incident
 
 
 @router.post("/incidents/{incident_id}/take")

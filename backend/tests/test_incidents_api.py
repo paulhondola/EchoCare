@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from app.incidents.models import IncidentStatus
-from app.incidents.router import incidents_query, parse_statuses
+from app.incidents.router import parse_statuses
+from app.incidents.service import incidents_query
 from app.models import Incident, Role
 
 
