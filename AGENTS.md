@@ -2,7 +2,7 @@
 
 Guide for coding agents in this repository. People start with [README.md](README.md).
 
-Sentinela checks on seniors living alone with automated phone calls in Romanian, a Wear OS watch and an Android app, and hands emergencies to a dispatch team (DAS) through a web dashboard. One repository, one native toolchain per folder, no build orchestrator ([ADR-001](docs/adr/ADR-001-monorepo-and-delivery.md)).
+EchoCare checks on seniors living alone with automated phone calls in Romanian, a Wear OS watch and an Android app, and hands emergencies to a dispatch team (DAS) through a web dashboard. One repository, one native toolchain per folder, no build orchestrator ([ADR-001](docs/adr/ADR-001-monorepo-and-delivery.md)).
 
 ## Layout
 
@@ -12,7 +12,7 @@ Sentinela checks on seniors living alone with automated phone calls in Romanian,
 | `dashboard/` | DAS web dashboard | Svelte 5, SvelteKit 3, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
 | `android/` | Phone app `:app`, watch app `:wear`, plain-Kotlin `:shared` | Kotlin, Compose, Gradle | [android/AGENTS.md](android/AGENTS.md) |
 | `.railway/` | Railway settings as code, staging and production | TypeScript, Railway CLI | [.railway/AGENTS.md](.railway/AGENTS.md) |
-| `docs/specs/sentinela/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
+| `docs/specs/echocare/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
 | `docs/adr/` | Architecture decisions | Markdown | |
 | `docs/specs/esti-bine-specificatii-v3.md`, `unihack.md` | The earlier v3 spec and the hackathon brief, in Romanian. History, not the current design | Markdown | |
 | `.github/workflows/` | One CI workflow per folder, path-filtered | GitHub Actions | |
@@ -23,7 +23,7 @@ Run each toolchain from its own folder. There is no root `package.json`, Makefil
 
 ## The spec is the source of truth
 
-Code and comments cite the spec by ID: `G6` (goal), `UC-09` (use case), `04 §6` (file `04-interfaces.md`, section 6), `S5` (spike), `ADR-001 §2.1`. Before building a feature, read the matching file in [docs/specs/sentinela/](docs/specs/sentinela/README.md). The API contract is `04-interfaces.md` and the tables are `05-data-model.md`. Cite IDs the same way in new comments.
+Code and comments cite the spec by ID: `G6` (goal), `UC-09` (use case), `04 §6` (file `04-interfaces.md`, section 6), `S5` (spike), `ADR-001 §2.1`. Before building a feature, read the matching file in [docs/specs/echocare/](docs/specs/echocare/README.md). The API contract is `04-interfaces.md` and the tables are `05-data-model.md`. Cite IDs the same way in new comments.
 
 ## Commands
 
@@ -45,7 +45,7 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 |---|---|
 | http://localhost:8000/api/docs | API and its OpenAPI docs |
 | http://localhost:5173 | Dashboard |
-| localhost:5432 | Postgres; user, password and database `sentinela`; tests use `sentinela_test` |
+| localhost:5432 | Postgres; user, password and database `echocare`; tests use `echocare_test` |
 | http://localhost:4040 | ngrok request inspector, with the tunnel profile |
 
 ## How changes ship

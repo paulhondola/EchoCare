@@ -60,11 +60,11 @@ npm run preview
 The last stage of the Dockerfile is the one Railway builds: Caddy serving `dist/` on `$PORT` (3000 when unset). Keep that stage last. The `dev` stage exists only for Compose. To try the production image locally, from the repository root:
 
 ```bash
-docker build -t sentinela-dashboard --build-arg VITE_API_URL=http://localhost:8000 dashboard
+docker build -t echocare-dashboard --build-arg VITE_API_URL=http://localhost:8000 dashboard
 ```
 
 ```bash
-docker run --rm -p 3000:3000 sentinela-dashboard
+docker run --rm -p 3000:3000 echocare-dashboard
 ```
 
 The [Caddyfile](Caddyfile) sends every unknown path to `index.html`, so a reload on a route works. It caches hashed files under `/_app/immutable/` for a year and revalidates `index.html` on every load, so a deploy shows at once.

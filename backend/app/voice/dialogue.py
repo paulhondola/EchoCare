@@ -7,7 +7,7 @@ from fastapi import Response
 
 from app.voice.models import Speaker, TurnKind
 
-log = logging.getLogger("sentinela.voice")
+log = logging.getLogger("echocare.voice")
 
 LANGUAGE = "ro-RO"
 GOODBYE = "Vă mulțumesc. La revedere."

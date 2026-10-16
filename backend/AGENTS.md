@@ -37,7 +37,7 @@ Each feature package uses the files it needs from: `models.py` (SQLAlchemy ORM t
 
 ## Scope
 
-- Endpoints, call handling, the scheduler, the status engine and the database all live here. The contract is [04-interfaces.md](../docs/specs/sentinela/04-interfaces.md), the tables are [05-data-model.md](../docs/specs/sentinela/05-data-model.md).
+- Endpoints, call handling, the scheduler, the status engine and the database all live here. The contract is [04-interfaces.md](../docs/specs/echocare/04-interfaces.md), the tables are [05-data-model.md](../docs/specs/echocare/05-data-model.md).
 - Domain routers are mounted on the `api` router (prefix `/api`) in `main.py`.
 - New settings go on `Settings` in `app/core/settings.py` and in `.env.example`.
 - Clients (`dashboard/`, `android/`) never read the database; they go through this API.
@@ -65,7 +65,7 @@ Run migrations inside the Compose `api` container: `alembic/` is bind-mounted, s
 - **Migrations only add.** New columns nullable or with a default; nothing renamed or dropped in the same deploy. Old and new copies run against the same schema during a deploy.
 - **A migration on `main` is frozen.** Staging has applied it. Fix it with a new migration.
 - **Don't bypass the environment guards.** `alembic/env.py` refuses non-local hosts, and `check_environment()` refuses a laptop scheduler on a cloud database. Their tests are in `tests/core/test_settings.py`; keep them passing.
-- **Tests never use `sentinela`.** A test that needs a database uses `sentinela_test`. Logic that needs none, such as the status engine and alarm phrases, is tested without one (06 §5).
+- **Tests never use `echocare`.** A test that needs a database uses `echocare_test`. Logic that needs none, such as the status engine and alarm phrases, is tested without one (06 §5).
 - **API changes only add.** Installed Android apps lag behind (ADR-001 §2.3): new response fields optional, old fields kept.
 - **`/api/health` touches the database on purpose.** Railway's health check uses it to hold back a broken deploy.
 - **Import a name from the module that defines it.** No re-exports in `__init__.py`, no imports inside functions. Tests patch a name in the module that uses it.

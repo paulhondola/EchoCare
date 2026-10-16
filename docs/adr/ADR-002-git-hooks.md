@@ -239,7 +239,7 @@ Git reads hooks from one directory: `.git/hooks/`, or `core.hooksPath` when it i
 - Committing part of a file that a formatter changes can move the unstaged lines (see "Partly staged files").
 
 **To revisit**
-- `pytest` on commit, once tests need the `sentinela_test` database. The hook would fail whenever Compose is not running; move those tests to pre-push or mark them.
+- `pytest` on commit, once tests need the `echocare_test` database. The hook would fail whenever Compose is not running; move those tests to pre-push or mark them.
 - Passing `{staged_files}` to `vp check`, if the dashboard grows enough to make whole-project checks slow.
 - A type checker for the backend (mypy, pyright or ty). There is none today, and this ADR does not add one.
 - Formatting `.railway/railway.ts`, if it starts changing often.

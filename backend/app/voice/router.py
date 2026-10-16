@@ -17,7 +17,7 @@ from app.voice.service import form_of_address, machine_answered, move_call
 from app.voice.session import serve
 from app.voice.twilio import public_url, signed, voice_url
 
-log = logging.getLogger("sentinela.voice")
+log = logging.getLogger("echocare.voice")
 
 router = APIRouter()
 

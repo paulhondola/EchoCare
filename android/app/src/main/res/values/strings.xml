@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">Sentinela</string>
+    <string name="app_name">EchoCare</string>
 
     <!-- Sign-in (auth-layer §8.2) -->
     <string name="sign_in_title">Intrați în cont</string>

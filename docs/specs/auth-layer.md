@@ -1,8 +1,8 @@
 # Auth layer
 
 **Status:** approved design · 2026-10-11 · branch `auth-layer`
-**Implements:** G6 and UC-02 (phone sign-in, grants), the API half of UC-14 (grant staff), [01 §6](sentinela/01-architecture.md), [04 §0, §1 `/profile`, §2 `/staff`, §7](sentinela/04-interfaces.md), [06 §4](sentinela/06-operations.md) (access).
-**Read with:** the system spec in [sentinela/](sentinela/README.md). Where the two disagree, this file wins for the auth layer, and slice 1 brings the system spec in line (§6.6).
+**Implements:** G6 and UC-02 (phone sign-in, grants), the API half of UC-14 (grant staff), [01 §6](echocare/01-architecture.md), [04 §0, §1 `/profile`, §2 `/staff`, §7](echocare/04-interfaces.md), [06 §4](echocare/06-operations.md) (access).
+**Read with:** the system spec in [echocare/](echocare/README.md). Where the two disagree, this file wins for the auth layer, and slice 1 brings the system spec in line (§6.6).
 
 Sections 1 to 5 are shared reference that every slice reads. Sections 6, 7 and 8 are self-contained briefs, one per agent, each ending on a completion criterion. Section 9 is the rollout a person runs.
 
@@ -295,13 +295,13 @@ The contract and the docs move together (root `AGENTS.md`).
 
 | File | Change |
 |---|---|
-| `docs/specs/sentinela/04-interfaces.md` §0 | `Authorization: Bearer`; the reasons and the body shape of §3.2 |
+| `docs/specs/echocare/04-interfaces.md` §0 | `Authorization: Bearer`; the reasons and the body shape of §3.2 |
 | same file, §1 | The `/profile` row matches §3.3, and says the warning flag and senior names arrive with their tables |
 | same file, §2 | The "Grant staff" row matches §3.4 |
-| `docs/specs/sentinela/01-architecture.md` §6 | AL2, AL3, AL4, AL7, AL8, and the medic rule in §3.6 |
-| `docs/specs/sentinela/02-use-cases.md` UC-02 step 5 | "Several roles" instead of "several grants" |
-| `docs/specs/sentinela/05-data-model.md` §3 and §4 | At most one senior grant per user (enforced with the seniors migration); the `firebase_uid` overwrite rule |
-| `docs/specs/sentinela/06-operations.md` §4 | The logging rule (AL15) |
+| `docs/specs/echocare/01-architecture.md` §6 | AL2, AL3, AL4, AL7, AL8, and the medic rule in §3.6 |
+| `docs/specs/echocare/02-use-cases.md` UC-02 step 5 | "Several roles" instead of "several grants" |
+| `docs/specs/echocare/05-data-model.md` §3 and §4 | At most one senior grant per user (enforced with the seniors migration); the `firebase_uid` overwrite rule |
+| `docs/specs/echocare/06-operations.md` §4 | The logging rule (AL15) |
 | `backend/AGENTS.md` | The layout gains the new modules and `scripts/` |
 | `backend/README.md` | The test numbers (§5); how to grant locally; how to use `dev_token.py` with Swagger's *Authorize* and with curl |
 

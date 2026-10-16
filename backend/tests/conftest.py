@@ -8,13 +8,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 # Before anything imports app: app.db builds its engine from DATABASE_URL at import, and
-# an environment variable beats backend/.env. Tests never use `sentinela` (AGENTS.md).
+# an environment variable beats backend/.env. Tests never use `echocare` (AGENTS.md).
 os.environ["DATABASE_URL"] = (
-    "postgresql://sentinela:sentinela@localhost:5432/sentinela_test"
+    "postgresql://echocare:echocare@localhost:5432/echocare_test"
 )
 # Twilio's callbacks are signed with this token for the address Twilio would call (#15).
 os.environ["TWILIO_AUTH_TOKEN"] = "test-auth-token"
-os.environ["PUBLIC_BASE_URL"] = "https://sentinela.test"
+os.environ["PUBLIC_BASE_URL"] = "https://echocare.test"
 
 import pytest
 from fastapi import Depends

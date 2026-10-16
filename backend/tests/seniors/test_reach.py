@@ -189,7 +189,7 @@ async def test_a_state_this_copy_does_not_know_is_served(client, db, seniors):
 
 
 async def test_a_refusal_is_logged_without_a_number(client, seniors, caplog):
-    caplog.set_level(logging.INFO, logger="sentinela")
+    caplog.set_level(logging.INFO, logger="echocare")
     await client.get(f"/api/seniors/{seniors['draft']}", headers=signed_in(DAS))
     assert "refused not_found: user " in caplog.text
     assert f"senior {seniors['draft']}" in caplog.text

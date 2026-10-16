@@ -2,10 +2,10 @@
 
 **Status:** approved design · 2026-10-12 · branch `auth-layer`
 **Issues:** #16 (parent), #17, #18, #19, #21.
-**Implements:** UC-01 (register a senior), UC-04 step 1 (accept, without the welcome call), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](sentinela/04-interfaces.md).
-**Read with:** the system spec in [sentinela/](sentinela/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
+**Implements:** UC-01 (register a senior), UC-04 step 1 (accept, without the welcome call), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](echocare/04-interfaces.md).
+**Read with:** the system spec in [echocare/](echocare/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
 
-**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](sentinela/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE9 (only the medic who registered a senior edits them, in `draft` or `submitted`), SE10 (a second senior on one mobile gets no grant, as AL7 says; there is no `phone_taken`), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
+**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](echocare/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE9 (only the medic who registered a senior edits them, in `draft` or `submitted`), SE10 (a second senior on one mobile gets no grant, as AL7 says; there is no `phone_taken`), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
 
 Sections 1 to 5 are shared reference that every slice reads. Sections 6 to 9 are self-contained briefs, one per pull request, each ending on a completion criterion. Section 10 is the rollout.
 
@@ -241,7 +241,7 @@ A later change of the senior's name does not rename their user row.
 
 ## 4. Data
 
-No table changes (SE2). Each field of §3.3 is the `seniors` column of the same name ([05](sentinela/05-data-model.md)). `medic` comes from `users` through `seniors.medic_id`, and `caregivers` from `grants` with role `caregiver`.
+No table changes (SE2). Each field of §3.3 is the `seniors` column of the same name ([05](echocare/05-data-model.md)). `medic` comes from `users` through `seniors.medic_id`, and `caregivers` from `grants` with role `caregiver`.
 
 ## 5. Test numbers
 
@@ -378,12 +378,12 @@ Open the PR only when the person who dispatched you asks for it.
 
 | File | Change |
 |---|---|
-| `docs/specs/sentinela/04-interfaces.md` §0 | The reasons `missing_fields` and `phone_taken`; `POST /seniors` as the exception to repeat-safe |
+| `docs/specs/echocare/04-interfaces.md` §0 | The reasons `missing_fields` and `phone_taken`; `POST /seniors` as the exception to repeat-safe |
 | same file, §1 | The seniors rows match §3.3 and say which fields arrive later; `GET /enrollments`; `GET /staff` returns roles, with on duty to come |
 | same file, §2 | The senior, caregiver, submit and accept rows match §3.4 and SE9; the notice SMS and the welcome call are marked as not built |
-| `docs/specs/sentinela/01-architecture.md` §6 | DAS may add and remove caregivers and edit a registration (SE9); one mobile, one senior (SE10) |
-| `docs/specs/sentinela/02-use-cases.md` UC-01 | Step 6 names what a submit needs (SE4) |
-| `docs/specs/sentinela/05-data-model.md` §3 | The one-senior-grant row matches SE10 |
+| `docs/specs/echocare/01-architecture.md` §6 | DAS may add and remove caregivers and edit a registration (SE9); one mobile, one senior (SE10) |
+| `docs/specs/echocare/02-use-cases.md` UC-01 | Step 6 names what a submit needs (SE4) |
+| `docs/specs/echocare/05-data-model.md` §3 | The one-senior-grant row matches SE10 |
 | `docs/specs/auth-layer.md` | AL7 and §3.6 match SE10 and SE9; §3.3 shows the two new grant fields; §5 lists the two new numbers; §10 marks the seniors row and `GET /staff` as built here |
 | `backend/AGENTS.md` | The layout gains `grants.py`, `reach.py` and `seniors.py`; the route rule allows a router included into `api` |
 
@@ -464,7 +464,7 @@ Report each of these observations. Open the PR only when the person who dispatch
 
 **Branch:** `android-homes`, in its own worktree, cut from `main` after slice 1 has merged. **Closes:** #21. **Read first:** [android/AGENTS.md](../../android/AGENTS.md), [android/app/AGENTS.md](../../android/app/AGENTS.md), then §1 to §5 of this file.
 
-**Preconditions:** the shared keystore and `sentinela.apiUrl=http://10.0.2.2:8000` in `local.properties`; the test numbers granted on the local stack, with one senior and one caregiver registered through the API.
+**Preconditions:** the shared keystore and `echocare.apiUrl=http://10.0.2.2:8000` in `local.properties`; the test numbers granted on the local stack, with one senior and one caregiver registered through the API.
 
 ### 8.1 Build
 
@@ -473,7 +473,7 @@ Through `gradle/libs.versions.toml`, on `:app` only.
 | Addition | Note |
 |---|---|
 | `androidx.navigation:navigation-compose`, the current stable release | Type-safe routes use the serialization plugin the app already has |
-| `BuildConfig.REREAD_SECONDS` | 30. A debug build reads `sentinela.rereadSeconds` from `local.properties`, so a demo can use 10 (06 §3) |
+| `BuildConfig.REREAD_SECONDS` | 30. A debug build reads `echocare.rereadSeconds` from `local.properties`, so a demo can use 10 (06 §3) |
 
 If Navigation cannot build under AGP 9.4.1 and Kotlin 2.2.10, stop and report the build error.
 
