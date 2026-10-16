@@ -107,12 +107,12 @@ async def editable_senior(
     return senior
 
 
-async def sync_senior_grant(session: AsyncSession, senior: Senior) -> None:
+async def sync_senior_grant(session: AsyncSession, senior: Senior) -> bool:
     """A mobile number is the senior's own grant; a landline has none (UC-01 step 3).
 
-    A changed number drops the old number's grant. When the number already holds a
-    senior grant, for a couple sharing one mobile, the second senior gets none and
-    still receives every call (AL7).
+    A changed number drops the old number's grant. Returns whether the senior holds
+    its number's grant afterwards: `True` for a landline, `False` when the number
+    already holds another senior's, which the caller refuses as `phone_taken` (SE10).
     """
     await session.execute(
         delete(Grant).where(
@@ -124,9 +124,9 @@ async def sync_senior_grant(session: AsyncSession, senior: Senior) -> None:
         )
     )
     if senior.phone_is_landline:
-        return
+        return True
     user = await user_for(session, senior.phone_e164, senior.full_name[:120])
-    # No conflict target: covers both the per-senior key and the AL7 index.
+    # No conflict target: covers both the per-senior key and the SE10 index.
     await session.execute(
         insert(Grant)
         .values(
@@ -136,6 +136,17 @@ async def sync_senior_grant(session: AsyncSession, senior: Senior) -> None:
             granted_by=senior.medic_id,
         )
         .on_conflict_do_nothing()
+    )
+    return await session.scalar(
+        select(
+            select(Grant.id)
+            .where(
+                Grant.user_id == user.id,
+                Grant.senior_id == senior.id,
+                Grant.role == Role.senior,
+            )
+            .exists()
+        )
     )
 
 
@@ -241,7 +252,10 @@ async def register(
     senior = Senior(medic_id=caller.user.id, **form.columns())
     session.add(senior)
     await session.flush()  # the database makes the id
-    await sync_senior_grant(session, senior)
+    if not await sync_senior_grant(session, senior):
+        log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior.id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "phone_taken")
     await session.commit()
     return await senior_view(session, senior)
 
@@ -257,6 +271,7 @@ async def edit(
     if senior.enrollment_state != EnrollmentState.draft and missing:
         log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(422, "incomplete", missing=missing)
+    was = senior.phone_e164  # the update below overwrites `senior`
     updated = await session.scalar(
         update(Senior)
         .where(Senior.id == senior_id)
@@ -264,7 +279,11 @@ async def edit(
         .returning(Senior)
         .execution_options(populate_existing=True)
     )
-    await sync_senior_grant(session, updated)
+    # A senior left sharing a mobile by AL7 keeps their number and stays editable
+    if not await sync_senior_grant(session, updated) and form.phone != was:
+        log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "phone_taken")
     await session.commit()
     return await senior_view(session, updated)
 

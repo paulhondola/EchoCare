@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.core.db import engine
 from app.models import EnrollmentState, Grant, Role, Senior, User
@@ -107,14 +107,49 @@ async def test_a_landline_senior_has_no_grant(client, db, staff):
     assert await db.scalar(select(Grant).where(Grant.role == Role.senior)) is None
 
 
-async def test_a_couple_sharing_a_mobile(client, db, staff):
-    # The second senior gets no app role and still receives every call (AL7).
-    first = await register(client)
-    await register(
-        client, {**MARIA, "full_name": "Ion Pop", "form_of_address": "domnul Ion"}
+PHONE_TAKEN = (409, {"detail": {"reason": "phone_taken"}})
+
+
+async def test_one_mobile_one_senior(client, db, staff):
+    await register(client)
+    r = await client.post(
+        "/api/seniors",
+        json={**MARIA, "full_name": "Ion Pop", "form_of_address": "domnul Ion"},
+        headers=signed_in(MEDIC),
     )
-    grants = (await db.scalars(select(Grant).where(Grant.role == Role.senior))).all()
-    assert [str(g.senior_id) for g in grants] == [first["id"]]
+    assert refusal(r) == PHONE_TAKEN
+    # nothing stored
+    assert await db.scalar(select(func.count()).select_from(Senior)) == 1
+
+
+async def test_an_edit_to_another_seniors_mobile(client, staff):
+    await register(client)
+    ion = await register(
+        client, {**MARIA, "full_name": "Ion Pop", "phone": "0700 000 008"}
+    )
+    r = await client.put(
+        f"/api/seniors/{ion['id']}", json=MARIA, headers=signed_in(MEDIC)
+    )
+    assert refusal(r) == PHONE_TAKEN
+    r = await get(client, f"/api/seniors/{ion['id']}", MEDIC)
+    assert r.json()["phone_e164"] == "+40700000008"
+
+
+async def test_a_shared_mobile_from_before_stays_editable(client, add_senior, staff):
+    await register(client)
+    # no grant, as AL7 left it
+    ion = await add_senior(SENIOR, name="Ion Pop", medic=staff)
+    r = await client.put(
+        f"/api/seniors/{ion.id}",
+        json={**MARIA, "full_name": "Ion Pop", "street": "Str. Nouă"},
+        headers=signed_in(MEDIC),
+    )
+    assert (r.status_code, r.json()["street"]) == (200, "Str. Nouă")
+
+
+async def test_a_landline_can_be_shared(client, staff):
+    await register(client, {**MARIA, "phone": "0256 123 456"})
+    await register(client, {**MARIA, "full_name": "Ion Pop", "phone": "0256 123 456"})
 
 
 async def test_the_caregiver_story(client, staff):
