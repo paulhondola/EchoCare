@@ -84,7 +84,7 @@ A package includes only the files it needs. Converting between ORM and Pydantic 
 | `IncidentSummary`, `Resolution`, `Note` | `incidents/router.py` | `incidents/schemas.py` |
 | `TriggerEvent`, `Turn`, `Report`, `CallDetail`, `IncidentDetail` | `incidents/views.py` | `incidents/schemas.py` |
 | `incident_query`, `calls_query`, `caregivers_query`, `attempts_behind`, `load_incident`, `call_detail` | `incidents/views.py` | `incidents/service.py` |
-| `incidents_query`, `current_incident` | `incidents/router.py` | `incidents/service.py` |
+| `incidents_query`, `incident_summary`, `current_incident` | `incidents/router.py` | `incidents/service.py` |
 | `parse_statuses` | `incidents/router.py` | stays (parses a query parameter) |
 | `move_call` | `voice/router.py` | `voice/service.py` (new) |
 | `twilio_params`, `Params`, `Db` | `voice/router.py` | stay (request plumbing) |
@@ -273,10 +273,13 @@ After the last change:
 
 One PR from branch `backend-layout`, with one commit per step, each passing ruff and pytest:
 
-1. **Schemas.** Add `schemas.py` to each package, move the Pydantic classes, apply the renames, rename `system/models.py`.
-2. **Services.** Move `incidents/views.py` and the router helpers into `incidents/service.py`, add `voice/service.py` with `move_call`, move `/api/health` into `system/router.py`, delete the `main.py` re-exports.
-3. **Imports.** Empty the package `__init__.py` files, switch `app/`, `scripts/` and `tests/` to direct imports, move the function-level imports to the top, and update the two test seams.
-4. **Enforcement and docs.** Add import-linter and the contracts, the CI step, the hook and the docs.
+1. **Guard rails.** Add import-linter and the contracts from §6, not yet wired into CI or the hook. Three contracts fail on today's code; that is the red test for step 2.
+2. **Imports.** Empty the package `__init__.py` files, switch `app/`, `scripts/` and `tests/` to direct imports, move the function-level imports to the top, and update the two test seams. All six contracts pass from here on.
+3. **Schemas.** Add `schemas.py` to each package, move the Pydantic classes, apply the renames, rename `system/models.py`.
+4. **Services.** Move `incidents/views.py` and the router helpers into `incidents/service.py`, add `voice/service.py` with `move_call`, move `/api/health` into `system/router.py`, delete the `main.py` re-exports.
+5. **Enforcement and docs.** Run `lint-imports` in CI and the hook, and update the docs.
+
+Imports come before schemas so that the moves in steps 3 and 4 never have to keep a facade's re-exports in sync.
 
 API changes only add (ADR-001 §2.3): this change adds nothing and removes nothing from the API, and needs no migration. Merging to `main` redeploys staging's `api` and drops live calls (root `AGENTS.md`), so the merge waits for a moment with no test calls running.
 
