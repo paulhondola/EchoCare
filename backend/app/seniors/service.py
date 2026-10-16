@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller, refuse
-from app.seniors.models import Consent, EnrollmentState, Senior
+from app.seniors.models import (
+    Consent,
+    ConsentDecision,
+    ConsentMethod,
+    EnrollmentState,
+    Senior,
+)
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -17,6 +23,7 @@ from app.seniors.schemas import (
     SeniorForm,
     SeniorSummary,
     SeniorView,
+    SignatureForm,
 )
 from app.staff.service import user_for
 
@@ -435,3 +442,57 @@ async def accept(
         session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
     )
     return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def withdraw_consent(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SeniorSummary:
+    """active -> withdrawn, with a consent row for it, by the registering medic or DAS
+    (Q15). The row is added first and `move` commits both; a refusal commits neither."""
+    senior = await editable_senior(session, caller, senior_id)
+    latest = await session.scalar(
+        select(Consent.text_version)
+        .where(Consent.senior_id == senior_id)
+        .order_by(Consent.at.desc(), Consent.id.desc())
+        .limit(1)
+    )
+    registering_medic = Role.medic in caller.roles and senior.medic_id == caller.user.id
+    session.add(
+        Consent(
+            senior_id=senior_id,
+            decision=ConsentDecision.withdrawn,
+            method=ConsentMethod.medic if registering_medic else ConsentMethod.das,
+            text_version=latest or "none",
+            recorded_by=caller.user.id,
+        )
+    )
+    await move(
+        session, caller, senior, EnrollmentState.active, EnrollmentState.withdrawn
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def save_signature(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, form: SignatureForm
+) -> None:
+    """A signed consent for a senior not yet active, by the registering medic. The
+    latest signature counts, so a repeat adds a row (Q16)."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state not in (
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+        EnrollmentState.accepted,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    session.add(
+        Consent(
+            senior_id=senior_id,
+            decision=ConsentDecision.given,
+            method=ConsentMethod.signature,
+            text_version=form.text_version,
+            signature_strokes=form.model_dump(mode="json")["strokes"],
+            recorded_by=caller.user.id,
+        )
+    )
+    await session.commit()

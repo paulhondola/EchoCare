@@ -14,6 +14,7 @@ from app.seniors.schemas import (
     SeniorForm,
     SeniorSummary,
     SeniorView,
+    SignatureForm,
 )
 from app.seniors.service import (
     accept,
@@ -25,9 +26,11 @@ from app.seniors.service import (
     reach_senior,
     register,
     revoke_caregiver,
+    save_signature,
     senior_view,
     seniors_query,
     submit,
+    withdraw_consent,
 )
 
 router = APIRouter()
@@ -154,6 +157,32 @@ async def accept_senior(
     """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is not queued
     yet; until it exists, `accepted` is the last state a senior reaches."""
     return await accept(session, caller, senior_id)
+
+
+@router.post("/seniors/{senior_id}/consent-withdrawn")
+async def withdraw_senior_consent(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic, Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorSummary:
+    """active -> withdrawn, recorded by the registering medic or DAS (Q15). Adds a
+    `withdrawn` consent row in the same transaction. Already withdrawn is
+    `already_done`; any other state, `wrong_state`."""
+    return await withdraw_consent(session, caller, senior_id)
+
+
+@router.post("/seniors/{senior_id}/signature", status_code=204)
+async def sign_senior_consent(
+    senior_id: uuid.UUID,
+    body: SignatureForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """The senior's signature as a consent row, by the registering medic, while she is
+    `draft`, `submitted` or `accepted` (Q16). The latest one counts, so a repeat adds a
+    row rather than being refused."""
+    await save_signature(session, caller, senior_id, body)
+    return Response(status_code=204)
 
 
 @router.get("/enrollments")

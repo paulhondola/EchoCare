@@ -25,6 +25,7 @@ class EnrollmentState(StrEnum):
     refused = "refused"
     wrong_number = "wrong_number"
     unreachable = "unreachable"
+    withdrawn = "withdrawn"
 
 
 class ConsentDecision(StrEnum):
@@ -37,6 +38,7 @@ class ConsentMethod(StrEnum):
     call = "call"
     signature = "signature"
     medic = "medic"
+    das = "das"
 
 
 class WatchCondition(StrEnum):
