@@ -1,7 +1,7 @@
 # CRUD completion: design
 
 **Date:** 2026-10-16
-**Status:** Settled in two grilling rounds (2026-10-15 and 2026-10-16); awaiting review of this document
+**Status:** Settled in two grilling rounds (2026-10-15 and 2026-10-16); approved on 2026-10-16 and implemented on `crud-backend` and `android-phone-taken`
 **Classification:** Architectural (changes the `04-interfaces.md` contract)
 **Scope:** `backend/app/`, `backend/tests/`, the specs under `docs/specs/`, one change in `android/app/`
 **Branches:** `crud-backend` (this spec, backend, spec docs) and `android-phone-taken` (Android), both from `main`
@@ -155,9 +155,9 @@ Search the other spec files for lists of enrollment states and add `withdrawn` w
 
 **Tests.** Follow the existing files: `tests/staff/test_staff.py`, `tests/seniors/test_seniors.py`, `tests/auth/test_profile.py`, and a new `tests/calls/`. As `06 §5` asks, call every new endpoint as each role, as a number with no grant, and signed out. Each refusal in §4 gets a test. So do the last-`das` guard, `phone_taken` on both create and edit, a draft with a call, and DAS editing an `active` senior. The concurrency paths in §5.3 need no test.
 
-**Old clients.** Opening `PUT` and the caregiver endpoints to more states and to DAS only removes refusals. The new `phone_taken` reaches today's Android build as an unknown 409, which re-reads the senior. Both apps already show an enrollment state they don't know: Android with no label, the dashboard as the raw word.
+**Old clients.** Opening `PUT` and the caregiver endpoints to more states and to DAS only removes refusals. The new `phone_taken` reaches today's Android build as an unknown 409, which it maps to a re-read. On an edit (`PUT`) that is acceptable: the form re-reads the senior and shows the stored number. On a new registration (`POST /seniors`) the form has no id yet, so the re-read does nothing, step 4 spins forever, Back discards what was typed, and the medic never learns why. Both apps already show an enrollment state they don't know: Android with no label, the dashboard as the raw word.
 
-**Rollout.** Two PRs into `main`, in either order: `crud-backend`, then `android-phone-taken`. No migration and no new setting. Merging `crud-backend` redeploys staging's `api`.
+**Rollout.** Two PRs into `main`: `android-phone-taken` first, so testers are on that APK before `crud-backend` reaches the environment they use, then `crud-backend`. No migration and no new setting. Merging `crud-backend` redeploys staging's `api`.
 
 ## 9. Later
 

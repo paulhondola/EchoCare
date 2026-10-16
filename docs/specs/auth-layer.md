@@ -68,8 +68,10 @@ The body is FastAPI's own shape: `{"detail": {"reason": "<reason>"}}`. A 401 als
 | 403 | `not_registered` | Valid token, but no user row for the number, or a user with zero grants | Shows „Numărul nu este înregistrat. Contactați medicul de familie.” and signs out of Firebase |
 | 403 | `not_allowed` | The caller has grants, but none permits this request | Shows a generic error and stays signed in |
 | 404 | `not_found` | The thing does not exist, or a senior outside the caller's reach (AL8) | Shows "not found" |
-| 409 | `already_done` | `POST /api/staff` for a grant the number already holds; an incident someone else already took or resolved (the take refusal adds `taken_by_name`); a senior already submitted or accepted | Shows "already granted", or who has the incident |
-| 409 | `wrong_state` | An incident not in the state the command needs: taking a resolved one, resolving an open one; a senior not in the enrollment state submit or accept needs (04 §2) | Re-reads the incident or senior |
+| 409 | `already_done` | `POST /api/staff` for a grant the number already holds; an incident someone else already took or resolved (the take refusal adds `taken_by_name`); a senior already submitted or accepted; consent already withdrawn | Shows "already granted", or who has the incident |
+| 409 | `wrong_state` | An incident not in the state the command needs: taking a resolved one, resolving an open one; a senior not in the enrollment state submit or accept needs (04 §2); removing the last `das` grant; deleting a senior that is not a draft or that still has calls; withdrawing consent from a senior that is not `active` | Re-reads the incident or senior |
+| 409 | `phone_taken` | Saving a senior whose mobile number already signs in as another senior (SE10) | The form marks the phone field with „Acest număr este deja al altui senior.” |
+| 422 | `not_medic` | A practice set for someone who does not hold `medic` (04 §2) | The dashboard shows an error |
 | 422 | `incomplete` | Submitting a registration without the address or a caregiver, or leaving a submitted one without them: an edit that drops the address, removing the last caregiver. `missing` names what is missing (04 §2) | Shows what to fill in |
 | 503 | `auth_unavailable` | Google's public keys cannot be fetched | Shows „Autentificarea nu este disponibilă acum. Încercați din nou.” and stays signed in |
 
@@ -476,9 +478,9 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 
 | Item | Belongs to |
 |---|---|
-| Push tokens: `PUT/DELETE /profile/push-tokens`, the `push_tokens` table, the FCM dependency on Android | The push work (G4) |
+| Push tokens: `PUT/DELETE /profile/push-tokens/{token}`, the `push_tokens` table, the FCM dependency on Android | The endpoints and the table are built by [the CRUD completion](../superpowers/specs/2026-10-16-crud-completion-design.md); the FCM dependency is the push work (G4) |
 | `GET /staff` and the dashboard's „Personal” screen | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
-| On duty: `PUT /staff/on-duty` and the flag in `GET /staff` | The hand-over work (P10) |
+| On duty: `PUT /staff/on-duty` and the flag in `GET /staff` | Built by [the CRUD completion](../superpowers/specs/2026-10-16-crud-completion-design.md) |
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |
 | The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7 | Built with the data model, in migration `741f75a7dbe1` |
 | The senior-scoped helper for §3.6; `/profile`'s senior names | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |

@@ -645,7 +645,7 @@ Each slice is one folder, so a red Android build never holds back an API deploy 
 | The code, reason, calls, consent, watch and home node fields on the senior reads | Their features; each is an optional addition |
 | The welcome call on accept, and every state after `accepted` | UC-04 |
 | „Cereri de înrolare” and the senior screens on the dashboard, where DAS would use its edit right | The dashboard work |
-| On duty: `PUT /staff/on-duty`, the flag in `GET /staff` | The hand-over work (P10) |
+| On duty: `PUT /staff/on-duty`, the flag in `GET /staff` | Built by [the CRUD completion](../superpowers/specs/2026-10-16-crud-completion-design.md) |
 | A refresh push when a caregiver is added or removed | The push work (G4) |
 | The signature on the tablet | Optional (G7) |
 | Red incidents in the Android DAS role | UC-11 |
