@@ -2,13 +2,13 @@
 
 /* One dark theme: the GitHub-dark palette of spec 07 §2.1 on Modernist structure (square
    corners, 2px section rules, flush-left button labels). DaisyUI's own themes are off; its
-   components (inputs, spinners, alerts) read the `sentinela` theme below. */
+   components (inputs, spinners, alerts) read the `echocare` theme below. */
 @plugin "daisyui" {
   themes: false;
 }
 
 @plugin "daisyui/theme" {
-  name: "sentinela";
+  name: "echocare";
   default: true;
   prefersdark: true;
   color-scheme: dark;
