@@ -170,7 +170,7 @@ Each is marked **(proposed)** where it is specified.
 10. **Caregiver notice by SMS.** Depends on spike S10. Fallback: a caregiver who is present signs in on the spot, which confirms the number.
 11. **Room temperature thresholds (P21, P22).** The proposed limits (below 16°C, above 30°C) are orientative and have no medical value. A medical mentor should set them, and say whether an extreme room (below 12°C, above 34°C) should go straight to red. Default: yellow, like every other sensor trigger.
 12. **A detected fall, or the home SOS button, and an unanswered call.** Like question 1: both argue for red. Default: yellow.
-13. **Editing an active senior's registration.** People move and intercom codes change, and DAS drives to the stored address (G13). The MVP lets the medic edit a draft or a submitted request only. Proposed: the address and access details stay editable in every state; the phone number does not, since a new number needs a new welcome call.
+13. ~~**Editing an active senior's registration.**~~ Resolved by the CRUD completion (2026-10-16): the address, access details and phone number are editable in every state, by the registering medic or by DAS for seniors it reaches as DAS. A changed number moves the senior grant and queues no welcome call.
 
 ## Glossary
 
