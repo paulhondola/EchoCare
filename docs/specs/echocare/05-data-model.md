@@ -69,9 +69,9 @@ erDiagram
         uuid id PK
         uuid senior_id FK
         string decision "given, refused, withdrawn"
-        string method "call, signature, medic, das"
+        string method "call, signature, medic, das, app (the mock card)"
         string text_version
-        uuid call_id FK "for method call"
+        uuid call_id FK "for methods call and app"
         json evidence "keys or words, Twilio confidence"
         json signature_strokes "for method signature"
         uuid recorded_by FK "for method signature, medic or das"
@@ -115,7 +115,7 @@ erDiagram
         string level "yellow or red warning"
         uuid started_by FK
         datetime started_at
-        datetime warning_until "end of the active warning"
+        datetime warning_until "end of the active warning: 24 hours after the start, earlier if DAS ends it"
     }
     CALL {
         uuid id PK
@@ -125,7 +125,7 @@ erDiagram
         uuid previous_call_id FK "set on a redial"
         int attempt
         string starting_severity
-        string state
+        string state "queued, ringing, in_progress, completed, handed_over, dropped, unanswered, failed, canceled (a queued call that never went out)"
         datetime due_at
         string twilio_call_id
         datetime started_at
@@ -202,11 +202,11 @@ erDiagram
 | User | One row per phone number that has been granted anything. Created at grant time, before the person signs in; the Firebase account is attached at first sign-in. A DAS user's phone is also their hand-over number |
 | Grant | One role for one user, and for caregiver and senior grants the senior it applies to. A user may hold several. Replaces the earlier role field, caregiver link and invite |
 | Senior | The enrolled person, registration details, structured address and enrollment state |
-| Consent | Every consent decision as a history: given or refused on the welcome call, an optional signature, a withdrawal recorded by the medic or DAS |
+| Consent | Every consent decision as a history: given or refused on the welcome call (or on the mock card in the senior's app, method `app`), an optional signature, a withdrawal recorded by the medic or DAS |
 | WatchState | The watch's latest check-in, one row per senior |
 | HomeNodeState | The home node's latest room reading and when the room went out of range, one row per senior with a node **(P20, proposed)** |
 | Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
-| Campaign | One press of the weather-warning button, and the active-warning period it opens |
+| Campaign | One press of the weather-warning button, and the active-warning period it opens: 24 hours from the press, cut short when DAS ends the campaign |
 | Call | One attempt to reach a senior, with its outcome. Also the scheduler's queue: a queued call with a due time is a pending timer |
 | CallTurn | The transcript, one row per utterance or key press |
 | Answer | What the model extracted for one of the three questions |
@@ -240,7 +240,7 @@ Several rules from the other files are enforced by the database itself, so they 
 
 **The current code is its own row.** Apps read `SeniorStatus` constantly and `Call` rarely. Keeping the code separate makes the most frequent read a single-row lookup.
 
-**The call table is the timer store.** Redials, welcome-call retries and campaign calls are rows in `queued` state with a `due_at`. Nothing is held only in memory, so a restart of the FastAPI service picks up where it left off.
+**The call table is the timer store.** Redials, welcome-call retries and campaign calls are rows in `queued` state with a `due_at`. Nothing is held only in memory, so a restart of the FastAPI service picks up where it left off. A queued call that will never go out, because its campaign ended, its warning lapsed or the senior withdrew consent, becomes `canceled`: an ended state, not live, so it frees the senior's slot for the next call ([03-status-model.md](03-status-model.md) section 9).
 
 **"Sunați-mă" is stored as an event.** It enters the same path as a watch anomaly (D9), with type `manual_request`.
 

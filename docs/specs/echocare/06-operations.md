@@ -91,6 +91,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 |---|---|---|
 | "Simulează avertizare", heat or cold | DAS dashboard | A real weather warning |
 | "Sunați-mă" | Senior's phone app | A watch anomaly, if the watch misbehaves on stage (D9) |
+| The mock card, which shows a queued welcome or campaign call and takes the senior's answers on screen | Senior's phone app, on their own home | The phone line, until Twilio places the call. The answers go through the same rules and the same ending step as a real call, so a code, an incident or a consent is stored as for a real call. Refused by the API in production (`GET /profile/mock-call`, `POST /calls/{id}/mock-answer`, [04-interfaces.md](04-interfaces.md)), where a fake call must never give a code, an incident or a consent |
 | A hidden "force anomaly" action, for pulse, for inactivity and for a fall | Wear OS app | Waiting for a real reading, or a real fall |
 | An ice pack or a hair dryer next to the home node's sensor | On the table | A cold or hot room; the temperature moves live on every screen |
 | The home node's SOS button | On the table | Its own trigger; also a fallback if the watch misbehaves |

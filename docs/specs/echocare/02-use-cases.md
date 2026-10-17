@@ -261,6 +261,8 @@ The call is a fixed script whose answers are keys or short spoken words (G7). If
 
 A welcome call never changes a code; the code is created when consent is given.
 
+**Until Twilio, the mock card answers the call.** Step 1 queues the welcome call, and the senior's own app shows it as a card with the consent text (version `v1-app`, which leaves out the key instructions) and „Da” / „Nu”. „Da” stores the consent with method `app`, makes the senior `active` and starts the code green; „Nu” stores a refusal and makes the senior `refused`. The identity question, `wrong_number`, `not_available` and the retries are not part of the mock. A landline senior has no app, so the call waits. The card is refused in production ([06-operations.md](06-operations.md) section 3).
+
 A senior who later withdraws consent becomes `withdrawn`. The medic or DAS records it; the senior leaves the campaigns and gets no more calls. There is no way back yet.
 
 ## 4. Wellbeing calls
@@ -321,6 +323,8 @@ sequenceDiagram
 7. The agent closes the call with a short piece of advice.
 
 The other endings are UC-06, UC-07 and UC-08.
+
+**Until Twilio, the mock card answers the call.** Step 2 dials nothing. The senior's own app shows each queued call as a card: the greeting that names the warning, then the three questions as buttons. The answers go through the same rules and the same ending step as a real call (steps 5 to 7), so a code is set and a red opens an incident. „Nu acum” counts as unanswered (UC-08): the redial comes after the redial delay. A landline senior has no app, so their call waits until the campaign ends or its warning lapses, and is then canceled. The card is refused in production ([06-operations.md](06-operations.md) section 3).
 
 ### UC-06 Call ends yellow
 
