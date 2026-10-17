@@ -10,6 +10,7 @@ from app.auth.service import (
     drop_push_token,
     save_push_token,
 )
+from app.campaigns.service import warning_active
 from app.core.db import get_session
 from app.seniors.service import forms_of_address
 
@@ -36,6 +37,7 @@ async def profile(
             )
             for g in caller.grants
         ],
+        warning_active=await warning_active(session),
     )
 
 

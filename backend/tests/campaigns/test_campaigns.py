@@ -1,10 +1,19 @@
 import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
-from app.models import Call, CallTrigger, Campaign, EnrollmentState, Incident, Role
+from app.models import (
+    Call,
+    CallTrigger,
+    Campaign,
+    EnrollmentState,
+    Incident,
+    Role,
+    SeniorStatus,
+)
 from app.status.engine import Severity
 from app.voice.calls import CallState
 
@@ -167,3 +176,93 @@ async def test_progress_counts_each_senior_by_their_latest_attempt(
         "red": 1,
         "canceled": 1,
     }
+
+
+async def end(client, campaign_id, token=DAS):
+    return await client.post(
+        f"/api/campaigns/{campaign_id}/end", headers=signed_in(token)
+    )
+
+
+async def test_ending_cancels_waiting_calls_and_keeps_codes(
+    client, db, das, add_active_senior
+):  # Q9
+    maria = await add_active_senior("+40700000101")
+    db.add(
+        SeniorStatus(
+            senior_id=maria.id,
+            code=Severity.yellow,
+            reason="x",
+            since=datetime.now(UTC),
+        )
+    )
+    await db.commit()
+    c = (await start(client)).json()
+    r = await end(client, c["id"])
+    assert r.status_code == 200
+    assert (
+        r.json()["active"],
+        r.json()["progress"]["canceled"],
+        r.json()["progress"]["waiting"],
+    ) == (False, 1, 0)
+    assert (await db.scalar(select(Call.state))) is CallState.canceled
+    assert (
+        await db.get(SeniorStatus, maria.id, populate_existing=True)
+    ).code is Severity.yellow
+    assert (await end(client, c["id"])).json() == r.json()  # a repeat changes nothing
+    assert (await start(client)).status_code == 201  # a new one may start (Q9)
+
+
+async def test_a_landline_senior_waits_until_the_end(
+    client, das, add_active_senior
+):  # Review Focus 4
+    await add_active_senior("+40256123456", landline=True)
+    c = (await start(client)).json()
+    assert c["progress"]["waiting"] == 1
+    assert (await end(client, c["id"])).json()["progress"]["canceled"] == 1
+
+
+async def test_ending_a_lapsed_campaign_keeps_its_end(client, db, das):
+    c = (await start(client)).json()
+    past = datetime.now(UTC) - timedelta(hours=1)
+    await db.execute(update(Campaign).values(warning_until=past))
+    await db.commit()
+    assert (
+        datetime.fromisoformat((await end(client, c["id"])).json()["warning_until"])
+        == past
+    )
+
+
+async def test_a_lapsed_warning_frees_its_seniors(client, db, das, add_active_senior):
+    await add_active_senior("+40700000101")
+    await start(client)
+    await db.execute(
+        update(Campaign).values(warning_until=datetime.now(UTC) - timedelta(seconds=1))
+    )
+    await db.commit()
+    listed = (await client.get("/api/campaigns", headers=signed_in(DAS))).json()
+    assert listed[0]["progress"]["canceled"] == 1
+    assert (await start(client)).json()["progress"]["total"] == 1  # queued again
+
+
+async def test_ending_an_unknown_campaign_is_404(client, das):
+    assert (await end(client, uuid.uuid4())).json() == {
+        "detail": {"reason": "not_found"}
+    }
+
+
+async def test_answering_a_running_campaign_still_cancels_a_lapsed_one(
+    client, db, das, add_active_senior
+):
+    await add_active_senior("+40700000101")
+    lapsing = (await start(client, "cold")).json()
+    running = (await start(client, "heat")).json()
+    await db.execute(
+        update(Campaign)
+        .where(Campaign.id == uuid.UUID(lapsing["id"]))
+        .values(warning_until=datetime.now(UTC) - timedelta(seconds=1))
+    )
+    await db.commit()
+    again = await start(client, "heat")
+    assert (again.status_code, again.json()["id"]) == (200, running["id"])
+    assert (await db.scalar(select(Call.state))) is CallState.canceled

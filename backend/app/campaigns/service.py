@@ -1,21 +1,24 @@
 """Campaigns: a DAS press queues one call per active senior (UC-05, 04 §2, Q1-Q4)."""
 
+import logging
 import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, literal, select
+from sqlalchemy import exists, func, literal, select, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
-from app.auth.service import Caller
+from app.auth.service import Caller, refuse
 from app.campaigns.schemas import CampaignForm, CampaignProgress, CampaignSummary
 from app.incidents.models import UNRESOLVED, Incident
 from app.seniors.models import EnrollmentState, Senior
 from app.status.engine import Severity
 from app.voice.calls import CallState
 from app.voice.models import Call, CallTrigger, Campaign
+
+log = logging.getLogger("echocare.campaigns")
 
 # How long a campaign's warning lasts, in demo mode too (06 §3, Q4).
 WARNING = timedelta(hours=24)
@@ -100,6 +103,7 @@ async def start_campaign(
     call is skipped by `uq_calls_live_senior` (05 §3), so no one gets two.
     """
     await session.execute(select(func.pg_advisory_xact_lock(CAMPAIGN_LOCK)))
+    await cancel_lapsed(session)  # frees the seniors of a lapsed campaign for this one
     now = datetime.now(UTC)
     running = await session.scalar(
         select(Campaign.id).where(
@@ -109,7 +113,7 @@ async def start_campaign(
         )
     )
     if running is not None:
-        await session.rollback()
+        await session.commit()  # releases the lock and keeps cancel_lapsed's work
         return (await campaign_summaries(session, running))[0], False
 
     campaign = Campaign(
@@ -152,3 +156,58 @@ async def start_campaign(
     )
     await session.commit()
     return (await campaign_summaries(session, campaign.id))[0], True
+
+
+async def cancel_lapsed(session: AsyncSession) -> None:
+    """Cancels the queued calls of every campaign whose warning has lapsed (design 4.1).
+
+    There is no scheduler, so the campaign endpoints do this lazily, first. Does not commit:
+    the caller's transaction does.
+    """
+    now = datetime.now(UTC)
+    await session.execute(
+        update(Call)
+        .where(
+            Call.state == CallState.queued,
+            Call.campaign_id.in_(
+                select(Campaign.id).where(Campaign.warning_until <= now)
+            ),
+        )
+        .values(state=CallState.canceled, ended_at=now)
+    )
+
+
+async def end_campaign(
+    session: AsyncSession, campaign_id: uuid.UUID
+) -> CampaignSummary:
+    """Ends a campaign's warning now and cancels its queued calls, redials included (Q9).
+
+    `warning_until` becomes the earlier of itself and now, so a lapsed warning keeps its
+    end and a repeat changes nothing. Codes are untouched. Commits.
+    """
+    now = datetime.now(UTC)
+    ended = await session.scalar(
+        update(Campaign)
+        .where(Campaign.id == campaign_id)
+        .values(warning_until=func.least(Campaign.warning_until, now))
+        .returning(Campaign.id)
+    )
+    if ended is None:
+        log.info("refused not_found: campaign %s", campaign_id)
+        raise refuse(404, "not_found")
+    await session.execute(
+        update(Call)
+        .where(Call.campaign_id == campaign_id, Call.state == CallState.queued)
+        .values(state=CallState.canceled, ended_at=now)
+    )
+    await session.commit()
+    return (await campaign_summaries(session, campaign_id))[0]
+
+
+async def warning_active(session: AsyncSession) -> bool:
+    """True while any campaign's warning has not lapsed: `/profile`'s flag (Q5)."""
+    return bool(
+        await session.scalar(
+            select(exists().where(Campaign.warning_until > datetime.now(UTC)))
+        )
+    )
