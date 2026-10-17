@@ -528,7 +528,9 @@ async def withdraw_consent(
             recorded_by=caller.user.id,
         )
     )
-    if then is not None:
+    # Only an active senior is moved, so only then does `then` run: for another state it
+    # would touch call rows that a welcome answer holds while it waits on this senior.
+    if then is not None and senior.enrollment_state is EnrollmentState.active:
         await then(session, senior.id)
     await move(
         session, caller, senior, EnrollmentState.active, EnrollmentState.withdrawn

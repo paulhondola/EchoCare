@@ -692,6 +692,8 @@ async def test_the_code_shows_for_an_active_senior_only(
     assert (rows[str(ion.id)]["code"], rows[str(ion.id)]["since"]) == (None, None)
     page = (await client.get(f"/api/seniors/{maria.id}", headers=signed_in(DAS))).json()
     assert page["code"] == "yellow"
+    page = (await client.get(f"/api/seniors/{ion.id}", headers=signed_in(DAS))).json()
+    assert (page["code"], page["reason"], page["since"]) == (None, None, None)
 
 
 async def test_a_senior_with_no_result_has_no_code(client, add_user, add_active_senior):

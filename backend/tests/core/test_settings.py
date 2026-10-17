@@ -26,11 +26,15 @@ REMOTE = "postgresql://u:p@shuttle.proxy.rlwy.net:41234/railway"
 LOCAL = "postgresql://echocare:echocare@localhost:5432/echocare"
 
 
-def check(monkeypatch, url, scheduler, deployment_id=None):
+def check(monkeypatch, url, scheduler, deployment_id=None, app_env="staging"):
     if deployment_id:
         monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", deployment_id)
     else:
         monkeypatch.delenv("RAILWAY_DEPLOYMENT_ID", raising=False)
+    if app_env:
+        monkeypatch.setenv("APP_ENV", app_env)
+    else:
+        monkeypatch.delenv("APP_ENV", raising=False)
     check_environment(Settings(database_url=url, scheduler_enabled=scheduler))
 
 
@@ -45,6 +49,13 @@ def test_allowed_combinations(monkeypatch):
     check(
         monkeypatch, REMOTE, scheduler=True, deployment_id="dep-1"
     )  # deployed on Railway
+
+
+def test_railway_without_app_env_refuses(monkeypatch):  # Q10
+    with pytest.raises(SystemExit, match="APP_ENV"):
+        check(monkeypatch, REMOTE, scheduler=True, deployment_id="dep-1", app_env=None)
+    check(monkeypatch, REMOTE, scheduler=True, deployment_id="dep-1")  # APP_ENV set
+    check(monkeypatch, LOCAL, scheduler=True, app_env=None)  # a laptop needs none
 
 
 S3_VARS = (

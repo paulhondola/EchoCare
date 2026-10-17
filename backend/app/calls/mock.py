@@ -56,7 +56,8 @@ WELCOME_GOODBYE = {
 def forbid_in_production(caller: Caller) -> None:
     """The mock stands in for a phone line, which production has (Q10)."""
     if get_settings().app_env is AppEnv.production:
-        log.info("refused not_found: mock call in production, user %s", caller.user.id)
+        # debug: release apps poll the card every 30 s
+        log.debug("refused not_found: mock call in production, user %s", caller.user.id)
         raise refuse(404, "not_found")
 
 

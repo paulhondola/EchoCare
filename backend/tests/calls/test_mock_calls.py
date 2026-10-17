@@ -48,6 +48,14 @@ async def answer(client, call_id, body, token=SENIOR):
     )
 
 
+async def reports(client, call_id):
+    """The call's status reports (05 §2), as DAS reads them: (source, severity, reason)."""
+    t = (
+        await client.get(f"/api/calls/{call_id}/transcript", headers=signed_in(DAS))
+    ).json()
+    return [(r["source"], r["severity"], r["reason"]) for r in t["reports"]]
+
+
 @pytest.fixture
 async def queued(client, db, add_user, add_active_senior):
     """A DAS user, a medic, an active senior with a senior grant and a caregiver, and a
@@ -156,6 +164,7 @@ async def test_a_second_tap_is_already_done(client, db, queued):
         {"detail": {"reason": "already_done"}},
     )
     assert await db.scalar(select(func.count()).select_from(Answer)) == 3
+    assert [source for source, *_ in await reports(client, call_id)] == ["rules"]
 
 
 async def test_not_now_hides_the_card_until_the_redial(client, queued):
@@ -182,6 +191,9 @@ async def test_not_now_is_written_to_the_transcript(client, queued):
         ("system", "Apel simulat din aplicație, fără linie telefonică."),
         ("system", "Seniorul a ales „Nu acum”."),
     ]
+    assert await reports(client, call_id) == [
+        ("unanswered", "green", "Nu a răspuns la prima încercare")
+    ]
 
 
 async def test_not_now_twice_ends_yellow(client, db, queued):
@@ -204,6 +216,9 @@ async def test_not_now_twice_ends_yellow(client, db, queued):
         "yellow",
         "Nu a răspuns de două ori",
     )
+    assert await reports(client, redial) == [
+        ("unanswered", "yellow", "Nu a răspuns de două ori")
+    ]
     assert (await card(client)).status_code == 204
 
 

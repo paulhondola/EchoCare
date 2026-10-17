@@ -103,8 +103,11 @@ async def start_campaign(
     call is skipped by `uq_calls_live_senior` (05 §3), so no one gets two.
     """
     await session.execute(select(func.pg_advisory_xact_lock(CAMPAIGN_LOCK)))
-    await cancel_lapsed(session)  # frees the seniors of a lapsed campaign for this one
     now = datetime.now(UTC)
+    # One clock for the whole start: a warning that lapses between two reads would be
+    # canceled here and still counted as running below. Frees the seniors of a lapsed
+    # campaign for this one.
+    await cancel_lapsed(session, now)
     running = await session.scalar(
         select(Campaign.id).where(
             Campaign.kind == form.kind,
@@ -158,13 +161,14 @@ async def start_campaign(
     return (await campaign_summaries(session, campaign.id))[0], True
 
 
-async def cancel_lapsed(session: AsyncSession) -> None:
+async def cancel_lapsed(session: AsyncSession, now: datetime | None = None) -> None:
     """Cancels the queued calls of every campaign whose warning has lapsed (design 4.1).
 
-    There is no scheduler, so the campaign endpoints do this lazily, first. Does not commit:
-    the caller's transaction does.
+    There is no scheduler, so the campaign endpoints do this lazily, first. `now` is the
+    caller's clock when it reads the warnings too. Does not commit: the caller's
+    transaction does.
     """
-    now = datetime.now(UTC)
+    now = now or datetime.now(UTC)
     await session.execute(
         update(Call)
         .where(
@@ -185,6 +189,7 @@ async def end_campaign(
     `warning_until` becomes the earlier of itself and now, so a lapsed warning keeps its
     end and a repeat changes nothing. Codes are untouched. Commits.
     """
+    await session.execute(select(func.pg_advisory_xact_lock(CAMPAIGN_LOCK)))
     now = datetime.now(UTC)
     ended = await session.scalar(
         update(Campaign)
