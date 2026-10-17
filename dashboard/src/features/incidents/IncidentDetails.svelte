@@ -63,6 +63,7 @@
     completed: "încheiat",
     handed_over: "transferat la DAS",
     dropped: "întrerupt",
+    canceled: "anulat",
   };
   const SEVERITY: Record<string, { label: string; text: string }> = {
     red: { label: "Cod Roșu", text: "text-rosu-fg" },

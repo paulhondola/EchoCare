@@ -4,7 +4,7 @@
   import Icon from "../../ui/Icon.svelte";
   import { download, toCsv } from "../../utils/csv";
   import { fold } from "../../utils/incidents";
-  import { clock, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
+  import { clock, code, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
   import { getLive } from "../shell/live.svelte";
   import PageHeader from "../shell/PageHeader.svelte";
@@ -16,8 +16,8 @@
   // The registry is polled slowly for the sidebar's counter: read it fresh when the page opens
   onMount(() => seniors.reload());
 
-  // Tabs by enrollment state (03 §1). The API sends no codes per senior yet (04 §1, proposed),
-  // so the design's Cod Roșu / Galben / Verde tabs wait for them.
+  // Tabs by enrollment state (03 §1). Each row also carries the senior's code (04 §1); a tab per
+  // code is not built.
   type Tab = "all" | "active" | "enrolling" | "attention";
   const TABS: { key: Tab; label: string; dot: string; states: string[] | null }[] = [
     { key: "all", label: "Toți", dot: "bg-fg-muted", states: null },
@@ -157,6 +157,7 @@
     </div>
     {#each shown as s, n (s.id)}
       {@const st = enrollment(s.enrollment_state)}
+      {@const cd = code(s.code)}
       <div role="row" class={["grid border-b border-line hover:bg-subtle", COLS]}>
         <div
           role="cell"
@@ -181,7 +182,10 @@
             {formatPhone(s.phone_e164)}
           </a>
         </div>
-        <div role="cell" class="flex min-w-0 items-center border-r border-card px-3 py-2">
+        <div
+          role="cell"
+          class="flex min-w-0 flex-wrap items-center gap-1.5 border-r border-card px-3 py-2"
+        >
           <span
             class={[
               "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-bold",
@@ -190,6 +194,19 @@
           >
             <span class={["size-[7px]", TONE_DOT[st.tone]]}></span>{st.label}
           </span>
+          {#if cd}
+            <span
+              class={[
+                "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-bold",
+                TONE_CHIP[cd.tone],
+              ]}
+            >
+              <span class={["size-[7px]", TONE_DOT[cd.tone]]}></span>{cd.label}
+            </span>
+            {#if s.reason}
+              <span class="text-xs text-fg-muted">{s.reason}</span>
+            {/if}
+          {/if}
         </div>
         <div role="cell" class="flex items-center px-3 py-2">
           <button

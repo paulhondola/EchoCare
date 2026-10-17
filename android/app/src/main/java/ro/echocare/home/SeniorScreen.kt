@@ -19,12 +19,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import ro.echocare.R
 import ro.echocare.SeniorPage
+import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
 import ro.echocare.ui.FieldRow
 import ro.echocare.ui.PhoneNumber
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SectionLabel
 import ro.echocare.ui.SnButton
+import ro.echocare.ui.Tone
 import ro.echocare.ui.formatPhone
 import ro.echocare.ui.theme.Mono
 import ro.echocare.ui.theme.Palette
@@ -47,6 +49,10 @@ fun SeniorScreen(
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
         LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
+            // The senior's home only: the warning the campaign's calls are about (Q5)
+            if (id == null && vm.warning) {
+                Banner(stringResource(R.string.warning_active), Tone.Galben)
+            }
             Column(
                 Modifier
                     .fillMaxSize()
@@ -54,6 +60,8 @@ fun SeniorScreen(
                     .padding(horizontal = 16.dp, vertical = 20.dp)
                     .widthIn(max = 600.dp)
             ) {
+                // The senior's home only: a call to answer here instead of on the phone (design §6.2)
+                vm.mock?.let { MockCallCard(it, vm::answer) }
                 // „Editează” for the medic, while the server still takes an edit (seniors §9.1)
                 val edit = onEdit?.takeIf { editable(senior.state) }
                 SeniorDetails(
@@ -91,6 +99,7 @@ fun SeniorDetails(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(senior.fullName, style = MaterialTheme.typography.headlineSmall)
                 StateLabel(senior.state)
+                CodeLabel(senior.code, senior.reason)
             }
             action?.invoke()
         }

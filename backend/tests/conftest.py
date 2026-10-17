@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.service import bearer, refuse, verify_token
 from app.core.db import Session, engine
 from app.main import app
-from app.models import Grant, Role, Senior, User
+from app.models import EnrollmentState, Grant, Role, Senior, User
 
 BACKEND = Path(__file__).parent.parent
 
@@ -84,11 +84,44 @@ def add_senior(
             full_name=name,
             form_of_address="doamna Maria",
             phone_e164=phone,
-            phone_is_landline=False,
-            **columns,
+            **{"phone_is_landline": False, **columns},
         )
         db.add(senior)
         await db.commit()
+        return senior
+
+    return add
+
+
+@pytest.fixture
+def add_active_senior(
+    db: AsyncSession,
+    add_user: Callable[..., Awaitable[User]],
+    add_senior: Callable[..., Awaitable[Senior]],
+) -> Callable[..., Awaitable[Senior]]:
+    """add_active_senior("+40700000101"): an `active` senior with the `senior` grant a
+    mobile number carries (UC-01 step 3); `landline=True` leaves the grant out."""
+
+    async def add(
+        phone: str, *, landline: bool = False, medic: User | None = None
+    ) -> Senior:
+        senior = await add_senior(
+            phone,
+            medic=medic,
+            enrollment_state=EnrollmentState.active,
+            phone_is_landline=landline,
+        )
+        if not landline:
+            user = await add_user(phone, name=senior.full_name)
+            db.add(
+                Grant(
+                    user_id=user.id,
+                    role=Role.senior,
+                    senior_id=senior.id,
+                    granted_by=senior.medic_id,
+                )
+            )
+            await db.commit()
         return senior
 
     return add

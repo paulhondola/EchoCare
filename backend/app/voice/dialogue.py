@@ -13,6 +13,22 @@ LANGUAGE = "ro-RO"
 GOODBYE = "Vă mulțumesc. La revedere."
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
 
+# The consent the call reads, and the one the mock card shows; the version is stored
+# with every consent so a text change is traceable (05 §1, design §4.4).
+CONSENT_VERSION = "v1"
+CONSENT_TEXT = (
+    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Dacă sunteți de acord, apăsați 1 sau spuneți «da». Dacă nu, apăsați 2 sau spuneți "
+    "«nu». Ca să ascultați din nou, apăsați 0."
+)
+CARD_CONSENT_VERSION = "v1-app"
+CARD_CONSENT_TEXT = (
+    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Sunteți de acord?"
+)
+
 
 def greeting(form_of_address: str) -> str:
     """The test call's opening (04 §4.2's greeting, minus the warning and the question)."""

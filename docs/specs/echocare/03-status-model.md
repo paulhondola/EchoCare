@@ -237,6 +237,7 @@ stateDiagram-v2
     Ringing --> InProgress: a person answers
     Ringing --> Unanswered: no answer, busy or voicemail
     Queued --> Failed: Twilio refuses to place the call
+    Queued --> Canceled: campaign ended or its warning lapsed, or consent withdrawn
     Ringing --> Failed: Twilio or network error
     InProgress --> Completed: agent closes the call
     InProgress --> HandedOver: red, or request for a person
@@ -247,6 +248,7 @@ stateDiagram-v2
     Completed --> [*]
     HandedOver --> [*]
     Dropped --> [*]
+    Canceled --> [*]
 ```
 
 | End state | Counts as |
@@ -255,6 +257,7 @@ stateDiagram-v2
 | HandedOver | Answered; code already set when the hand-over began |
 | Dropped | Answered with low certainty |
 | Unanswered, Failed | Nobody answered |
+| Canceled | Not called, so not answered or unanswered: no rule counts it, and it changes no code. Reached only from Queued, when DAS ends the campaign, its warning lapses ([04-interfaces.md](04-interfaces.md) section 2) or the senior withdraws consent; a queued redial is canceled with the rest |
 
 ## 10. Worked examples
 

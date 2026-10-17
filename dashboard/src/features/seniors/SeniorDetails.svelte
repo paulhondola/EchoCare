@@ -3,7 +3,7 @@
   import { fetchSenior, type SeniorSummary, type SeniorView } from "../../services/api";
   import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
-  import { address, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
+  import { address, code, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
 
   let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
@@ -17,6 +17,9 @@
   let dialogEl: HTMLDialogElement | undefined = $state();
 
   const stage = $derived(enrollment(summary.enrollment_state));
+  // The dossier's read is newer than the list's, so its code wins once it has arrived
+  const current = $derived(load.kind === "ok" ? load.data : summary);
+  const codeChip = $derived(code(current.code));
 
   onMount(() => {
     if (dialogEl && !dialogEl.open) dialogEl.showModal();
@@ -62,6 +65,19 @@
         >
           <span class={["size-1.5", TONE_DOT[stage.tone]]}></span>{stage.label}
         </span>
+        {#if codeChip}
+          <span
+            class={[
+              "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-semibold",
+              TONE_CHIP[codeChip.tone],
+            ]}
+          >
+            <span class={["size-1.5", TONE_DOT[codeChip.tone]]}></span>{codeChip.label}
+          </span>
+          {#if current.reason}
+            <span class="text-[13px] text-fg-muted">{current.reason}</span>
+          {/if}
+        {/if}
         <button
           type="button"
           title="Închide"

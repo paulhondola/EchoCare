@@ -42,7 +42,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | Where | Change |
 |---|---|
 | 01 §6 and UC-02 step 5 | The picker chooses among roles (AL3) |
-| 04 §1 `/profile` | No warning flag and no senior names until the campaign and senior tables exist |
+| 04 §1 `/profile` | No warning flag and no senior names until the campaign and senior tables exist. Both have arrived (§3.3) |
 | 05 `users` | No `on_duty` until the on-duty feature |
 
 ## 3. Shared contract
@@ -86,7 +86,8 @@ Any caller with at least one grant.
   "grants": [
     { "role": "das", "senior_id": null, "senior_form_of_address": null, "relation": null },
     { "role": "medic", "senior_id": null, "senior_form_of_address": null, "relation": null }
-  ]
+  ],
+  "warning_active": false
 }
 ```
 
@@ -94,7 +95,8 @@ Any caller with at least one grant.
 - **Zero grants** answer 403 `not_registered` (§3.2).
 - **Clients derive the distinct roles** themselves for the picker (AL3).
 - **Added with the seniors work:** `senior_form_of_address` and `relation` on each grant, null for das and medic grants.
-- **Fields that arrive later, each as an optional addition:** `id`, `practice`, `warning_active` (with campaigns).
+- **Added with the campaigns work:** `warning_active`, a boolean that is true while any campaign's warning has not ended, for every caller. It is `false` while no campaign is running.
+- **Fields that arrive later, each as an optional addition:** `id`, `practice`.
 
 ### 3.4 `POST /api/staff`
 
@@ -184,6 +186,7 @@ These are configured in the Firebase console under Authentication → Sign-in me
 | `+40700000003` | `333333` | DAS (`grant_das.py`) and medic (`POST /api/staff`): exercises the role picker |
 | `+40700000004` | `444444` | a caregiver (`POST /api/seniors/{id}/caregivers`) |
 | `+40700000005` | `555555` | a senior (`POST /api/seniors` with this number) |
+| `+40700000006` | `666666` | a second senior, for the welcome card (`POST /api/seniors` with this number) |
 | `+40700000009` | `999999` | nothing: exercises `not_registered` |
 
 Grants live in each environment's database (ADR-001), so each environment needs its own grants (§9).
@@ -484,7 +487,7 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |
 | The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7 | Built with the data model, in migration `741f75a7dbe1` |
 | The senior-scoped helper for §3.6; `/profile`'s senior names | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
-| `warning_active` on `/profile` | The campaign work (UC-05) |
+| `warning_active` on `/profile` | Built by [the campaigns and mock calls design](../superpowers/specs/2026-10-17-campaigns-and-mock-calls-design.md) (UC-05) |
 | App Check, rate limits | Before a pilot |
 
 ## 11. Facts still to confirm

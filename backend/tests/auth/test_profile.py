@@ -58,6 +58,7 @@ async def test_grants_in_role_order(client, add_user):
             {"role": "das", "senior_id": None, **NO_SENIOR},
             {"role": "medic", "senior_id": None, **NO_SENIOR},
         ],
+        "warning_active": False,
     }
 
 
@@ -81,6 +82,7 @@ async def test_one_entry_per_caregiver_grant(client, db, add_user, add_senior):
     )
     await db.commit()
     r = await client.get("/api/profile", headers=signed_in("+40700000004"))
+    assert r.json()["warning_active"] is False  # every caller gets the flag (Q5)
     grants = r.json()["grants"]
     assert [g["role"] for g in grants] == ["caregiver", "caregiver"]
     # Each names its own senior and its own relation (auth-layer §3.3).
@@ -106,3 +108,21 @@ async def test_firebase_uid_written_kept_and_replaced(client, db, add_user, capl
     await client.get("/api/profile", headers=signed_in(f"{DAS}|new-uid"))
     assert await db.scalar(stored) == "new-uid"
     assert "firebase_uid changed" in caplog.text
+
+
+async def test_warning_active_follows_the_campaign(client, add_user):  # Q5
+    await add_user(DAS, Role.das)
+
+    async def flag():
+        r = await client.get("/api/profile", headers=signed_in(DAS))
+        return r.json()["warning_active"]
+
+    assert await flag() is False
+    c = await client.post(
+        "/api/campaigns",
+        json={"kind": "heat", "level": "red"},
+        headers=signed_in(DAS),
+    )
+    assert await flag() is True
+    await client.post(f"/api/campaigns/{c.json()['id']}/end", headers=signed_in(DAS))
+    assert await flag() is False

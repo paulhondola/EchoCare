@@ -1,7 +1,9 @@
 import logging
 import uuid
+from datetime import UTC, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
@@ -11,6 +13,8 @@ from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
 from app.seniors.models import Senior
 from app.seniors.service import reach, reach_senior
+from app.status.engine import Severity
+from app.voice.calls import CallState
 from app.voice.models import Answer, Call, CallTrigger, CallTurn, StatusReport
 
 log = logging.getLogger("echocare.calls")
@@ -72,3 +76,34 @@ async def transcript(
     ]
     detail = call_detail(call, reports, turns)
     return TranscriptDetail(**detail.model_dump(), answers=answers)
+
+
+async def queue_welcome_call(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """The welcome call an accepted senior answers from the app's card (Q11, 04 §2).
+
+    A senior with a live call already (`uq_calls_live_senior`, 05 §3) gets none. Doesn't
+    commit: `accept` does, with the move.
+    """
+    await session.execute(
+        insert(Call)
+        .values(
+            senior_id=senior_id,
+            trigger=CallTrigger.welcome,
+            attempt=1,
+            starting_severity=Severity.green,
+            due_at=datetime.now(UTC),
+        )
+        .on_conflict_do_nothing()
+    )
+
+
+async def cancel_queued_calls(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """A withdrawn senior gets no more calls (UC-04): her queued ones are canceled.
+
+    Doesn't commit: `withdraw_consent` does, with the move.
+    """
+    await session.execute(
+        update(Call)
+        .where(Call.senior_id == senior_id, Call.state == CallState.queued)
+        .values(state=CallState.canceled, ended_at=datetime.now(UTC))
+    )

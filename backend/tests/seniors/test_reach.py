@@ -114,6 +114,9 @@ async def test_one_row(client, seniors):
             "phone_e164": "+40256000001",
             "phone_is_landline": False,
             "enrollment_state": "draft",
+            "code": None,  # no code until active (Q17)
+            "reason": None,
+            "since": None,
         }
     ]
 

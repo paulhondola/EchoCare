@@ -1,12 +1,16 @@
 """Enrollment states: submit and accept (#18, UC-01 step 6, UC-04 step 1)."""
 
 import asyncio
+import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 
-from app.models import EnrollmentState, Role, Senior
+from app.models import Call, CallTrigger, EnrollmentState, Role, Senior
 from app.seniors import service as seniors_service
+from app.status.engine import Severity
+from app.voice.calls import CallState
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -90,6 +94,9 @@ async def test_from_draft_to_accepted(client, staff):
         "phone_e164": SENIOR,
         "phone_is_landline": False,
         "enrollment_state": "submitted",
+        "code": None,  # no code until active (Q17)
+        "reason": None,
+        "since": None,
     }
     assert [s["id"] for s in (await enrollments(client)).json()] == [maria]
     r = await client.get(f"/api/seniors/{maria}", headers=signed_in(DAS))
@@ -230,3 +237,40 @@ async def test_enrollments_oldest_first(client, staff):
     for senior_id in (second, first):
         await submit(client, senior_id)
     assert [s["id"] for s in (await enrollments(client)).json()] == [first, second]
+
+
+async def calls_of(db, senior_id):
+    return (
+        await db.execute(
+            select(
+                Call.trigger,
+                Call.state,
+                Call.attempt,
+                Call.starting_severity,
+                Call.due_at,
+            ).where(Call.senior_id == uuid.UUID(senior_id))
+        )
+    ).all()
+
+
+async def test_accepting_queues_the_welcome_call(client, db, staff):  # Q11, 04 §2
+    maria = await register(client)
+    await submit(client, maria)
+    before = datetime.now(UTC)
+    assert (await accept(client, maria)).status_code == 200
+    [call] = await calls_of(db, maria)
+    assert (call.trigger, call.state, call.attempt, call.starting_severity) == (
+        CallTrigger.welcome,
+        CallState.queued,
+        1,
+        Severity.green,
+    )
+    assert timedelta(0) <= call.due_at - before < timedelta(seconds=1)
+
+
+async def test_a_repeated_accept_queues_nothing_more(client, db, staff):
+    maria = await register(client)
+    await submit(client, maria)
+    await accept(client, maria)
+    assert refusal(await accept(client, maria)) == ALREADY_DONE
+    assert len(await calls_of(db, maria)) == 1

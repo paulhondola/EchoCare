@@ -12,13 +12,19 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 // GET /me (auth-layer §3.3). Only the fields the app reads; roles stay strings (ADR-001 §2.3).
+// [warningActive]: a weather warning is in force, shown on the senior's home (Q5).
 @Serializable
-data class Me(@SerialName("display_name") val displayName: String, val grants: List<Grant>)
+data class Me(
+    @SerialName("display_name") val displayName: String,
+    val grants: List<Grant>,
+    @SerialName("warning_active") val warningActive: Boolean = false
+)
 
 @Serializable
 data class Grant(val role: String)
 
 // One row of GET /seniors (seniors §3.3). The state stays a string: a later server may add one.
+// [code], [reason] and [since] are the latest result of an active senior, else null (03 §8).
 @Serializable
 data class SeniorRow(
     val id: String,
@@ -26,7 +32,10 @@ data class SeniorRow(
     @SerialName("form_of_address") val formOfAddress: String,
     @SerialName("phone_e164") val phone: String,
     @SerialName("phone_is_landline") val landline: Boolean,
-    @SerialName("enrollment_state") val state: String
+    @SerialName("enrollment_state") val state: String,
+    val code: String? = null,
+    val reason: String? = null,
+    val since: String? = null
 )
 
 // GET /seniors/{id} (seniors §3.3): the row, the address with its access details (G13), the
@@ -39,6 +48,9 @@ data class SeniorPage(
     @SerialName("phone_e164") val phone: String,
     @SerialName("phone_is_landline") val landline: Boolean,
     @SerialName("enrollment_state") val state: String,
+    val code: String? = null,
+    val reason: String? = null,
+    val since: String? = null,
     val street: String? = null,
     @SerialName("street_number") val streetNumber: String? = null,
     val block: String? = null,
@@ -92,6 +104,29 @@ data class CaregiverForm(
     val phone: String
 )
 
+// GET /profile/mock-call (design §4.2): the senior's due call, which the card answers in place of a
+// phone. [trigger] stays a string (ADR-001 §2.3). [kind] and [level] are a campaign's, [consentText]
+// a welcome call's, shown as the server sent it.
+@Serializable
+data class MockCall(
+    @SerialName("call_id") val callId: String,
+    val trigger: String,
+    @SerialName("campaign_kind") val kind: String? = null,
+    @SerialName("campaign_level") val level: String? = null,
+    @SerialName("consent_text") val consentText: String? = null
+)
+
+// POST /calls/{id}/mock-answer's body (design §4.2), one shape per trigger. The defaults are not
+// sent: a campaign answer is the three choices or [declined], a welcome answer is [consent].
+@Serializable
+data class MockAnswer(
+    val feeling: String? = null,
+    val day: String? = null,
+    val shelter: String? = null,
+    val declined: Boolean = false,
+    val consent: Boolean? = null
+)
+
 // The FastAPI contract (04-interfaces.md). One function per endpoint, added as features need them.
 // Built in NetworkModule.
 interface EchoCareApi {
@@ -126,4 +161,12 @@ interface EchoCareApi {
     /** `draft` → `submitted`: DAS sees the senior from now on (04 §2). Answers one row. */
     @POST("seniors/{id}/submit")
     suspend fun submit(@Path("id") id: String): SeniorRow
+
+    /** 200 with the due call, 204 with none, 404 on production (design §4.2). A 204 has no body. */
+    @GET("profile/mock-call")
+    suspend fun mockCall(): Response<MockCall>
+
+    /** 204; a 409 means the call is no longer due (design §4.2). */
+    @POST("calls/{id}/mock-answer")
+    suspend fun mockAnswer(@Path("id") id: String, @Body body: MockAnswer): Response<Unit>
 }

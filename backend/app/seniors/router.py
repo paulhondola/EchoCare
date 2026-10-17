@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, current_caller, require_roles
+from app.calls.service import cancel_queued_calls, queue_welcome_call
 from app.core.db import get_session
 from app.seniors.schemas import (
     CaregiverEditForm,
@@ -27,8 +28,8 @@ from app.seniors.service import (
     register,
     revoke_caregiver,
     save_signature,
+    senior_summaries,
     senior_view,
-    seniors_query,
     submit,
     withdraw_consent,
 )
@@ -44,8 +45,7 @@ async def list_seniors(
 ) -> list[SeniorSummary]:
     """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6). `role`
     narrows the list to one role's reach, for that role's home (seniors SE6)."""
-    seniors = await session.scalars(seniors_query(caller, role))
-    return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
+    return await senior_summaries(session, caller, role)
 
 
 @router.get("/seniors/{senior_id}")
@@ -154,9 +154,9 @@ async def accept_senior(
     caller: Annotated[Caller, Depends(require_roles(Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorSummary:
-    """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is not queued
-    yet; until it exists, `accepted` is the last state a senior reaches."""
-    return await accept(session, caller, senior_id)
+    """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is queued now, in
+    the same transaction (04 §2); the senior answers it from the app's card."""
+    return await accept(session, caller, senior_id, then=queue_welcome_call)
 
 
 @router.post("/seniors/{senior_id}/consent-withdrawn")
@@ -166,9 +166,9 @@ async def withdraw_senior_consent(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorSummary:
     """active -> withdrawn, recorded by the registering medic or DAS (Q15). Adds a
-    `withdrawn` consent row in the same transaction. Already withdrawn is
-    `already_done`; any other state, `wrong_state`."""
-    return await withdraw_consent(session, caller, senior_id)
+    `withdrawn` consent row and cancels the senior's queued calls in the same
+    transaction. Already withdrawn is `already_done`; any other state, `wrong_state`."""
+    return await withdraw_consent(session, caller, senior_id, then=cancel_queued_calls)
 
 
 @router.post("/seniors/{senior_id}/signature", status_code=204)

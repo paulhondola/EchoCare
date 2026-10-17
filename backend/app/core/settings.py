@@ -72,7 +72,16 @@ def check_environment(settings: Settings) -> None:
 
     A local API pointed at staging's database would race staging's scheduler for the
     database lock (G9) and could dial staging's queue with a local address.
+
+    Also stop a Railway deployment that lost `APP_ENV`: `app_env` would default to
+    `local`, and the mock call's production gate (Q10) would open.
     """
+    if on_railway() and "APP_ENV" not in os.environ:
+        raise SystemExit(
+            "Refusing to start: APP_ENV is not set on this Railway deployment, so it "
+            "would run as local and the mock call (Q10) would not be gated. Set "
+            "APP_ENV to staging or production."
+        )
     if (
         settings.scheduler_enabled
         and not is_local_db(settings.database_url)

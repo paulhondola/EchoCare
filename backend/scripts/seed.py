@@ -74,6 +74,7 @@ from app.models import (
 from app.seniors.service import sync_senior_grant
 from app.status.engine import BUCHAREST, Certainty, Question, Severity
 from app.voice.calls import CallState, was_answered
+from app.voice.dialogue import CONSENT_TEXT, CONSENT_VERSION
 
 # uuid5 under this namespace: the same ids on every machine and every run.
 NAMESPACE = uuid.UUID("5e1a0000-5eed-4000-8000-000000000000")
@@ -235,13 +236,6 @@ KEYS = TurnKind.keys
 # The weekdays as a senior says them, Monday first; the engine compares them without
 # diacritics (03 §3).
 DAY_NAMES = ("luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică")
-CONSENT_VERSION = "v1"
-CONSENT_TEXT = (
-    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
-    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
-    "Dacă sunteți de acord, apăsați 1 sau spuneți «da». Dacă nu, apăsați 2 sau spuneți "
-    "«nu». Ca să ascultați din nou, apăsați 0."
-)
 HAND_OVER = "vă fac legătura acum cu un dispecer DAS. Vă rog să rămâneți la telefon."
 TRANSFERRED = "Apel transferat către dispeceratul DAS."
 PICKED_UP = "Dispecerul DAS a preluat apelul."
@@ -648,9 +642,7 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         level=WarningLevel.yellow,
         started_by=users[DAS.phone],
         started_at=h.ago(125),
-        warning_until=(now.astimezone(BUCHAREST) + timedelta(days=1)).replace(
-            hour=20, minute=0, second=0, microsecond=0
-        ),
+        warning_until=h.ago(125) + timedelta(hours=24),  # Q4
     )
     green = "Se simte bine, știe ce zi este și are căldură"
 

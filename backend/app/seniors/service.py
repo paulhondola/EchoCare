@@ -1,7 +1,8 @@
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 
-from sqlalchemy import ColumnElement, Select, delete, false, or_, select, update
+from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     Senior,
+    SeniorStatus,
 )
 from app.seniors.schemas import (
     CaregiverEditForm,
@@ -28,6 +30,10 @@ from app.seniors.schemas import (
 from app.staff.service import user_for
 
 log = logging.getLogger("echocare.seniors")
+
+# What a move does in its own transaction besides the move: the router passes it in,
+# since `seniors` can't import `calls` (design §7).
+Hook = Callable[[AsyncSession, uuid.UUID], Awaitable[None]]
 
 
 def reach(caller: Caller, role: Role | None = None) -> ColumnElement[bool]:
@@ -57,6 +63,34 @@ def seniors_query(caller: Caller, role: Role | None = None) -> Select:
     return (
         select(Senior).where(reach(caller, role)).order_by(Senior.full_name, Senior.id)
     )
+
+
+async def senior_summaries(
+    session: AsyncSession, caller: Caller, role: Role | None
+) -> list[SeniorSummary]:
+    """The rows of GET /seniors with each one's current code (Q17). Joined only while
+    the senior is `active`: a withdrawn senior's old code must not read as watched."""
+    query = (
+        seniors_query(caller, role)
+        .add_columns(SeniorStatus.code, SeniorStatus.reason, SeniorStatus.since)
+        .outerjoin(
+            SeniorStatus,
+            and_(
+                SeniorStatus.senior_id == Senior.id,
+                Senior.enrollment_state == EnrollmentState.active,
+            ),
+        )
+    )
+    fields = SeniorSummary.model_fields.keys() - {"code", "reason", "since"}
+    return [
+        SeniorSummary(
+            **{name: getattr(senior, name) for name in fields},
+            code=code,
+            reason=reason,
+            since=since,
+        )
+        for senior, code, reason, since in await session.execute(query)
+    ]
 
 
 async def reach_senior(
@@ -179,9 +213,21 @@ def caregivers_query(senior_id: uuid.UUID) -> Select:
 async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
     medic = await session.get(User, senior.medic_id)
     caregivers = (await session.execute(caregivers_query(senior.id))).mappings()
-    fields = SeniorView.model_fields.keys() - {"medic", "caregivers"}
+    status = {}
+    if senior.enrollment_state == EnrollmentState.active and (
+        row := await session.get(SeniorStatus, senior.id)
+    ):
+        status = {"code": row.code, "reason": row.reason, "since": row.since}
+    fields = SeniorView.model_fields.keys() - {
+        "medic",
+        "caregivers",
+        "code",
+        "reason",
+        "since",
+    }
     return SeniorView(
         **{name: getattr(senior, name) for name in fields},
+        **status,
         medic=MedicView.model_validate(medic, from_attributes=True),
         caregivers=[CaregiverView.model_validate(dict(c)) for c in caregivers],
     )
@@ -438,10 +484,17 @@ async def submit(
 
 
 async def accept(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    then: Hook | None = None,
 ) -> SeniorSummary:
-    """submitted -> accepted, by DAS (UC-04 step 1)."""
+    """submitted -> accepted, by DAS (UC-04 step 1). `then` runs first and `move` commits
+    both, so a refused move leaves nothing of it."""
     senior = await reach_senior(session, caller, senior_id)
+    if then is not None:
+        await then(session, senior.id)
     await move(
         session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
     )
@@ -449,10 +502,15 @@ async def accept(
 
 
 async def withdraw_consent(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    then: Hook | None = None,
 ) -> SeniorSummary:
     """active -> withdrawn, with a consent row for it, by the registering medic or DAS
-    (Q15). The row is added first and `move` commits both; a refusal commits neither."""
+    (Q15). The row and `then` come first and `move` commits them; a refusal commits
+    none."""
     senior = await editable_senior(session, caller, senior_id)
     latest = await session.scalar(
         select(Consent.text_version)
@@ -470,6 +528,10 @@ async def withdraw_consent(
             recorded_by=caller.user.id,
         )
     )
+    # Only an active senior is moved, so only then does `then` run: for another state it
+    # would touch call rows that a welcome answer holds while it waits on this senior.
+    if then is not None and senior.enrollment_state is EnrollmentState.active:
+        await then(session, senior.id)
     await move(
         session, caller, senior, EnrollmentState.active, EnrollmentState.withdrawn
     )

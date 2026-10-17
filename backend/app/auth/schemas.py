@@ -17,3 +17,5 @@ class ProfileView(BaseModel):
     display_name: str
     phone_e164: str
     grants: list[GrantView]
+    # True while any campaign's warning is active, for every caller (Q5).
+    warning_active: bool = False
