@@ -96,7 +96,7 @@
           <div class="flex flex-col gap-2 border-b border-line px-5 py-3">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span class="text-sm font-semibold">
-                {KIND_LABELS[c.kind]}, {LEVEL_LABELS[c.level].toLowerCase()}
+                {KIND_LABELS[c.kind] ?? c.kind}, {(LEVEL_LABELS[c.level] ?? c.level).toLowerCase()}
               </span>
               <span
                 class={[
