@@ -10,6 +10,7 @@ from app.models import (
     CallTrigger,
     Campaign,
     EnrollmentState,
+    Grant,
     Incident,
     Role,
     SeniorStatus,
@@ -18,10 +19,24 @@ from app.status.engine import Severity
 from app.voice.calls import CallState
 
 DAS, MEDIC = "+40700000001", "+40700000002"
+SENIOR, CAREGIVER, NO_GRANT = "+40700000101", "+40700000102", "+40700000009"
+
+# Everyone but DAS (06 §5): each role, a number with no grant, signed out (None).
+NOT_DAS = pytest.mark.parametrize(
+    ("token", "status", "reason"),
+    [
+        (MEDIC, 403, "not_allowed"),
+        (CAREGIVER, 403, "not_allowed"),
+        (SENIOR, 403, "not_allowed"),
+        (NO_GRANT, 403, "not_registered"),
+        (None, 401, "not_signed_in"),
+        ("invalid", 401, "not_signed_in"),
+    ],
+)
 
 
 def signed_in(token):
-    return {"Authorization": f"Bearer {token}"}
+    return {} if token is None else {"Authorization": f"Bearer {token}"}
 
 
 async def start(client, kind="cold", level="yellow", token=DAS):
@@ -35,6 +50,16 @@ async def start(client, kind="cold", level="yellow", token=DAS):
 @pytest.fixture
 async def das(add_user):
     return await add_user(DAS, Role.das, name="DAS Test")
+
+
+@pytest.fixture
+async def everyone(db, add_user, add_active_senior):
+    """A medic, an active senior with the senior grant, and that senior's caregiver."""
+    await add_user(MEDIC, Role.medic)
+    maria = await add_active_senior(SENIOR)
+    caregiver = await add_user(CAREGIVER)
+    db.add(Grant(user_id=caregiver.id, role=Role.caregiver, senior_id=maria.id))
+    await db.commit()
 
 
 async def test_a_campaign_queues_one_call_per_active_senior(
@@ -119,15 +144,13 @@ async def test_the_list_is_newest_first(client, das):
     assert [c["kind"] for c in r.json()] == ["heat", "cold"]
 
 
-@pytest.mark.parametrize(
-    ("token", "status"), [(MEDIC, 403), ("+40700000009", 403), ("invalid", 401)]
-)
-async def test_only_das_starts_or_lists(client, das, add_user, token, status):
-    await add_user(MEDIC, Role.medic)
-    assert (await start(client, token=token)).status_code == status
-    assert (
-        await client.get("/api/campaigns", headers=signed_in(token))
-    ).status_code == status
+@NOT_DAS
+async def test_only_das_starts_or_lists(client, das, everyone, token, status, reason):
+    refusal = (status, {"detail": {"reason": reason}})
+    r = await start(client, token=token)
+    assert (r.status_code, r.json()) == refusal
+    r = await client.get("/api/campaigns", headers=signed_in(token))
+    assert (r.status_code, r.json()) == refusal
 
 
 async def test_a_bad_body_is_422(client, das):
@@ -268,13 +291,11 @@ async def test_answering_a_running_campaign_still_cancels_a_lapsed_one(
     assert (await db.scalar(select(Call.state))) is CallState.canceled
 
 
-@pytest.mark.parametrize(
-    ("token", "status"), [(MEDIC, 403), ("+40700000009", 403), ("invalid", 401)]
-)
-async def test_only_das_ends(client, db, das, add_user, token, status):
-    await add_user(MEDIC, Role.medic)
+@NOT_DAS
+async def test_only_das_ends(client, das, everyone, token, status, reason):
     c = (await start(client)).json()
-    assert (await end(client, c["id"], token)).status_code == status
+    r = await end(client, c["id"], token)
+    assert (r.status_code, r.json()) == (status, {"detail": {"reason": reason}})
     listed = (await client.get("/api/campaigns", headers=signed_in(DAS))).json()
     assert [x["active"] for x in listed] == [True]  # the refusal changed nothing
 
