@@ -103,4 +103,32 @@
     <string name="last_caregiver">Un senior trimis la DAS are nevoie de cel puțin un aparținător.</string>
     <string name="field_invalid">Valoare invalidă.</string>
     <string name="too_long">Cel mult %1$d de caractere.</string>
+
+    <!-- The mock call card on the senior's home (design §6.2, Q8, Q11) -->
+    <string name="mock_calling">DAS Timișoara vă sună</string>
+    <string name="mock_note">Apel simulat: răspundeți aici în loc de telefon.</string>
+    <string name="mock_warning">Cod %1$s de %2$s</string>
+    <string name="level_yellow">galben</string>
+    <string name="level_red">roșu</string>
+    <string name="kind_cold">ger</string>
+    <string name="kind_heat">caniculă</string>
+    <string name="q_feeling">Cum vă simțiți?</string>
+    <string name="feeling_ok">Bine</string>
+    <string name="feeling_unwell">Rău</string>
+    <string name="q_day">Ce zi este azi?</string>
+    <string name="day_luni">Luni</string>
+    <string name="day_marti">Marți</string>
+    <string name="day_miercuri">Miercuri</string>
+    <string name="day_joi">Joi</string>
+    <string name="day_vineri">Vineri</string>
+    <string name="day_sambata">Sâmbătă</string>
+    <string name="day_duminica">Duminică</string>
+    <string name="day_unknown">Nu știu</string>
+    <string name="q_shelter_cold">Aveți căldură în casă?</string>
+    <string name="q_shelter_heat">Aveți un loc răcoros?</string>
+    <string name="yes">Da</string>
+    <string name="no">Nu</string>
+    <string name="mock_send">Trimite răspunsurile</string>
+    <string name="mock_later">Nu acum</string>
+    <string name="welcome_title">Apel de bun venit DAS</string>
 </resources>
