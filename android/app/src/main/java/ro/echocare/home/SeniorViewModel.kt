@@ -23,7 +23,7 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var warning by mutableStateOf(false)
         private set
 
-    /** The call the card answers (design §6.2); null when none is due, on a 404 or a failed read. */
+    /** The call the card answers; null when none is due or on production (design §6.2). */
     var mock by mutableStateOf<MockCall?>(null)
         private set
 
@@ -34,19 +34,25 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
             // A failed read keeps the last answer: the page's own banner says offline
             if (id == null) {
                 (answer { api.me() } as? Answer.Ok)?.let { warning = it.value.warningActive }
-                // A 204 has no body, a 404 means production, and a failed read shows no card
-                mock = (answer { api.mockCall() } as? Answer.Ok)?.value?.body()
+                // A Response does not throw on a 5xx: only a definite answer changes the card
+                val read = (answer { api.mockCall() } as? Answer.Ok)?.value
+                mock = cardAfterRead(read?.code(), read?.body(), mock)
             }
         }
     }
 
-    /** Posts the card's answer, then the card goes and the page rereads, a 409 included (design §6.2). */
+    /**
+     * Posts the card's answer. Once the server answered, even with a 409, the card goes and the
+     * page rereads; a lost connection or a 5xx keeps the card to press again (design §6.2).
+     */
     fun answer(body: MockAnswer) {
         val call = mock ?: return
         viewModelScope.launch {
-            answer { api.mockAnswer(call.callId, body) }
-            mock = null
-            reread(null)
+            val sent = (answer { api.mockAnswer(call.callId, body) } as? Answer.Ok)?.value
+            if (answerSettled(sent?.code())) {
+                mock = null
+                reread(null)
+            }
         }
     }
 

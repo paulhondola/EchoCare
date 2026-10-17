@@ -61,6 +61,25 @@ fun campaignAnswer(feeling: String?, day: String?, shelter: String?): MockAnswer
         null
     }
 
+/**
+ * The card after a read that answered [status] (null: no answer at all). Only the server's own
+ * answer changes it: 200 is [body], and 204 (nothing due), 403 and 404 (production) are no card.
+ * A lost connection or a 5xx, say a redeploy, keeps [previous] so the senior's choices survive
+ * (design §6.2).
+ */
+fun cardAfterRead(status: Int?, body: MockCall?, previous: MockCall?): MockCall? = when (status) {
+    200 -> body
+    204, 403, 404 -> null
+    else -> previous
+}
+
+/**
+ * Whether a post that answered [status] (null: no answer at all) is done with the card: the server
+ * took it (2xx) or refused it (4xx, a 409 and a 422 included), so the page rereads. Otherwise the
+ * answer may not have arrived, and the card stays for the senior to press again (design §6.2).
+ */
+fun answerSettled(status: Int?): Boolean = status != null && status in 200..499
+
 /** The campaign's code and its kind as „Cod galben de caniculă”; null for a value this build lacks. */
 @Composable
 private fun warningLine(call: MockCall): String? {
