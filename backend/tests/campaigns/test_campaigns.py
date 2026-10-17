@@ -266,3 +266,58 @@ async def test_answering_a_running_campaign_still_cancels_a_lapsed_one(
     again = await start(client, "heat")
     assert (again.status_code, again.json()["id"]) == (200, running["id"])
     assert (await db.scalar(select(Call.state))) is CallState.canceled
+
+
+@pytest.mark.parametrize(
+    ("token", "status"), [(MEDIC, 403), ("+40700000009", 403), ("invalid", 401)]
+)
+async def test_only_das_ends(client, db, das, add_user, token, status):
+    await add_user(MEDIC, Role.medic)
+    c = (await start(client)).json()
+    assert (await end(client, c["id"], token)).status_code == status
+    listed = (await client.get("/api/campaigns", headers=signed_in(DAS))).json()
+    assert [x["active"] for x in listed] == [True]  # the refusal changed nothing
+
+
+async def test_ending_cancels_a_redial_and_leaves_another_campaign_alone(
+    client, db, das, add_active_senior
+):  # Q9
+    maria = await add_active_senior("+40700000101")
+    a = (await start(client, "cold", "yellow")).json()
+    ion = await add_active_senior("+40700000102")
+    b = (await start(client, "cold", "red")).json()  # Maria's call is A's: only Ion
+    assert b["progress"]["waiting"] == 1
+
+    first = await db.scalar(select(Call).where(Call.senior_id == maria.id))
+    first.state, first.ended_at = CallState.unanswered, datetime.now(UTC)
+    await db.commit()
+    db.add(  # A's redial, queued after the first attempt ended
+        Call(
+            senior_id=maria.id,
+            trigger=CallTrigger.campaign,
+            campaign_id=first.campaign_id,
+            previous_call_id=first.id,
+            attempt=2,
+            starting_severity=Severity.green,
+            state=CallState.queued,
+            due_at=datetime.now(UTC),
+        )
+    )
+    await db.commit()
+
+    r = await end(client, a["id"])
+    assert r.json()["progress"]["canceled"] == 1
+    states = {
+        (c.senior_id, c.attempt): c.state
+        for c in (await db.scalars(select(Call))).all()
+    }
+    assert states == {
+        (maria.id, 1): CallState.unanswered,  # a finished attempt is history
+        (maria.id, 2): CallState.canceled,
+        (ion.id, 1): CallState.queued,  # B's call is untouched
+    }
+    listed = {
+        c["id"]: c
+        for c in (await client.get("/api/campaigns", headers=signed_in(DAS))).json()
+    }
+    assert (listed[a["id"]]["active"], listed[b["id"]]["active"]) == (False, True)
