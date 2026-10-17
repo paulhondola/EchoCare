@@ -186,6 +186,7 @@ These are configured in the Firebase console under Authentication → Sign-in me
 | `+40700000003` | `333333` | DAS (`grant_das.py`) and medic (`POST /api/staff`): exercises the role picker |
 | `+40700000004` | `444444` | a caregiver (`POST /api/seniors/{id}/caregivers`) |
 | `+40700000005` | `555555` | a senior (`POST /api/seniors` with this number) |
+| `+40700000006` | `666666` | a second senior, for the welcome card (`POST /api/seniors` with this number) |
 | `+40700000009` | `999999` | nothing: exercises `not_registered` |
 
 Grants live in each environment's database (ADR-001), so each environment needs its own grants (§9).
