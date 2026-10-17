@@ -39,6 +39,7 @@ class ConsentMethod(StrEnum):
     signature = "signature"
     medic = "medic"
     das = "das"
+    app = "app"  # given or refused on the mock card in the senior's app (design §4.4)
 
 
 class WatchCondition(StrEnum):
