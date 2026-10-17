@@ -223,12 +223,19 @@ export interface SeniorSummary {
   phone_e164: string;
   phone_is_landline: boolean;
   enrollment_state: string;
+  // The senior's current code (04 §1); optional so an older API still type-checks
+  code?: "green" | "yellow" | "red" | null;
+  reason?: string | null;
+  since?: string | null;
 }
 
 // GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors/service.py.
 export type SeniorView = IncidentDetail["senior"] & {
   call_window: string | null;
   enrollment_state: string;
+  code?: "green" | "yellow" | "red" | null;
+  reason?: string | null;
+  since?: string | null;
   medic: { display_name: string; practice: string | null };
   caregivers: {
     user_id: string;
@@ -282,4 +289,56 @@ export async function fetchSystemHealth(signal?: AbortSignal): Promise<SystemHea
   const r = await apiFetch("/api/system/health", { signal });
   if (!r.ok) throw await refused(r);
   return (await r.json()) as SystemHealth;
+}
+
+export type CampaignKind = "heat" | "cold";
+export type WarningLevel = "yellow" | "red";
+
+// One row of GET /campaigns (04 §1), DAS only. Mirrors CampaignSummary in the backend.
+// `total` counts every queued call, so it can exceed the buckets: a call that is ringing or in
+// progress is only in `total`.
+export interface Campaign {
+  id: string;
+  kind: CampaignKind;
+  level: WarningLevel;
+  started_by_name: string;
+  started_at: string;
+  warning_until: string;
+  active: boolean;
+  progress: {
+    total: number;
+    waiting: number;
+    green: number;
+    yellow: number;
+    red: number;
+    canceled: number;
+  };
+}
+
+/** Newest first (04 §1). */
+export async function fetchCampaigns(signal?: AbortSignal): Promise<Campaign[]> {
+  const r = await apiFetch("/api/campaigns", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as Campaign[];
+}
+
+/** POST /campaigns (04 §2): 201 for a new campaign, 200 for the one already running. */
+export async function startCampaign(
+  kind: CampaignKind,
+  level: WarningLevel,
+): Promise<{ campaign: Campaign; created: boolean }> {
+  const r = await apiFetch("/api/campaigns", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, level }),
+  });
+  if (!r.ok) throw await refused(r);
+  return { campaign: (await r.json()) as Campaign, created: r.status === 201 };
+}
+
+/** Încheie: ends the warning and cancels the calls nobody answered (04 §2). */
+export async function endCampaign(id: string): Promise<Campaign> {
+  const r = await apiFetch(`/api/campaigns/${id}/end`, { method: "POST" });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as Campaign;
 }

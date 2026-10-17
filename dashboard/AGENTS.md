@@ -18,8 +18,10 @@ dashboard/
 │   │   │   └── +page.svelte         /seniors : Seniors, Monitorizare seniori
 │   │   ├── enrollments/
 │   │   │   └── +page.svelte         /enrollments : Enrollments (UC-04)
-│   │   └── staff/
-│   │       └── +page.svelte         /staff : Staff (UC-14)
+│   │   ├── staff/
+│   │   │   └── +page.svelte         /staff : Staff (UC-14)
+│   │   └── campaigns/
+│   │       └── +page.svelte         /campaigns : Campaigns, Campanii meteo
 │   ├── features/                    domain feature components
 │   │   ├── shell/                   Shell (Cod Roșu banner and incident dossier over every page), Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
@@ -27,6 +29,7 @@ dashboard/
 │   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over
 │   │   ├── enrollments/             Enrollments: review and Acceptă
 │   │   ├── staff/                   Staff: member list, who is on duty, adding medic or DAS
+│   │   ├── campaigns/               Campaigns: start a weather campaign, progress per campaign, Încheie
 │   │   └── system/                  SystemHealthIndicator: the sidebar's system line
 │   ├── ui/                          presentational pieces with no data: Icon.svelte (Lucide), Brand.svelte, CopyButton.svelte
 │   ├── services/                    apiFetch, getMe, Firebase auth
@@ -36,6 +39,7 @@ dashboard/
 │   │   ├── phone.ts                 typed number → E.164 and back for display, with phone.test.ts
 │   │   ├── labels.ts                shared Romanian labels, tones, date formats and address line
 │   │   ├── incidents.ts             board columns, filter, relative times, with incidents.test.ts
+│   │   ├── campaigns.ts             campaign labels and progress counts, with campaigns.test.ts
 │   │   ├── csv.ts                   CSV text and download, with csv.test.ts
 │   │   └── poll.svelte.ts           shared reactive timer utility (04 §6), with poll.test.ts
 │   └── vite.config.ts               Vite+: SvelteKit SPA adapter, Tailwind v4, lint, fmt

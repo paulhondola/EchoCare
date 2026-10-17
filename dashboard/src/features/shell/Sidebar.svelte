@@ -45,6 +45,13 @@
       count: count(live.staff.load),
       on: page.url.pathname.startsWith("/staff"),
     },
+    {
+      href: "/campaigns",
+      label: "Campanii",
+      icon: "zap",
+      count: null,
+      on: page.url.pathname.startsWith("/campaigns"),
+    },
   ]);
 
   function toggleSound() {

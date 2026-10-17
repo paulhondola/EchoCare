@@ -31,6 +31,17 @@ export function enrollment(state: string): { label: string; tone: Tone } {
   return ENROLLMENT[state] ?? { label: state, tone: "muted" };
 }
 
+// The codes of 03 §8 as the dashboard shows them
+export const CODES: Record<string, { label: string; tone: Tone }> = {
+  green: { label: "Cod verde", tone: "verde" },
+  yellow: { label: "Cod galben", tone: "galben" },
+  red: { label: "Cod roșu", tone: "rosu" },
+};
+
+export function code(c: string | null | undefined): { label: string; tone: Tone } | null {
+  return c ? (CODES[c] ?? { label: c, tone: "muted" }) : null;
+}
+
 /** Chip colours per tone; full class names so Tailwind finds them */
 export const TONE_CHIP: Record<Tone, string> = {
   verde: "bg-verde/15 text-verde-fg",
