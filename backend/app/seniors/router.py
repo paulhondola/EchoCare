@@ -27,8 +27,8 @@ from app.seniors.service import (
     register,
     revoke_caregiver,
     save_signature,
+    senior_summaries,
     senior_view,
-    seniors_query,
     submit,
     withdraw_consent,
 )
@@ -44,8 +44,7 @@ async def list_seniors(
 ) -> list[SeniorSummary]:
     """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6). `role`
     narrows the list to one role's reach, for that role's home (seniors SE6)."""
-    seniors = await session.scalars(seniors_query(caller, role))
-    return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
+    return await senior_summaries(session, caller, role)
 
 
 @router.get("/seniors/{senior_id}")

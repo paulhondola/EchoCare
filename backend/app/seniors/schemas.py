@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Annotated, Any, Self
 
 from pydantic import (
@@ -58,6 +59,9 @@ def text(max_length: int, min_length: int = 0) -> Any:
 
 # Enrollment states read back as their names; an unknown one as the bare string.
 State = Annotated[str, BeforeValidator(lambda v: getattr(v, "value", v))]
+
+# A code reads back as its name ("green"): Severity is an IntEnum and would serialize as 0.
+Code = Annotated[str, BeforeValidator(lambda v: getattr(v, "name", v))]
 
 # The registration form's optional fields (UC-01 steps 1 and 2); empty means none.
 OPTIONAL = (
@@ -165,6 +169,10 @@ class SeniorSummary(BaseModel):
     phone_e164: str
     phone_is_landline: bool
     enrollment_state: State
+    # The current code (Q17), null until the first result and for a senior not `active`.
+    code: Code | None = None
+    reason: str | None = None
+    since: datetime | None = None
 
 
 class CaregiverView(CaregiverSummary):
@@ -184,5 +192,8 @@ class SeniorView(SeniorDetail):
 
     call_window: str | None
     enrollment_state: State
+    code: Code | None = None
+    reason: str | None = None
+    since: datetime | None = None
     medic: MedicView
     caregivers: list[CaregiverView]

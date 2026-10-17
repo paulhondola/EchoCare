@@ -8,7 +8,17 @@ import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.core.db import engine
-from app.models import Call, Consent, EnrollmentState, Grant, Role, Senior, User
+from app.models import (
+    Call,
+    Consent,
+    EnrollmentState,
+    Grant,
+    Role,
+    Senior,
+    SeniorStatus,
+    User,
+)
+from app.status.engine import Severity
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -650,3 +660,42 @@ async def test_others_cannot_delete(client, db, staff, token):
     await add_caregiver(client, maria["id"])
     r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(token))
     assert refusal(r) == (NOT_FOUND if token == OTHER_MEDIC else NOT_ALLOWED)
+
+
+async def test_the_code_shows_for_an_active_senior_only(
+    client, db, add_user, add_active_senior
+):
+    """Q17: a withdrawn senior's old code must not read as being watched."""
+    await add_user(DAS, Role.das)
+    maria = await add_active_senior("+40700000101")
+    ion = await add_active_senior("+40700000102")
+    now = datetime.now(UTC)
+    db.add_all(
+        [
+            SeniorStatus(
+                senior_id=s.id,
+                code=Severity.yellow,
+                reason="Nu are căldură în casă",
+                since=now,
+            )
+            for s in (maria, ion)
+        ]
+    )
+    ion.enrollment_state = EnrollmentState.withdrawn
+    await db.commit()
+    r = await client.get("/api/seniors", headers=signed_in(DAS))
+    rows = {row["id"]: row for row in r.json()}
+    assert (rows[str(maria.id)]["code"], rows[str(maria.id)]["reason"]) == (
+        "yellow",
+        "Nu are căldură în casă",
+    )
+    assert (rows[str(ion.id)]["code"], rows[str(ion.id)]["since"]) == (None, None)
+    page = (await client.get(f"/api/seniors/{maria.id}", headers=signed_in(DAS))).json()
+    assert page["code"] == "yellow"
+
+
+async def test_a_senior_with_no_result_has_no_code(client, add_user, add_active_senior):
+    await add_user(DAS, Role.das)
+    await add_active_senior("+40700000101")
+    row = (await client.get("/api/seniors", headers=signed_in(DAS))).json()[0]
+    assert (row["code"], row["reason"], row["since"]) == (None, None, None)

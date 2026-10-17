@@ -90,6 +90,9 @@ async def test_from_draft_to_accepted(client, staff):
         "phone_e164": SENIOR,
         "phone_is_landline": False,
         "enrollment_state": "submitted",
+        "code": None,  # no code until active (Q17)
+        "reason": None,
+        "since": None,
     }
     assert [s["id"] for s in (await enrollments(client)).json()] == [maria]
     r = await client.get(f"/api/seniors/{maria}", headers=signed_in(DAS))
