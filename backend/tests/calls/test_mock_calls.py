@@ -7,22 +7,27 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import func, select, update
 
+from app.calls import mock
 from app.core.settings import AppEnv
 from app.models import (
     Answer,
     Call,
     CallTrigger,
     Campaign,
+    Consent,
     EnrollmentState,
     Grant,
     Role,
     Senior,
+    WelcomeOutcome,
 )
 from app.status.engine import Severity
 from app.voice.calls import CallState
+from app.voice.dialogue import CARD_CONSENT_TEXT, CARD_CONSENT_VERSION
 
 DAS, MEDIC, NO_GRANT = "+40700000001", "+40700000002", "+40700000009"
 SENIOR, OTHER_SENIOR, CAREGIVER = "+40700000101", "+40700000102", "+40700000103"
+WELCOMED = "+40700000106"  # the senior of `welcome_card`
 
 # Everyone but the senior whose call it is (06 §5): each role, a number with no grant,
 # signed out (None).
@@ -312,10 +317,190 @@ async def test_the_card_shows_a_welcome_call_with_the_consent_text(
     assert body["consent_text"].endswith("Sunteți de acord?")
 
 
-async def test_no_mock_in_production(client, queued, monkeypatch):  # Q10
+async def test_no_mock_in_production(client, db, queued, monkeypatch):  # Q10
+    call_id = (await card(client)).json()[
+        "call_id"
+    ]  # a real call, read before the gate
     monkeypatch.setattr(
         "app.calls.mock.get_settings",
         lambda: SimpleNamespace(app_env=AppEnv.production),
     )
     assert (await card(client)).status_code == 404
-    assert (await answer(client, uuid.uuid4(), {"declined": True})).status_code == 404
+    r = await answer(client, call_id, {"declined": True})
+    assert (r.status_code, r.json()) == (404, {"detail": {"reason": "not_found"}})
+    state = await db.scalar(select(Call.state).where(Call.id == call_id))
+    assert state == CallState.queued
+
+
+@pytest.mark.parametrize("trigger", [t for t in CallTrigger if t not in mock.REQUIRES])
+async def test_only_campaign_and_welcome_calls_are_answered(
+    client, db, add_active_senior, trigger
+):
+    senior = await add_active_senior(SENIOR)
+    call = Call(
+        senior_id=senior.id,
+        trigger=trigger,
+        starting_severity=Severity.green,
+        due_at=datetime.now(UTC),
+    )
+    db.add(call)
+    await db.commit()
+    r = await answer(client, call.id, {"declined": True})
+    assert (r.status_code, r.json()) == (409, {"detail": {"reason": "wrong_state"}})
+    assert await db.scalar(select(Call.state).where(Call.id == call.id)) == (
+        CallState.queued
+    )
+
+
+@pytest.fixture
+async def welcome_card(client, db, add_user, add_senior):
+    """A submitted senior with her own number, accepted by DAS through the API; returns
+    the card her app reads (Q11)."""
+    await add_user(DAS, Role.das)
+    senior = await add_senior(
+        WELCOMED,
+        enrollment_state=EnrollmentState.submitted,
+        street="Str. Daliei",
+        street_number="1",
+    )
+    herself = await add_user(WELCOMED)
+    db.add(Grant(user_id=herself.id, role=Role.senior, senior_id=senior.id))
+    await db.commit()
+    r = await client.post(f"/api/seniors/{senior.id}/accept", headers=signed_in(DAS))
+    assert r.status_code == 200
+    return (await card(client, WELCOMED)).json()
+
+
+async def welcomed(client, db):
+    """The `welcome_card` senior, as DAS reads her."""
+    senior_id = await db.scalar(select(Senior.id))
+    r = await client.get(f"/api/seniors/{senior_id}", headers=signed_in(DAS))
+    return r.json()
+
+
+async def test_the_welcome_card_and_consent(client, db, welcome_card):
+    assert (
+        welcome_card["trigger"],
+        welcome_card["text_version"],
+        welcome_card["consent_text"],
+    ) == ("welcome", "v1-app", CARD_CONSENT_TEXT)
+    r = await answer(client, welcome_card["call_id"], {"consent": True}, WELCOMED)
+    assert r.status_code == 204
+    row = await welcomed(client, db)
+    assert (row["enrollment_state"], row["code"]) == ("active", "green")
+    assert row["reason"] == "Consimțământ dat"
+    consent = (
+        await db.execute(
+            select(
+                Consent.decision, Consent.method, Consent.text_version, Consent.call_id
+            )
+        )
+    ).one()
+    assert tuple(consent) == (
+        "given",
+        "app",
+        CARD_CONSENT_VERSION,
+        uuid.UUID(welcome_card["call_id"]),
+    )
+    assert (await card(client, WELCOMED)).status_code == 204
+    ended = (
+        await db.execute(
+            select(Call.state, Call.welcome_outcome, Call.ended_at).where(
+                Call.id == welcome_card["call_id"]
+            )
+        )
+    ).one()
+    assert (ended.state, ended.welcome_outcome, ended.ended_at is not None) == (
+        CallState.completed,
+        WelcomeOutcome.confirmed,
+        True,
+    )
+    t = (
+        await client.get(
+            f"/api/calls/{welcome_card['call_id']}/transcript", headers=signed_in(DAS)
+        )
+    ).json()
+    assert [(turn["speaker"], turn["content"]) for turn in t["turns"]] == [
+        ("system", "Apel simulat din aplicație, fără linie telefonică."),
+        ("agent", CARD_CONSENT_TEXT),
+        ("senior", "Da"),
+        (
+            "agent",
+            "Vă mulțumim. Nu vă vom cere niciodată bani sau date. O zi bună!",
+        ),
+    ]
+
+
+async def test_welcome_no_refuses(client, db, welcome_card):
+    r = await answer(client, welcome_card["call_id"], {"consent": False}, WELCOMED)
+    assert r.status_code == 204
+    row = await welcomed(client, db)
+    assert (row["enrollment_state"], row["code"]) == ("refused", None)
+    consent = (
+        await db.execute(select(Consent.decision, Consent.method, Consent.text_version))
+    ).one()
+    assert tuple(consent) == ("refused", "app", "v1-app")
+    t = (
+        await client.get(
+            f"/api/calls/{welcome_card['call_id']}/transcript", headers=signed_in(DAS)
+        )
+    ).json()
+    assert [(turn["speaker"], turn["content"]) for turn in t["turns"]][2:] == [
+        ("senior", "Nu"),
+        ("agent", "Am înțeles. Nu vă vom mai suna. O zi bună!"),
+    ]
+
+
+async def test_welcome_needs_a_consent_answer(client, db, welcome_card):
+    r = await answer(client, welcome_card["call_id"], {"declined": True}, WELCOMED)
+    assert (r.status_code, r.json()) == (
+        422,
+        {"detail": {"reason": "incomplete", "missing": ["consent"]}},
+    )
+    assert (await welcomed(client, db))["enrollment_state"] == "accepted"
+
+
+async def nothing_written(client, db, welcome_card, state):
+    """The call is still `queued`, with no transcript or consent, and the senior is
+    still in `state`."""
+    call_id = welcome_card["call_id"]
+    assert await db.scalar(select(Call.state).where(Call.id == call_id)) == (
+        CallState.queued
+    )
+    assert await db.scalar(select(func.count()).select_from(Consent)) == 0
+    t = (
+        await client.get(f"/api/calls/{call_id}/transcript", headers=signed_in(DAS))
+    ).json()
+    assert t["turns"] == []
+    assert (await welcomed(client, db))["enrollment_state"] == state
+
+
+@pytest.mark.parametrize("state", [EnrollmentState.active, EnrollmentState.refused])
+async def test_a_senior_no_longer_accepted_cannot_answer_the_welcome(
+    client, db, welcome_card, state
+):
+    await db.execute(update(Senior).values(enrollment_state=state))
+    await db.commit()
+    r = await answer(client, welcome_card["call_id"], {"consent": True}, WELCOMED)
+    assert (r.status_code, r.json()) == (409, {"detail": {"reason": "wrong_state"}})
+    await nothing_written(client, db, welcome_card, state.name)
+
+
+async def test_a_move_between_the_check_and_the_answer_writes_nothing(
+    client, db, welcome_card, monkeypatch
+):
+    # The senior leaves `accepted` after the call row was read: conclude_welcome's guarded
+    # update finds nobody and the answer is refused with nothing written (design §5).
+    concluding = mock.conclude_welcome
+
+    async def after_a_withdrawal(*args, **kwargs):
+        await db.execute(
+            update(Senior).values(enrollment_state=EnrollmentState.withdrawn)
+        )
+        await db.commit()
+        return await concluding(*args, **kwargs)
+
+    monkeypatch.setattr("app.calls.mock.conclude_welcome", after_a_withdrawal)
+    r = await answer(client, welcome_card["call_id"], {"consent": True}, WELCOMED)
+    assert (r.status_code, r.json()) == (409, {"detail": {"reason": "wrong_state"}})
+    await nothing_written(client, db, welcome_card, "withdrawn")

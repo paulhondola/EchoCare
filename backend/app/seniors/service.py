@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -29,6 +30,10 @@ from app.seniors.schemas import (
 from app.staff.service import user_for
 
 log = logging.getLogger("echocare.seniors")
+
+# What a move does in its own transaction besides the move: the router passes it in,
+# since `seniors` can't import `calls` (design §7).
+Hook = Callable[[AsyncSession, uuid.UUID], Awaitable[None]]
 
 
 def reach(caller: Caller, role: Role | None = None) -> ColumnElement[bool]:
@@ -479,10 +484,17 @@ async def submit(
 
 
 async def accept(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    then: Hook | None = None,
 ) -> SeniorSummary:
-    """submitted -> accepted, by DAS (UC-04 step 1)."""
+    """submitted -> accepted, by DAS (UC-04 step 1). `then` runs first and `move` commits
+    both, so a refused move leaves nothing of it."""
     senior = await reach_senior(session, caller, senior_id)
+    if then is not None:
+        await then(session, senior.id)
     await move(
         session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
     )
@@ -490,10 +502,15 @@ async def accept(
 
 
 async def withdraw_consent(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    then: Hook | None = None,
 ) -> SeniorSummary:
     """active -> withdrawn, with a consent row for it, by the registering medic or DAS
-    (Q15). The row is added first and `move` commits both; a refusal commits neither."""
+    (Q15). The row and `then` come first and `move` commits them; a refusal commits
+    none."""
     senior = await editable_senior(session, caller, senior_id)
     latest = await session.scalar(
         select(Consent.text_version)
@@ -511,6 +528,8 @@ async def withdraw_consent(
             recorded_by=caller.user.id,
         )
     )
+    if then is not None:
+        await then(session, senior.id)
     await move(
         session, caller, senior, EnrollmentState.active, EnrollmentState.withdrawn
     )

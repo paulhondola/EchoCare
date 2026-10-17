@@ -1,11 +1,14 @@
 """Withdrawn consent and the signature (Q15, Q16, 04 §2)."""
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select, update
 
-from app.models import Consent, EnrollmentState, Role, Senior
+from app.models import Call, CallTrigger, Consent, EnrollmentState, Role, Senior
+from app.status.engine import Severity
+from app.voice.calls import CallState
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -128,6 +131,38 @@ async def test_a_withdrawal_needs_an_active_senior(client, db, staff):
     r = await withdraw(client, maria["id"])
     assert refusal(r) == WRONG_STATE
     assert await consents(db, maria["id"]) == 0
+
+
+async def queue_campaign_call(db, senior_id) -> uuid.UUID:
+    call = Call(
+        senior_id=uuid.UUID(senior_id),
+        trigger=CallTrigger.campaign,
+        starting_severity=Severity.green,
+        due_at=datetime.now(UTC),
+    )
+    db.add(call)
+    await db.commit()
+    return call.id
+
+
+async def test_withdrawal_cancels_queued_calls(client, db, staff):  # UC-04, 04 §2
+    maria = await register(client)
+    await set_state(db, maria["id"], EnrollmentState.active)
+    call_id = await queue_campaign_call(db, maria["id"])
+    assert (await withdraw(client, maria["id"])).status_code == 200
+    state, ended_at = (
+        await db.execute(select(Call.state, Call.ended_at).where(Call.id == call_id))
+    ).one()
+    assert (state, ended_at is not None) == (CallState.canceled, True)
+
+
+async def test_a_refused_withdrawal_cancels_nothing(client, db, staff):
+    maria = await register(client)
+    await set_state(db, maria["id"], EnrollmentState.submitted)
+    call_id = await queue_campaign_call(db, maria["id"])
+    assert refusal(await withdraw(client, maria["id"])) == WRONG_STATE
+    state = await db.scalar(select(Call.state).where(Call.id == call_id))
+    assert state == CallState.queued
 
 
 async def test_a_caregiver_cannot_withdraw(client, db, staff):

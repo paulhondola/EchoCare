@@ -15,11 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
-from app.calls.ending import conclude
+from app.calls.ending import conclude, conclude_welcome
 from app.calls.schemas import MockAnswerForm, MockCallView
 from app.campaigns.service import cancel_lapsed
 from app.core.settings import AppEnv, get_settings
-from app.seniors.models import EnrollmentState, Senior
+from app.seniors.models import ConsentMethod, EnrollmentState, Senior
 from app.seniors.service import reach
 from app.status.engine import Answer as RuleAnswer
 from app.status.engine import CallAnswers, Question, Severity
@@ -47,6 +47,10 @@ REQUIRES = {
 
 SIMULATED = "Apel simulat din aplicație, fără linie telefonică."
 DECLINED = "Seniorul a ales „Nu acum”."
+WELCOME_GOODBYE = {
+    True: "Vă mulțumim. Nu vă vom cere niciodată bani sau date. O zi bună!",
+    False: "Am înțeles. Nu vă vom mai suna. O zi bună!",
+}
 
 
 def forbid_in_production(caller: Caller) -> None:
@@ -103,7 +107,7 @@ async def answer_mock_call(
     session: AsyncSession, caller: Caller, call_id: uuid.UUID, form: MockAnswerForm
 ) -> None:
     """Walk the call through the states a real one passes, write its transcript and end
-    it through `conclude`. Commits.
+    it through `conclude`, or `conclude_welcome` for a welcome call. Commits.
 
     Refused, in this order: not the caller's senior's call 404, already ended 409
     `already_done`, no longer answerable 409 `wrong_state`, a body that doesn't fit the
@@ -135,15 +139,18 @@ async def answer_mock_call(
         log.info("refused already_done: user %s, call %s", caller.user.id, call_id)
         raise refuse(409, "already_done")
     now = datetime.now(UTC)
-    # Only a campaign call is answered here: a welcome call is 409 until its answer exists.
+    # A trigger with no entry (watch, manual, test) is never answered here: the senior's
+    # state is never None.
     if (
-        call.trigger is not CallTrigger.campaign
-        or call.state is not CallState.queued
+        call.state is not CallState.queued
         or call.due_at > now
-        or enrollment is not REQUIRES[call.trigger]
+        or enrollment is not REQUIRES.get(call.trigger)
     ):
         log.info("refused wrong_state: user %s, call %s", caller.user.id, call_id)
         raise refuse(409, "wrong_state")
+    if call.trigger is CallTrigger.welcome:
+        await answer_welcome(session, caller, call, form)
+        return
 
     given = {"feeling": form.feeling, "day": form.day, "shelter": form.shelter}
     missing = [name for name, value in given.items() if value is None]
@@ -209,7 +216,13 @@ async def answer_mock_call(
             )
             for i, q in enumerate(Question)
         )
-    session.add_all(
+    session.add_all(turns(call, lines))
+    await session.commit()
+
+
+def turns(call: Call, lines: list[tuple[Speaker, str]]) -> list[CallTurn]:
+    """The transcript rows for `lines`, numbered from 1."""
+    return [
         CallTurn(
             call_id=call.id,
             position=position,
@@ -218,6 +231,42 @@ async def answer_mock_call(
             content=content,
         )
         for position, (speaker, content) in enumerate(lines, start=1)
+    ]
+
+
+async def answer_welcome(
+    session: AsyncSession, caller: Caller, call: Call, form: MockAnswerForm
+) -> None:
+    """The card's „Da” or „Nu” ends the welcome call through `conclude_welcome` (Q11).
+
+    422 `incomplete` without a `consent`; 409 `wrong_state` when the senior left
+    `accepted` since the check, with nothing written. Commits.
+    """
+    if form.consent is None:
+        log.info("refused incomplete: user %s, call %s", caller.user.id, call.id)
+        raise refuse(422, "incomplete", missing=["consent"])
+    call.state = advance(call.state, CallState.ringing)
+    call.state = advance(call.state, CallState.in_progress)
+    call.started_at = datetime.now(UTC)
+    if not await conclude_welcome(
+        session,
+        call,
+        given=form.consent,
+        method=ConsentMethod.app,
+        text_version=CARD_CONSENT_VERSION,
+    ):
+        log.info("refused wrong_state: user %s, call %s", caller.user.id, call.id)
+        raise refuse(409, "wrong_state")
+    session.add_all(
+        turns(
+            call,
+            [
+                (Speaker.system, SIMULATED),
+                (Speaker.agent, CARD_CONSENT_TEXT),
+                (Speaker.senior, "Da" if form.consent else "Nu"),
+                (Speaker.agent, WELCOME_GOODBYE[form.consent]),
+            ],
+        )
     )
     await session.commit()
 
