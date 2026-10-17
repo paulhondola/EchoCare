@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -128,9 +128,9 @@ fun MockCallCard(call: MockCall, onAnswer: (MockAnswer) -> Unit) {
 @Composable
 private fun Campaign(call: MockCall, onAnswer: (MockAnswer) -> Unit) {
     // A new call starts with nothing chosen
-    var feeling by remember(call.callId) { mutableStateOf<String?>(null) }
-    var day by remember(call.callId) { mutableStateOf<String?>(null) }
-    var shelter by remember(call.callId) { mutableStateOf<String?>(null) }
+    var feeling by rememberSaveable(call.callId) { mutableStateOf<String?>(null) }
+    var day by rememberSaveable(call.callId) { mutableStateOf<String?>(null) }
+    var shelter by rememberSaveable(call.callId) { mutableStateOf<String?>(null) }
 
     Question(R.string.q_feeling, FEELINGS, feeling) { feeling = it }
     Question(R.string.q_day, DAY_CHOICES, day) { day = it }

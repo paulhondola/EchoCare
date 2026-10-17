@@ -19,7 +19,7 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var page by mutableStateOf<Load<SeniorPage>>(Load.Loading)
         private set
 
-    /** A weather warning is in force (Q17); read with the senior's own home only. */
+    /** A weather warning is in force (Q5); read with the senior's own home only. */
     var warning by mutableStateOf(false)
         private set
 

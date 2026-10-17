@@ -141,7 +141,7 @@ fun StateLabel(state: String) {
     Chip(stringResource(label), STATE_TONES[state] ?: Tone.Muted)
 }
 
-/** The code as a tinted chip with its reason; nothing for a code this build does not know (Q5). */
+/** The code as a tinted chip with its reason; nothing for a code this build does not know (Q17). */
 @Composable
 fun CodeLabel(code: String?, reason: String?) {
     val label = CODE_LABELS[code] ?: return

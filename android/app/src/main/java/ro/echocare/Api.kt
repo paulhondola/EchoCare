@@ -12,7 +12,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 // GET /me (auth-layer §3.3). Only the fields the app reads; roles stay strings (ADR-001 §2.3).
-// [warningActive]: a weather warning is in force, shown on the senior's home (Q17).
+// [warningActive]: a weather warning is in force, shown on the senior's home (Q5).
 @Serializable
 data class Me(
     @SerialName("display_name") val displayName: String,

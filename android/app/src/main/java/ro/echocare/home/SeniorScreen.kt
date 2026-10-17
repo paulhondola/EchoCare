@@ -49,7 +49,7 @@ fun SeniorScreen(
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
         LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
-            // The senior's home only: the warning the campaign's calls are about (Q17)
+            // The senior's home only: the warning the campaign's calls are about (Q5)
             if (id == null && vm.warning) {
                 Banner(stringResource(R.string.warning_active), Tone.Galben)
             }
