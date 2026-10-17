@@ -2,6 +2,7 @@ package ro.echocare
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -32,6 +33,21 @@ class ApiTest {
             ),
             rows
         )
+    }
+
+    @Test
+    fun aRowWithACodeIsDecoded() {
+        val rows = json.decodeFromString<List<SeniorRow>>(
+            """
+            [{"id": "s1", "full_name": "Maria Popescu", "form_of_address": "doamna Maria",
+              "phone_e164": "+40256123456", "phone_is_landline": true,
+              "enrollment_state": "active", "code": "yellow",
+              "reason": "Nu are căldură în casă", "since": "2026-10-17T10:00:00Z"}]
+            """
+        )
+        assertEquals("yellow", rows.single().code)
+        assertEquals("Nu are căldură în casă", rows.single().reason)
+        assertEquals("2026-10-17T10:00:00Z", rows.single().since)
     }
 
     private val page = """
@@ -75,5 +91,11 @@ class ApiTest {
                  "relation": "fiică"}]}"""
         )
         assertEquals(Me("Ana Pop", listOf(Grant("caregiver"))), me)
+    }
+
+    @Test
+    fun anOldProfileHasNoWarning() {
+        val me = json.decodeFromString<Me>("""{"display_name": "X", "grants": []}""")
+        assertFalse(me.warningActive)
     }
 }

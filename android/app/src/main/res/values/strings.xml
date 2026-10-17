@@ -38,6 +38,10 @@
     <string name="state_refused">Refuzat</string>
     <string name="state_wrong_number">Număr greșit</string>
     <string name="state_unreachable">De negăsit</string>
+    <string name="code_green">Cod verde</string>
+    <string name="code_yellow">Cod galben</string>
+    <string name="code_red">Cod roșu</string>
+    <string name="warning_active">Avertizare meteo în vigoare</string>
     <string name="label_phone">Telefon</string>
     <string name="label_address">Adresă</string>
     <string name="label_intercom">Interfon</string>

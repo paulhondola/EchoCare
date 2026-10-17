@@ -12,13 +12,19 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 // GET /me (auth-layer §3.3). Only the fields the app reads; roles stay strings (ADR-001 §2.3).
+// [warningActive]: a weather warning is in force, shown on the senior's home (Q17).
 @Serializable
-data class Me(@SerialName("display_name") val displayName: String, val grants: List<Grant>)
+data class Me(
+    @SerialName("display_name") val displayName: String,
+    val grants: List<Grant>,
+    @SerialName("warning_active") val warningActive: Boolean = false
+)
 
 @Serializable
 data class Grant(val role: String)
 
 // One row of GET /seniors (seniors §3.3). The state stays a string: a later server may add one.
+// [code], [reason] and [since] are the latest result of an active senior, else null (03 §8).
 @Serializable
 data class SeniorRow(
     val id: String,
@@ -26,7 +32,10 @@ data class SeniorRow(
     @SerialName("form_of_address") val formOfAddress: String,
     @SerialName("phone_e164") val phone: String,
     @SerialName("phone_is_landline") val landline: Boolean,
-    @SerialName("enrollment_state") val state: String
+    @SerialName("enrollment_state") val state: String,
+    val code: String? = null,
+    val reason: String? = null,
+    val since: String? = null
 )
 
 // GET /seniors/{id} (seniors §3.3): the row, the address with its access details (G13), the
@@ -39,6 +48,9 @@ data class SeniorPage(
     @SerialName("phone_e164") val phone: String,
     @SerialName("phone_is_landline") val landline: Boolean,
     @SerialName("enrollment_state") val state: String,
+    val code: String? = null,
+    val reason: String? = null,
+    val since: String? = null,
     val street: String? = null,
     @SerialName("street_number") val streetNumber: String? = null,
     val block: String? = null,

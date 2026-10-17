@@ -17,9 +17,19 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var page by mutableStateOf<Load<SeniorPage>>(Load.Loading)
         private set
 
+    /** A weather warning is in force (Q17); read with the senior's own home only. */
+    var warning by mutableStateOf(false)
+        private set
+
     /** [id] is null on the senior's own home: the one senior their grant names. */
     fun reread(id: String?) {
-        viewModelScope.launch { page = page.after(read(id)) }
+        viewModelScope.launch {
+            page = page.after(read(id))
+            // A failed read keeps the last answer: the page's own banner says offline
+            if (id == null) {
+                (answer { api.me() } as? Answer.Ok)?.let { warning = it.value.warningActive }
+            }
+        }
     }
 
     private suspend fun read(id: String?): Answer<SeniorPage> {

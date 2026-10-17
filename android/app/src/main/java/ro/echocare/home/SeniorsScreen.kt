@@ -94,10 +94,10 @@ fun SeniorsScreen(
     }
 }
 
-/** The dashboard's card: a bar in the state's colour down the left edge. */
+/** The dashboard's card: a bar down the left edge in the code's colour, else the state's. */
 @Composable
 private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
-    val tone = STATE_TONES[senior.state] ?: Tone.Muted
+    val tone = CODE_TONES[senior.code] ?: STATE_TONES[senior.state] ?: Tone.Muted
     Row(
         Modifier
             .fillMaxWidth()
@@ -129,6 +129,7 @@ private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
                 PhoneNumber(senior.phone, senior.landline)
             }
             StateLabel(senior.state)
+            CodeLabel(senior.code, senior.reason)
         }
     }
 }
@@ -138,4 +139,19 @@ private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
 fun StateLabel(state: String) {
     val label = STATE_LABELS[state] ?: return
     Chip(stringResource(label), STATE_TONES[state] ?: Tone.Muted)
+}
+
+/** The code as a tinted chip with its reason; nothing for a code this build does not know (Q5). */
+@Composable
+fun CodeLabel(code: String?, reason: String?) {
+    val label = CODE_LABELS[code] ?: return
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Chip(stringResource(label), CODE_TONES[code] ?: Tone.Muted)
+        reason?.let {
+            Text(it, color = Palette.FgMuted, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
 }

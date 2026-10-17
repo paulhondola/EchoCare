@@ -75,4 +75,12 @@ class RoutesTest {
             assertFalse(state, editable(state))
         }
     }
+
+    @Test
+    fun everyCodeHasALabelAndATone() {
+        // 03 §8: green, yellow, red.
+        val codes = setOf("green", "yellow", "red")
+        assertEquals(codes, CODE_LABELS.keys)
+        assertEquals(codes, CODE_TONES.keys)
+    }
 }
