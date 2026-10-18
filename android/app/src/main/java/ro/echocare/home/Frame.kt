@@ -1,5 +1,6 @@
 package ro.echocare.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -84,7 +86,17 @@ private fun TopBar(title: String, onBack: (() -> Unit)?, menu: @Composable () ->
                 )
             }
             Column(Modifier.weight(1f)) {
-                SectionLabel(stringResource(R.string.app_name))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painterResource(R.drawable.ic_brand),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    SectionLabel(stringResource(R.string.app_name))
+                }
                 Text(
                     title,
                     Modifier.semantics { heading() },
