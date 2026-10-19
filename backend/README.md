@@ -114,7 +114,7 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
 
 ## Mock data
 
-[scripts/seed.py](scripts/seed.py) fills the local database with fictitious people and their history: twelve seniors in every enrollment state, their medics and caregivers, a cold-weather campaign, calls with transcripts, and incidents open, in progress and resolved. It grants `+40700000001` DAS and `+40700000002` medic, and makes `+40700000004` and `+40700000005` Maria Popescu's son and Maria Popescu, so each test number signs in to something. From `backend/`:
+[scripts/seed.py](scripts/seed.py) fills the local database with fictitious people and their history: eighteen seniors in every enrollment state, their medics and caregivers, a cold-weather campaign, calls with transcripts, and fourteen incidents, open, in progress and resolved. It grants `+40700000001` DAS and `+40700000002` medic, and makes `+40700000004` and `+40700000005` Maria Popescu's son and Maria Popescu, so each test number signs in to something. From `backend/`:
 
 ```bash
 uv run python scripts/seed.py

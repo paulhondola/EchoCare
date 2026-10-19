@@ -21,12 +21,9 @@ async def test_seed_fills_the_dashboard_once(db, client):
 
     r = await client.get("/api/incidents?status=open,in_progress,resolved", headers=DAS)
     incidents = r.json()
-    assert sorted(i["status"] for i in incidents) == [
-        "in_progress",
-        "open",
-        "resolved",
-        "resolved",
-    ]
+    assert sorted(i["status"] for i in incidents) == (
+        ["in_progress"] * 4 + ["open"] * 4 + ["resolved"] * 6
+    )
     for incident in incidents:
         r = await client.get(f"/api/incidents/{incident['id']}", headers=DAS)
         assert r.json()["calls"], incident["senior_full_name"]
@@ -49,7 +46,7 @@ async def test_seed_reset_replaces_only_its_own_rows(db, add_senior):
     assert await seed(reset=True) == "reseeded"
     assert await count(db, Call) == calls
     assert await count(db, User) == users
-    assert await count(db, Incident) == 4
+    assert await count(db, Incident) == 14
     # A query, not db.get, which would answer from the session's identity map.
     kept = select(func.count()).where(Senior.id.in_([other.id, theirs.id]))
     assert await db.scalar(kept) == 2

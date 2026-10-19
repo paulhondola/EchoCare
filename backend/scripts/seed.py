@@ -1,10 +1,11 @@
 """Fill the local database with fictitious people and their history, a starting point for
 the dashboard and the apps. The demo uses fictitious people only (05 §5).
 
-Twelve seniors in Timișoara, one or more in every enrollment state, with their medics
+Eighteen seniors in Timișoara, one or more in every enrollment state, with their medics
 and caregivers; a second DAS employee; a cold-weather campaign; wellbeing calls with
-their transcripts, answers and status reports; watch check-ins; and incidents open, in
-progress and resolved, so every dashboard screen has something on it.
+their transcripts, answers and status reports; watch check-ins; and fourteen incidents,
+four open, four in progress and six resolved, so every dashboard screen has something
+on it.
 
 The seniors and their history have fixed uuid5 ids, so a second run adds nothing.
 --reset deletes every senior the seed made and everything about them, including calls,
@@ -179,6 +180,57 @@ SENIORS = (
          "key_holder": "Vecina de la ap. 12, doamna Rodica",
          "landmark": "Lângă stația de tramvai"},
     ),
+    # The next six each hold an unresolved incident, so the board has cards to triage.
+    SeniorSpec(
+        "dumitru", "Dumitru Pop", "domnul Dumitru", "+40700000113",
+        EnrollmentState.active, MEDIC, 38,
+        ((Person("+40700000211", "Simona Pop"), "fiică"),),
+        {"street": "Strada Bucovinei", "street_number": "27", "block": "H4",
+         "staircase": "A", "floor": "5", "apartment": "31", "intercom_code": "31",
+         "key_holder": "Fiica, Simona, are cheie de rezervă",
+         "landmark": "Lângă parcul din cartier"},
+    ),
+    SeniorSpec(
+        "aurelia", "Aurelia Marinescu", "doamna Aurelia", "+40700000114",
+        EnrollmentState.active, MEDIC_2, 55,
+        ((Person("+40700000212", "Cătălin Marinescu"), "fiu"),),
+        {"street": "Strada Cluj", "street_number": "6", "floor": "1",
+         "apartment": "3", "intercom_code": "3",
+         "landmark": "Casă veche cu două intrări"},
+    ),
+    SeniorSpec(
+        "teodor", "Teodor Crișan", "domnul Teodor", "+40700000115",
+        EnrollmentState.active, MEDIC, 29,
+        ((Person("+40700000213", "Mirela Crișan"), "nepoată"),),
+        {"street": "Bulevardul Cetății", "street_number": "11", "block": "C7",
+         "staircase": "B", "floor": "3", "apartment": "20", "intercom_code": "20",
+         "key_holder": "Vecinul de la ap. 21, domnul Sorin"},
+    ),
+    SeniorSpec(
+        "viorica", "Viorica Bălan", "doamna Viorica", "+40700000116",
+        EnrollmentState.active, MEDIC_2, 44,
+        ((Person("+40700000214", "Horia Bălan"), "fiu"),),
+        {"street": "Strada Take Ionescu", "street_number": "52", "block": "D1",
+         "staircase": "C", "floor": "4", "apartment": "27", "intercom_code": "27",
+         "landmark": "Vizavi de librărie"},
+    ),
+    SeniorSpec(
+        "gavril", "Gavril Szabó", "domnul Gavril", "+40700000117",
+        EnrollmentState.active, MEDIC, 66,
+        ((Person("+40700000215", "Emese Szabó"), "fiică"),),
+        {"street": "Strada Memorandumului", "street_number": "19", "floor": "2",
+         "apartment": "6", "intercom_code": "6",
+         "key_holder": "Fiica, Emese, locuiește în apropiere",
+         "landmark": "Clădire cu scări exterioare"},
+    ),
+    SeniorSpec(
+        "margareta", "Margareta Oprea", "doamna Margareta", "+40700000118",
+        EnrollmentState.active, MEDIC_2, 36,
+        ((Person("+40700000216", "Bogdan Oprea"), "nepot"),),
+        {"street": "Calea Lipovei", "street_number": "73", "block": "27",
+         "staircase": "A", "floor": "6", "apartment": "42", "intercom_code": "42",
+         "landmark": "Lângă spitalul de copii"},
+    ),
     SeniorSpec(
         "constantin", "Constantin Barbu", "domnul Constantin", "+40256000102",
         EnrollmentState.submitted, MEDIC_2, 2,
@@ -239,6 +291,20 @@ DAY_NAMES = ("luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "dumin
 HAND_OVER = "vă fac legătura acum cu un dispecer DAS. Vă rog să rămâneți la telefon."
 TRANSFERRED = "Apel transferat către dispeceratul DAS."
 PICKED_UP = "Dispecerul DAS a preluat apelul."
+# What the agent says and what the status report names, by what queued the call (UC-09).
+OPENING = {
+    EventType.sos_button: "Am primit un semnal de la ceasul dumneavoastră. Sunteți bine?",
+    EventType.high_pulse_at_rest: "Ceasul ne-a arătat un puls foarte mare. Cum vă simțiți?",
+    EventType.inactivity: "Ceasul nu a mai înregistrat nicio mișcare de ceva vreme. "
+    "Sunteți bine?",
+    EventType.manual_request: "Ați cerut să vă sunăm. Cum vă simțiți?",
+}
+TRIGGER_REASON = {
+    EventType.sos_button: "Butonul SOS al ceasului",
+    EventType.high_pulse_at_rest: "Puls mare în repaus",
+    EventType.inactivity: "Fără mișcare de câteva ore",
+    EventType.manual_request: "A cerut să fie sunată",
+}
 
 
 class History:
@@ -493,6 +559,71 @@ class History:
             )
         )
 
+    def emergency(
+        self,
+        senior: str,
+        event_type: EventType,
+        minutes_ago: float,
+        said: str,
+        reason: str,
+        summary: str,
+        *,
+        answered: bool = False,
+        snapshot: dict[str, Any] | None = None,
+        location: tuple[float, float, float] | None = None,
+        **resolution: Any,
+    ) -> Call:
+        """A watch or "Sunați-mă" event, the call it queued, and the red the senior's
+        first words made: handed over, then an incident. `answered` is whether DAS
+        picked up the hand-over; `resolution` goes to incident()."""
+        manual = event_type is EventType.manual_request
+        call = self.call(
+            senior,
+            "alarm",
+            CallTrigger.manual if manual else CallTrigger.watch,
+            minutes_ago,
+            CallState.handed_over,
+            starting=Severity.yellow,
+            final=Severity.red,
+            certainty=Certainty.low,
+            reason=reason,
+            summary=summary,
+            handover_answered=answered,
+            seconds=45,
+        )
+        self.event(senior, event_type, call, snapshot=snapshot, location=location)
+        form = self.seniors[senior].form_of_address
+        lines: list[tuple[Any, ...]] = [
+            (
+                AGENT,
+                f"Bună ziua, {form}. Sunt asistentul automat al DAS Timișoara. "
+                + OPENING[event_type],
+            ),
+            (SENIOR, said),
+            (AGENT, f"{form[:1].upper()}{form[1:]}, {HAND_OVER}"),
+            (SYSTEM, TRANSFERRED),
+        ]
+        if answered:
+            lines.append((SYSTEM, PICKED_UP))
+        self.say(call, *lines)
+        self.report(
+            call, ReportSource.trigger, Severity.yellow, TRIGGER_REASON[event_type]
+        )
+        self.report(
+            call,
+            ReportSource.alarm_tier1,
+            Severity.red,
+            reason,
+            certainty=Certainty.low,
+            quote=said,
+            position=2,
+        )
+        opened = self.turn_at(call, 2)
+        self.incident(senior, call, opened, **resolution)
+        if "resolved_minutes_ago" not in resolution:
+            self.status(senior, call, since=opened)
+        return call
+
     def day(self, minutes_ago: float) -> str:
         """The weekday in Timișoara at that time, as said."""
         return DAY_NAMES[self.ago(minutes_ago).astimezone(BUCHAREST).weekday()]
@@ -652,6 +783,23 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
 
     # Maria Popescu: green, a quiet day.
     h.welcome("maria", 19)
+    # A scare that was nothing: low certainty on "era să cad", and DAS found her fine.
+    h.emergency(
+        "maria",
+        EventType.manual_request,
+        300,
+        "Era să cad din picioare, mi s-a făcut rău puțin.",
+        "Spune că era să cadă",
+        "Doamna Maria spune că era să cadă și i s-a făcut rău puțin. Transferată "
+        "către DAS.",
+        answered=True,
+        location=(45.7502, 21.2154, 18.0),
+        taken_by=DAS,
+        resolved_minutes_ago=270,
+        outcome=IncidentOutcome.false_alarm,
+        note="Doamna Maria a scăpat o oală și s-a speriat; nu a căzut și nu are nimic. "
+        "Nu are nevoie de ajutor. Fiul a fost anunțat.",
+    )
     call = h.cold_call(
         "maria",
         "campaign",
@@ -712,6 +860,22 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     # Elena Stan: green on the campaign, then the watch's SOS button and a fall. DAS
     # answered the hand-over, which took the incident: it is in progress.
     h.welcome("elena", 45)
+    h.emergency(
+        "elena",
+        EventType.inactivity,
+        560,
+        "Am amețit rău și nu mă simt în stare să mă ridic.",
+        "Amețeală, nu se simte în stare să se ridice",
+        "Doamna Elena a amețit rău și nu se simte în stare să se ridice. Transferată "
+        "către DAS.",
+        answered=True,
+        snapshot={"battery": 66},
+        taken_by=DAS_2,
+        resolved_minutes_ago=500,
+        outcome=IncidentOutcome.team_sent,
+        note="Echipa DAS a găsit-o cu tensiunea scăzută și a dus-o la Urgențe pentru "
+        "control. Nepotul, Mihai, a fost anunțat.",
+    )
     h.cold_call(
         "elena",
         "campaign",
@@ -778,6 +942,22 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     # Gheorghe Ionescu: fine and oriented, but no heating yet: yellow. His watch is on
     # the table.
     h.welcome("gheorghe", 60)
+    h.emergency(
+        "gheorghe",
+        EventType.high_pulse_at_rest,
+        420,
+        "Am o durere puternică în piept, mă sufoc.",
+        "Durere în piept și greutate la respirație",
+        "Domnul Gheorghe are o durere puternică în piept și se sufocă. Transferat "
+        "către DAS.",
+        answered=True,
+        snapshot={"pulse": 141, "battery": 58},
+        taken_by=DAS,
+        resolved_minutes_ago=330,
+        outcome=IncidentOutcome.called_112,
+        note="Am apelat 112; ambulanța a ajuns în 12 minute și l-a dus la Urgențe. "
+        "Nora, Laura, a plecat după el la spital și a fost anunțată.",
+    )
     call = h.cold_call(
         "gheorghe",
         "campaign",
@@ -891,6 +1071,23 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
 
     # Vasile Munteanu: no answer twice, and the watch has been off since last night.
     h.welcome("vasile", 40)
+    # The line dropped after his first words, and nobody could reach him again.
+    h.emergency(
+        "vasile",
+        EventType.manual_request,
+        700,
+        "Mi-e foarte rău, nu mai pot să stau în picioare…",
+        "Spune că îi este foarte rău, apelul s-a întrerupt",
+        "Domnul Vasile a spus că îi este foarte rău, apoi apelul s-a întrerupt. "
+        "Transferat către DAS, dar legătura nu s-a mai putut face.",
+        location=(45.7398, 21.2056, 30.0),
+        taken_by=DAS_2,
+        resolved_minutes_ago=620,
+        outcome=IncidentOutcome.not_reached,
+        note="Am sunat de 3 ori înapoi și am încercat-o pe fiica Ioana, fără răspuns. "
+        "Echipa a trecut pe la adresă: nu era acasă, iar vecinii spun că a plecat "
+        "la țară.",
+    )
     first = h.call(
         "vasile", "campaign-1", CallTrigger.campaign, 117, CallState.unanswered
     )
@@ -977,6 +1174,106 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     )
     h.status("florica", call)
     h.watch("florica", WatchCondition.ok, 11, battery=55, pulse=78)
+
+    # The board's open column: handed over, and nobody at DAS has picked up yet.
+    h.welcome("dumitru", 36)
+    h.emergency(
+        "dumitru",
+        EventType.sos_button,
+        18,
+        "Mă strânge în piept și nu pot respira bine.",
+        "Durere în piept, greutate la respirație",
+        "Domnul Dumitru spune că îl strânge în piept și nu poate respira bine. "
+        "Transferat către DAS.",
+        snapshot={"pulse": 124, "battery": 58},
+        location=(45.7489, 21.2087, 14.0),
+    )
+    h.watch("dumitru", WatchCondition.ok, 1, battery=57, pulse=121)
+
+    h.welcome("aurelia", 53)
+    call = h.cold_call(
+        "aurelia",
+        "campaign",
+        56,
+        feeling=("unwell", "Nu mă simt bine, am amețeli și mi-e frig."),
+        day=today(56),
+        shelter=("no", "Nu, centrala s-a stricat de ieri."),
+        final=Severity.red,
+        hand_over=True,
+        reason="Amețeli și nu are căldură",
+        summary="Doamna Aurelia are amețeli și nu are căldură în casă, centrala fiind "
+        "stricată. Transferată către DAS.",
+    )
+    h.report(
+        call,
+        ReportSource.rules,
+        Severity.red,
+        call.reason,
+        certainty=Certainty.high,
+        quote="Nu, centrala s-a stricat de ieri.",
+        position=6,
+    )
+    opened = h.turn_at(call, 6)
+    h.status("aurelia", call, since=opened)
+    h.incident("aurelia", call, opened)
+
+    h.welcome("teodor", 27)
+    h.emergency(
+        "teodor",
+        EventType.manual_request,
+        7,
+        "Nu-mi mai simt mâna stângă și vorbesc greu.",
+        "Mâna stângă fără sensibilitate, vorbește greu",
+        "Domnul Teodor nu își mai simte mâna stângă și vorbește greu. Transferat "
+        "către DAS.",
+        location=(45.7571, 21.2310, 20.0),
+    )
+
+    # In progress: DAS answered the hand-over and took the incident.
+    h.welcome("viorica", 42)
+    h.emergency(
+        "viorica",
+        EventType.high_pulse_at_rest,
+        75,
+        "Mi-e rău, inima îmi bate foarte tare și mi-e frică.",
+        "Inima bate foarte tare, spune că îi este frică",
+        "Doamna Viorica spune că inima îi bate foarte tare și că îi este frică. "
+        "Transferată către DAS.",
+        answered=True,
+        snapshot={"pulse": 139, "battery": 47},
+        taken_by=DAS,
+    )
+    h.watch("viorica", WatchCondition.ok, 3, battery=46, pulse=128)
+
+    h.welcome("gavril", 64)
+    h.emergency(
+        "gavril",
+        EventType.sos_button,
+        33,
+        "Am alunecat pe scări și mă doare tare șoldul.",
+        "Căzătură pe scări, durere la șold",
+        "Domnul Gavril a căzut pe scări și îl doare tare șoldul. Transferat către DAS.",
+        answered=True,
+        snapshot={"pulse": 96, "battery": 71},
+        location=(45.7712, 21.2334, 9.0),
+        taken_by=DAS_2,
+    )
+    h.watch("gavril", WatchCondition.ok, 2, battery=70, pulse=102)
+
+    h.welcome("margareta", 34)
+    h.emergency(
+        "margareta",
+        EventType.inactivity,
+        48,
+        "Am amețit, mă simt foarte slăbită și nu mă pot ridica din fotoliu.",
+        "Amețeală, slăbiciune, nu se poate ridica",
+        "Doamna Margareta a amețit, se simte foarte slăbită și nu se poate ridica "
+        "din fotoliu. Transferată către DAS.",
+        answered=True,
+        snapshot={"battery": 39},
+        taken_by=DAS,
+    )
+    h.watch("margareta", WatchCondition.ok, 1, battery=38, pulse=88)
 
     # Nicolae Lazăr said no on the welcome call.
     h.welcome("nicolae", 5, refused="Nu, nu vreau să fiu sunat.")
