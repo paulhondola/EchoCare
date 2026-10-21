@@ -88,9 +88,38 @@ type = "forbidden"
 source_modules = ["app.*"]
 forbidden_modules = ["app.models"]
 
+# Every package has a layer and imports only from layers below its own; `|` siblings may
+# not import each other. A new package fails until it is placed (ADR-005). Routers sit
+# above them all: they compose the packages.
 [[tool.importlinter.contracts]]
-name = "No import cycles between packages; routers sit above them all"
-type = "acyclic_siblings"
-ancestors = ["app"]
-depth = 0
+name = "Packages sit in layers; a new package must be placed (ADR-005)"
+type = "layers"
+containers = ["app"]
+layers = [
+    "calls | agent | system",
+    "campaigns",
+    "incidents",
+    "voice",
+    "seniors",
+    "auth | codes",
+    "core | status",
+]
+exhaustive = true
+exhaustive_ignores = ["main", "models"]
 ignore_imports = ["app.**.router -> app.**"]
+
+# The call session may leave the process first (ADR-004), so what it imports from voice
+# is that split's interface.
+[[tool.importlinter.contracts]]
+name = "The agent talks only to voice (ADR-004, ADR-005)"
+type = "forbidden"
+source_modules = ["app.agent"]
+forbidden_modules = ["app.*"]
+ignore_imports = [
+    "app.agent.** -> app.agent.**",
+    "app.agent.** -> app.voice.**",
+    "app.agent.** -> app.core.**",
+    "app.agent.** -> app.status.**",
+]
+allow_indirect_imports = true
+unmatched_ignore_imports_alerting = "none"

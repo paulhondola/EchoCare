@@ -1,6 +1,6 @@
 # ADR-005: The backend becomes a modular monolith by table ownership, not by separate schemas
 
-**Status:** Proposed
+**Status:** Accepted, 2026-10-21; built on branch `modular-monolith` ([design](../superpowers/specs/2026-10-21-modular-monolith-design.md))
 **Date:** 2026-10-21
 **Deciders:** the team of four (backend owner first: every change lands on `api`)
 **Builds on:** 01 §8 and §10, [ADR-004](ADR-004-api-runtime-and-add-ons.md) ("to revisit"), [backend layers design](../superpowers/specs/2026-10-16-backend-layers-and-schemas-design.md) §6
@@ -81,20 +81,33 @@ Every package sits on all of the ones below, so the graph is acyclic only becaus
 
 ## Decision
 
-1. **Every table has one owning package: the package whose `models.py` defines it.** Only the owner inserts, updates or deletes its rows. A new test in `tests/architecture/` (an AST scan, about 30 lines, like `test_package_inits_import_nothing`) fails on a foreign write. The owner is defined by where the class is declared, so moving a class is how ownership changes, and no separate list needs maintaining.
+1. **Every table has one owning package: the package whose `models.py` defines it.** Only the owner inserts, updates or deletes its rows. `test_only_the_owner_writes_a_table` in `tests/architecture/test_contracts.py` (an AST scan, like `test_package_inits_import_nothing`) fails on a foreign write. The owner is defined by where the class is declared, so moving a class is how ownership changes, and no separate list needs maintaining.
 2. **Reads may cross freely.** Any package may `select` and `join` any other package's ORM classes. The incident detail, the dashboard lists and campaign progress are read models that span modules, and a join is the cheapest correct way to build them.
 3. **Owners offer transaction-neutral write functions.** A function another module calls takes the caller's `AsyncSession`, does not commit, and reports failure in its return value, not with `refuse()`. `calls/ending.py` already works this way ("Nothing here commits: the caller owns the transaction"). The three atomic rules above stay in one transaction.
 4. **Flows that cross modules live in the package or router that starts them**, as they do today: `calls/ending.py` for a call's result, routers for HTTP flows, and later `scheduler/` for timers. There is no event bus.
-5. **Target map.** Only the rows marked *move* or *new* change.
+5. **Every package sits in a layer.** An exhaustive `layers` contract fixes the order below, and replaces `acyclic_siblings`. A package may import only from layers below its own, `|` siblings not from each other, and a new package fails `lint-imports` until it is placed. The layering is relaxed on purpose: a strict "only the layer directly below" rule would turn the incident view's single join into several queries, and would need pass-through functions for `ending.py`'s writes. Routers stay exempt; they compose the packages.
+
+   ```
+   calls | agent | system
+   campaigns
+   incidents
+   voice
+   seniors
+   auth | codes
+   core | status
+   ```
+
+6. **`agent` imports only `voice`, `core` and `status`.** A `forbidden` contract holds the one strict rule, for the package ADR-004 names as the first to leave the process. What it imports from `voice` is that split's interface. It never calls `calls.ending`: the router hands the call's outcome on.
+7. **Target map.** Only the rows marked *move* or *new* change.
 
 | Package | Owns | Change |
 |---|---|---|
-| `auth` | `users`, `grants`, `push_tokens` | later: `staff` and `seniors` write grants through `auth` functions |
+| `auth` | `users`, `grants`, `push_tokens` | *move* everything from `staff/`, which owned no table and is gone; `seniors` writes its caregiver and senior grants through `auth` functions, and the Q22 rename rule lives here once |
 | `seniors` | `seniors`, `consents`, `watch_states` | add `confirm_welcome()` (compare-and-set, no commit); `ending` uses it |
 | `codes` *new, decided 2026-10-21* ("senior status") | `senior_statuses`, `status_reports` | *move* `SeniorStatus` from `seniors`, `StatusReport` from `voice`, and `set_code()` from `ending`; add a function that writes a status report. Imports only `core` and `status`, so `seniors`, `calls` and `incidents`, which read it, sit above it |
 | `status` | nothing; pure rules and matrix | unchanged, contract unchanged |
-| `voice` (dialer, call lifecycle, Twilio) | `calls`, `call_turns`, `answers` | add the call-lifecycle functions groups B and C need: `queue_calls()` (campaign, welcome, redial), `cancel_queued()`, `answer()` (to `in_progress`, `started_at`), `finish()` (end state and result fields), `add_turns()`, `record_answers()`. `move_call()` stays the Twilio callbacks' way in, and the mock and the real call go through the same functions |
-| `agent` *new* (call session, agent loop) | nothing; writes turns and answers through `voice` | *move* `voice/session.py` and `Relay`; the model loop is built here |
+| `voice` (dialer, call lifecycle, Twilio) | `calls`, `call_turns`, `answers` | add the call-lifecycle functions groups B and C need: `queue_calls()` (campaign, welcome), `queue_redial()` (raises on a conflict), `cancel_queued()`, `advance_call()` and `finish()` (state, timestamps, result fields), `add_turn()`, `record_answer()`. `move_call()` stays the Twilio callbacks' way in, as `transition()` plus a commit, and the mock and the real call go through the same functions |
+| `agent` *new* (call session, agent loop) | nothing; writes turns and answers through `voice` | *move* `voice/session.py` and `Relay`; reads the call through `voice.live_call()` and `next_turn_position()`; the model loop is built here |
 | `incidents` | `incidents`, `events` until intake exists | add `open_incident()`; `ending` uses it |
 | `campaigns` | `campaigns` | *move* `Campaign`, `CampaignKind`, `WarningLevel` from `voice/models.py` |
 | `calls` | nothing; history, the mock, `ending` orchestration | `ending` hands its writes to the owners |
@@ -156,19 +169,19 @@ What matters is *where a row's rules live*, not *who can see the row*. Problems 
 - **Harder:** a writer in another module has to call the owner instead of writing a row directly. Owners gain small functions that exist only for one caller. That is the price of keeping each rule in one place.
 - **Unchanged:** one process, one replica, one database, one transaction per request; the HTTP contract (04); no migration.
 - **To revisit:**
-  - *Identity, group D.* `auth` defines `users` and `grants` but writes only `users.firebase_uid`; `staff` (7 pairs) and `seniors` (5) write the rest. One option is to fold `staff` into `auth` as one identity package, which leaves only `seniors`' caregiver and senior grants to route through `auth` functions. Last in priority: these writes follow 01 §6's table and have not drifted.
   - *Events from the notifier.* It is called after commit by whoever committed. A lost push is covered by the backstop re-read (01 §7), so it needs no outbox. Revisit only if a push must never be lost.
   - *Names.* `voice` owns the `calls` table while `calls/` owns none. Rename only if it confuses someone; renames touch every test that patches a name.
   - *Strict modules (C)*, only if a module really must leave the process, and then only for that module.
 
 ## Action items
 
-Each step is one backend PR. The app is in development, so redeploys don't constrain the order. Each step is checked with `lint-imports`, `pytest`, and an empty `alembic revision --autogenerate`.
+Done on branch `modular-monolith`, one commit per step ([plan](../superpowers/plans/2026-10-21-modular-monolith.md)). Each step was checked with `lint-imports`, `pytest` (which runs `alembic check`), and, at the end, a byte-for-byte comparison of `/api/openapi.json`.
 
-1. [ ] Group A: create `codes/` and move `SeniorStatus`, `StatusReport` and `set_code()` into it. Move `Campaign`, `CampaignKind` and `WarningLevel` to `campaigns/models.py`. Update `app/models/__init__.py`.
-2. [ ] Group C: add `voice.queue_calls()` and `cancel_queued()`, replacing the three hand-written cancels and the two `insert(Call)` statements.
-3. [ ] Group B: add `seniors.confirm_welcome()`, `incidents.open_incident()` and the rest of the call-lifecycle functions, and point `calls/ending.py` and `calls/mock.py` at them. Make `incidents` read `seniors.caregivers_query()` and delete its own copy.
-4. [ ] Add the foreign-write test to `tests/architecture/test_contracts.py`, with a planted-violation case like the existing ones. Until group D is decided, it allows only `staff` and `seniors` → `users`, `grants`.
-5. [ ] Create `agent/` before the model loop is built: move `voice/session.py` and `Relay`, with `voice/router.py` still mounting the WebSocket.
-6. [ ] Build `scheduler/` and `notifier/` under these rules (06 §2, 01 §7).
-7. [ ] Add an "Owns" column to the module table in 01 §8 and update the layout in `backend/AGENTS.md`.
+1. [x] The foreign-write test, starting from the 16 (module, table) pairs of the write map; each step below removed its pairs.
+2. [x] Group D: `staff` folded into `auth`; `seniors` writes grants through `auth`.
+3. [x] Group A: `codes/` owns `senior_statuses` and `status_reports`; `campaigns/models.py` owns `campaigns`.
+4. [x] Group C: `voice.queue_calls()`, `queue_redial()` and `cancel_queued()`.
+5. [x] Group B: the call-lifecycle functions in `voice`, `seniors.confirm_welcome()`, `incidents.open_incident()`; one `caregivers_query()`.
+6. [x] `agent/` holds the relay and talks only to `voice`.
+7. [x] The layers and `agent` contracts; the "Owns" column in 01 §8; `backend/AGENTS.md`.
+8. [ ] Build `scheduler/` and `notifier/` under these rules (06 §2, 01 §7), each placed in a layer.

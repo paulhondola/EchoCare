@@ -49,13 +49,20 @@ CASES = {
         },
         "Only app.main imports a router",
     ),
-    "new package and an old one import each other": (
+    "an old package imports a higher one": (
+        {"app/auth/clock.py": "from app.seniors.service import reach\n"},
+        "Packages sit in layers",
+    ),
+    "a new package is not placed in a layer": (
         {
             "app/scheduler/__init__.py": "",
-            "app/scheduler/service.py": "from app.auth.service import user_for\n",
-            "app/auth/clock.py": "from app.scheduler.service import user_for\n",
+            "app/scheduler/service.py": "def tick(): ...\n",
         },
-        "No import cycles between packages",
+        "Packages sit in layers",
+    ),
+    "agent imports seniors": (
+        {"app/agent/leak.py": "from app.seniors.models import Senior\n"},
+        "The agent talks only to voice",
     ),
     "new package's models import fastapi": (
         {
