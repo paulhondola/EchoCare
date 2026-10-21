@@ -3,12 +3,18 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Grant, Role, User
-from app.auth.service import Caller, refuse
+from app.auth.service import (
+    Caller,
+    add_caregiver_grant,
+    edit_caregiver_grant,
+    refuse,
+    revoke_caregiver_grant,
+    sync_senior_grant,
+)
 from app.seniors.models import (
     Consent,
     ConsentDecision,
@@ -27,7 +33,6 @@ from app.seniors.schemas import (
     SeniorView,
     SignatureForm,
 )
-from app.staff.service import user_for
 
 log = logging.getLogger("echocare.seniors")
 
@@ -150,52 +155,6 @@ async def editable_senior(
     return senior
 
 
-async def sync_senior_grant(
-    session: AsyncSession, senior: Senior, *, granted_by: uuid.UUID | None = None
-) -> bool:
-    """A mobile number is the senior's own grant; a landline has none (UC-01 step 3).
-
-    A changed number drops the old number's grant. Returns whether the senior holds
-    its number's grant afterwards: `True` for a landline, `False` when the number
-    already holds another senior's, which the caller refuses as `phone_taken` (SE10).
-    The new grant records `granted_by`, the registering medic unless the caller says who.
-    """
-    await session.execute(
-        delete(Grant).where(
-            Grant.senior_id == senior.id,
-            Grant.role == Role.senior,
-            Grant.user_id.not_in(
-                select(User.id).where(User.phone_e164 == senior.phone_e164)
-            ),
-        )
-    )
-    if senior.phone_is_landline:
-        return True
-    user = await user_for(session, senior.phone_e164, senior.full_name[:120])
-    # No conflict target: covers both the per-senior key and the SE10 index.
-    await session.execute(
-        insert(Grant)
-        .values(
-            user_id=user.id,
-            role=Role.senior,
-            senior_id=senior.id,
-            granted_by=granted_by or senior.medic_id,
-        )
-        .on_conflict_do_nothing()
-    )
-    return await session.scalar(
-        select(
-            select(Grant.id)
-            .where(
-                Grant.user_id == user.id,
-                Grant.senior_id == senior.id,
-                Grant.role == Role.senior,
-            )
-            .exists()
-        )
-    )
-
-
 def caregivers_query(senior_id: uuid.UUID) -> Select:
     return (
         select(
@@ -310,7 +269,14 @@ async def register(
     senior = Senior(medic_id=caller.user.id, **form.columns())
     session.add(senior)
     await session.flush()  # the database makes the id
-    if not await sync_senior_grant(session, senior, granted_by=caller.user.id):
+    if not await sync_senior_grant(
+        session,
+        senior.id,
+        senior.phone_e164,
+        senior.full_name[:120],
+        landline=senior.phone_is_landline,
+        granted_by=caller.user.id,
+    ):
         log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior.id)
         await session.rollback()  # expires every row, so log first
         raise refuse(409, "phone_taken")
@@ -338,7 +304,14 @@ async def edit(
         .execution_options(populate_existing=True)
     )
     # A senior left sharing a mobile by AL7 keeps their number and stays editable
-    synced = await sync_senior_grant(session, updated, granted_by=caller.user.id)
+    synced = await sync_senior_grant(
+        session,
+        updated.id,
+        updated.phone_e164,
+        updated.full_name[:120],
+        landline=updated.phone_is_landline,
+        granted_by=caller.user.id,
+    )
     if not synced and form.phone != was:
         log.info("refused phone_taken: user %s, senior %s", caller.user.id, senior_id)
         await session.rollback()  # expires every row, so log first
@@ -352,20 +325,10 @@ async def grant_caregiver(
 ) -> CaregiverView:
     """A caregiver grant for the number; one it already holds is `already_done`."""
     await editable_senior(session, caller, senior_id)
-    user = await user_for(session, form.phone, form.display_name)
-    granted = await session.scalar(
-        insert(Grant)
-        .values(
-            user_id=user.id,
-            role=Role.caregiver,
-            senior_id=senior_id,
-            relation=form.relation,
-            granted_by=caller.user.id,
-        )
-        .on_conflict_do_nothing()
-        .returning(Grant.id)
+    user = await add_caregiver_grant(
+        session, senior_id, form.phone, form.display_name, form.relation, caller.user.id
     )
-    if granted is None:
+    if user is None:
         await session.rollback()
         raise refuse(409, "already_done")
     await session.commit()
@@ -402,18 +365,11 @@ async def edit_caregiver(
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(404, "not_found")
     grant, user = row
-    if form.display_name is not None:
-        staff = select(Grant.id).where(
-            Grant.user_id == user_id, Grant.role.in_((Role.das, Role.medic))
-        )
-        if await session.scalar(select(staff.exists())):
-            log.info(
-                "refused not_allowed: user %s, senior %s", caller.user.id, senior_id
-            )
-            raise refuse(403, "not_allowed")
-        user.display_name = form.display_name
-    if form.relation is not None:
-        grant.relation = form.relation
+    if not await edit_caregiver_grant(
+        session, user, grant, display_name=form.display_name, relation=form.relation
+    ):
+        log.info("refused not_allowed: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(403, "not_allowed")
     await session.commit()
     return CaregiverView(
         user_id=user.id,
@@ -428,13 +384,7 @@ async def revoke_caregiver(
 ) -> None:
     """Deletes the caregiver grant; past `draft` the last one stays (04 §2)."""
     senior = await editable_senior(session, caller, senior_id)
-    await session.execute(
-        delete(Grant).where(
-            Grant.senior_id == senior_id,
-            Grant.user_id == user_id,
-            Grant.role == Role.caregiver,
-        )
-    )
+    await revoke_caregiver_grant(session, senior_id, user_id)
     if senior.enrollment_state != EnrollmentState.draft and not await has_caregiver(
         session, senior_id
     ):

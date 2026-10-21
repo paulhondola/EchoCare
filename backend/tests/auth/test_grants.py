@@ -2,8 +2,8 @@
 
 from sqlalchemy import func, select
 
+from app.auth.service import user_for
 from app.models import User
-from app.staff.service import user_for
 
 PHONE = "+40700000004"
 

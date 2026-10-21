@@ -39,6 +39,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.service import sync_senior_grant
 from app.core.db import Base, Session
 from app.core.phones import is_mobile
 from app.core.settings import db_host, get_settings, is_local_db
@@ -72,7 +73,6 @@ from app.models import (
     WatchState,
     WelcomeOutcome,
 )
-from app.seniors.service import sync_senior_grant
 from app.status.engine import BUCHAREST, Certainty, Question, Severity
 from app.voice.calls import CallState, was_answered
 from app.voice.dialogue import CONSENT_TEXT, CONSENT_VERSION
@@ -1309,7 +1309,14 @@ async def save(session: AsyncSession, history: History) -> None:
     # ON CONFLICT DO NOTHING: a staff grant the number already holds.
     await session.execute(insert(Grant).values(history.grants).on_conflict_do_nothing())
     for senior in history.seniors.values():
-        await sync_senior_grant(session, senior)
+        await sync_senior_grant(
+            session,
+            senior.id,
+            senior.phone_e164,
+            senior.full_name[:120],
+            landline=senior.phone_is_landline,
+            granted_by=senior.medic_id,
+        )
     # A mobile already another senior's gets no grant of its own (AL7).
     seniors = {s.id: s for s in history.seniors.values()}
     granted = set(

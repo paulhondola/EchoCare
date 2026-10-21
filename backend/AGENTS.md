@@ -10,8 +10,7 @@ backend/
 │   ├── main.py        assembly: logging, CORS, the /api router, mounts every router
 │   ├── core/          settings, async db engine/session, phone E.164 normalization, S3 storage
 │   ├── models/        the one ORM aggregator, for Alembic, scripts and tests; app/ never imports it
-│   ├── auth/          Firebase token verification, callers, grants, /me
-│   ├── staff/         staff roles (medic, DAS)
+│   ├── auth/          Firebase token verification, callers, grants, /me, staff roles, on duty
 │   ├── seniors/       seniors, caregivers, consents, enrollments
 │   ├── incidents/     incident lifecycle, refusal reasons, incident detail
 │   ├── voice/         Twilio signatures and dialing, call lifecycle, dialogue relay

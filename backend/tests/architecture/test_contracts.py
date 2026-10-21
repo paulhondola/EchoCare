@@ -52,8 +52,8 @@ CASES = {
     "new package and an old one import each other": (
         {
             "app/scheduler/__init__.py": "",
-            "app/scheduler/service.py": "from app.staff.service import user_for\n",
-            "app/staff/clock.py": "from app.scheduler.service import user_for\n",
+            "app/scheduler/service.py": "from app.auth.service import user_for\n",
+            "app/auth/clock.py": "from app.scheduler.service import user_for\n",
         },
         "No import cycles between packages",
     ),
@@ -259,10 +259,6 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
 
 # Today's foreign writes (ADR-005's write map); each task deletes the pairs it fixes.
 KNOWN = {
-    ("staff/service.py", "User"),
-    ("staff/service.py", "Grant"),
-    ("seniors/service.py", "User"),
-    ("seniors/service.py", "Grant"),
     ("calls/ending.py", "SeniorStatus"),
     ("calls/ending.py", "StatusReport"),
     ("calls/ending.py", "Call"),
