@@ -11,12 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.service import Caller, refuse
+from app.campaigns.models import Campaign
 from app.campaigns.schemas import CampaignForm, CampaignProgress, CampaignSummary
 from app.incidents.models import UNRESOLVED, Incident
 from app.seniors.models import EnrollmentState, Senior
 from app.status.engine import Severity
 from app.voice.calls import CallState
-from app.voice.models import Call, CallTrigger, Campaign
+from app.voice.models import Call, CallTrigger
 
 log = logging.getLogger("echocare.campaigns")
 

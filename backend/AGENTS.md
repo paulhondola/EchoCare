@@ -14,6 +14,7 @@ backend/
 │   ├── codes/         the senior's code and its status reports
 │   ├── seniors/       seniors, caregivers, consents, enrollments
 │   ├── incidents/     incident lifecycle, refusal reasons, incident detail
+│   ├── campaigns/     weather campaigns: start, list, end, the lapsed warning
 │   ├── voice/         Twilio signatures and dialing, call lifecycle, dialogue relay
 │   ├── calls/         call history and transcripts
 │   ├── system/        /api/health and the dashboard's system health

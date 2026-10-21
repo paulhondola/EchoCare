@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.campaigns.models import Campaign, CampaignKind
 from app.codes.models import ReportSource, SeniorStatus
 from app.codes.service import add_report, set_code
 from app.core.settings import get_settings
@@ -34,7 +35,7 @@ from app.status.engine import (
     today_in_bucharest,
 )
 from app.voice.calls import CallState, advance
-from app.voice.models import Call, Campaign, CampaignKind, WelcomeOutcome
+from app.voice.models import Call, WelcomeOutcome
 
 
 def redial_delay() -> timedelta:

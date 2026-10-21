@@ -17,6 +17,7 @@ from app.auth.models import Role
 from app.auth.service import Caller, refuse
 from app.calls.ending import conclude, conclude_welcome
 from app.calls.schemas import MockAnswerForm, MockCallView
+from app.campaigns.models import Campaign, CampaignKind, WarningLevel
 from app.campaigns.service import cancel_lapsed
 from app.core.settings import AppEnv, get_settings
 from app.seniors.models import ConsentMethod, EnrollmentState, Senior
@@ -25,17 +26,7 @@ from app.status.engine import Answer as RuleAnswer
 from app.status.engine import CallAnswers, Question, Severity
 from app.voice.calls import CallState, advance
 from app.voice.dialogue import CARD_CONSENT_TEXT, CARD_CONSENT_VERSION
-from app.voice.models import (
-    Answer,
-    Call,
-    CallTrigger,
-    CallTurn,
-    Campaign,
-    CampaignKind,
-    Speaker,
-    TurnKind,
-    WarningLevel,
-)
+from app.voice.models import Answer, Call, CallTrigger, CallTurn, Speaker, TurnKind
 
 log = logging.getLogger("echocare.calls")
 

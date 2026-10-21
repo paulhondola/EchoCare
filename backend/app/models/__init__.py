@@ -6,6 +6,7 @@ from app.auth.models import (
     Role,
     User,
 )
+from app.campaigns.models import Campaign, CampaignKind, WarningLevel
 from app.codes.models import ReportSource, SeniorStatus, StatusReport
 from app.core.db import (
     Base,
@@ -38,11 +39,8 @@ from app.voice.models import (
     Call,
     CallTrigger,
     CallTurn,
-    Campaign,
-    CampaignKind,
     Speaker,
     TurnKind,
-    WarningLevel,
     WelcomeOutcome,
 )
 
