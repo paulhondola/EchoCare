@@ -8,9 +8,17 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.seniors.models import Senior
-from app.status.engine import Severity
+from app.status.engine import Certainty, Question, Severity
 from app.voice.calls import ANSWERED, ENDED, CallState, advance, after_callback
-from app.voice.models import Call, CallTrigger
+from app.voice.models import (
+    Answer,
+    Call,
+    CallTrigger,
+    CallTurn,
+    Speaker,
+    TurnKind,
+    WelcomeOutcome,
+)
 from app.voice.twilio import hang_up
 
 log = logging.getLogger("echocare.voice")
@@ -34,12 +42,8 @@ async def move_call(
         call.twilio_call_id = sid  # the callback can beat the dial's own answer
     moved = after_callback(call.state, new)
     if moved is not None:
-        now = datetime.now(UTC)
-        if call.started_at is None and moved in ANSWERED:
-            call.started_at = now
-        if moved in ENDED:
-            call.ended_at = now
         log.info("call %s: %s -> %s", call_id, call.state, moved)
+        stamp(call, moved, datetime.now(UTC))
         call.state = moved
     elif new is not None and new is not call.state:
         log.info("call %s: %s ignored in %s", call_id, new, call.state)
@@ -140,4 +144,87 @@ async def cancel_queued(
         update(Call)
         .where(Call.state == CallState.queued, *where)
         .values(state=advance(CallState.queued, CallState.canceled), ended_at=now)
+    )
+
+
+# A call's progress, transcript and answers, for the mock and the agent (ADR-005).
+
+
+def stamp(call: Call, state: CallState, now: datetime) -> None:
+    """The times a move into `state` sets: picked up, the first time, and ended (03 §9)."""
+    if call.started_at is None and state in ANSWERED:
+        call.started_at = now
+    if state in ENDED:
+        call.ended_at = now
+
+
+def advance_call(call: Call, new: CallState, now: datetime) -> None:
+    """One allowed step of the call's lifecycle, stamped (03 §9); the same state again
+    changes nothing. A Twilio callback, which may skip ahead, uses `move_call`."""
+    if new == call.state:
+        return
+    call.state = advance(call.state, new)
+    stamp(call, new, now)
+
+
+def finish(
+    call: Call,
+    state: CallState,
+    now: datetime,
+    *,
+    final_severity: Severity | None = None,
+    final_certainty: Certainty | None = None,
+    reason: str | None = None,
+    summary: str | None = None,
+    welcome_outcome: WelcomeOutcome | None = None,
+) -> None:
+    """Ends the call in `state` with its result; a field given as None stays as it is."""
+    advance_call(call, state, now)
+    result = {
+        "final_severity": final_severity,
+        "final_certainty": final_certainty,
+        "reason": reason,
+        "summary": summary,
+        "welcome_outcome": welcome_outcome,
+    }
+    for field, value in result.items():
+        if value is not None:
+            setattr(call, field, value)
+
+
+def add_turn(
+    session: AsyncSession,
+    call_id: uuid.UUID,
+    position: int,
+    speaker: Speaker,
+    kind: TurnKind,
+    content: str,
+) -> None:
+    """One transcript row: an utterance or a key press (05 §1)."""
+    session.add(
+        CallTurn(
+            call_id=call_id,
+            position=position,
+            speaker=speaker,
+            kind=kind,
+            content=content,
+        )
+    )
+
+
+def record_answer(
+    session: AsyncSession,
+    call_id: uuid.UUID,
+    field: Question,
+    value: str,
+    *,
+    clear: bool,
+    quote: str,
+    at: datetime,
+) -> None:
+    """What the call heard for one of the three questions (03 §3)."""
+    session.add(
+        Answer(
+            call_id=call_id, field=field, value=value, clear=clear, quote=quote, at=at
+        )
     )

@@ -1,6 +1,6 @@
 """The call-lifecycle functions other packages write `calls` through (ADR-005)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -8,10 +8,17 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import Call, CallTrigger, Senior
 from app.status.engine import Severity
-from app.voice.calls import CallState
-from app.voice.service import cancel_queued, queue_calls, queue_redial
+from app.voice.calls import CallState, InvalidTransition
+from app.voice.service import (
+    advance_call,
+    cancel_queued,
+    finish,
+    queue_calls,
+    queue_redial,
+)
 
 NOW = datetime(2026, 10, 21, 9, tzinfo=UTC)
+T1, T2, T3 = (NOW + timedelta(minutes=m) for m in (1, 2, 3))
 
 
 def a_call(senior: Senior, **columns) -> Call:
@@ -61,3 +68,29 @@ async def test_cancel_queued_leaves_other_states_alone(db, add_senior):
     await db.refresh(talking)
     assert (queued.state, queued.ended_at) == (CallState.canceled, NOW)
     assert (talking.state, talking.ended_at) == (CallState.in_progress, None)
+
+
+def test_advance_call_stamps_once():
+    call = Call(state=CallState.queued)
+    advance_call(call, CallState.ringing, T1)
+    assert (call.started_at, call.ended_at) == (None, None)
+    advance_call(call, CallState.in_progress, T1)
+    advance_call(call, CallState.completed, T2)
+    advance_call(call, CallState.completed, T3)  # a repeat changes nothing
+    assert (call.started_at, call.ended_at) == (T1, T2)
+
+
+def test_advance_call_refuses_a_skip():
+    with pytest.raises(InvalidTransition):
+        advance_call(Call(state=CallState.queued), CallState.completed, T1)
+
+
+def test_finish_keeps_what_it_is_not_given():
+    call = Call(state=CallState.unanswered, ended_at=T1)
+    finish(call, CallState.unanswered, T2, final_severity=Severity.yellow, reason="x")
+    assert (call.ended_at, call.final_severity, call.reason, call.final_certainty) == (
+        T1,
+        Severity.yellow,
+        "x",
+        None,
+    )

@@ -259,13 +259,9 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
 
 # Today's foreign writes (ADR-005's write map); each task deletes the pairs it fixes.
 KNOWN = {
-    ("calls/ending.py", "Call"),
     ("calls/ending.py", "Incident"),
     ("calls/ending.py", "Senior"),
     ("calls/ending.py", "Consent"),
-    ("calls/mock.py", "Call"),
-    ("calls/mock.py", "Answer"),
-    ("calls/mock.py", "CallTurn"),
 }
 
 

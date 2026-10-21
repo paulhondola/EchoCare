@@ -272,3 +272,14 @@ async def test_an_ended_call_takes_no_relay(client, db, call):
     ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
     await voice_session.serve(ws, call.id)
     assert (ws.accepted, ws.closed) == (False, 1008)
+
+
+async def test_a_skipped_state_still_counts_answered(client, db, call):
+    # A lost in-progress callback: Twilio's completed still means someone picked up and
+    # hung up, so the call ends dropped, answered (03 §9). move_call may skip ahead.
+    for status in ("ringing", "completed"):
+        params = {**FIXTURES["status_common"], "CallStatus": status}
+        await callback(client, "status", call.id, params)
+    stored_call = await stored(db, call)
+    assert stored_call.state == "dropped"
+    assert stored_call.started_at is not None

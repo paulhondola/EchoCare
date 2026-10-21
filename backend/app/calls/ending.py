@@ -34,9 +34,9 @@ from app.status.engine import (
     next_code,
     today_in_bucharest,
 )
-from app.voice.calls import CallState, advance
+from app.voice.calls import CallState
 from app.voice.models import Call, WelcomeOutcome
-from app.voice.service import queue_redial
+from app.voice.service import finish, queue_redial
 
 
 def redial_delay() -> timedelta:
@@ -84,10 +84,7 @@ async def conclude(
             rules=answers.severity(today),
             certainty=certainty,
         )
-        call.state = advance(call.state, CallState.completed)
-        call.ended_at = now
-        call.final_certainty = certainty
-        call.summary = f"Apel simulat din aplicație. {reason}."
+        end, summary = CallState.completed, f"Apel simulat din aplicație. {reason}."
         source = ReportSource.rules
     elif call.attempt == 1:
         await add_report(
@@ -104,8 +101,16 @@ async def conclude(
         certainty = None  # certainty exists only for an answered call (D7)
         result = final_severity(starting=call.starting_severity, answered=False)
         source = ReportSource.unanswered
-    call.final_severity = result
-    call.reason = reason
+        end, summary = call.state, None  # already unanswered: ended_at stays
+    finish(
+        call,
+        end,
+        now,
+        final_severity=result,
+        final_certainty=certainty,
+        reason=reason,
+        summary=summary,
+    )
     await add_report(session, call.id, source, result, reason, certainty=certainty)
 
     current = await session.scalar(
@@ -163,9 +168,7 @@ async def conclude_welcome(
     )
     if moved is None:
         return False
-    call.welcome_outcome = WelcomeOutcome.confirmed
-    call.state = advance(call.state, CallState.completed)
-    call.ended_at = now
+    finish(call, CallState.completed, now, welcome_outcome=WelcomeOutcome.confirmed)
     session.add(
         Consent(
             senior_id=call.senior_id,
