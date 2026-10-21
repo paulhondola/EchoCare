@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.dialects import postgresql
 
-from app.incidents.service import calls_query, caregivers_query, incident_query
+from app.incidents.service import calls_query, incident_query
 from app.models import (
     Call,
     CallTurn,
@@ -15,6 +15,7 @@ from app.models import (
     Role,
     StatusReport,
 )
+from app.seniors.service import caregivers_query
 
 DAS, MEDIC, CAREGIVER = "+40700000001", "+40700000003", "+40700000004"
 
@@ -148,3 +149,20 @@ async def test_not_found_and_das_only(client, add_user):
     assert r.json() == {"detail": {"reason": "not_found"}}
     r = await client.get(missing, headers=signed_in(MEDIC))
     assert r.status_code == 403
+
+
+async def test_same_name_caregivers_come_in_id_order(client, db, add_user, add_senior):
+    # One query for both views, seniors' (ADR-005), which breaks a tie on the name by id.
+    await add_user(DAS, Role.das, name="Ana DAS")
+    senior = await add_senior("+40700000101")
+    anas = [await add_user(p, name="Ana Pop") for p in (CAREGIVER, "+40700000005")]
+    db.add_all(
+        Grant(user_id=u.id, role=Role.caregiver, senior_id=senior.id, relation="fiică")
+        for u in reversed(anas)  # stored against id order, so only a tie-break saves it
+    )
+    incident = Incident(senior_id=senior.id, status="open", reason="Test")
+    db.add(incident)
+    await db.commit()
+    r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
+    phones = [c["phone_e164"] for c in r.json()["caregivers"]]
+    assert phones == [u.phone_e164 for u in sorted(anas, key=lambda u: u.id)]

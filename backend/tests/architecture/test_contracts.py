@@ -257,16 +257,8 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
     return found
 
 
-# Today's foreign writes (ADR-005's write map); each task deletes the pairs it fixes.
-KNOWN = {
-    ("calls/ending.py", "Incident"),
-    ("calls/ending.py", "Senior"),
-    ("calls/ending.py", "Consent"),
-}
-
-
 def test_only_the_owner_writes_a_table():
-    assert foreign_writes(BACKEND / "app") == KNOWN
+    assert foreign_writes(BACKEND / "app") == set()
 
 
 LEAK = """from app.seniors.models import Senior

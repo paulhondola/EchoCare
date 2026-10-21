@@ -10,22 +10,19 @@ Nothing here commits: the caller owns the transaction.
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.campaigns.models import Campaign, CampaignKind
 from app.codes.models import ReportSource, SeniorStatus
 from app.codes.service import add_report, set_code
 from app.core.settings import get_settings
-from app.incidents.models import UNRESOLVED, Incident, IncidentStatus
-from app.incidents.service import opens_incident
+from app.incidents.models import UNRESOLVED, Incident
+from app.incidents.service import open_incident, opens_incident
 from app.seniors.models import (
-    Consent,
-    ConsentDecision,
     ConsentMethod,
-    EnrollmentState,
-    Senior,
 )
+from app.seniors.service import confirm_welcome
 from app.status.engine import (
     CallAnswers,
     Question,
@@ -128,14 +125,7 @@ async def conclude(
     if next_code(current, unresolved, result) is result:
         await set_code(session, call.senior_id, call.id, result, reason, now)
     if opens_incident(result, unresolved):
-        session.add(
-            Incident(
-                senior_id=call.senior_id,
-                status=IncidentStatus.open,
-                opened_by_call_id=call.id,
-                reason=reason,
-            )
-        )
+        open_incident(session, call.senior_id, call.id, reason)
     return result
 
 
@@ -153,31 +143,16 @@ async def conclude_welcome(
     at once one wins (05 §3's pattern). Doesn't commit.
     """
     now = datetime.now(UTC)
-    moved = await session.scalar(
-        update(Senior)
-        .where(
-            Senior.id == call.senior_id,
-            Senior.enrollment_state == EnrollmentState.accepted,
-        )
-        .values(
-            enrollment_state=EnrollmentState.active
-            if given
-            else EnrollmentState.refused
-        )
-        .returning(Senior.id)
-    )
-    if moved is None:
+    if not await confirm_welcome(
+        session,
+        call.senior_id,
+        call.id,
+        given=given,
+        method=method,
+        text_version=text_version,
+    ):
         return False
     finish(call, CallState.completed, now, welcome_outcome=WelcomeOutcome.confirmed)
-    session.add(
-        Consent(
-            senior_id=call.senior_id,
-            decision=ConsentDecision.given if given else ConsentDecision.refused,
-            method=method,
-            text_version=text_version,
-            call_id=call.id,
-        )
-    )
     if given:
         # The code starts when consent is given (03 §8).
         await set_code(

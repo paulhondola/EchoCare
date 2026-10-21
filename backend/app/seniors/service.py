@@ -512,3 +512,45 @@ async def save_signature(
         )
     )
     await session.commit()
+
+
+async def confirm_welcome(
+    session: AsyncSession,
+    senior_id: uuid.UUID,
+    call_id: uuid.UUID,
+    *,
+    given: bool,
+    method: ConsentMethod,
+    text_version: str,
+) -> bool:
+    """The welcome call's answer to the consent text: `accepted` becomes `active` or
+    `refused`, with its consent record (UC-02, 03 §8). Doesn't commit (ADR-005).
+
+    False, with nothing written, when the senior is no longer `accepted`: of two moves
+    at once one wins (05 §3's pattern).
+    """
+    moved = await session.scalar(
+        update(Senior)
+        .where(
+            Senior.id == senior_id,
+            Senior.enrollment_state == EnrollmentState.accepted,
+        )
+        .values(
+            enrollment_state=EnrollmentState.active
+            if given
+            else EnrollmentState.refused
+        )
+        .returning(Senior.id)
+    )
+    if moved is None:
+        return False
+    session.add(
+        Consent(
+            senior_id=senior_id,
+            decision=ConsentDecision.given if given else ConsentDecision.refused,
+            method=method,
+            text_version=text_version,
+            call_id=call_id,
+        )
+    )
+    return True
