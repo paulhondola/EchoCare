@@ -57,16 +57,6 @@ class TurnKind(StrEnum):
     keys = "keys"
 
 
-class ReportSource(StrEnum):
-    rules = "rules"
-    raise_concern = "raise_concern"
-    alarm_tier1 = "alarm_tier1"
-    alarm_tier2 = "alarm_tier2"
-    request_human = "request_human"
-    trigger = "trigger"
-    unanswered = "unanswered"
-
-
 class Campaign(Base):
     __tablename__ = "campaigns"
 
@@ -160,20 +150,4 @@ class Answer(Base):
     value: Mapped[str] = mapped_column(String(60))
     clear: Mapped[bool] = mapped_column(Boolean)
     quote: Mapped[str] = mapped_column(Text)
-    at: Mapped[datetime] = timestamp_now()
-
-
-class StatusReport(Base):
-    """Every severity reached during a call: the audit trail behind a code (05 §2)."""
-
-    __tablename__ = "status_reports"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"), index=True)
-    source: Mapped[ReportSource] = mapped_column(enum_type(ReportSource))
-    severity: Mapped[Severity] = mapped_column(enum_type(Severity))
-    # Certainty exists only for an answered call (D7).
-    certainty: Mapped[Certainty | None] = mapped_column(enum_type(Certainty))
-    reason: Mapped[str] = mapped_column(String(200))
-    quote: Mapped[str | None] = mapped_column(Text)
     at: Mapped[datetime] = timestamp_now()

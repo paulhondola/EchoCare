@@ -11,6 +11,7 @@ backend/
 │   ├── core/          settings, async db engine/session, phone E.164 normalization, S3 storage
 │   ├── models/        the one ORM aggregator, for Alembic, scripts and tests; app/ never imports it
 │   ├── auth/          Firebase token verification, callers, grants, /me, staff roles, on duty
+│   ├── codes/         the senior's code and its status reports
 │   ├── seniors/       seniors, caregivers, consents, enrollments
 │   ├── incidents/     incident lifecycle, refusal reasons, incident detail
 │   ├── voice/         Twilio signatures and dialing, call lifecycle, dialogue relay

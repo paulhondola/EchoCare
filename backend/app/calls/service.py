@@ -9,13 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
 from app.calls.schemas import AnswerView, CallSummary, TranscriptDetail
+from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
 from app.seniors.models import Senior
 from app.seniors.service import reach, reach_senior
 from app.status.engine import Severity
 from app.voice.calls import CallState
-from app.voice.models import Answer, Call, CallTrigger, CallTurn, StatusReport
+from app.voice.models import Answer, Call, CallTrigger, CallTurn
 
 log = logging.getLogger("echocare.calls")
 

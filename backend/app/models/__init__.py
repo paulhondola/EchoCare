@@ -6,6 +6,7 @@ from app.auth.models import (
     Role,
     User,
 )
+from app.codes.models import ReportSource, SeniorStatus, StatusReport
 from app.core.db import (
     Base,
     StoredEnum,
@@ -29,7 +30,6 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     Senior,
-    SeniorStatus,
     WatchCondition,
     WatchState,
 )
@@ -40,9 +40,7 @@ from app.voice.models import (
     CallTurn,
     Campaign,
     CampaignKind,
-    ReportSource,
     Speaker,
-    StatusReport,
     TurnKind,
     WarningLevel,
     WelcomeOutcome,

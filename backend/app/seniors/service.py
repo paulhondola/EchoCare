@@ -15,13 +15,13 @@ from app.auth.service import (
     revoke_caregiver_grant,
     sync_senior_grant,
 )
+from app.codes.models import SeniorStatus
 from app.seniors.models import (
     Consent,
     ConsentDecision,
     ConsentMethod,
     EnrollmentState,
     Senior,
-    SeniorStatus,
 )
 from app.seniors.schemas import (
     CaregiverEditForm,

@@ -11,9 +11,10 @@ Nothing here commits: the caller owns the transaction.
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import exists, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.codes.models import ReportSource, SeniorStatus
+from app.codes.service import add_report, set_code
 from app.core.settings import get_settings
 from app.incidents.models import UNRESOLVED, Incident, IncidentStatus
 from app.incidents.service import opens_incident
@@ -23,7 +24,6 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     Senior,
-    SeniorStatus,
 )
 from app.status.engine import (
     CallAnswers,
@@ -34,14 +34,7 @@ from app.status.engine import (
     today_in_bucharest,
 )
 from app.voice.calls import CallState, advance
-from app.voice.models import (
-    Call,
-    Campaign,
-    CampaignKind,
-    ReportSource,
-    StatusReport,
-    WelcomeOutcome,
-)
+from app.voice.models import Call, Campaign, CampaignKind, WelcomeOutcome
 
 
 def redial_delay() -> timedelta:
@@ -62,22 +55,6 @@ def campaign_reason(worrying: list[Question], kind: CampaignKind) -> str:
     }
     *init, last = [said[q] for q in Question if q in worrying]
     return (f"{', '.join(init)} și {last}" if init else last).capitalize()
-
-
-async def set_code(
-    session: AsyncSession,
-    call: Call,
-    code: Severity,
-    reason: str,
-    since: datetime,
-) -> None:
-    """The senior's current code, a new row or the old one replaced (05 §2)."""
-    row = {"code": code, "reason": reason, "since": since, "source_call_id": call.id}
-    await session.execute(
-        insert(SeniorStatus)
-        .values(senior_id=call.senior_id, **row)
-        .on_conflict_do_update(index_elements=[SeniorStatus.senior_id], set_=row)
-    )
 
 
 async def conclude(
@@ -111,13 +88,12 @@ async def conclude(
         call.summary = f"Apel simulat din aplicație. {reason}."
         source = ReportSource.rules
     elif call.attempt == 1:
-        session.add(
-            StatusReport(
-                call_id=call.id,
-                source=ReportSource.unanswered,
-                severity=call.starting_severity,
-                reason="Nu a răspuns la prima încercare",
-            )
+        await add_report(
+            session,
+            call.id,
+            ReportSource.unanswered,
+            call.starting_severity,
+            "Nu a răspuns la prima încercare",
         )
         session.add(
             Call(
@@ -138,15 +114,7 @@ async def conclude(
         source = ReportSource.unanswered
     call.final_severity = result
     call.reason = reason
-    session.add(
-        StatusReport(
-            call_id=call.id,
-            source=source,
-            severity=result,
-            certainty=certainty,
-            reason=reason,
-        )
-    )
+    await add_report(session, call.id, source, result, reason, certainty=certainty)
 
     current = await session.scalar(
         select(SeniorStatus.code).where(SeniorStatus.senior_id == call.senior_id)
@@ -161,7 +129,7 @@ async def conclude(
     )
     # A red whose incident is unresolved stays as it is (03 §8, P9).
     if next_code(current, unresolved, result) is result:
-        await set_code(session, call, result, reason, now)
+        await set_code(session, call.senior_id, call.id, result, reason, now)
     if opens_incident(result, unresolved):
         session.add(
             Incident(
@@ -217,5 +185,7 @@ async def conclude_welcome(
     )
     if given:
         # The code starts when consent is given (03 §8).
-        await set_code(session, call, Severity.green, "Consimțământ dat", now)
+        await set_code(
+            session, call.senior_id, call.id, Severity.green, "Consimțământ dat", now
+        )
     return True

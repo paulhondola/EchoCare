@@ -8,6 +8,7 @@ from sqlalchemy.orm import aliased
 
 from app.auth.models import Grant, Role, User
 from app.auth.service import refuse
+from app.codes.models import StatusReport
 from app.core.db import engine
 from app.incidents.models import Event, Incident, IncidentStatus
 from app.incidents.schemas import (
@@ -22,7 +23,7 @@ from app.incidents.schemas import (
 from app.seniors.models import Senior
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
 from app.status.engine import Severity
-from app.voice.models import Call, CallTurn, StatusReport
+from app.voice.models import Call, CallTurn
 
 log = logging.getLogger("echocare.incidents")
 
