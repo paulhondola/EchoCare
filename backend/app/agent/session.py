@@ -2,7 +2,9 @@
 signature: the live call it belongs to, its transcript, and the call's end.
 
 The call id is one-time as 01 §4 channel 7 asks: a connect is taken only while the
-call is live, and nothing before a `setup` naming the call's Twilio id.
+call is live, and nothing before a `setup` naming the call's Twilio id. It reads and
+writes the call only through `voice` (ADR-004, ADR-005), so it can later leave the
+process.
 """
 
 import json
@@ -11,16 +13,15 @@ import uuid
 from typing import Any, Protocol
 
 from fastapi.websockets import WebSocketDisconnect
-from sqlalchemy import func, select
 
+from app.agent.relay import Relay
 from app.core.db import Session
-from app.seniors.models import Senior
-from app.voice.calls import LIVE, CallState
-from app.voice.dialogue import Relay, greeting
-from app.voice.models import Call, CallTurn, Speaker, TurnKind
-from app.voice.service import move_call
+from app.voice.calls import CallState
+from app.voice.dialogue import greeting
+from app.voice.models import Speaker, TurnKind
+from app.voice.service import add_turn, live_call, next_turn_position, transition
 
-log = logging.getLogger("echocare.voice")
+log = logging.getLogger("echocare.agent")
 
 
 class Socket(Protocol):
@@ -39,35 +40,17 @@ class Socket(Protocol):
 async def serve(ws: Socket, call: uuid.UUID) -> None:
     """Runs the session until Twilio disconnects or the call's own setup is missing."""
     async with Session() as session:
-        row = (
-            await session.execute(
-                select(Call.twilio_call_id, Senior.form_of_address)
-                .join(Senior, Senior.id == Call.senior_id)
-                .where(Call.id == call, Call.state.in_(LIVE))
-            )
-        ).first()
+        row = await live_call(session, call)
         if row is None:
             log.warning("relay connect for unknown or ended call %s", call)
             await ws.close(code=1008)
             return
         # Continues the transcript if Twilio reconnects the same call.
-        position = await session.scalar(
-            select(func.coalesce(func.max(CallTurn.position) + 1, 0)).where(
-                CallTurn.call_id == call
-            )
-        )
+        position = await next_turn_position(session, call)
 
         async def store(speaker: Speaker, kind: TurnKind, content: str) -> None:
             nonlocal position
-            session.add(
-                CallTurn(
-                    call_id=call,
-                    position=position,
-                    speaker=speaker,
-                    kind=kind,
-                    content=content,
-                )
-            )
+            add_turn(session, call, position, speaker, kind, content)
             position += 1
             await session.commit()
 
@@ -106,7 +89,8 @@ async def serve(ws: Socket, call: uuid.UUID) -> None:
                 if any(reply["type"] == "end" for reply in replies):
                     # We close it, so it ends completed even if they hang up during
                     # the goodbye; a hang-up before this ends dropped (03 §9).
-                    await move_call(session, call, None, CallState.completed)
+                    await transition(session, call, None, CallState.completed)
+                    await session.commit()
                 for reply in replies:
                     await ws.send_json(reply)
         except WebSocketDisconnect:

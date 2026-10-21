@@ -3,13 +3,13 @@ import uuid
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import ColumnElement, Select, literal, select, update
+from sqlalchemy import ColumnElement, Row, Select, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.seniors.models import Senior
 from app.status.engine import Certainty, Question, Severity
-from app.voice.calls import ANSWERED, ENDED, CallState, advance, after_callback
+from app.voice.calls import ANSWERED, ENDED, LIVE, CallState, advance, after_callback
 from app.voice.models import (
     Answer,
     Call,
@@ -24,13 +24,13 @@ from app.voice.twilio import hang_up
 log = logging.getLogger("echocare.voice")
 
 
-async def move_call(
+async def transition(
     session: AsyncSession, call_id: uuid.UUID, sid: str | None, new: CallState | None
 ) -> CallState | None:
     """Applies a callback to the call record; the state it moved to, or None (03 §9).
 
     The row is locked, so a status callback and voicemail detection arriving together
-    apply one after the other.
+    apply one after the other. Doesn't commit: `move_call` does, for the callbacks.
     """
     call = await session.scalar(
         select(Call).where(Call.id == call_id).with_for_update()
@@ -47,6 +47,14 @@ async def move_call(
         call.state = moved
     elif new is not None and new is not call.state:
         log.info("call %s: %s ignored in %s", call_id, new, call.state)
+    return moved
+
+
+async def move_call(
+    session: AsyncSession, call_id: uuid.UUID, sid: str | None, new: CallState | None
+) -> CallState | None:
+    """`transition`, committed: the Twilio callbacks' way in (04 §4.2)."""
+    moved = await transition(session, call_id, sid, new)
     await session.commit()
     return moved
 
@@ -226,5 +234,30 @@ def record_answer(
     session.add(
         Answer(
             call_id=call_id, field=field, value=value, clear=clear, quote=quote, at=at
+        )
+    )
+
+
+# What the relay session reads, for the agent (ADR-005).
+
+
+async def live_call(session: AsyncSession, call_id: uuid.UUID) -> Row | None:
+    """The call's Twilio id and how it greets its senior while it is live; None once it
+    has ended, or for an unknown id, so a relay connect is one-time (01 §4 channel 7)."""
+    return (
+        await session.execute(
+            select(Call.twilio_call_id, Senior.form_of_address)
+            .join(Senior, Senior.id == Call.senior_id)
+            .where(Call.id == call_id, Call.state.in_(LIVE))
+        )
+    ).first()
+
+
+async def next_turn_position(session: AsyncSession, call_id: uuid.UUID) -> int:
+    """Where the transcript goes on: 0 for a new call, after the last turn when Twilio
+    reconnects the same call."""
+    return await session.scalar(
+        select(func.coalesce(func.max(CallTurn.position) + 1, 0)).where(
+            CallTurn.call_id == call_id
         )
     )

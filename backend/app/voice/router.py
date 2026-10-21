@@ -8,13 +8,13 @@ from fastapi import APIRouter, Depends, Request, Response, WebSocket
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.session import serve
 from app.auth.service import refuse
 from app.core.db import get_session
 from app.core.settings import get_settings
 from app.voice.calls import TWILIO_DIALING, TWILIO_STATUSES, answered_by_machine
 from app.voice.dialogue import LANGUAGE, greeting, sorry, twiml
 from app.voice.service import form_of_address, machine_answered, move_call
-from app.voice.session import serve
 from app.voice.twilio import public_url, signed, voice_url
 
 log = logging.getLogger("echocare.voice")

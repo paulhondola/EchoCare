@@ -15,7 +15,8 @@ backend/
 │   ├── seniors/       seniors, caregivers, consents, enrollments
 │   ├── incidents/     incident lifecycle, refusal reasons, incident detail
 │   ├── campaigns/     weather campaigns: start, list, end, the lapsed warning
-│   ├── voice/         Twilio signatures and dialing, call lifecycle, dialogue relay
+│   ├── voice/         Twilio signatures and dialing, call lifecycle, TwiML
+│   ├── agent/         the call session: relay socket and dialogue; talks only to voice
 │   ├── calls/         call history and transcripts
 │   ├── system/        /api/health and the dashboard's system health
 │   └── status/        alarm phrases, status matrix and engine; pure logic
