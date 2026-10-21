@@ -158,9 +158,12 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
 
     The owner is the package whose models.py defines the class. A write is a
     constructor, insert/update/delete(X), `row.attr = …`, setattr(row, …) or
-    session.delete(row). A row's class comes from its annotation, from its assignment
-    from X(...), select(X) or session.get(X, …), or else from a column only one class
-    has. ponytail: a row whose class none of these names is missed; review catches it.
+    session.delete(row). A row's class comes from its annotation (a parameter's or a
+    local one), or from what it is bound to (=, :=, a for loop) when that is X(...),
+    select(X) or session.get(X, …). An unknown row's column names the class when one
+    class has it, and every class with it when all of those are another package's.
+    ponytail: missed, for review to catch: sa.update(X), an aliased insert,
+    update(X.__table__), and chained a.b.c = … writes.
     """
     owner: dict[str, str] = {}
     columns: dict[str, set[str]] = {}
@@ -222,12 +225,24 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
             args = fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs
             rows = {a.arg: c for a in args if (c := annotated(a.annotation))}
             for node in ast.walk(fn):
-                if (
-                    isinstance(node, ast.Assign)
-                    and isinstance(node.targets[0], ast.Name)
-                    and (c := loaded(node.value))
-                ):
-                    rows[node.targets[0].id] = c
+                match node:
+                    case ast.Assign(targets=[ast.Name(id=name)], value=value) | (
+                        ast.NamedExpr(target=ast.Name(id=name), value=value)
+                    ):
+                        c = loaded(value)
+                    case ast.AnnAssign(target=ast.Name(id=name)):
+                        c = annotated(node.annotation) or (
+                            node.value and loaded(node.value)
+                        )
+                    case (
+                        ast.For(target=ast.Name(id=name))
+                        | ast.AsyncFor(target=ast.Name(id=name))
+                    ):
+                        c = loaded(node.iter)
+                    case _:
+                        c = None
+                if c:
+                    rows[name] = c
             for node in ast.walk(fn):
                 if isinstance(node, ast.Assign | ast.AugAssign | ast.AnnAssign):
                     targets = getattr(node, "targets", None) or [node.target]
@@ -254,12 +269,14 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
                 for name, attr in pairs:
                     if name == "self":
                         continue
+                    if name in rows:
+                        written.add(rows[name])
+                        continue
+                    # An unknown row: a column one class has names it; a column only
+                    # other packages' classes have is a foreign write whichever it is.
                     guess = columns.get(attr, set())
-                    cls = rows.get(name) or (
-                        next(iter(guess)) if len(guess) == 1 else None
-                    )
-                    if cls:
-                        written.add(cls)
+                    if len(guess) == 1 or all(owner[c] != package for c in guess):
+                        written |= guess
         found |= {(module, c) for c in written if owner.get(c, package) != package}
     return found
 
@@ -268,23 +285,59 @@ def test_only_the_owner_writes_a_table():
     assert foreign_writes(BACKEND / "app") == set()
 
 
-LEAK = """from app.seniors.models import Senior
+# One planted foreign write per rule, each in its own module. Those in voice/ write a
+# column voice's own Call shares (`reason`, `state`), so only knowing the row's class
+# finds them; those in system/ write where every class with the column is foreign.
+LEAKS = {
+    "constructor": ("system", "Senior", "return Senior(full_name='x')"),
+    "insert": ("system", "Senior", "return insert(Senior)"),
+    "update": ("system", "Senior", "return update(Senior)"),
+    "delete": ("system", "Senior", "return delete(Senior)"),
+    "annotated parameter": ("voice", "SeniorStatus", "row.reason = 'x'"),
+    "setattr": ("voice", "SeniorStatus", "setattr(row, 'reason', 'x')"),
+    "session.delete": ("voice", "SeniorStatus", "await session.delete(row)"),
+    "loop variable": (
+        "voice",
+        "SeniorStatus",
+        "for s in await session.scalars(select(SeniorStatus)):\n        s.reason = 'x'",
+    ),
+    "local annotation": (
+        "voice",
+        "SeniorStatus",
+        "s: SeniorStatus = rows[0]\n    s.reason = 'x'",
+    ),
+    "walrus": (
+        "voice",
+        "SeniorStatus",
+        (
+            "if (s := await session.scalar(select(SeniorStatus))) is not None:\n"
+            "        s.reason = 'x'"
+        ),
+    ),
+    "unpacked row, a column only foreign classes have": (
+        "system",
+        "Call",
+        "call, _ = rows\n    call.state = 'x'",
+    ),
+}
+LEAK = """from sqlalchemy import delete, insert, select, update
+
+from app.codes.models import SeniorStatus
+from app.seniors.models import Senior
+from app.voice.models import Call
 
 
-def make():
-    return Senior(full_name="x")
-
-
-def rename(senior: Senior):
-    senior.full_name = "y"
+async def leak(session, row: SeniorStatus, rows):
+    {}
 """
 
 
-def test_a_foreign_write_is_found(tmp_path):
+@pytest.mark.parametrize(("package", "cls", "body"), LEAKS.values(), ids=LEAKS.keys())
+def test_a_foreign_write_is_found(tmp_path, package, cls, body):
     shutil.copytree(
         BACKEND / "app",
         tmp_path / "app",
         ignore=shutil.ignore_patterns("__pycache__"),
     )
-    (tmp_path / "app/system/leak.py").write_text(LEAK)
-    assert {("system/leak.py", "Senior")} <= foreign_writes(tmp_path / "app")
+    (tmp_path / f"app/{package}/leak.py").write_text(LEAK.format(body))
+    assert (f"{package}/leak.py", cls) in foreign_writes(tmp_path / "app")
