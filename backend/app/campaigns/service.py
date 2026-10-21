@@ -5,8 +5,8 @@ import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, func, literal, select, update
-from sqlalchemy.dialects.postgresql import distinct_on, insert
+from sqlalchemy import exists, func, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -18,6 +18,7 @@ from app.seniors.models import EnrollmentState, Senior
 from app.status.engine import Severity
 from app.voice.calls import CallState
 from app.voice.models import Call, CallTrigger
+from app.voice.service import cancel_queued, queue_calls
 
 log = logging.getLogger("echocare.campaigns")
 
@@ -129,34 +130,17 @@ async def start_campaign(
     )
     session.add(campaign)
     await session.flush()  # the database makes the id
-    await session.execute(
-        insert(Call)
-        .from_select(
-            [
-                Call.senior_id,
-                Call.trigger,
-                Call.campaign_id,
-                Call.attempt,
-                Call.starting_severity,
-                Call.state,
-                Call.due_at,
-            ],
-            select(
-                Senior.id,
-                literal(CallTrigger.campaign, Call.trigger.type),
-                literal(campaign.id, Call.campaign_id.type),
-                literal(1, Call.attempt.type),
-                literal(Severity.green, Call.starting_severity.type),
-                literal(CallState.queued, Call.state.type),
-                literal(now, Call.due_at.type),
-            ).where(
-                Senior.enrollment_state == EnrollmentState.active,
-                ~select(Incident.id)
-                .where(Incident.senior_id == Senior.id, Incident.status.in_(UNRESOLVED))
-                .exists(),
-            ),
-        )
-        .on_conflict_do_nothing()
+    await queue_calls(
+        session,
+        select(Senior.id).where(
+            Senior.enrollment_state == EnrollmentState.active,
+            ~select(Incident.id)
+            .where(Incident.senior_id == Senior.id, Incident.status.in_(UNRESOLVED))
+            .exists(),
+        ),
+        trigger=CallTrigger.campaign,
+        due_at=now,
+        campaign_id=campaign.id,
     )
     await session.commit()
     return (await campaign_summaries(session, campaign.id))[0], True
@@ -170,15 +154,10 @@ async def cancel_lapsed(session: AsyncSession, now: datetime | None = None) -> N
     transaction does.
     """
     now = now or datetime.now(UTC)
-    await session.execute(
-        update(Call)
-        .where(
-            Call.state == CallState.queued,
-            Call.campaign_id.in_(
-                select(Campaign.id).where(Campaign.warning_until <= now)
-            ),
-        )
-        .values(state=CallState.canceled, ended_at=now)
+    await cancel_queued(
+        session,
+        Call.campaign_id.in_(select(Campaign.id).where(Campaign.warning_until <= now)),
+        now=now,
     )
 
 
@@ -201,11 +180,7 @@ async def end_campaign(
     if ended is None:
         log.info("refused not_found: campaign %s", campaign_id)
         raise refuse(404, "not_found")
-    await session.execute(
-        update(Call)
-        .where(Call.campaign_id == campaign_id, Call.state == CallState.queued)
-        .values(state=CallState.canceled, ended_at=now)
-    )
+    await cancel_queued(session, Call.campaign_id == campaign_id, now=now)
     await session.commit()
     return (await campaign_summaries(session, campaign_id))[0]
 

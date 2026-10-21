@@ -266,8 +266,6 @@ KNOWN = {
     ("calls/mock.py", "Call"),
     ("calls/mock.py", "Answer"),
     ("calls/mock.py", "CallTurn"),
-    ("calls/service.py", "Call"),
-    ("campaigns/service.py", "Call"),
 }
 
 

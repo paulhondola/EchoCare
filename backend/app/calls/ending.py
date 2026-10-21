@@ -36,6 +36,7 @@ from app.status.engine import (
 )
 from app.voice.calls import CallState, advance
 from app.voice.models import Call, WelcomeOutcome
+from app.voice.service import queue_redial
 
 
 def redial_delay() -> timedelta:
@@ -96,17 +97,7 @@ async def conclude(
             call.starting_severity,
             "Nu a răspuns la prima încercare",
         )
-        session.add(
-            Call(
-                senior_id=call.senior_id,
-                trigger=call.trigger,
-                campaign_id=call.campaign_id,
-                previous_call_id=call.id,
-                attempt=2,
-                starting_severity=call.starting_severity,
-                due_at=now + redial_delay(),
-            )
-        )
+        await queue_redial(session, call, now + redial_delay())
         return None
     else:
         reason = "Nu a răspuns de două ori"
