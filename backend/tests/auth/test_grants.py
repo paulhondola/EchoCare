@@ -1,4 +1,4 @@
-"""The user row behind a grant (app/staff/service.py)."""
+"""The user row behind a grant (app/auth/service.py)."""
 
 from sqlalchemy import func, select
 

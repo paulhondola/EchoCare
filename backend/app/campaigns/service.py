@@ -5,7 +5,7 @@ import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import and_, exists, func, select, update
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,7 +132,7 @@ async def start_campaign(
     await session.flush()  # the database makes the id
     await queue_calls(
         session,
-        select(Senior.id).where(
+        and_(
             Senior.enrollment_state == EnrollmentState.active,
             ~select(Incident.id)
             .where(Incident.senior_id == Senior.id, Incident.status.in_(UNRESOLVED))

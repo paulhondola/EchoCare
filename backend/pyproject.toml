@@ -109,7 +109,7 @@ exhaustive_ignores = ["main", "models"]
 ignore_imports = ["app.**.router -> app.**"]
 
 # The call session may leave the process first (ADR-004), so what it imports from voice
-# is that split's interface.
+# is that split's interface. No core: it holds no database session.
 [[tool.importlinter.contracts]]
 name = "The agent talks only to voice (ADR-004, ADR-005)"
 type = "forbidden"
@@ -118,7 +118,6 @@ forbidden_modules = ["app.*"]
 ignore_imports = [
     "app.agent.** -> app.agent.**",
     "app.agent.** -> app.voice.**",
-    "app.agent.** -> app.core.**",
     "app.agent.** -> app.status.**",
 ]
 allow_indirect_imports = true

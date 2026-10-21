@@ -36,7 +36,7 @@ async def test_queue_calls_skips_a_senior_with_a_live_call(db, add_senior):
     await db.commit()
     await queue_calls(
         db,
-        select(Senior.id).where(Senior.id.in_([busy.id, free.id])),
+        Senior.id.in_([busy.id, free.id]),
         trigger=CallTrigger.campaign,
         due_at=NOW,
     )
@@ -52,7 +52,7 @@ async def test_a_redial_that_collides_raises(db, add_senior):
     first = a_call(senior, trigger=CallTrigger.campaign, state=CallState.unanswered)
     db.add_all([first, a_call(senior)])
     await db.commit()
-    await queue_redial(db, first, NOW)
+    queue_redial(db, first, NOW)
     with pytest.raises(IntegrityError):
         await db.flush()
 

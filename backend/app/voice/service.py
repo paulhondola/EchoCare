@@ -1,12 +1,14 @@
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import ColumnElement, Row, Select, func, literal, select, update
+from sqlalchemy import ColumnElement, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import Session
 from app.seniors.models import Senior
 from app.status.engine import Certainty, Question, Severity
 from app.voice.calls import ANSWERED, ENDED, LIVE, CallState, advance, after_callback
@@ -88,13 +90,14 @@ async def machine_answered(
 
 async def queue_calls(
     session: AsyncSession,
-    senior_ids: Select,
+    seniors: ColumnElement[bool],
     *,
     trigger: CallTrigger,
     due_at: datetime,
     campaign_id: uuid.UUID | None = None,
 ) -> None:
-    """Queues a first attempt, starting green, for each senior `senior_ids` selects.
+    """Queues a first attempt, starting green, for each senior the `seniors` condition
+    picks; it may correlate with `Senior.id`.
 
     A senior who already has a live call is skipped by `uq_calls_live_senior` (05 §3),
     so nobody gets two.
@@ -111,20 +114,21 @@ async def queue_calls(
                 Call.state,
                 Call.due_at,
             ],
-            senior_ids.add_columns(
+            select(
+                Senior.id,
                 literal(trigger, Call.trigger.type),
                 literal(campaign_id, Call.campaign_id.type),
                 literal(1, Call.attempt.type),
                 literal(Severity.green, Call.starting_severity.type),
                 literal(CallState.queued, Call.state.type),
                 literal(due_at, Call.due_at.type),
-            ),
+            ).where(seniors),
         )
         .on_conflict_do_nothing()
     )
 
 
-async def queue_redial(session: AsyncSession, call: Call, due_at: datetime) -> None:
+def queue_redial(session: AsyncSession, call: Call, due_at: datetime) -> None:
     """The attempt after `call`, its own record pointing back to it (03 §9).
 
     No conflict clause, unlike `queue_calls`: a redial that meets a live call for the
@@ -144,14 +148,16 @@ async def queue_redial(session: AsyncSession, call: Call, due_at: datetime) -> N
 
 
 async def cancel_queued(
-    session: AsyncSession, *where: ColumnElement[bool], now: datetime
+    session: AsyncSession, which: ColumnElement[bool], *, now: datetime
 ) -> None:
-    """Cancels the queued calls `where` picks: a lapsed or ended campaign's, a
-    withdrawn senior's (03 §9)."""
+    """Cancels the queued calls `which` picks: a lapsed or ended campaign's, a
+    withdrawn senior's (03 §9). The condition is required: none would cancel them all.
+    `queued -> canceled` is an allowed move (03 §9), and the state filter is its guard.
+    """
     await session.execute(
         update(Call)
-        .where(Call.state == CallState.queued, *where)
-        .values(state=advance(CallState.queued, CallState.canceled), ended_at=now)
+        .where(Call.state == CallState.queued, which)
+        .values(state=CallState.canceled, ended_at=now)
     )
 
 
@@ -238,26 +244,54 @@ def record_answer(
     )
 
 
-# What the relay session reads, for the agent (ADR-005).
+# The agent's way in (ADR-005 §6). Unlike the functions above, each opens and commits
+# its own session: the call session holds none, so it can leave the process (ADR-004).
 
 
-async def live_call(session: AsyncSession, call_id: uuid.UUID) -> Row | None:
-    """The call's Twilio id and how it greets its senior while it is live; None once it
-    has ended, or for an unknown id, so a relay connect is one-time (01 §4 channel 7)."""
-    return (
-        await session.execute(
-            select(Call.twilio_call_id, Senior.form_of_address)
-            .join(Senior, Senior.id == Call.senior_id)
-            .where(Call.id == call_id, Call.state.in_(LIVE))
+@dataclass(frozen=True)
+class LiveCall:
+    """What a relay session needs of its call (04 §4.3)."""
+
+    twilio_call_id: str | None
+    form_of_address: str
+    # Where the transcript goes on: 0 for a new call, after the last turn when Twilio
+    # reconnects the same call.
+    next_position: int
+
+
+async def open_line(call_id: uuid.UUID) -> LiveCall | None:
+    """The call while it is live; None once it has ended, or for an unknown id, so a
+    relay connect is one-time (01 §4 channel 7)."""
+    async with Session() as session:
+        row = (
+            await session.execute(
+                select(Call.twilio_call_id, Senior.form_of_address)
+                .join(Senior, Senior.id == Call.senior_id)
+                .where(Call.id == call_id, Call.state.in_(LIVE))
+            )
+        ).first()
+        if row is None:
+            return None
+        position = await session.scalar(
+            select(func.coalesce(func.max(CallTurn.position) + 1, 0)).where(
+                CallTurn.call_id == call_id
+            )
         )
-    ).first()
+        return LiveCall(row.twilio_call_id, row.form_of_address, position)
 
 
-async def next_turn_position(session: AsyncSession, call_id: uuid.UUID) -> int:
-    """Where the transcript goes on: 0 for a new call, after the last turn when Twilio
-    reconnects the same call."""
-    return await session.scalar(
-        select(func.coalesce(func.max(CallTurn.position) + 1, 0)).where(
-            CallTurn.call_id == call_id
-        )
-    )
+async def save_turn(
+    call_id: uuid.UUID, position: int, speaker: Speaker, kind: TurnKind, content: str
+) -> None:
+    """One transcript row, committed as it comes, so a lost line keeps what was said
+    (06 §1)."""
+    async with Session() as session:
+        add_turn(session, call_id, position, speaker, kind, content)
+        await session.commit()
+
+
+async def end_completed(call_id: uuid.UUID) -> None:
+    """Our side closed the call: it ends completed, even if they hang up during the
+    goodbye (03 §9)."""
+    async with Session() as session:
+        await move_call(session, call_id, None, CallState.completed)

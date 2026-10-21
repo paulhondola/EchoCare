@@ -64,6 +64,14 @@ CASES = {
         {"app/agent/leak.py": "from app.seniors.models import Senior\n"},
         "The agent talks only to voice",
     ),
+    "agent opens a database session": (
+        {"app/agent/leak.py": "from app.core.db import Session\n"},
+        "The agent talks only to voice",
+    ),
+    "two packages in one layer import each other": (
+        {"app/calls/leak.py": "from app.agent.relay import heard\n"},
+        "Packages sit in layers",
+    ),
     "new package's models import fastapi": (
         {
             "app/scheduler/__init__.py": "",
@@ -157,12 +165,14 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
     """(module, ORM class) for every write to a table another package owns (ADR-005).
 
     The owner is the package whose models.py defines the class. A write is a
-    constructor, insert/update/delete(X), `row.attr = …`, setattr(row, …) or
-    session.delete(row). A row's class comes from its annotation (a parameter's or a
-    local one), or from what it is bound to (=, :=, a for loop) when that is X(...),
-    select(X) or session.get(X, …). An unknown row's column names the class when one
-    class has it, and every class with it when all of those are another package's.
-    ponytail: missed, for review to catch: sa.update(X), an aliased insert,
+    constructor, insert/update/delete(X), `row.attr = …` (also in a tuple target),
+    setattr(row, …) or session.delete(row). X is a name the module imports from an
+    app package's models.py, under any alias, so a same-named class from elsewhere
+    (status.engine's Answer) is no write. A row's class comes from its annotation (a
+    parameter's or a local one), or from what it is bound to (=, :=, a for loop) when
+    that is X(...), select(X) or session.get(X, …). An unknown row's column names the
+    class when one class has it, and every class with it when all of those are another
+    package's. ponytail: missed, for review to catch: sa.update(X), an aliased insert,
     update(X.__table__), and chained a.b.c = … writes.
     """
     owner: dict[str, str] = {}
@@ -179,20 +189,31 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
                     ):
                         columns.setdefault(item.target.id, set()).add(node.name)
 
-    def annotated(annotation: ast.expr | None) -> str | None:
+    def imported(tree: ast.Module) -> dict[str, str]:
+        """The module's local name for each ORM class it imports."""
+        return {
+            alias.asname or alias.name: alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and re.fullmatch(r"app\.\w+\.models", node.module or "")
+            for alias in node.names
+            if alias.name in owner
+        }
+
+    def annotated(annotation: ast.expr | None, known: dict[str, str]) -> str | None:
         names = {
-            n.id
+            known[n.id]
             for n in ast.walk(annotation or ast.Constant(None))
-            if isinstance(n, ast.Name) and n.id in owner
+            if isinstance(n, ast.Name) and n.id in known
         }
         return names.pop() if len(names) == 1 else None
 
-    def loaded(value: ast.expr) -> str | None:
+    def loaded(value: ast.expr, known: dict[str, str]) -> str | None:
         for n in ast.walk(value):
             if not isinstance(n, ast.Call):
                 continue
-            if isinstance(n.func, ast.Name) and n.func.id in owner:
-                return n.func.id
+            if isinstance(n.func, ast.Name) and n.func.id in known:
+                return known[n.func.id]
             if (
                 (
                     (getattr(n.func, "id", None) == "select" and len(n.args) == 1)
@@ -200,9 +221,9 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
                 )
                 and n.args
                 and isinstance(n.args[0], ast.Name)
-                and n.args[0].id in owner
+                and n.args[0].id in known
             ):
-                return n.args[0].id
+                return known[n.args[0].id]
         return None
 
     found = set()
@@ -212,40 +233,47 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
             continue
         package = module.split("/")[0]
         tree = ast.parse(path.read_text())
+        known = imported(tree)
         written: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                if node.func.id in owner:
-                    written.add(node.func.id)
+                if node.func.id in known:
+                    written.add(known[node.func.id])
                 elif node.func.id in ("insert", "update", "delete") and node.args:
-                    written.add(getattr(node.args[0], "id", ""))
+                    written.add(known.get(getattr(node.args[0], "id", ""), ""))
         for fn in ast.walk(tree):
             if not isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
             args = fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs
-            rows = {a.arg: c for a in args if (c := annotated(a.annotation))}
+            rows = {a.arg: c for a in args if (c := annotated(a.annotation, known))}
             for node in ast.walk(fn):
                 match node:
                     case ast.Assign(targets=[ast.Name(id=name)], value=value) | (
                         ast.NamedExpr(target=ast.Name(id=name), value=value)
                     ):
-                        c = loaded(value)
+                        c = loaded(value, known)
                     case ast.AnnAssign(target=ast.Name(id=name)):
-                        c = annotated(node.annotation) or (
-                            node.value and loaded(node.value)
+                        c = annotated(node.annotation, known) or (
+                            node.value and loaded(node.value, known)
                         )
                     case (
                         ast.For(target=ast.Name(id=name))
                         | ast.AsyncFor(target=ast.Name(id=name))
                     ):
-                        c = loaded(node.iter)
+                        c = loaded(node.iter, known)
                     case _:
                         c = None
                 if c:
                     rows[name] = c
             for node in ast.walk(fn):
                 if isinstance(node, ast.Assign | ast.AugAssign | ast.AnnAssign):
-                    targets = getattr(node, "targets", None) or [node.target]
+                    targets = [
+                        e
+                        for t in getattr(node, "targets", None) or [node.target]
+                        for e in (
+                            t.elts if isinstance(t, ast.Tuple | ast.List) else [t]
+                        )
+                    ]
                     pairs = [
                         (t.value.id, t.attr)
                         for t in targets
@@ -263,7 +291,10 @@ def foreign_writes(app: Path) -> set[tuple[str, str]]:
                         )
                     )
                 ):
-                    pairs = [(getattr(node.args[0], "id", ""), "")]
+                    # setattr's column, when it is a literal, guesses an unknown row.
+                    column = node.args[1] if len(node.args) > 1 else None
+                    attr = column.value if isinstance(column, ast.Constant) else ""
+                    pairs = [(getattr(node.args[0], "id", ""), str(attr))]
                 else:
                     continue
                 for name, attr in pairs:
@@ -319,11 +350,19 @@ LEAKS = {
         "Call",
         "call, _ = rows\n    call.state = 'x'",
     ),
+    "aliased import": ("system", "Senior", "return S(full_name='x')"),
+    "setattr on an unknown row": (
+        "system",
+        "Call",
+        "call, _ = rows\n    setattr(call, 'state', 'x')",
+    ),
+    "tuple target": ("voice", "SeniorStatus", "row.reason, n = 'x', 1"),
 }
 LEAK = """from sqlalchemy import delete, insert, select, update
 
 from app.codes.models import SeniorStatus
 from app.seniors.models import Senior
+from app.seniors.models import Senior as S
 from app.voice.models import Call
 
 
@@ -341,3 +380,17 @@ def test_a_foreign_write_is_found(tmp_path, package, cls, body):
     )
     (tmp_path / f"app/{package}/leak.py").write_text(LEAK.format(body))
     assert (f"{package}/leak.py", cls) in foreign_writes(tmp_path / "app")
+
+
+def test_a_same_named_class_from_elsewhere_is_no_write(tmp_path):
+    # status.engine has its own Answer; only voice.models' Answer is a table.
+    shutil.copytree(
+        BACKEND / "app",
+        tmp_path / "app",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    (tmp_path / "app/calls/rule.py").write_text(
+        "from app.status.engine import Answer\n\n\n"
+        "def rule():\n    return Answer('bine', True, 'Bine')\n"
+    )
+    assert ("calls/rule.py", "Answer") not in foreign_writes(tmp_path / "app")

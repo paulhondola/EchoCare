@@ -84,14 +84,14 @@ async def conclude(
         end, summary = CallState.completed, f"Apel simulat din aplicație. {reason}."
         source = ReportSource.rules
     elif call.attempt == 1:
-        await add_report(
+        add_report(
             session,
             call.id,
             ReportSource.unanswered,
             call.starting_severity,
             "Nu a răspuns la prima încercare",
         )
-        await queue_redial(session, call, now + redial_delay())
+        queue_redial(session, call, now + redial_delay())
         return None
     else:
         reason = "Nu a răspuns de două ori"
@@ -108,7 +108,7 @@ async def conclude(
         reason=reason,
         summary=summary,
     )
-    await add_report(session, call.id, source, result, reason, certainty=certainty)
+    add_report(session, call.id, source, result, reason, certainty=certainty)
 
     current = await session.scalar(
         select(SeniorStatus.code).where(SeniorStatus.senior_id == call.senior_id)

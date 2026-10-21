@@ -179,6 +179,9 @@ STAFF_ROLES = (Role.das, Role.medic)
 # index on on_duty would otherwise be a 500.
 STAFF_LOCK = 20261016
 
+# The staff refusals keep the logger they had before staff/ was folded in (ADR-005).
+staff_log = logging.getLogger("echocare.staff")
+
 
 async def user_for(session: AsyncSession, phone_e164: str, display_name: str) -> User:
     """The number's user row, made with `display_name` if it has none (05 §4).
@@ -192,6 +195,22 @@ async def user_for(session: AsyncSession, phone_e164: str, display_name: str) ->
         .on_conflict_do_nothing(index_elements=[User.phone_e164])
     )
     return await session.scalar(select(User).where(User.phone_e164 == phone_e164))
+
+
+async def new_grant(
+    session: AsyncSession, phone_e164: str, display_name: str, **grant: Any
+) -> User | None:
+    """The number's user, made if it has none, with a new grant of the `grant` columns;
+    None when the number already held it. No conflict target: covers every unique index
+    on grants. Doesn't commit."""
+    user = await user_for(session, phone_e164, display_name)
+    granted = await session.scalar(
+        insert(Grant)
+        .values(user_id=user.id, **grant)
+        .on_conflict_do_nothing()
+        .returning(Grant.id)
+    )
+    return None if granted is None else user
 
 
 async def grant_staff(
@@ -208,14 +227,10 @@ async def grant_staff(
     changed. An existing user keeps their name; a medic grant sets the practice. Both
     inserts are ON CONFLICT DO NOTHING, so two DAS granting at once cannot both win.
     """
-    user = await user_for(session, phone_e164, display_name)
-    granted = await session.scalar(
-        insert(Grant)
-        .values(user_id=user.id, role=role, granted_by=granted_by)
-        .on_conflict_do_nothing()
-        .returning(Grant.id)
+    user = await new_grant(
+        session, phone_e164, display_name, role=role, granted_by=granted_by
     )
-    if granted is None:
+    if user is None:
         await session.rollback()
         return None
     if role == Role.medic:
@@ -270,10 +285,10 @@ async def edit_staff(
         )
     ).all()
     if not roles:
-        log.info("refused not_found: staff %s", user_id)
+        staff_log.info("refused not_found: staff %s", user_id)
         raise refuse(404, "not_found")
     if form.practice is not None and Role.medic not in roles:
-        log.info("refused not_medic: staff %s", user_id)
+        staff_log.info("refused not_medic: staff %s", user_id)
         raise refuse(422, "not_medic")
     user = await session.get(User, user_id)
     for field, value in form.model_dump(exclude_none=True).items():
@@ -293,7 +308,7 @@ async def revoke_staff(session: AsyncSession, user_id: uuid.UUID, role: Role) ->
             await session.scalars(select(Grant.user_id).where(Grant.role == Role.das))
         ).all()
         if holders == [user_id]:
-            log.info("refused wrong_state: last das %s", user_id)
+            staff_log.info("refused wrong_state: last das %s", user_id)
             await session.rollback()
             raise refuse(409, "wrong_state")
         await session.execute(
@@ -311,7 +326,7 @@ async def set_on_duty(session: AsyncSession, user_id: uuid.UUID | None) -> None:
     if user_id is not None and not await session.scalar(
         select(Grant.id).where(Grant.user_id == user_id, Grant.role == Role.das)
     ):
-        log.info("refused not_allowed: on duty %s holds no das grant", user_id)
+        staff_log.info("refused not_allowed: on duty %s holds no das grant", user_id)
         await session.rollback()
         raise refuse(403, "not_allowed")
     await session.execute(update(User).where(User.on_duty).values(on_duty=False))
@@ -388,20 +403,15 @@ async def add_caregiver_grant(
     None when the number already holds this senior's caregiver grant: the caller
     rolls back, which also drops a user row made here.
     """
-    user = await user_for(session, phone_e164, display_name)
-    granted = await session.scalar(
-        insert(Grant)
-        .values(
-            user_id=user.id,
-            role=Role.caregiver,
-            senior_id=senior_id,
-            relation=relation,
-            granted_by=granted_by,
-        )
-        .on_conflict_do_nothing()
-        .returning(Grant.id)
+    return await new_grant(
+        session,
+        phone_e164,
+        display_name,
+        role=Role.caregiver,
+        senior_id=senior_id,
+        relation=relation,
+        granted_by=granted_by,
     )
-    return None if granted is None else user
 
 
 async def edit_caregiver_grant(

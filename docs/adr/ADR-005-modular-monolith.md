@@ -97,7 +97,7 @@ Every package sits on all of the ones below, so the graph is acyclic only becaus
    core | status
    ```
 
-6. **`agent` imports only `voice`, `core` and `status`.** A `forbidden` contract holds the one strict rule, for the package ADR-004 names as the first to leave the process. What it imports from `voice` is that split's interface. It never calls `calls.ending`: the router hands the call's outcome on.
+6. **`agent` imports only `voice` and `status`.** A `forbidden` contract holds the one strict rule, for the package ADR-004 names as the first to leave the process. What it imports from `voice` is that split's interface: `open_line()`, `save_turn()` and `end_completed()`. These are the one exception to point 3: each opens and commits its own session, so the agent holds no database session, and a process boundary could replace them without touching it. It never calls `calls.ending`: the router hands the call's outcome on.
 7. **Target map.** Only the rows marked *move* or *new* change.
 
 | Package | Owns | Change |
@@ -106,8 +106,8 @@ Every package sits on all of the ones below, so the graph is acyclic only becaus
 | `seniors` | `seniors`, `consents`, `watch_states` | add `confirm_welcome()` (compare-and-set, no commit); `ending` uses it |
 | `codes` *new, decided 2026-10-21* ("senior status") | `senior_statuses`, `status_reports` | *move* `SeniorStatus` from `seniors`, `StatusReport` from `voice`, and `set_code()` from `ending`; add a function that writes a status report. Imports only `core` and `status`, so `seniors`, `calls` and `incidents`, which read it, sit above it |
 | `status` | nothing; pure rules and matrix | unchanged, contract unchanged |
-| `voice` (dialer, call lifecycle, Twilio) | `calls`, `call_turns`, `answers` | add the call-lifecycle functions groups B and C need: `queue_calls()` (campaign, welcome), `queue_redial()` (raises on a conflict), `cancel_queued()`, `advance_call()` and `finish()` (state, timestamps, result fields), `add_turn()`, `record_answer()`. `move_call()` stays the Twilio callbacks' way in, as `transition()` plus a commit, and the mock and the real call go through the same functions |
-| `agent` *new* (call session, agent loop) | nothing; writes turns and answers through `voice` | *move* `voice/session.py` and `Relay`; reads the call through `voice.live_call()` and `next_turn_position()`; the model loop is built here |
+| `voice` (dialer, call lifecycle, Twilio) | `calls`, `call_turns`, `answers` | add the call-lifecycle functions groups B and C need: `queue_calls()` (campaign, welcome), `queue_redial()` (raises on a conflict), `cancel_queued()` (its condition required), `advance_call()` and `finish()` (state, timestamps, result fields), `add_turn()`, `record_answer()`. `move_call()` stays the Twilio callbacks' way in, as `transition()` plus a commit, and the mock and the real call go through the same functions |
+| `agent` *new* (call session, agent loop) | nothing; writes turns and answers through `voice` | *move* `voice/session.py` and `Relay`; reads and writes the call through `voice.open_line()`, `save_turn()` and `end_completed()`, which own their sessions (point 6); the model loop is built here |
 | `incidents` | `incidents`, `events` until intake exists | add `open_incident()`; `ending` uses it |
 | `campaigns` | `campaigns` | *move* `Campaign`, `CampaignKind`, `WarningLevel` from `voice/models.py` |
 | `calls` | nothing; history, the mock, `ending` orchestration | `ending` hands its writes to the owners |

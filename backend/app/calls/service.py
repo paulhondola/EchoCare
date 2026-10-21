@@ -85,7 +85,7 @@ async def queue_welcome_call(session: AsyncSession, senior_id: uuid.UUID) -> Non
     """
     await queue_calls(
         session,
-        select(Senior.id).where(Senior.id == senior_id),
+        Senior.id == senior_id,
         trigger=CallTrigger.welcome,
         due_at=datetime.now(UTC),
     )

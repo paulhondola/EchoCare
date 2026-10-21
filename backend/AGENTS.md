@@ -75,5 +75,5 @@ Run migrations inside the Compose `api` container: `alembic/` is bind-mounted, s
 - **ORM in `models.py`, Pydantic in `schemas.py`.** An ORM class is the plain noun (`Senior`); a Pydantic request body ends in `Form`, a response in `View`, `Summary` or `Detail`. `schemas.py` imports only enums from `models.py`.
 - **`uv run lint-imports` must pass.** The contracts are in `pyproject.toml`. Fix the code, not the contract, unless the design changed (spec 2026-10-16 §6).
 - **Only a table's owner writes it:** the package whose `models.py` defines it (ADR-005). Another package calls the owner's functions, which don't commit; reads may join any table. `test_only_the_owner_writes_a_table` enforces it.
-- **Every package sits in a layer** of the layers contract in `pyproject.toml`, and imports only from layers below its own. A new package must be placed there. `agent` imports only `voice`, `core` and `status`.
+- **Every package sits in a layer** of the layers contract in `pyproject.toml`, and imports only from layers below its own. A new package must be placed there. `agent` imports only `voice` and `status`, and reaches the database only through `voice`'s session-owning calls.
 - Any change under `backend/`, this file included, redeploys staging's `api` after merge and drops live calls.

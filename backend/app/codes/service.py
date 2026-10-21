@@ -28,7 +28,7 @@ async def set_code(
     )
 
 
-async def add_report(
+def add_report(
     session: AsyncSession,
     call_id: uuid.UUID,
     source: ReportSource,

@@ -7,7 +7,7 @@ from typing import Any
 
 from app.voice.models import Speaker, TurnKind
 
-log = logging.getLogger("echocare.agent")
+log = logging.getLogger("echocare.voice.agent")
 
 GOODBYE = "Vă mulțumesc. La revedere."
 
