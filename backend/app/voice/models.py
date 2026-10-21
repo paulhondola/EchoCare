@@ -20,16 +20,6 @@ from app.status.engine import Certainty, Question, Severity
 from app.voice.calls import LIVE, CallState
 
 
-class CampaignKind(StrEnum):
-    heat = "heat"
-    cold = "cold"
-
-
-class WarningLevel(StrEnum):
-    yellow = "yellow"
-    red = "red"
-
-
 class CallTrigger(StrEnum):
     campaign = "campaign"
     watch = "watch"
@@ -55,28 +45,6 @@ class Speaker(StrEnum):
 class TurnKind(StrEnum):
     speech = "speech"
     keys = "keys"
-
-
-class ReportSource(StrEnum):
-    rules = "rules"
-    raise_concern = "raise_concern"
-    alarm_tier1 = "alarm_tier1"
-    alarm_tier2 = "alarm_tier2"
-    request_human = "request_human"
-    trigger = "trigger"
-    unanswered = "unanswered"
-
-
-class Campaign(Base):
-    __tablename__ = "campaigns"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    kind: Mapped[CampaignKind] = mapped_column(enum_type(CampaignKind))
-    level: Mapped[WarningLevel] = mapped_column(enum_type(WarningLevel))
-    started_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    started_at: Mapped[datetime] = timestamp_now()
-    # End of the active warning; watch inactivity counts only before it (G14).
-    warning_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Call(Base):
@@ -160,20 +128,4 @@ class Answer(Base):
     value: Mapped[str] = mapped_column(String(60))
     clear: Mapped[bool] = mapped_column(Boolean)
     quote: Mapped[str] = mapped_column(Text)
-    at: Mapped[datetime] = timestamp_now()
-
-
-class StatusReport(Base):
-    """Every severity reached during a call: the audit trail behind a code (05 §2)."""
-
-    __tablename__ = "status_reports"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"), index=True)
-    source: Mapped[ReportSource] = mapped_column(enum_type(ReportSource))
-    severity: Mapped[Severity] = mapped_column(enum_type(Severity))
-    # Certainty exists only for an answered call (D7).
-    certainty: Mapped[Certainty | None] = mapped_column(enum_type(Certainty))
-    reason: Mapped[str] = mapped_column(String(200))
-    quote: Mapped[str | None] = mapped_column(Text)
     at: Mapped[datetime] = timestamp_now()

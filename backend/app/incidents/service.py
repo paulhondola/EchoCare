@@ -6,8 +6,9 @@ from sqlalchemy import Select, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.auth.models import Grant, Role, User
+from app.auth.models import User
 from app.auth.service import refuse
+from app.codes.models import StatusReport
 from app.core.db import engine
 from app.incidents.models import Event, Incident, IncidentStatus
 from app.incidents.schemas import (
@@ -21,8 +22,9 @@ from app.incidents.schemas import (
 )
 from app.seniors.models import Senior
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
+from app.seniors.service import caregivers_query
 from app.status.engine import Severity
-from app.voice.models import Call, CallTurn, StatusReport
+from app.voice.models import Call, CallTurn
 
 log = logging.getLogger("echocare.incidents")
 
@@ -33,6 +35,21 @@ def opens_incident(result: Severity, unresolved: bool) -> bool:
     A later red while one is open or in progress is added to that one, through the call.
     """
     return result is Severity.red and not unresolved
+
+
+def open_incident(
+    session: AsyncSession, senior_id: uuid.UUID, call_id: uuid.UUID, reason: str
+) -> None:
+    """The incident a call's red opens; `opens_incident` decides whether (G16).
+    Doesn't commit (ADR-005)."""
+    session.add(
+        Incident(
+            senior_id=senior_id,
+            status=IncidentStatus.open,
+            opened_by_call_id=call_id,
+            reason=reason,
+        )
+    )
 
 
 def take_refusal(
@@ -92,15 +109,6 @@ def calls_query(
     if until is not None:
         query = query.where(Call.created_at <= until)
     return query.order_by(Call.created_at, Call.attempt)
-
-
-def caregivers_query(senior_id: uuid.UUID) -> Select:
-    return (
-        select(User.display_name, User.phone_e164, Grant.relation)
-        .join(Grant, Grant.user_id == User.id)
-        .where(Grant.senior_id == senior_id, Grant.role == Role.caregiver)
-        .order_by(User.display_name)
-    )
 
 
 async def attempts_behind(session: AsyncSession, call_id: uuid.UUID) -> list[Call]:

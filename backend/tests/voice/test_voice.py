@@ -13,13 +13,14 @@ from sqlalchemy.exc import OperationalError
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from app.agent import session as agent_session
+from app.agent.relay import GOODBYE
 from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn
 from app.voice import router as voice_router
 from app.voice import service as voice_service
-from app.voice import session as voice_session
-from app.voice.dialogue import GOODBYE, SORRY
+from app.voice.dialogue import SORRY
 from app.voice.twilio import signature
 
 FIXTURES = json.loads(
@@ -245,7 +246,7 @@ async def test_our_close_ends_completed(client, db, call):
 async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
     await answered(client, call)
     ws = Socket(call.id, [SETUP, "not json", "[1, 2]", {"type": "dtmf", "digit": "0"}])
-    await voice_session.serve(ws, call.id)
+    await agent_session.serve(ws, call.id)
     assert (ws.closed, ws.sent[-1]) == (None, {"type": "end"})
 
 
@@ -259,7 +260,7 @@ async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
 async def test_the_relay_needs_the_calls_own_setup_first(client, db, call, first):
     await answered(client, call)
     ws = Socket(call.id, [first, {"type": "dtmf", "digit": "0"}])
-    await voice_session.serve(ws, call.id)
+    await agent_session.serve(ws, call.id)
     assert (ws.closed, ws.sent) == (1008, [])
     assert (await stored(db, call)).state == "in_progress"
 
@@ -270,5 +271,29 @@ async def test_an_ended_call_takes_no_relay(client, db, call):
         params = {**FIXTURES["status_common"], "CallStatus": status}
         await callback(client, "status", call.id, params)
     ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
-    await voice_session.serve(ws, call.id)
+    await agent_session.serve(ws, call.id)
     assert (ws.accepted, ws.closed) == (False, 1008)
+
+
+async def test_a_skipped_state_still_counts_answered(client, db, call):
+    # A lost in-progress callback: Twilio's completed still means someone picked up and
+    # hung up, so the call ends dropped, answered (03 §9). move_call may skip ahead.
+    for status in ("ringing", "completed"):
+        params = {**FIXTURES["status_common"], "CallStatus": status}
+        await callback(client, "status", call.id, params)
+    stored_call = await stored(db, call)
+    assert stored_call.state == "dropped"
+    assert stored_call.started_at is not None
+
+
+async def test_a_dropped_relay_keeps_its_turns(client, db, call):
+    # Each turn is committed as it comes, so a lost line keeps what was said (06 §1).
+    await answered(client, call)
+    ws = Socket(
+        call.id, [SETUP, {"type": "prompt", "voicePrompt": "Bine", "last": True}]
+    )
+    await agent_session.serve(ws, call.id)  # the script runs out: WebSocketDisconnect
+    turns = await db.scalars(
+        select(CallTurn.content).where(CallTurn.call_id == call.id)
+    )
+    assert "Bine" in turns.all()

@@ -230,18 +230,18 @@ flowchart LR
     ENG -->|"redial"| SCHED
 ```
 
-| Module | Job | Depends on |
-|---|---|---|
-| Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store |
-| Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store |
-| Senior event intake | Receives events, check-ins and room readings forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule; turns a room reading that stays out of range into an event (P21) | Store |
-| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store |
-| Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store |
-| Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store |
-| Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider |
-| Rules and status engine | Turns answers into severity and certainty, checks the shelter answer against the latest room reading (P22), applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing |
-| Notifier | Sends alerts and refreshes through Firebase push; the caregiver notice SMS through Twilio | Firebase push, Twilio |
-| Store | All reads and writes to PostgreSQL, asynchronous | PostgreSQL |
+| Module | Job | Depends on | Owns (package: tables) |
+|---|---|---|---|
+| Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store | `auth`: `users`, `grants`, `push_tokens` |
+| Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store | `seniors`: `seniors`, `consents`, `watch_states`; `incidents`: `incidents`, `events`; `campaigns`: `campaigns` |
+| Senior event intake | Receives events, check-ins and room readings forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule; turns a room reading that stays out of range into an event (P21) | Store | nothing; writes events and watch states through `incidents` and `seniors` |
+| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store | nothing; queues and moves calls through `voice` |
+| Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store | `voice`: `calls`, `call_turns`, `answers` |
+| Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store | nothing; through `seniors` and `voice` |
+| Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider | nothing; `agent` reads and writes the call through `voice` only |
+| Rules and status engine | Turns answers into severity and certainty, checks the shelter answer against the latest room reading (P22), applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing | `codes`: `senior_statuses`, `status_reports`; the engine itself (`status`) is pure |
+| Notifier | Sends alerts and refreshes through Firebase push; the caregiver notice SMS through Twilio | Firebase push, Twilio | nothing |
+| Store | All reads and writes to PostgreSQL, asynchronous | PostgreSQL | each table's owning package (ADR-005) |
 
 The rules and status engine has no dependencies on purpose: every rule and every cell of the matrix can be tested without a phone, a model or a database.
 

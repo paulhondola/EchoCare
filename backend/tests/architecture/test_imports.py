@@ -19,6 +19,8 @@ BACKEND = Path(__file__).parents[2]
         "app.main",
         "app.models",
         "app.auth.models",
+        "app.campaigns.models",
+        "app.codes.models",
         "app.incidents.models",
         "app.seniors.models",
         "app.voice.models",

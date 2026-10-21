@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.voice.models import CampaignKind, WarningLevel
+from app.campaigns.models import CampaignKind, WarningLevel
 
 
 class CampaignForm(BaseModel):

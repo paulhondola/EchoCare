@@ -9,7 +9,6 @@ from app.campaigns.router import router as campaigns_router
 from app.core.settings import check_environment, get_settings
 from app.incidents.router import router as incidents_router
 from app.seniors.router import router as seniors_router
-from app.staff.router import router as staff_router
 from app.system.router import router as system_router
 from app.voice.router import router as voice_router
 
@@ -40,7 +39,6 @@ api = APIRouter(prefix="/api")
 
 # Assemble domain routers onto /api
 api.include_router(auth_router)
-api.include_router(staff_router)
 api.include_router(seniors_router)
 api.include_router(incidents_router)
 api.include_router(campaigns_router)

@@ -17,25 +17,17 @@ from app.auth.models import Role
 from app.auth.service import Caller, refuse
 from app.calls.ending import conclude, conclude_welcome
 from app.calls.schemas import MockAnswerForm, MockCallView
+from app.campaigns.models import Campaign, CampaignKind, WarningLevel
 from app.campaigns.service import cancel_lapsed
 from app.core.settings import AppEnv, get_settings
 from app.seniors.models import ConsentMethod, EnrollmentState, Senior
 from app.seniors.service import reach
 from app.status.engine import Answer as RuleAnswer
 from app.status.engine import CallAnswers, Question, Severity
-from app.voice.calls import CallState, advance
+from app.voice.calls import CallState
 from app.voice.dialogue import CARD_CONSENT_TEXT, CARD_CONSENT_VERSION
-from app.voice.models import (
-    Answer,
-    Call,
-    CallTrigger,
-    CallTurn,
-    Campaign,
-    CampaignKind,
-    Speaker,
-    TurnKind,
-    WarningLevel,
-)
+from app.voice.models import Call, CallTrigger, Speaker, TurnKind
+from app.voice.service import add_turn, advance_call, record_answer
 
 log = logging.getLogger("echocare.calls")
 
@@ -160,15 +152,13 @@ async def answer_mock_call(
         raise refuse(422, "incomplete", missing=missing)
 
     lines = [(Speaker.system, SIMULATED)]
-    call.state = advance(call.state, CallState.ringing)
+    advance_call(call, CallState.ringing, now)
     if form.declined:
-        call.state = advance(call.state, CallState.unanswered)
-        call.ended_at = now
+        advance_call(call, CallState.unanswered, now)
         await conclude(session, call, None)
         lines.append((Speaker.system, DECLINED))
     else:
-        call.state = advance(call.state, CallState.in_progress)
-        call.started_at = now
+        advance_call(call, CallState.in_progress, now)
         values = {
             Question.feeling: form.feeling,
             Question.orientation: form.day,
@@ -206,33 +196,26 @@ async def answer_mock_call(
             ),
         ]
         # One microsecond apart: the transcript lists answers by `at`, in question order.
-        session.add_all(
-            Answer(
-                call_id=call.id,
-                field=q,
-                value=values[q],
+        for i, q in enumerate(Question):
+            record_answer(
+                session,
+                call.id,
+                q,
+                values[q],
                 clear=True,
                 quote=said[q],
                 at=now + timedelta(microseconds=i),
             )
-            for i, q in enumerate(Question)
-        )
-    session.add_all(turns(call, lines))
+    transcribe(session, call, lines)
     await session.commit()
 
 
-def turns(call: Call, lines: list[tuple[Speaker, str]]) -> list[CallTurn]:
-    """The transcript rows for `lines`, numbered from 1."""
-    return [
-        CallTurn(
-            call_id=call.id,
-            position=position,
-            speaker=speaker,
-            kind=TurnKind.speech,
-            content=content,
-        )
-        for position, (speaker, content) in enumerate(lines, start=1)
-    ]
+def transcribe(
+    session: AsyncSession, call: Call, lines: list[tuple[Speaker, str]]
+) -> None:
+    """The transcript for `lines`, numbered from 1."""
+    for position, (speaker, content) in enumerate(lines, start=1):
+        add_turn(session, call.id, position, speaker, TurnKind.speech, content)
 
 
 async def answer_welcome(
@@ -246,9 +229,9 @@ async def answer_welcome(
     if form.consent is None:
         log.info("refused incomplete: user %s, call %s", caller.user.id, call.id)
         raise refuse(422, "incomplete", missing=["consent"])
-    call.state = advance(call.state, CallState.ringing)
-    call.state = advance(call.state, CallState.in_progress)
-    call.started_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    advance_call(call, CallState.ringing, now)
+    advance_call(call, CallState.in_progress, now)
     if not await conclude_welcome(
         session,
         call,
@@ -258,16 +241,15 @@ async def answer_welcome(
     ):
         log.info("refused wrong_state: user %s, call %s", caller.user.id, call.id)
         raise refuse(409, "wrong_state")
-    session.add_all(
-        turns(
-            call,
-            [
-                (Speaker.system, SIMULATED),
-                (Speaker.agent, CARD_CONSENT_TEXT),
-                (Speaker.senior, "Da" if form.consent else "Nu"),
-                (Speaker.agent, WELCOME_GOODBYE[form.consent]),
-            ],
-        )
+    transcribe(
+        session,
+        call,
+        [
+            (Speaker.system, SIMULATED),
+            (Speaker.agent, CARD_CONSENT_TEXT),
+            (Speaker.senior, "Da" if form.consent else "Nu"),
+            (Speaker.agent, WELCOME_GOODBYE[form.consent]),
+        ],
     )
     await session.commit()
 
