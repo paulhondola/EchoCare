@@ -1,6 +1,6 @@
 # AGENTS.md: android/app
 
-The phone and tablet app, `ro.echocare`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and an empty DAS home (seniors §8). The medic registers and edits seniors with „Pacient nou” (seniors §9). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+The phone and tablet app, `ro.echocare`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and the DAS incidents with Preiau and Rezolvat (seniors §8, UC-11, UC-12). The medic registers and edits seniors with „Pacient nou” (seniors §9). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
 
 ## Layout
 
@@ -19,6 +19,9 @@ app/src/
 │   ├── home/Frame.kt      the shared top bar, the timed re-read, loading and failure states
 │   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
 │   ├── home/Senior*.kt    one senior's page
+│   ├── das/Incidents.kt   DAS: sorting, relative time, the senior's words, Maps link, refusals, tested on the JVM (UC-11, UC-12)
+│   ├── das/Incident*.kt   the DAS home (open and in progress) and one incident's page with Preiau
+│   ├── das/Resolve*.kt    „Rezolvare caz”: an outcome and a note
 │   ├── enroll/Form.kt     „Pacient nou”: steps, fields, validation, what each step sends, tested on the JVM (seniors §9)
 │   ├── enroll/Refusal.kt  both refusal bodies and what the form does with each, tested on the JVM (seniors §9.3)
 │   ├── enroll/Enroll*.kt  the medic's four-step form
@@ -34,7 +37,7 @@ app/src/
 
 ## Scope
 
-- Becomes: sign-in and role picker (UC-02), the senior's „Sunați-mă” and the watch relay, caregiver alerts, the medic's tablet layout (UC-01, UC-12), DAS red incidents, Firebase push (G4, 04 §6).
+- Becomes: sign-in and role picker (UC-02), the senior's „Sunați-mă” and the watch relay, caregiver alerts, the medic's tablet layout (UC-01, UC-12), Firebase push, the DAS alerts included (G4, 04 §6).
 - The phone is the watch's only route to the API (G5). Watch messages arrive over the Data Layer on the paths in `:shared`.
 - Permissions are enforced by FastAPI. The app hides screens; it does not guard data.
 
