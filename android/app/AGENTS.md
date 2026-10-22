@@ -1,6 +1,6 @@
 # AGENTS.md: android/app
 
-The phone and tablet app, `ro.echocare`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and the DAS incidents with Preiau and Rezolvat (seniors §8, UC-11, UC-12). The medic registers and edits seniors with „Pacient nou” (seniors §9). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
+The phone and tablet app, `ro.echocare`. One app for four roles: after Firebase phone sign-in, the grants from `GET /me` choose which screens appear (G3). Today it signs in and opens a home per role: the medic's and the caregiver's seniors, the senior's own page, and the DAS incidents with Preiau and Rezolvă cazul (seniors §8, UC-11, UC-12). The medic registers and edits seniors with „Pacient nou” (seniors §9). Build-wide rules and commands: [../AGENTS.md](../AGENTS.md).
 
 ## Layout
 

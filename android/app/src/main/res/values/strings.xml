@@ -179,12 +179,14 @@
     <string name="event_fall">Cădere detectată</string>
     <string name="event_high_pulse_at_rest">Puls ridicat în repaus</string>
     <string name="event_inactivity">Inactivitate</string>
+    <string name="event_manual_request">„Sunați-mă”</string>
+    <string name="turn_keys">tasta %1$s</string>
     <string name="take">Preiau</string>
     <string name="resolve">Rezolvă cazul</string>
     <string name="resolve_title">Rezolvare caz</string>
     <string name="resolve_outcome">Rezultat</string>
     <string name="resolve_note">Notă</string>
-    <string name="note_count">%1$d / 1000</string>
+    <string name="note_count">%1$d / %2$d</string>
     <string name="send">Trimite</string>
     <string name="outcome_senior_ok">Senior OK</string>
     <string name="outcome_team_sent">Echipaj trimis</string>

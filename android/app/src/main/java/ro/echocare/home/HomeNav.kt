@@ -94,14 +94,15 @@ fun HomeNav(
             }
             composable<IncidentRoute> {
                 IncidentScreen(
-                    onBack = { nav.popBackStack() },
+                    // By route, as EnrollRoute: a second tap never pops the home
+                    onBack = { nav.popBackStack<IncidentRoute>(inclusive = true) },
                     onResolve = { nav.navigate(ResolveRoute(it)) },
                     onSessionEnd = onSessionEnd
                 )
             }
             composable<ResolveRoute> {
                 ResolveScreen(
-                    onBack = { nav.popBackStack() },
+                    onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
                     // Resolved incidents leave the list: back to it, past the incident's page
                     onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
                     onSessionEnd = onSessionEnd

@@ -10,7 +10,7 @@ A DAS employee's phone is the on-duty phone: it takes the live hand-over call (D
 
 - The DAS home lists red incidents, open and in progress, each with its status and who took it (UC-12).
 - An incident page carries what a dispatcher needs to reach the senior: the reason, the senior's words, the address with access details, the location, call buttons, the calls and their transcripts (UC-11 step 1, UC-12).
-- **Preiau** and **Rezolvat** work from the phone (UC-11 steps 2 and 4).
+- **Preiau** and **Rezolvă cazul** work from the phone (UC-11 steps 2 and 4).
 - A written e2e walkthrough against the seeded stack, plus JVM unit tests for the new logic.
 
 ## Non-goals
@@ -137,8 +137,8 @@ Setup: `docker compose up --watch`, `cd backend && uv run python scripts/seed.py
 1. The list shows 4 under Deschise (Aurelia Marinescu, Dumitru Pop, Ion Dumitrescu, Teodor Crișan, in that order) and 4 under În lucru, with Gavril Szabó "Preluat de Cristian Pavel".
 2. Open Dumitru Pop: the reason, the quote „Mă strânge în piept și nu pot respira bine.”, Strada Bucovinei 27 with bloc H4, scara A, etaj 5, ap. 31, interfon 31, Simona Pop · fiică, the SOS event with ±14 m, and the watch call's transcript with Cod Galben then Cod Roșu inline.
 3. Sună on the senior opens the dialer with 0700 000 113. Deschide în Hărți opens Maps at 45.7489, 21.2087.
-4. Preiau: the chip becomes "Preluat de DAS Test", the button becomes Rezolvat, and the dashboard shows it in progress within a few seconds.
-5. Rezolvat → Echipaj trimis plus a note → Trimite: back on the list, Dumitru Pop is gone, and the dashboard shows it resolved with the note.
+4. Preiau: the chip becomes "Preluat de DAS Test", the button becomes Rezolvă cazul, and the dashboard shows it in progress within a few seconds.
+5. Rezolvă cazul → Echipaj trimis plus a note → Trimite: back on the list, Dumitru Pop is gone, and the dashboard shows it resolved with the note.
 6. Conflict: on the dashboard, signed in as **Cristian Pavel** (`+40700000301`), take Ion Dumitrescu. On the phone, with Ion Dumitrescu's page open, press Preiau: "Preluat deja de Cristian Pavel." and the page re-reads. If `+40700000301` is not a Firebase test number, skip this step; the unit test covers the refusal, and step 1 already shows another dispatcher's hold.
 7. Stop the API container with the list open: the offline banner appears over the last data. Start it again and the banner clears on the next read.
 8. Reset with `seed.py --reset`.

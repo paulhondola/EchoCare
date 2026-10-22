@@ -214,8 +214,14 @@ data class CallReport(
     val at: String
 )
 
+// [kind] is `speech` or `keys`, a key press whose [content] is the key.
 @Serializable
-data class CallTurn(val speaker: String, val content: String, val at: String)
+data class CallTurn(
+    val speaker: String,
+    val content: String,
+    val at: String,
+    val kind: String = "speech"
+)
 
 // POST /incidents/{id}/resolve's body (04 §2): both required, the note 1 to 1000 characters.
 @Serializable

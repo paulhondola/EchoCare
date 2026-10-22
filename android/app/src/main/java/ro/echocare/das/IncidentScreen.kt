@@ -100,7 +100,8 @@ fun IncidentScreen(
                             stringResource(R.string.take),
                             vm::take,
                             Modifier.fillMaxWidth(),
-                            kind = Kind.Danger
+                            kind = Kind.Danger,
+                            enabled = !vm.taking
                         )
                     }
                     Act.Resolve -> ActionBar {
@@ -143,7 +144,9 @@ fun NoticeBanner(notice: Notice) {
 }
 
 private val clock = DateTimeFormatter.ofPattern("HH:mm:ss")
-private val minute = DateTimeFormatter.ofPattern("HH:mm")
+
+// With the date, as the dashboard's `time`: an incident can stay open past midnight
+private val dated = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
 
 /** [iso] in the phone's time zone; the API sends UTC. */
 private fun local(iso: String, format: DateTimeFormatter): String =
@@ -159,7 +162,7 @@ private fun Summary(incident: IncidentPage, now: Instant) {
             itemVerticalAlignment = Alignment.CenterVertically
         ) {
             StatusChip(incident.status, incident.takenByName)
-            if (incident.status == "open") {
+            if (incident.status == OPEN) {
                 Text(
                     agoText(ago(incident.openedAt, now)),
                     color = Palette.FgMuted,
@@ -190,16 +193,24 @@ private fun Access(incident: IncidentPage) {
     val context = LocalContext.current
     SectionLabel(stringResource(R.string.section_access), Modifier.padding(top = 20.dp))
     Column {
-        FieldRow(stringResource(R.string.label_address)) {
+        // The section's last row takes the 2dp rule, whichever details are filled in
+        val tail = s.keyHolder == null && s.landmark == null
+        FieldRow(stringResource(R.string.label_address), last = tail && s.intercomCode == null) {
             Text(
                 place(s.street, s.streetNumber, s.block, s.staircase, s.floor, s.apartment),
                 style = MaterialTheme.typography.bodyLarge
             )
         }
         s.intercomCode?.let {
-            FieldRow(stringResource(R.string.label_intercom)) { Text(it, style = Mono) }
+            FieldRow(stringResource(R.string.label_intercom), last = tail) {
+                Text(it, style = Mono)
+            }
         }
-        s.keyHolder?.let { FieldRow(stringResource(R.string.label_key_holder)) { Value(it) } }
+        s.keyHolder?.let {
+            FieldRow(stringResource(R.string.label_key_holder), last = s.landmark == null) {
+                Value(it)
+            }
+        }
         s.landmark?.let {
             FieldRow(stringResource(R.string.label_landmark), last = true) { Value(it) }
         }
@@ -287,7 +298,7 @@ private fun Event(event: ro.echocare.TriggerEvent) {
         }
         val place = location(event)
         FieldRow(stringResource(R.string.event_measured_at), last = place == null) {
-            Text(local(event.measuredAt, minute), style = Mono)
+            Text(local(event.measuredAt, dated), style = Mono)
         }
         place?.let {
             FieldRow(stringResource(R.string.event_location), last = true) {
@@ -367,7 +378,14 @@ private fun Transcript(call: IncidentCall) {
                     )
                     Text(local(line.at, clock), color = Palette.FgMuted, style = Mono)
                 }
-                Text(line.turn.content, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (line.turn.kind == "keys") {
+                        stringResource(R.string.turn_keys, line.turn.content)
+                    } else {
+                        line.turn.content
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
 
             is Line.Flagged -> {

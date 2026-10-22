@@ -126,9 +126,9 @@ private fun IncidentCard(row: IncidentRow, now: Instant, onClick: () -> Unit) {
 @Composable
 fun StatusChip(status: String, takenByName: String?) {
     val label = when (status) {
-        "open" -> stringResource(R.string.status_open)
+        OPEN -> stringResource(R.string.status_open)
         // As the dashboard: a taker it cannot name is „un dispecer”
-        "in_progress" -> stringResource(
+        IN_PROGRESS -> stringResource(
             R.string.status_taken_by,
             takenByName ?: stringResource(R.string.a_dispatcher)
         )

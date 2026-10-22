@@ -277,7 +277,11 @@ class IncidentsTest {
     @Test
     fun unknownAccuracyIsLeftOutNotZero() {
         val e = TriggerEvent("sos_button", at("19:05"), latitude = 45.7489, longitude = 21.2087)
-        assertEquals(Location("45.7489", "21.2087", accuracy = null), location(e))
+        assertEquals(Location("45.74890", "21.20870", accuracy = null), location(e))
+        assertEquals(
+            Location("45.74891", "21.20871", accuracy = null),
+            location(e.copy(latitude = 45.748912345678, longitude = 21.20871234567))
+        )
         assertEquals(14, location(e.copy(accuracy = 14.4))?.accuracy)
         assertNull(location(e.copy(latitude = null)))
     }

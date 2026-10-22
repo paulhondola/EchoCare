@@ -3,6 +3,7 @@ package ro.echocare.das
 import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
+import java.util.Locale
 import kotlin.text.Charsets.UTF_8
 import ro.echocare.CallReport
 import ro.echocare.CallTurn
@@ -18,8 +19,12 @@ import ro.echocare.ui.Tone
 // What the DAS screens show, worked out from the API's answers (UC-11, UC-12). Pure, tested on
 // the JVM.
 
+/** The incident statuses the DAS app acts on (05 §1). */
+const val OPEN = "open"
+const val IN_PROGRESS = "in_progress"
+
 /** The statuses the DAS app asks for: resolved incidents are the dashboard's (04 §1). */
-const val ACTIVE = "open,in_progress"
+const val ACTIVE = "$OPEN,$IN_PROGRESS"
 
 /** The home's two sections, each with the longest wait first (design §"The list"). */
 data class Sections(val open: List<IncidentRow>, val inProgress: List<IncidentRow>)
@@ -29,8 +34,8 @@ data class Sections(val open: List<IncidentRow>, val inProgress: List<IncidentRo
  * the dashboard's columns(). A status this build does not know is left out (ADR-001 §2.3).
  */
 fun sections(rows: List<IncidentRow>): Sections = Sections(
-    open = rows.filter { it.status == "open" }.sortedBy { Instant.parse(it.openedAt) },
-    inProgress = rows.filter { it.status == "in_progress" }
+    open = rows.filter { it.status == OPEN }.sortedBy { Instant.parse(it.openedAt) },
+    inProgress = rows.filter { it.status == IN_PROGRESS }
         .sortedBy { Instant.parse(it.takenAt ?: it.openedAt) }
 )
 
@@ -109,7 +114,12 @@ data class Location(val latitude: String, val longitude: String, val accuracy: I
 fun location(event: TriggerEvent): Location? {
     val lat = event.latitude ?: return null
     val lng = event.longitude ?: return null
-    return Location(lat.toString(), lng.toString(), event.accuracy?.let { Math.round(it).toInt() })
+    // Five decimals, as the dashboard's toFixed(5): about a metre
+    return Location(
+        "%.5f".format(Locale.ROOT, lat),
+        "%.5f".format(Locale.ROOT, lng),
+        event.accuracy?.let { Math.round(it).toInt() }
+    )
 }
 
 /** Seniors have no city field; the service is DAS Timișoara (design §"Phone and Maps"). */
@@ -133,8 +143,8 @@ fun mapsUri(senior: IncidentSenior, event: TriggerEvent?): String? {
  * green resolved. A status this build does not know is muted.
  */
 fun statusTone(status: String): Tone = when (status) {
-    "open" -> Tone.Rosu
-    "in_progress" -> Tone.Galben
+    OPEN -> Tone.Rosu
+    IN_PROGRESS -> Tone.Galben
     "resolved" -> Tone.Verde
     else -> Tone.Muted
 }
@@ -142,10 +152,10 @@ fun statusTone(status: String): Tone = when (status) {
 /** The one action the pinned bar offers (UC-11 steps 2 and 4). */
 enum class Act { Take, Resolve }
 
-/** Preiau while open, Rezolvat while in progress for any DAS employee, else nothing. */
+/** Preiau while open, Rezolvă cazul while in progress for any DAS employee, else nothing. */
 fun actFor(status: String): Act? = when (status) {
-    "open" -> Act.Take
-    "in_progress" -> Act.Resolve
+    OPEN -> Act.Take
+    IN_PROGRESS -> Act.Resolve
     else -> null
 }
 

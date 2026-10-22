@@ -106,7 +106,8 @@ val EVENT_LABELS = mapOf(
     "sos_button" to R.string.event_sos_button,
     "fall" to R.string.event_fall,
     "high_pulse_at_rest" to R.string.event_high_pulse_at_rest,
-    "inactivity" to R.string.event_inactivity
+    "inactivity" to R.string.event_inactivity,
+    "manual_request" to R.string.event_manual_request
 )
 
 /** A call's state (05 §1), for a call with no final code yet. Unknown: shown as it is. */

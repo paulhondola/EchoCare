@@ -34,14 +34,20 @@ class ResolveViewModel @Inject constructor(private val api: EchoCareApi, saved: 
     var notice by mutableStateOf<Notice?>(null)
         private set
 
-    /** Not `send`: a member taking `() -> Unit` would capture the call to [send] below. */
-    fun submit(onDone: () -> Unit) {
+    /**
+     * Resolved. State, not a callback, as EnrollViewModel's `submitted`: a screen recreated
+     * during the send still leaves.
+     */
+    var done by mutableStateOf(false)
+        private set
+
+    fun submit() {
         val picked = outcome
         if (picked == null || !canSend(picked, note) || sending) return
         sending = true
         viewModelScope.launch {
             when (val sent = send { api.resolve(id, Resolution(picked, note.trim())) }) {
-                is Sent.Ok -> onDone()
+                is Sent.Ok -> done = true
                 is Sent.No -> notice = noticeAfter(sent.refusal, Act.Resolve)
             }
             sending = false

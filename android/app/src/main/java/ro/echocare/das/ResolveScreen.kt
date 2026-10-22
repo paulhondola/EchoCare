@@ -1,25 +1,28 @@
 package ro.echocare.das
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -46,6 +49,7 @@ fun ResolveScreen(
 ) {
     val ended = (vm.notice as? Notice.Ends)?.failure
     LaunchedEffect(ended) { ended?.let(onSessionEnd) }
+    LaunchedEffect(vm.done) { if (vm.done) onDone() }
     HomeScaffold(stringResource(R.string.resolve_title), onBack = onBack, menu = {}) {
         Column(Modifier.fillMaxSize()) {
             Column(
@@ -68,16 +72,17 @@ fun ResolveScreen(
                                 .fillMaxWidth()
                                 .border(1.dp, if (picked) Palette.Link else Palette.Line)
                                 .selectable(picked, role = Role.RadioButton) { vm.outcome = value }
-                                .padding(horizontal = 4.dp),
+                                .heightIn(min = 48.dp)
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = picked,
-                                onClick = null,
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = Palette.Link,
-                                    unselectedColor = Palette.LineStrong
-                                )
+                            // The dashboard's square marker, not Material's round one
+                            Box(
+                                Modifier
+                                    .size(14.dp)
+                                    .background(if (picked) Palette.Link else Color.Transparent)
+                                    .border(2.dp, if (picked) Palette.Link else Palette.LineStrong)
                             )
                             Text(stringResource(label), style = MaterialTheme.typography.bodyLarge)
                         }
@@ -85,7 +90,8 @@ fun ResolveScreen(
                 }
                 SnTextField(
                     vm.note,
-                    { if (it.length <= NOTE_MAX) vm.note = it },
+                    // A paste past the limit is cut, as the dashboard's maxlength
+                    { vm.note = it.take(NOTE_MAX) },
                     stringResource(R.string.resolve_note),
                     KeyboardType.Text,
                     Modifier.padding(top = 12.dp),
@@ -94,7 +100,7 @@ fun ResolveScreen(
                     singleLine = false
                 )
                 Text(
-                    stringResource(R.string.note_count, vm.note.length),
+                    stringResource(R.string.note_count, vm.note.length, NOTE_MAX),
                     Modifier.align(Alignment.End),
                     color = Palette.FgMuted,
                     style = Mono
@@ -104,7 +110,7 @@ fun ResolveScreen(
             ActionBar {
                 SnButton(
                     stringResource(R.string.send),
-                    { vm.submit(onDone) },
+                    vm::submit,
                     Modifier.fillMaxWidth(),
                     kind = Kind.Success,
                     enabled = canSend(vm.outcome, vm.note) && !vm.sending
