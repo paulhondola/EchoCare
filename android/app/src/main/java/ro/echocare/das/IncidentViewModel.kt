@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 import ro.echocare.EchoCareApi
@@ -32,8 +33,16 @@ class IncidentViewModel @Inject constructor(private val api: EchoCareApi, saved:
     var notice by mutableStateOf<Notice?>(null)
         private set
 
+    /**
+     * The time "acum …" is counted to. Unchanged data is an equal state that redraws nothing, so
+     * the time is its own state, set on every re-read.
+     */
+    var now by mutableStateOf(Instant.now())
+        private set
+
     /** Called when the screen appears and on every timed re-read (06 §3). */
     fun reread() {
+        now = Instant.now()
         viewModelScope.launch { page = page.after(answer { api.incident(id) }) }
     }
 

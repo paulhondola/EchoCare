@@ -72,6 +72,13 @@ fun seniorsWords(calls: List<IncidentCall>): String? = calls
  */
 fun newestFirst(calls: List<IncidentCall>): List<IncidentCall> = calls.asReversed()
 
+/**
+ * Whether [callId] shows its transcript: as the dispatcher [toggled] it, else open only when it
+ * is the newest, so a call that joins the incident while the page is open opens itself.
+ */
+fun expanded(callId: String, newestId: String, toggled: Map<String, Boolean>): Boolean =
+    toggled[callId] ?: (callId == newestId)
+
 /** The "Apel în curs" badge (UC-12): a call ringing or live. */
 fun callLive(calls: List<IncidentCall>): Boolean =
     calls.any { it.state == "ringing" || it.state == "in_progress" }
@@ -93,6 +100,16 @@ sealed interface Line {
 fun timeline(call: IncidentCall): List<Line> =
     (call.turns.map(Line::Said) + call.reports.map(Line::Flagged))
         .sortedBy { Instant.parse(it.at) }
+
+/** The event's place as the page shows it; [accuracy] in whole metres, null when unknown. */
+data class Location(val latitude: String, val longitude: String, val accuracy: Int?)
+
+/** Null without coordinates. An unknown accuracy is left out, never shown as ±0 m. */
+fun location(event: TriggerEvent): Location? {
+    val lat = event.latitude ?: return null
+    val lng = event.longitude ?: return null
+    return Location(lat.toString(), lng.toString(), event.accuracy?.let { Math.round(it).toInt() })
+}
 
 /** Seniors have no city field; the service is DAS Timișoara (design §"Phone and Maps"). */
 const val CITY = "Timișoara"

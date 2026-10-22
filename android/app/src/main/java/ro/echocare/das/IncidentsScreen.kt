@@ -55,8 +55,8 @@ fun IncidentsScreen(
             if (s.open.isEmpty() && s.inProgress.isEmpty()) {
                 Message(stringResource(R.string.no_incidents))
             } else {
-                // Read once per composition; the timed re-read recomposes it
-                val now = Instant.now()
+                // Set on every re-read, so "acum …" moves on while the incidents stay the same
+                val now = vm.now
                 LazyColumn(
                     Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),

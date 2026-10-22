@@ -151,6 +151,7 @@
     <string name="event_measured_at">Măsurat la</string>
     <string name="event_location">Locație</string>
     <string name="event_location_value">%1$s, %2$s · ±%3$d m</string>
+    <string name="event_location_only">%1$s, %2$s</string>
     <string name="section_calls">Apeluri</string>
     <string name="no_calls">Niciun apel înregistrat pentru acest incident.</string>
     <string name="call_line">%1$s · încercarea %2$d · %3$s</string>

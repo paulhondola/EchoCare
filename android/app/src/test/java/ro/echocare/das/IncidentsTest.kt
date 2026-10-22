@@ -270,4 +270,25 @@ class IncidentsTest {
             OUTCOMES.map { it.first }
         )
     }
+
+    // Final review fixes
+
+    @Test
+    fun unknownAccuracyIsLeftOutNotZero() {
+        val e = TriggerEvent("sos_button", at("19:05"), latitude = 45.7489, longitude = 21.2087)
+        assertEquals(Location("45.7489", "21.2087", accuracy = null), location(e))
+        assertEquals(14, location(e.copy(accuracy = 14.4))?.accuracy)
+        assertNull(location(e.copy(latitude = null)))
+    }
+
+    @Test
+    fun aNewerCallOpensWhenItArrives() {
+        // The dispatcher opened the old call; a redial then joined the incident.
+        val toggled = mapOf("old" to true)
+        assertTrue(expanded("redial", newestId = "redial", toggled = toggled))
+        assertTrue(expanded("old", newestId = "redial", toggled = toggled))
+        assertFalse(expanded("other", newestId = "redial", toggled = toggled))
+        // A newest call the dispatcher closed stays closed
+        assertFalse(expanded("redial", newestId = "redial", toggled = mapOf("redial" to false)))
+    }
 }

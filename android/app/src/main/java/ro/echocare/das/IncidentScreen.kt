@@ -33,7 +33,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlin.math.roundToInt
 import ro.echocare.IncidentCall
 import ro.echocare.IncidentPage
 import ro.echocare.R
@@ -88,7 +87,7 @@ fun IncidentScreen(
                         .widthIn(max = 600.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Summary(incident)
+                    Summary(incident, vm.now)
                     Access(incident)
                     Phones(incident)
                     incident.event?.let { Event(it) }
@@ -151,7 +150,7 @@ private fun local(iso: String, format: DateTimeFormatter): String =
 
 /** The status, the reason and the senior's own words. */
 @Composable
-private fun Summary(incident: IncidentPage) {
+private fun Summary(incident: IncidentPage, now: Instant) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -161,7 +160,7 @@ private fun Summary(incident: IncidentPage) {
             StatusChip(incident.status, incident.takenByName)
             if (incident.status == "open") {
                 Text(
-                    agoText(ago(incident.openedAt, Instant.now())),
+                    agoText(ago(incident.openedAt, now)),
                     color = Palette.FgMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -285,19 +284,16 @@ private fun Event(event: ro.echocare.TriggerEvent) {
         FieldRow(stringResource(R.string.event_type)) {
             Value(EVENT_LABELS[event.type]?.let { stringResource(it) } ?: event.type)
         }
-        val located = event.latitude != null && event.longitude != null
-        FieldRow(stringResource(R.string.event_measured_at), last = !located) {
+        val place = location(event)
+        FieldRow(stringResource(R.string.event_measured_at), last = place == null) {
             Text(local(event.measuredAt, minute), style = Mono)
         }
-        if (located) {
+        place?.let {
             FieldRow(stringResource(R.string.event_location), last = true) {
                 Text(
-                    stringResource(
-                        R.string.event_location_value,
-                        event.latitude.toString(),
-                        event.longitude.toString(),
-                        event.accuracy?.roundToInt() ?: 0
-                    ),
+                    it.accuracy?.let { m ->
+                        stringResource(R.string.event_location_value, it.latitude, it.longitude, m)
+                    } ?: stringResource(R.string.event_location_only, it.latitude, it.longitude),
                     style = Mono
                 )
             }
@@ -314,9 +310,10 @@ private fun Calls(calls: List<IncidentCall>) {
         return
     }
     val newest = newestFirst(calls)
-    val open = remember { mutableStateMapOf(newest.first().id to true) }
+    // Only the dispatcher's own taps are kept; the default follows the newest call
+    val toggled = remember { mutableStateMapOf<String, Boolean>() }
     newest.forEach { call ->
-        val expanded = open[call.id] == true
+        val expanded = expanded(call.id, newest.first().id, toggled)
         Column(
             Modifier
                 .fillMaxWidth()
@@ -328,7 +325,7 @@ private fun Calls(calls: List<IncidentCall>) {
                 callLine(call),
                 Modifier
                     .fillMaxWidth()
-                    .clickable(role = Role.Button) { open[call.id] = !expanded },
+                    .clickable(role = Role.Button) { toggled[call.id] = !expanded },
                 color = Palette.FgSoft,
                 style = MaterialTheme.typography.labelLarge
             )
