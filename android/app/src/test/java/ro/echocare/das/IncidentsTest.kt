@@ -15,6 +15,7 @@ import ro.echocare.R
 import ro.echocare.TriggerEvent
 import ro.echocare.enroll.Refusal
 import ro.echocare.home.Failure
+import ro.echocare.ui.Tone
 
 // UC-12, design §"The list": what the DAS home shows, in which order.
 class IncidentsTest {
@@ -290,5 +291,14 @@ class IncidentsTest {
         assertFalse(expanded("other", newestId = "redial", toggled = toggled))
         // A newest call the dispatcher closed stays closed
         assertFalse(expanded("redial", newestId = "redial", toggled = mapOf("redial" to false)))
+    }
+
+    // The dashboard's colour per status: red, yellow, green (IncidentCard.svelte BAR)
+    @Test
+    fun statusTonesMatchTheDashboard() {
+        assertEquals(Tone.Rosu, statusTone("open"))
+        assertEquals(Tone.Galben, statusTone("in_progress"))
+        assertEquals(Tone.Verde, statusTone("resolved"))
+        assertEquals(Tone.Muted, statusTone("archived"))
     }
 }

@@ -86,7 +86,7 @@ private fun LazyListScope.section(
     items(rows, key = { it.id }) { IncidentCard(it, now, onClick = { onOpen(it.id) }) }
 }
 
-/** The dashboard's card, with a red bar: every incident is a red (G16). */
+/** The dashboard's card, with a bar in the status's colour (IncidentCard.svelte). */
 @Composable
 private fun IncidentCard(row: IncidentRow, now: Instant, onClick: () -> Unit) {
     Column(
@@ -96,7 +96,9 @@ private fun IncidentCard(row: IncidentRow, now: Instant, onClick: () -> Unit) {
             .border(1.dp, Palette.Line)
             // The bar is drawn, not a child: IntrinsicSize.Min would measure the FlowRow below
             // as one line and clip the chips it wraps
-            .drawBehind { drawRect(Tone.Rosu.dot, size = Size(3.dp.toPx(), size.height)) }
+            .drawBehind {
+                drawRect(statusTone(row.status).dot, size = Size(3.dp.toPx(), size.height))
+            }
             .clickable(role = Role.Button, onClick = onClick)
             .padding(start = 17.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -120,18 +122,20 @@ private fun IncidentCard(row: IncidentRow, now: Instant, onClick: () -> Unit) {
     }
 }
 
-/** Deschis, Preluat de …, Rezolvat; a status this build does not know shows as it is. */
+/** Deschis, În lucru · preluat de …, Rezolvat; a status this build does not know shows as it is. */
 @Composable
 fun StatusChip(status: String, takenByName: String?) {
-    when (status) {
-        "open" -> Chip(stringResource(R.string.status_open), Tone.Rosu)
-        "in_progress" -> Chip(
-            stringResource(R.string.status_taken_by, takenByName.orEmpty()),
-            Tone.Link
+    val label = when (status) {
+        "open" -> stringResource(R.string.status_open)
+        // As the dashboard: a taker it cannot name is „un dispecer”
+        "in_progress" -> stringResource(
+            R.string.status_taken_by,
+            takenByName ?: stringResource(R.string.a_dispatcher)
         )
-        "resolved" -> Chip(stringResource(R.string.status_resolved), Tone.Verde)
-        else -> Chip(status, Tone.Muted)
+        "resolved" -> stringResource(R.string.status_resolved)
+        else -> status
     }
+    Chip(label, statusTone(status))
 }
 
 /** As the dashboard's card: whether the hand-over was answered on any of the calls (04 §1). */

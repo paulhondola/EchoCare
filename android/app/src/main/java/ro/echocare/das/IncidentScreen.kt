@@ -108,7 +108,8 @@ fun IncidentScreen(
                             stringResource(R.string.resolve),
                             { onResolve(vm.id) },
                             Modifier.fillMaxWidth(),
-                            kind = Kind.Success
+                            // The next step, as the dashboard's card; green is for Trimite
+                            kind = Kind.Link
                         )
                     }
                     // Resolved meanwhile, or a status this build does not know

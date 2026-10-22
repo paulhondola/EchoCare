@@ -136,7 +136,8 @@
     <string name="incidents_open">Deschise · %1$d</string>
     <string name="incidents_in_progress">În lucru · %1$d</string>
     <string name="status_open">Deschis</string>
-    <string name="status_taken_by">Preluat de %1$s</string>
+    <string name="status_taken_by">În lucru · preluat de %1$s</string>
+    <string name="a_dispatcher">un dispecer</string>
     <string name="status_resolved">Rezolvat</string>
     <string name="ago_moments">acum câteva secunde</string>
     <string name="ago_minutes">acum %1$d min</string>
@@ -179,7 +180,7 @@
     <string name="event_high_pulse_at_rest">Puls ridicat în repaus</string>
     <string name="event_inactivity">Inactivitate</string>
     <string name="take">Preiau</string>
-    <string name="resolve">Rezolvat</string>
+    <string name="resolve">Rezolvă cazul</string>
     <string name="resolve_title">Rezolvare caz</string>
     <string name="resolve_outcome">Rezultat</string>
     <string name="resolve_note">Notă</string>

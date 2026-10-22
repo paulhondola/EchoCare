@@ -13,6 +13,7 @@ import ro.echocare.R
 import ro.echocare.TriggerEvent
 import ro.echocare.enroll.Refusal
 import ro.echocare.home.Failure
+import ro.echocare.ui.Tone
 
 // What the DAS screens show, worked out from the API's answers (UC-11, UC-12). Pure, tested on
 // the JVM.
@@ -125,6 +126,17 @@ fun mapsUri(senior: IncidentSenior, event: TriggerEvent?): String? {
     val street = senior.street?.takeIf { it.isNotBlank() } ?: return null
     val place = listOfNotNull(street, senior.streetNumber).joinToString(" ") + ", $CITY"
     return "geo:0,0?q=" + URLEncoder.encode(place, UTF_8).replace("+", "%20")
+}
+
+/**
+ * The colour of a status's chip and card bar, as the dashboard's: red open, yellow in progress,
+ * green resolved. A status this build does not know is muted.
+ */
+fun statusTone(status: String): Tone = when (status) {
+    "open" -> Tone.Rosu
+    "in_progress" -> Tone.Galben
+    "resolved" -> Tone.Verde
+    else -> Tone.Muted
 }
 
 /** The one action the pinned bar offers (UC-11 steps 2 and 4). */

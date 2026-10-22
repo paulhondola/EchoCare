@@ -59,7 +59,7 @@ The approved mockup lives at `.superpowers/brainstorm/45833-1792699504/content/d
 ### The list (home)
 
 - Two sections, **Deschise** then **În lucru**, each with its count. Inside a section, the longest wait comes first: open by `opened_at` oldest first, in progress by `taken_at` (falling back to `opened_at`) oldest first. This is the dashboard's `columns()` in [utils/incidents.ts](../../../dashboard/src/utils/incidents.ts).
-- A card shows the senior's full name, the reason, how long ago it opened ("acum 49 min", "acum 2 h 6 min", the date past a day, as the dashboard's `since()`), a status chip, and a hand-over marker as the dashboard's card has it: "Transferat la DAS" when `handover_answered` is true, "Nepreluat" when false. It has a red bar. `false` also covers an incident that never had a hand-over (every red from the mock card ends `completed`); this matches the dashboard, and telling the two apart would need a backend field. Open: chip "Deschis". In progress: chip "Preluat de {taken_by_name}".
+- A card shows the senior's full name, the reason, how long ago it opened ("acum 49 min", "acum 2 h 6 min", the date past a day, as the dashboard's `since()`), a status chip, and a hand-over marker as the dashboard's card has it: "Transferat la DAS" when `handover_answered` is true, "Nepreluat" when false. Its bar takes the status's colour, as the dashboard's card: red open, yellow in progress. `false` also covers an incident that never had a hand-over (every red from the mock card ends `completed`); this matches the dashboard, and telling the two apart would need a backend field. Open: red chip "Deschis". In progress: yellow chip "În lucru · preluat de {taken_by_name}" ("un dispecer" when the name is missing), as the dashboard.
 - Empty: the existing "Nu sunt incidente." text.
 - Tapping a card opens the incident.
 
@@ -67,7 +67,7 @@ The approved mockup lives at `.superpowers/brainstorm/45833-1792699504/content/d
 
 One scrolling page, no tabs, in this order:
 
-1. **Status and reason.** Status chip (Deschis · acum X / Preluat de {name} / Rezolvat), an "Apel în curs" badge when any call is `ringing` or `in_progress`, the incident's reason, then the senior's words: the `quote` of the latest red report across the calls, in quotation marks, left out when there is none.
+1. **Status and reason.** Status chip in the status's colour (red Deschis · acum X / yellow În lucru · preluat de {name} / green Rezolvat), an "Apel în curs" badge when any call is `ringing` or `in_progress`, the incident's reason, then the senior's words: the `quote` of the latest red report across the calls, in quotation marks, left out when there is none.
 2. **Adresă și acces.** Street and number, then each access detail present (bloc, scară, etaj, ap., interfon, reper, cheie), and **Deschide în Hărți**.
 3. **Telefon.** The senior first, with a landline or mobile badge, then each caregiver with their relation. Each has a **Sună** button. Numbers are shown with `formatPhone`.
 4. **Eveniment**, only when `event` is present: type label, when it was measured, coordinates and accuracy when present.
@@ -75,7 +75,7 @@ One scrolling page, no tabs, in this order:
 
 A pinned bottom bar holds the one action the status allows:
 - `open`: **Preiau**.
-- `in_progress`: **Rezolvat**, for any DAS employee, not only the one who took it.
+- `in_progress`: **Rezolvă cazul**, blue link style as the dashboard's card, for any DAS employee, not only the one who took it. Green stays for **Trimite** and the resolved state.
 - `resolved`: no button. This can happen when someone resolved it while the page was open; the next list read drops it.
 
 ### Phone and Maps
