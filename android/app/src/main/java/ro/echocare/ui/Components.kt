@@ -221,7 +221,7 @@ fun CallButton(e164: String) {
 
 /**
  * The dashboard's inset field: square, dark, blue border while typing, red with [error] under it.
- * [mono] for numbers and codes; names and places in Archivo.
+ * [mono] for numbers and codes; names and places in Archivo. [singleLine] false for free text.
  */
 @Composable
 fun SnTextField(
@@ -233,7 +233,8 @@ fun SnTextField(
     mono: Boolean = true,
     hint: String? = null,
     error: String? = null,
-    capitalization: KeyboardCapitalization = KeyboardCapitalization.None
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
+    singleLine: Boolean = true
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SectionLabel(label)
@@ -251,7 +252,8 @@ fun SnTextField(
                 capitalization = capitalization,
                 keyboardType = keyboardType
             ),
-            singleLine = true,
+            singleLine = singleLine,
+            minLines = if (singleLine) 1 else 4,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Palette.Inset,
                 unfocusedContainerColor = Palette.Inset,

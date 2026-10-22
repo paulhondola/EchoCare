@@ -111,7 +111,18 @@ fun SeniorDetails(
         ) {
             PhoneNumber(senior.phone, senior.landline)
         }
-        FieldRow(stringResource(R.string.label_address)) { Value(place(senior)) }
+        FieldRow(stringResource(R.string.label_address)) {
+            Value(
+                place(
+                    senior.street,
+                    senior.streetNumber,
+                    senior.block,
+                    senior.staircase,
+                    senior.floor,
+                    senior.apartment
+                )
+            )
+        }
         senior.intercomCode?.let {
             FieldRow(stringResource(R.string.label_intercom)) { Text(it, style = Mono) }
         }
@@ -166,12 +177,22 @@ private fun Value(text: String) {
     Text(text, style = MaterialTheme.typography.bodyLarge)
 }
 
-/** The street with block, staircase, floor and apartment (G13), from what was filled in. */
+/**
+ * The street with block, staircase, floor and apartment (G13), from what was filled in. The
+ * senior's page and the DAS incident page both show it.
+ */
 @Composable
-private fun place(senior: SeniorPage): String = listOfNotNull(
-    listOfNotNull(senior.street, senior.streetNumber).joinToString(" ").ifBlank { null },
-    senior.block?.let { stringResource(R.string.address_block, it) },
-    senior.staircase?.let { stringResource(R.string.address_staircase, it) },
-    senior.floor?.let { stringResource(R.string.address_floor, it) },
-    senior.apartment?.let { stringResource(R.string.address_apartment, it) }
+fun place(
+    street: String?,
+    streetNumber: String?,
+    block: String?,
+    staircase: String?,
+    floor: String?,
+    apartment: String?
+): String = listOfNotNull(
+    listOfNotNull(street, streetNumber).joinToString(" ").ifBlank { null },
+    block?.let { stringResource(R.string.address_block, it) },
+    staircase?.let { stringResource(R.string.address_staircase, it) },
+    floor?.let { stringResource(R.string.address_floor, it) },
+    apartment?.let { stringResource(R.string.address_apartment, it) }
 ).joinToString(", ").ifBlank { stringResource(R.string.no_address) }

@@ -24,6 +24,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ro.echocare.R
 import ro.echocare.auth.Screen
+import ro.echocare.das.IncidentScreen
+import ro.echocare.das.IncidentsScreen
+import ro.echocare.das.ResolveScreen
 import ro.echocare.enroll.EnrollScreen
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.theme.Palette
@@ -83,9 +86,27 @@ fun HomeNav(
                 SeniorScreen(id = null, onBack = null, menu = menu, onSessionEnd = onSessionEnd)
             }
             composable<IncidentsRoute> {
-                HomeScaffold(stringResource(R.string.role_das), onBack = null, menu = menu) {
-                    Message(stringResource(R.string.no_incidents))
-                }
+                IncidentsScreen(
+                    menu = menu,
+                    onOpen = { nav.navigate(IncidentRoute(it)) },
+                    onSessionEnd = onSessionEnd
+                )
+            }
+            composable<IncidentRoute> {
+                IncidentScreen(
+                    // By route, as EnrollRoute: a second tap never pops the home
+                    onBack = { nav.popBackStack<IncidentRoute>(inclusive = true) },
+                    onResolve = { nav.navigate(ResolveRoute(it)) },
+                    onSessionEnd = onSessionEnd
+                )
+            }
+            composable<ResolveRoute> {
+                ResolveScreen(
+                    onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
+                    // Resolved incidents leave the list: back to it, past the incident's page
+                    onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
+                    onSessionEnd = onSessionEnd
+                )
             }
         }
     }

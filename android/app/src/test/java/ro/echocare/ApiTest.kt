@@ -98,4 +98,43 @@ class ApiTest {
         val me = json.decodeFromString<Me>("""{"display_name": "X", "grants": []}""")
         assertFalse(me.warningActive)
     }
+
+    // GET /incidents/{id} as the local API serves it (04 §1), with a field a later server adds.
+    @Test
+    fun anIncidentPageIsDecoded() {
+        val incident = json.decodeFromString<IncidentPage>(
+            """
+            {"id":"92a0","status":"open","reason":"Durere în piept, greutate la respirație",
+             "opened_at":"2026-10-22T19:06:55.123456+00:00","taken_by_name":null,"taken_at":null,
+             "resolved_by_name":null,"resolved_at":null,"outcome":null,"note":null,
+             "handover_answered":false,"future_field":1,
+             "senior":{"id":"s1","full_name":"Dumitru Pop","form_of_address":"domnul Dumitru",
+               "phone_e164":"+40700000113","phone_is_landline":false,"street":"Strada Bucovinei",
+               "street_number":"27","block":"H4","staircase":"A","floor":"5","apartment":"31",
+               "intercom_code":"31","key_holder":"Fiica, Simona, are cheie de rezervă",
+               "landmark":"Lângă parcul din cartier"},
+             "caregivers":[{"display_name":"Simona Pop","phone_e164":"+40700000211","relation":"fiică"}],
+             "event":{"type":"sos_button","measured_at":"2026-10-22T19:05:00+00:00",
+               "latitude":45.7489,"longitude":21.2087,"location_accuracy_m":14,"located_at":null},
+             "calls":[{"id":"c1","trigger":"watch","attempt":1,"state":"handed_over",
+               "started_at":"2026-10-22T19:06:30+00:00","ended_at":null,"final_severity":"red",
+               "final_certainty":null,"reason":null,"summary":null,"handover_answered":null,
+               "reports":[{"source":"agent","severity":"red","certainty":null,
+                 "reason":"Durere în piept, greutate la respirație",
+                 "quote":"Mă strânge în piept și nu pot respira bine.",
+                 "at":"2026-10-22T19:06:42+00:00"}],
+               "turns":[{"speaker":"senior","kind":"speech",
+                 "content":"Mă strânge în piept și nu pot respira bine.",
+                 "at":"2026-10-22T19:06:41+00:00"}]}]}
+            """
+        )
+        assertEquals("Strada Bucovinei", incident.senior.street)
+        assertEquals(14.0, incident.event?.accuracy)
+        assertNull(incident.calls.single().handoverAnswered)
+        assertEquals(
+            "Mă strânge în piept și nu pot respira bine.",
+            incident.calls.single().reports.single().quote
+        )
+        assertEquals("fiică", incident.caregivers.single().relation)
+    }
 }

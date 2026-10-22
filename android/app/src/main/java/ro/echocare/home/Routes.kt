@@ -19,9 +19,17 @@ data class SeniorRoute(val id: String)
 @Serializable
 data object OwnRoute
 
-/** The DAS home. Empty until incidents exist in the app (UC-11). */
+/** The DAS home: open and in-progress incidents (UC-12). */
 @Serializable
 data object IncidentsRoute
+
+/** One incident's page (UC-11). */
+@Serializable
+data class IncidentRoute(val id: String)
+
+/** „Rezolvare caz” for the incident [id] (UC-11 step 4). */
+@Serializable
+data class ResolveRoute(val id: String)
 
 /** „Pacient nou”: the medic's form, empty, or filled from the senior [id] (seniors §9.1). */
 @Serializable
@@ -83,4 +91,34 @@ val CODE_TONES = mapOf(
     "green" to Tone.Verde,
     "yellow" to Tone.Galben,
     "red" to Tone.Rosu
+)
+
+/** What started each call (05 §1), as the dashboard names it. Unknown: shown as it is. */
+val TRIGGER_LABELS = mapOf(
+    "campaign" to R.string.trigger_campaign,
+    "watch" to R.string.trigger_watch,
+    "manual" to R.string.trigger_manual,
+    "welcome" to R.string.trigger_welcome
+)
+
+/** The event behind an incident (05 §1), as the dashboard names it. Unknown: shown as it is. */
+val EVENT_LABELS = mapOf(
+    "sos_button" to R.string.event_sos_button,
+    "fall" to R.string.event_fall,
+    "high_pulse_at_rest" to R.string.event_high_pulse_at_rest,
+    "inactivity" to R.string.event_inactivity,
+    "manual_request" to R.string.event_manual_request
+)
+
+/** A call's state (05 §1), for a call with no final code yet. Unknown: shown as it is. */
+val CALL_STATE_LABELS = mapOf(
+    "queued" to R.string.call_queued,
+    "ringing" to R.string.call_ringing,
+    "in_progress" to R.string.call_in_progress,
+    "unanswered" to R.string.call_unanswered,
+    "failed" to R.string.call_failed,
+    "completed" to R.string.call_completed,
+    "handed_over" to R.string.call_handed_over,
+    "dropped" to R.string.call_dropped,
+    "canceled" to R.string.call_canceled
 )
