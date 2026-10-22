@@ -27,6 +27,10 @@ data object IncidentsRoute
 @Serializable
 data class IncidentRoute(val id: String)
 
+/** „Rezolvare caz” for the incident [id] (UC-11 step 4). */
+@Serializable
+data class ResolveRoute(val id: String)
+
 /** „Pacient nou”: the medic's form, empty, or filled from the senior [id] (seniors §9.1). */
 @Serializable
 data class EnrollRoute(val id: String? = null)

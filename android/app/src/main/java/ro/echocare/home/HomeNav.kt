@@ -26,6 +26,7 @@ import ro.echocare.R
 import ro.echocare.auth.Screen
 import ro.echocare.das.IncidentScreen
 import ro.echocare.das.IncidentsScreen
+import ro.echocare.das.ResolveScreen
 import ro.echocare.enroll.EnrollScreen
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.theme.Palette
@@ -94,7 +95,15 @@ fun HomeNav(
             composable<IncidentRoute> {
                 IncidentScreen(
                     onBack = { nav.popBackStack() },
-                    onResolve = { },
+                    onResolve = { nav.navigate(ResolveRoute(it)) },
+                    onSessionEnd = onSessionEnd
+                )
+            }
+            composable<ResolveRoute> {
+                ResolveScreen(
+                    onBack = { nav.popBackStack() },
+                    // Resolved incidents leave the list: back to it, past the incident's page
+                    onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
                     onSessionEnd = onSessionEnd
                 )
             }

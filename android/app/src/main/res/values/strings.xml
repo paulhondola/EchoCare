@@ -168,4 +168,22 @@
     <string name="event_fall">Cădere detectată</string>
     <string name="event_high_pulse_at_rest">Puls ridicat în repaus</string>
     <string name="event_inactivity">Inactivitate</string>
+    <string name="take">Preiau</string>
+    <string name="resolve">Rezolvat</string>
+    <string name="resolve_title">Rezolvare caz</string>
+    <string name="resolve_outcome">Rezultat</string>
+    <string name="resolve_note">Notă</string>
+    <string name="note_count">%1$d / 1000</string>
+    <string name="send">Trimite</string>
+    <string name="outcome_senior_ok">Senior OK</string>
+    <string name="outcome_team_sent">Echipaj trimis</string>
+    <string name="outcome_called_112">Apelat 112</string>
+    <string name="outcome_not_reached">Nu a răspuns</string>
+    <string name="outcome_false_alarm">Alarmă falsă</string>
+    <string name="taken_by_other">Preluat deja de %1$s.</string>
+    <string name="incident_changed">Incidentul s-a schimbat între timp.</string>
+    <string name="already_resolved">Incidentul a fost deja rezolvat.</string>
+    <string name="send_failed">Nu am putut trimite. Încercați din nou.</string>
+    <string name="not_allowed_action">Nu aveți dreptul să faceți asta.</string>
+    <string name="incident_gone">Incidentul nu mai există.</string>
 </resources>

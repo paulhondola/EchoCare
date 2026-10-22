@@ -11,7 +11,10 @@ import ro.echocare.CallTurn
 import ro.echocare.IncidentCall
 import ro.echocare.IncidentRow
 import ro.echocare.IncidentSenior
+import ro.echocare.R
 import ro.echocare.TriggerEvent
+import ro.echocare.enroll.Refusal
+import ro.echocare.home.Failure
 
 // UC-12, design §"The list": what the DAS home shows, in which order.
 class IncidentsTest {
@@ -187,5 +190,79 @@ class IncidentsTest {
     fun noPlaceMeansNoMapsLink() {
         val nowhere = street.copy(street = null, streetNumber = null)
         assertNull(mapsUri(nowhere, TriggerEvent("fall", at("19:05"))))
+    }
+
+    // design §"Preiau", §"Rezolvare caz"
+
+    @Test
+    fun onlyOpenAndInProgressHaveAnAction() {
+        assertEquals(Act.Take, actFor("open"))
+        assertEquals(Act.Resolve, actFor("in_progress"))
+        assertNull(actFor("resolved"))
+        assertNull(actFor("archived"))
+    }
+
+    @Test
+    fun takeRefusals() {
+        assertEquals(
+            Notice.TakenBy("Cristian Pavel"),
+            noticeAfter(Refusal.AlreadyDone("Cristian Pavel"), Act.Take)
+        )
+        assertEquals(
+            Notice.Says(R.string.incident_changed),
+            noticeAfter(Refusal.AlreadyDone(null), Act.Take)
+        )
+        assertEquals(
+            Notice.Says(R.string.incident_changed),
+            noticeAfter(Refusal.WrongState, Act.Take)
+        )
+        assertEquals(
+            Notice.Says(R.string.send_failed),
+            noticeAfter(Refusal.Failed(Failure.NoConnection), Act.Take)
+        )
+        assertEquals(
+            Notice.Says(R.string.not_allowed_action),
+            noticeAfter(Refusal.Failed(Failure.NotAllowed), Act.Take)
+        )
+        assertEquals(
+            Notice.Says(R.string.incident_gone),
+            noticeAfter(Refusal.Failed(Failure.NotFound), Act.Take)
+        )
+        assertEquals(
+            Notice.Ends(Failure.SignedOut),
+            noticeAfter(Refusal.Failed(Failure.SignedOut), Act.Take)
+        )
+        assertEquals(
+            Notice.Says(R.string.send_failed),
+            noticeAfter(Refusal.Invalid(emptyList()), Act.Resolve)
+        )
+    }
+
+    @Test
+    fun resolveRefusals() {
+        assertEquals(
+            Notice.Says(R.string.already_resolved),
+            noticeAfter(Refusal.AlreadyDone("X"), Act.Resolve)
+        )
+        assertEquals(
+            Notice.Says(R.string.incident_changed),
+            noticeAfter(Refusal.WrongState, Act.Resolve)
+        )
+    }
+
+    @Test
+    fun sendNeedsAnOutcomeAndANote() {
+        assertFalse(canSend(null, "x"))
+        assertFalse(canSend("team_sent", "   "))
+        assertFalse(canSend("team_sent", "a".repeat(1001)))
+        assertTrue(canSend("team_sent", "a".repeat(1000)))
+    }
+
+    @Test
+    fun outcomesInTheDashboardsOrder() {
+        assertEquals(
+            listOf("senior_ok", "team_sent", "called_112", "not_reached", "false_alarm"),
+            OUTCOMES.map { it.first }
+        )
     }
 }

@@ -9,7 +9,10 @@ import ro.echocare.CallTurn
 import ro.echocare.IncidentCall
 import ro.echocare.IncidentRow
 import ro.echocare.IncidentSenior
+import ro.echocare.R
 import ro.echocare.TriggerEvent
+import ro.echocare.enroll.Refusal
+import ro.echocare.home.Failure
 
 // What the DAS screens show, worked out from the API's answers (UC-11, UC-12). Pure, tested on
 // the JVM.
@@ -105,3 +108,64 @@ fun mapsUri(senior: IncidentSenior, event: TriggerEvent?): String? {
     val place = listOfNotNull(street, senior.streetNumber).joinToString(" ") + ", $CITY"
     return "geo:0,0?q=" + URLEncoder.encode(place, UTF_8).replace("+", "%20")
 }
+
+/** The one action the pinned bar offers (UC-11 steps 2 and 4). */
+enum class Act { Take, Resolve }
+
+/** Preiau while open, Rezolvat while in progress for any DAS employee, else nothing. */
+fun actFor(status: String): Act? = when (status) {
+    "open" -> Act.Take
+    "in_progress" -> Act.Resolve
+    else -> null
+}
+
+/** One line over the pinned bar after a refused Preiau or Trimite. */
+sealed interface Notice {
+    /** "Preluat deja de {name}." */
+    data class TakenBy(val name: String) : Notice
+
+    /** [text] is a string resource id. */
+    data class Says(val text: Int) : Notice
+
+    /** Signed out or no longer registered: sign-in replaces the screen. */
+    data class Ends(val failure: Failure) : Notice
+}
+
+/** What a refused [act] tells the dispatcher, in the dashboard's words (commands.ts). */
+fun noticeAfter(refusal: Refusal, act: Act): Notice = when (refusal) {
+    is Refusal.AlreadyDone -> when {
+        act == Act.Resolve -> Notice.Says(R.string.already_resolved)
+        refusal.takenByName != null -> Notice.TakenBy(refusal.takenByName)
+        else -> Notice.Says(R.string.incident_changed)
+    }
+
+    Refusal.WrongState -> Notice.Says(R.string.incident_changed)
+
+    is Refusal.Failed -> when (refusal.failure) {
+        Failure.NotAllowed -> Notice.Says(R.string.not_allowed_action)
+        Failure.NotFound -> Notice.Says(R.string.incident_gone)
+        Failure.SignedOut, Failure.NotRegistered -> Notice.Ends(refusal.failure)
+        Failure.NoConnection -> Notice.Says(R.string.send_failed)
+    }
+
+    // The form checks what the server would refuse; anything else is a failed send
+    is Refusal.Invalid, is Refusal.Incomplete, Refusal.PhoneTaken -> Notice.Says(
+        R.string.send_failed
+    )
+}
+
+/** The resolve note's limit (04 §2). */
+const val NOTE_MAX = 1000
+
+/** Trimite needs an outcome and a note of 1 to [NOTE_MAX] characters (04 §2). */
+fun canSend(outcome: String?, note: String): Boolean =
+    outcome != null && note.isNotBlank() && note.length <= NOTE_MAX
+
+/** The five outcomes of 04 §2, in the dashboard's order and words. */
+val OUTCOMES = listOf(
+    "senior_ok" to R.string.outcome_senior_ok,
+    "team_sent" to R.string.outcome_team_sent,
+    "called_112" to R.string.outcome_called_112,
+    "not_reached" to R.string.outcome_not_reached,
+    "false_alarm" to R.string.outcome_false_alarm
+)

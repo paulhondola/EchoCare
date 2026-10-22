@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import ro.echocare.home.LoadBody
 import ro.echocare.home.RereadWhileShown
 import ro.echocare.home.TRIGGER_LABELS
 import ro.echocare.home.place
+import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
 import ro.echocare.ui.Chip
 import ro.echocare.ui.FieldRow
@@ -71,6 +73,8 @@ fun IncidentScreen(
     vm: IncidentViewModel = hiltViewModel()
 ) {
     RereadWhileShown(vm::reread)
+    val ended = (vm.notice as? Notice.Ends)?.failure
+    LaunchedEffect(ended) { ended?.let(onSessionEnd) }
     val title = (vm.page as? Load.Ready)?.value?.senior?.fullName.orEmpty()
     HomeScaffold(title, onBack = onBack, menu = {}) {
         LoadBody(vm.page, onRetry = vm::reread, onSessionEnd = onSessionEnd) { incident ->
@@ -89,8 +93,51 @@ fun IncidentScreen(
                     incident.event?.let { Event(it) }
                     Calls(incident.calls)
                 }
+                vm.notice?.let { NoticeBanner(it) }
+                when (actFor(incident.status)) {
+                    Act.Take -> ActionBar {
+                        SnButton(
+                            stringResource(R.string.take),
+                            vm::take,
+                            Modifier.fillMaxWidth(),
+                            kind = Kind.Danger
+                        )
+                    }
+                    Act.Resolve -> ActionBar {
+                        SnButton(
+                            stringResource(R.string.resolve),
+                            { onResolve(vm.id) },
+                            Modifier.fillMaxWidth(),
+                            kind = Kind.Success
+                        )
+                    }
+                    // Resolved meanwhile, or a status this build does not know
+                    null -> {}
+                }
             }
         }
+    }
+}
+
+/** The pinned bar under the page: the one action the status allows (design §"The incident page"). */
+@Composable
+fun ActionBar(content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().background(Palette.Subtle)) {
+        Rule()
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) { content() }
+    }
+}
+
+/** A refused command, in the dashboard's words. [Notice.Ends] shows nothing: sign-in follows. */
+@Composable
+fun NoticeBanner(notice: Notice) {
+    when (notice) {
+        is Notice.TakenBy -> Banner(
+            stringResource(R.string.taken_by_other, notice.name),
+            Tone.Galben
+        )
+        is Notice.Says -> Banner(stringResource(notice.text), Tone.Galben)
+        is Notice.Ends -> {}
     }
 }
 
