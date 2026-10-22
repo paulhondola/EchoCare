@@ -72,7 +72,7 @@
 
 <PageHeader title="Dispecerat Incidente">
   <div class="flex gap-0.5" role="tablist" aria-label="Vizualizare">
-    {#each [{ key: "board", label: "Board", icon: "board" }, { key: "table", label: "Table", icon: "table" }] as const as v (v.key)}
+    {#each [{ key: "board", label: "Panou", icon: "board" }, { key: "table", label: "Tabel", icon: "table" }] as const as v (v.key)}
       <button
         type="button"
         role="tab"

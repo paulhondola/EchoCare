@@ -167,7 +167,7 @@ A graphite ramp for structure plus three code colours and one signal blue, each 
 - **Card Graphite** (card): cards, the default button, the active nav item, avatar squares.
 - **Deep Inset** (inset): search fields, note fields and other inputs, sunk below the page.
 - **Rule Grey** (line): every border and rule, and the neutral count badge.
-- **Strong Rule** (line-strong): outline-button borders. The same value as **Faint Text** (fg-subtle).
+- **Strong Rule** (line-strong): outline-button borders. The same value as **Faint Text** (fg-subtle), which is for shapes only (the health dot while "Se verifică…"): at 3.8–4.1:1 it is too faint for text.
 - **Paper White** (fg): primary text, titles, numbers.
 - **Soft Text** (fg-soft): secondary text such as inactive nav labels and table cells.
 - **Muted Text** (fg-muted): timestamps, counters, labels, placeholders, inactive icons.
@@ -179,6 +179,8 @@ A graphite ramp for structure plus three code colours and one signal blue, each 
 **The Tint, Not Fill Rule.** Chips and notices use the status colour at 10–15% behind its light text tint (e.g. Alarm Red at 15% under Alarm Red Text). Solid fills are kept for buttons, the 3px state bar, the 6–10px dots and the sidebar's open-incident count.
 
 **The Name Beside The Colour Rule.** Every status colour carries its word: "COD ROȘU", "Preluat", "Rezolvat", "De serviciu", "Activă". Colour alone never carries a state.
+
+**The Readable Grey Rule.** Text is never dimmer than Muted Text. Faint Text and Strong Rule are for borders, dots and icons only.
 
 ## Typography
 
@@ -210,7 +212,7 @@ A fixed 240px sidebar beside a full-height workspace (`240px | 1fr`). The page h
 Spacing steps by 4px: 4, 8, 12, 16, 20. Inside a card, 5px between lines and 10–12px padding; between cards, 8px. List rows are 12px tall in padding with 20px sides, divided by 1px rules.
 
 ### Page patterns
-- **Board (Dispecerat Incidente, `/`):** Board and Table underline tabs with a search field on the header's rule; three columns (Deschise, În lucru, Rezolvate) of incident cards, or one table of the same incidents.
+- **Board (Dispecerat Incidente, `/`):** Panou and Tabel underline tabs with a search field on the header's rule; three columns (Deschise, În lucru, Rezolvate) of incident cards, or one table of the same incidents.
 - **Table (Monitorizare Seniori, `/seniors`):** enrollment filter tabs with a dot and mono count each (Toți, Activi, În înrolare, Necesită atenție), search, Exportă CSV and a square refresh button in the header; a full-width table; a footer bar over a 2px rule with "Afișez N din M seniori" and the last update time in mono.
 - **Queue (Cereri de înrolare, `/enrollments`):** one column of request cards, at most 896px wide, oldest first, each expanding in place to the registration details.
 - **List and form (Personal `/staff`, Campanii meteo `/campaigns`):** a scrolling list on the left and a fixed 360px form on the right, split by a 2px rule.
@@ -251,13 +253,13 @@ Compact and exact: small, bordered, heavy, label flush left.
 - **Copy button:** a default button in 600 Soft Text with a copy icon; its border and text turn Signal Blue and Paper White on hover; the label changes to "Copiat", or "Nu s-a copiat" in Alarm Red Text.
 
 ### Tabs
-- **Underline tabs:** 600 labels with a 14px icon or a status dot and a mono count, 8px × 12px padding, sitting on the header's 2px rule; the active tab takes a 2px Signal Blue underline and Paper White, the rest are Muted Text. Used for Board/Table, the seniors' status filter and the dossier's sections (each with a mono number in Faint Text).
+- **Underline tabs:** 600 labels with a 14px icon or a status dot and a mono count, 8px × 12px padding, sitting on the header's 2px rule; the active tab takes a 2px Signal Blue underline and Paper White, the rest are Muted Text. Used for Panou/Tabel, the seniors' enrollment filter and the dossier's sections (each with a mono number in Muted Text).
 
 ### Segmented Control
 - **Style:** a row of equal options inside one 1px Rule Grey border, split by 1px rules, 7px × 12px padding, 13px. The chosen option takes a 15% Signal Blue wash and 600 Paper White; the rest are Soft Text with a Card Graphite hover. A native radio hides inside each, so focus shows as the 2px Signal Blue outline on the option. Used for Medic/DAS on Personal and heat/cold and yellow/red on Campanii.
 
 ### Outcome List
-- **Style:** a vertical radio list in one 1px border, rows split by 1px rules, 9px × 12px padding: a 14px square marker (2px Strong Rule border, filled Signal Blue when chosen), the Romanian label, and the API value right-aligned in 11px mono Faint Text. The chosen row takes a 12% Signal Blue wash. Used for the incident outcome in the resolve form.
+- **Style:** a vertical radio list in one 1px border, rows split by 1px rules, 9px × 12px padding: a 14px square marker (2px Strong Rule border, filled Signal Blue when chosen), the Romanian label, and the API value right-aligned in 11px mono Muted Text. The chosen row takes a 12% Signal Blue wash. Used for the incident outcome in the resolve form.
 
 ### Chips
 - **Style:** square, 15% code colour behind its text tint, 11–12px at 600, 2–3px × 7–9px padding. Muted chips use Rule Grey behind Soft Text.
@@ -298,7 +300,7 @@ Compact and exact: small, bordered, heavy, label flush left.
 - **Count badge:** Rule Grey behind Soft Text; on Incidente with any open incident, Alarm Red Strong behind white.
 
 ### Incident Card (signature)
-The unit of the board. A 3px state bar on the left (Alarm Red open, Caution Amber in progress, All-Clear Green resolved), then: mono id · relative time and a state chip; the senior's name as a 15px title with the form of address in Muted Text; the reason, in Alarm Red Text while open; a 1px rule; the one action for the state (Preiau, Rezolvă cazul, or the Rezolvat chip) and who has it. The whole card opens the dossier.
+The unit of the board. A 3px state bar on the left (Alarm Red open, Caution Amber in progress, All-Clear Green resolved), then: mono id · relative time and a state chip (the time never breaks: in a narrow column the id shortens with an ellipsis first, then the chip moves to its own line); the senior's name as a 15px title with the form of address in Muted Text; the reason, in Alarm Red Text while open; a 1px rule; the one action for the state (Preiau, Rezolvă cazul, or the Rezolvat chip) and who has it. The whole card opens the dossier.
 
 ### Cod Roșu Banner (signature)
 Above every page while any incident is open: a 20% Alarm Red Strong wash with a 2px Alarm Red bottom rule, a 10px square red dot that pulses (1.1s, opacity 1 to 0.2) while sound alerts are on, "COD ROȘU" in 800 tracked 0.06em Alarm Red Text, the senior and reason, how long it has been open, and Preiau cazul plus Vezi dosar.
