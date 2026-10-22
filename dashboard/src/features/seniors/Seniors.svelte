@@ -161,7 +161,7 @@
       <div role="row" class={["grid border-b border-line hover:bg-subtle", COLS]}>
         <div
           role="cell"
-          class="border-r border-card px-3 py-2.5 font-mono text-[11px] text-fg-subtle"
+          class="border-r border-card px-3 py-2.5 font-mono text-[11px] text-fg-muted"
         >
           {n + 1}
         </div>

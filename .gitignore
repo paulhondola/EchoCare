@@ -15,6 +15,9 @@ dist/
 .remember/
 .superpowers/
 
+# Impeccable: personal settings; design.json and config.json are shared
+.impeccable/config.local.json
+
 # lefthook: personal overrides, such as rc: for a Git GUI's PATH (ADR-002)
 lefthook-local.yml
 

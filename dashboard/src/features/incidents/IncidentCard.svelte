@@ -43,24 +43,38 @@
 <article class="relative flex border border-line bg-card hover:border-link">
   <div class={["w-[3px] flex-none", BAR[i.status]]}></div>
   <div class="flex min-w-0 flex-1 flex-col gap-[5px] px-3 pt-2.5 pb-3">
-    <div class="flex items-center gap-1.5 text-[11.5px] text-fg-muted">
-      <span class="font-mono">#{shortId(i.id)}</span>
-      <span>·</span>
-      {#if i.status === "resolved"}
-        <span>deschis {time.format(Date.parse(i.opened_at))}</span>
-      {:else if i.status === "in_progress" && i.taken_at}
-        <span title={`Deschis ${time.format(Date.parse(i.opened_at))}`}>
-          preluat {since(i.taken_at, now)}
-        </span>
-      {:else}
-        <span title={time.format(Date.parse(i.opened_at))}>{since(i.opened_at, now)}</span>
-      {/if}
+    <!-- The time never breaks; in a narrow column the id gives way first, then the chip wraps -->
+    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-fg-muted">
+      <span class="flex min-w-0 items-center gap-1.5">
+        <span class="min-w-0 truncate font-mono">#{shortId(i.id)}</span>
+        <span>·</span>
+        {#if i.status === "resolved"}
+          <span class="flex-none whitespace-nowrap">
+            deschis {time.format(Date.parse(i.opened_at))}
+          </span>
+        {:else if i.status === "in_progress" && i.taken_at}
+          <span
+            class="flex-none whitespace-nowrap"
+            title={`Deschis ${time.format(Date.parse(i.opened_at))}`}
+          >
+            preluat {since(i.taken_at, now)}
+          </span>
+        {:else}
+          <span class="flex-none whitespace-nowrap" title={time.format(Date.parse(i.opened_at))}>
+            {since(i.opened_at, now)}
+          </span>
+        {/if}
+      </span>
       {#if i.status === "open"}
-        <span class="ml-auto bg-rosu/15 px-[7px] py-0.5 text-[11px] font-semibold text-rosu-fg">
+        <span
+          class="ml-auto bg-rosu/15 px-[7px] py-0.5 text-[11px] font-semibold whitespace-nowrap text-rosu-fg"
+        >
           {i.handover_answered ? "Transferat la DAS" : "Nepreluat"}
         </span>
       {:else if i.status === "in_progress"}
-        <span class="ml-auto bg-galben/15 px-[7px] py-0.5 text-[11px] font-semibold text-galben-fg">
+        <span
+          class="ml-auto bg-galben/15 px-[7px] py-0.5 text-[11px] font-semibold whitespace-nowrap text-galben-fg"
+        >
           Preluat
         </span>
       {/if}
