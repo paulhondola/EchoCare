@@ -24,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ro.echocare.R
 import ro.echocare.auth.Screen
+import ro.echocare.das.IncidentScreen
 import ro.echocare.das.IncidentsScreen
 import ro.echocare.enroll.EnrollScreen
 import ro.echocare.ui.SquareIconButton
@@ -90,7 +91,13 @@ fun HomeNav(
                     onSessionEnd = onSessionEnd
                 )
             }
-            composable<IncidentRoute> { }
+            composable<IncidentRoute> {
+                IncidentScreen(
+                    onBack = { nav.popBackStack() },
+                    onResolve = { },
+                    onSessionEnd = onSessionEnd
+                )
+            }
         }
     }
 }

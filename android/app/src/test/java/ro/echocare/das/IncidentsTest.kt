@@ -2,9 +2,16 @@ package ro.echocare.das
 
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.echocare.CallReport
+import ro.echocare.CallTurn
+import ro.echocare.IncidentCall
 import ro.echocare.IncidentRow
+import ro.echocare.IncidentSenior
+import ro.echocare.TriggerEvent
 
 // UC-12, design §"The list": what the DAS home shows, in which order.
 class IncidentsTest {
@@ -60,5 +67,125 @@ class IncidentsTest {
     @Test
     fun agoReadsFastApiTimestamps() {
         assertEquals(Ago.Minutes(53), ago("2026-10-22T19:06:55.123456+00:00", now))
+    }
+
+    // design §"The incident page"
+
+    private fun at(hm: String) = "2026-10-22T$hm:00Z"
+
+    private fun report(severity: String, quote: String?, hm: String) =
+        CallReport(severity = severity, reason = "R $hm", quote = quote, at = at(hm))
+
+    private fun turn(hm: String) = CallTurn(speaker = "senior", content = "T $hm", at = at(hm))
+
+    private fun call(
+        id: String = "c",
+        state: String = "completed",
+        startedAt: String? = null,
+        reports: List<CallReport> = emptyList(),
+        turns: List<CallTurn> = emptyList()
+    ) = IncidentCall(
+        id = id,
+        trigger = "campaign",
+        attempt = 1,
+        state = state,
+        startedAt = startedAt?.let(::at),
+        reports = reports,
+        turns = turns
+    )
+
+    private val street = IncidentSenior(
+        id = "s",
+        fullName = "Dumitru Pop",
+        formOfAddress = "domnul Dumitru",
+        phone = "+40700000113",
+        landline = false,
+        street = "Strada Bucovinei",
+        streetNumber = "27"
+    )
+
+    @Test
+    fun seniorsWordsIsTheLatestRedQuote() {
+        val calls = listOf(
+            call(
+                "a",
+                reports = listOf(report("yellow", "q1", "19:00"), report("red", "q2", "19:06"))
+            ),
+            call("b", reports = listOf(report("red", "q3", "19:20")))
+        )
+        assertEquals("q3", seniorsWords(calls))
+    }
+
+    @Test
+    fun noRedQuoteMeansNoWords() {
+        val calls = listOf(
+            call(
+                reports = listOf(
+                    report("red", null, "19:00"),
+                    report("red", "  ", "19:05"),
+                    report("yellow", "q", "19:10")
+                )
+            )
+        )
+        assertNull(seniorsWords(calls))
+        assertNull(seniorsWords(emptyList()))
+    }
+
+    @Test
+    fun newestCallFirst() {
+        val calls =
+            listOf(call("18", startedAt = "18:00"), call("19", startedAt = "19:00"), call("q"))
+        assertEquals(listOf("q", "19", "18"), newestFirst(calls).map { it.id })
+    }
+
+    @Test
+    fun liveWhenRingingOrInProgress() {
+        assertTrue(callLive(listOf(call(state = "completed"), call(state = "ringing"))))
+        assertTrue(callLive(listOf(call(state = "in_progress"))))
+        assertFalse(callLive(listOf(call(state = "handed_over"), call(state = "unanswered"))))
+    }
+
+    @Test
+    fun timelinePutsReportsWhereTheyHappened() {
+        val flagged = report("red", "q", "19:41")
+        val c =
+            call(
+                turns = listOf(turn("19:34"), turn("19:41"), turn("19:48")),
+                reports = listOf(flagged)
+            )
+        assertEquals(
+            listOf(
+                Line.Said(turn("19:34")),
+                Line.Said(turn("19:41")),
+                Line.Flagged(flagged),
+                Line.Said(turn("19:48"))
+            ),
+            timeline(c)
+        )
+    }
+
+    @Test
+    fun timelineOfACallWithNoTurns() {
+        assertTrue(timeline(call()).isEmpty())
+    }
+
+    @Test
+    fun mapsUsesCoordinatesWhenThereAreAny() {
+        val event = TriggerEvent("sos_button", at("19:05"), latitude = 45.7489, longitude = 21.2087)
+        assertEquals("geo:45.7489,21.2087?q=45.7489,21.2087", mapsUri(street, event))
+    }
+
+    @Test
+    fun mapsFallsBackToTheAddress() {
+        assertEquals(
+            "geo:0,0?q=Strada%20Bucovinei%2027%2C%20Timi%C8%99oara",
+            mapsUri(street, null)
+        )
+    }
+
+    @Test
+    fun noPlaceMeansNoMapsLink() {
+        val nowhere = street.copy(street = null, streetNumber = null)
+        assertNull(mapsUri(nowhere, TriggerEvent("fall", at("19:05"))))
     }
 }

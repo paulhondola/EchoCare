@@ -88,3 +88,19 @@ val CODE_TONES = mapOf(
     "yellow" to Tone.Galben,
     "red" to Tone.Rosu
 )
+
+/** What started each call (05 §1), as the dashboard names it. Unknown: shown as it is. */
+val TRIGGER_LABELS = mapOf(
+    "campaign" to R.string.trigger_campaign,
+    "watch" to R.string.trigger_watch,
+    "manual" to R.string.trigger_manual,
+    "welcome" to R.string.trigger_welcome
+)
+
+/** The event behind an incident (05 §1), as the dashboard names it. Unknown: shown as it is. */
+val EVENT_LABELS = mapOf(
+    "sos_button" to R.string.event_sos_button,
+    "fall" to R.string.event_fall,
+    "high_pulse_at_rest" to R.string.event_high_pulse_at_rest,
+    "inactivity" to R.string.event_inactivity
+)
