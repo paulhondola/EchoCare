@@ -135,10 +135,15 @@ class IncidentsTest {
     }
 
     @Test
-    fun newestCallFirst() {
-        val calls =
-            listOf(call("18", startedAt = "18:00"), call("19", startedAt = "19:00"), call("q"))
-        assertEquals(listOf("q", "19", "18"), newestFirst(calls).map { it.id })
+    fun newestCallFirstIsTheApisOrderReversed() {
+        // GET /incidents/{id} sends calls oldest first. An unanswered call never started, so
+        // its start time cannot order it (seen with Ion Dumitrescu's redial in the seed).
+        val calls = listOf(
+            call("1", startedAt = "18:00"),
+            call("2", state = "unanswered"),
+            call("3", startedAt = "19:00")
+        )
+        assertEquals(listOf("3", "2", "1"), newestFirst(calls).map { it.id })
     }
 
     @Test

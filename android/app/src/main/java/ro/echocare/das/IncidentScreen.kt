@@ -37,6 +37,7 @@ import kotlin.math.roundToInt
 import ro.echocare.IncidentCall
 import ro.echocare.IncidentPage
 import ro.echocare.R
+import ro.echocare.home.CALL_STATE_LABELS
 import ro.echocare.home.CODE_LABELS
 import ro.echocare.home.CODE_TONES
 import ro.echocare.home.EVENT_LABELS
@@ -342,7 +343,9 @@ private fun callLine(call: IncidentCall): String = stringResource(
     R.string.call_line,
     TRIGGER_LABELS[call.trigger]?.let { stringResource(it) } ?: call.trigger,
     call.attempt,
-    CODE_LABELS[call.finalSeverity]?.let { stringResource(it) } ?: call.state
+    CODE_LABELS[call.finalSeverity]?.let { stringResource(it) }
+        ?: CALL_STATE_LABELS[call.state]?.let { stringResource(it) }
+        ?: call.state
 )
 
 @Composable

@@ -108,3 +108,16 @@ val EVENT_LABELS = mapOf(
     "high_pulse_at_rest" to R.string.event_high_pulse_at_rest,
     "inactivity" to R.string.event_inactivity
 )
+
+/** A call's state (05 §1), for a call with no final code yet. Unknown: shown as it is. */
+val CALL_STATE_LABELS = mapOf(
+    "queued" to R.string.call_queued,
+    "ringing" to R.string.call_ringing,
+    "in_progress" to R.string.call_in_progress,
+    "unanswered" to R.string.call_unanswered,
+    "failed" to R.string.call_failed,
+    "completed" to R.string.call_completed,
+    "handed_over" to R.string.call_handed_over,
+    "dropped" to R.string.call_dropped,
+    "canceled" to R.string.call_canceled
+)

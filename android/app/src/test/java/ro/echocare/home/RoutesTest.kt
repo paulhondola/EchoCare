@@ -44,6 +44,24 @@ class RoutesTest {
     }
 
     @Test
+    fun everyCallStateHasALabel() {
+        // 05 §1's call states, worded as the dashboard's incident page
+        val states = listOf(
+            "queued",
+            "ringing",
+            "in_progress",
+            "unanswered",
+            "failed",
+            "completed",
+            "handed_over",
+            "dropped",
+            "canceled"
+        )
+        assertEquals(states, CALL_STATE_LABELS.keys.toList())
+        assertEquals(states.size, CALL_STATE_LABELS.values.toSet().size)
+    }
+
+    @Test
     fun aStateThisBuildDoesNotKnowHasNoLabel() {
         assertNull(STATE_LABELS["paused"])
     }

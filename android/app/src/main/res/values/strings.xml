@@ -160,6 +160,15 @@
     <string name="flagged">%1$s · semnalat — %2$s</string>
     <string name="handover_call_yes">Transferat la telefonul de serviciu DAS</string>
     <string name="handover_call_no">Transferul nu a fost preluat</string>
+    <string name="call_queued">în așteptare</string>
+    <string name="call_ringing">sună</string>
+    <string name="call_in_progress">în curs</string>
+    <string name="call_unanswered">nepreluat</string>
+    <string name="call_failed">eșuat</string>
+    <string name="call_completed">încheiat</string>
+    <string name="call_handed_over">transferat la DAS</string>
+    <string name="call_dropped">întrerupt</string>
+    <string name="call_canceled">anulat</string>
     <string name="trigger_campaign">Campanie</string>
     <string name="trigger_watch">Ceas</string>
     <string name="trigger_manual">Cerere „Sunați-mă”</string>

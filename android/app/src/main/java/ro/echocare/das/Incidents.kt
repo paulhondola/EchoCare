@@ -65,11 +65,12 @@ fun seniorsWords(calls: List<IncidentCall>): String? = calls
     .maxByOrNull { Instant.parse(it.at) }
     ?.quote
 
-/** A call not started yet, then by start time, newest first: the newest is the one shown open. */
-fun newestFirst(calls: List<IncidentCall>): List<IncidentCall> = calls.sortedWith(
-    compareBy<IncidentCall> { it.startedAt != null }
-        .thenByDescending { it.startedAt?.let(Instant::parse) }
-)
+/**
+ * Newest first, the newest being the one shown open. GET /incidents/{id} sends the calls oldest
+ * first (by creation, then attempt); their start time cannot order them, since an unanswered or
+ * queued call never started.
+ */
+fun newestFirst(calls: List<IncidentCall>): List<IncidentCall> = calls.asReversed()
 
 /** The "Apel în curs" badge (UC-12): a call ringing or live. */
 fun callLive(calls: List<IncidentCall>): Boolean =
