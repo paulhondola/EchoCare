@@ -127,6 +127,100 @@ data class MockAnswer(
     val consent: Boolean? = null
 )
 
+// One row of GET /incidents (04 §1). [status] stays a string: a later server may add one.
+@Serializable
+data class IncidentRow(
+    val id: String,
+    @SerialName("senior_full_name") val seniorName: String,
+    @SerialName("senior_form_of_address") val formOfAddress: String,
+    val status: String,
+    val reason: String,
+    @SerialName("opened_at") val openedAt: String,
+    @SerialName("taken_by_name") val takenByName: String? = null,
+    @SerialName("taken_at") val takenAt: String? = null,
+    @SerialName("handover_answered") val handoverAnswered: Boolean = false
+)
+
+// GET /incidents/{id} (04 §1): the senior with access details, the caregivers, the triggering
+// event and every call from the first attempt until the incident was resolved.
+@Serializable
+data class IncidentPage(
+    val id: String,
+    val status: String,
+    val reason: String,
+    @SerialName("opened_at") val openedAt: String,
+    @SerialName("taken_by_name") val takenByName: String? = null,
+    @SerialName("handover_answered") val handoverAnswered: Boolean = false,
+    val senior: IncidentSenior,
+    val caregivers: List<IncidentCaregiver> = emptyList(),
+    val event: TriggerEvent? = null,
+    val calls: List<IncidentCall> = emptyList()
+)
+
+@Serializable
+data class IncidentSenior(
+    val id: String,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("form_of_address") val formOfAddress: String,
+    @SerialName("phone_e164") val phone: String,
+    @SerialName("phone_is_landline") val landline: Boolean,
+    val street: String? = null,
+    @SerialName("street_number") val streetNumber: String? = null,
+    val block: String? = null,
+    val staircase: String? = null,
+    val floor: String? = null,
+    val apartment: String? = null,
+    @SerialName("intercom_code") val intercomCode: String? = null,
+    @SerialName("key_holder") val keyHolder: String? = null,
+    val landmark: String? = null
+)
+
+// No user id here, unlike GET /seniors/{id}'s Caregiver.
+@Serializable
+data class IncidentCaregiver(
+    @SerialName("display_name") val displayName: String,
+    @SerialName("phone_e164") val phone: String,
+    val relation: String? = null
+)
+
+@Serializable
+data class TriggerEvent(
+    val type: String,
+    @SerialName("measured_at") val measuredAt: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerialName("location_accuracy_m") val accuracy: Double? = null
+)
+
+// [handoverAnswered] is null when no hand-over was tried on this call.
+@Serializable
+data class IncidentCall(
+    val id: String,
+    val trigger: String,
+    val attempt: Int,
+    val state: String,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("final_severity") val finalSeverity: String? = null,
+    @SerialName("handover_answered") val handoverAnswered: Boolean? = null,
+    val reports: List<CallReport> = emptyList(),
+    val turns: List<CallTurn> = emptyList()
+)
+
+@Serializable
+data class CallReport(
+    val severity: String,
+    val reason: String,
+    val quote: String? = null,
+    val at: String
+)
+
+@Serializable
+data class CallTurn(val speaker: String, val content: String, val at: String)
+
+// POST /incidents/{id}/resolve's body (04 §2): both required, the note 1 to 1000 characters.
+@Serializable
+data class Resolution(val outcome: String, val note: String)
+
 // The FastAPI contract (04-interfaces.md). One function per endpoint, added as features need them.
 // Built in NetworkModule.
 interface EchoCareApi {
@@ -169,4 +263,19 @@ interface EchoCareApi {
     /** 204; a 409 means the call is no longer due (design §4.2). */
     @POST("calls/{id}/mock-answer")
     suspend fun mockAnswer(@Path("id") id: String, @Body body: MockAnswer): Response<Unit>
+
+    /** DAS only. [status] is comma-separated; the DAS app asks for `open,in_progress` (04 §1). */
+    @GET("incidents")
+    suspend fun incidents(@Query("status") status: String): List<IncidentRow>
+
+    @GET("incidents/{id}")
+    suspend fun incident(@Path("id") id: String): IncidentPage
+
+    /** `open` → `in_progress` (UC-11). 409 `already_done` names who has it in `taken_by_name`. */
+    @POST("incidents/{id}/take")
+    suspend fun take(@Path("id") id: String): IncidentRow
+
+    /** `in_progress` → `resolved`, by any DAS employee (UC-11). 409 `wrong_state` while open. */
+    @POST("incidents/{id}/resolve")
+    suspend fun resolve(@Path("id") id: String, @Body body: Resolution): IncidentRow
 }

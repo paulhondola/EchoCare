@@ -24,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ro.echocare.R
 import ro.echocare.auth.Screen
+import ro.echocare.das.IncidentsScreen
 import ro.echocare.enroll.EnrollScreen
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.theme.Palette
@@ -83,10 +84,13 @@ fun HomeNav(
                 SeniorScreen(id = null, onBack = null, menu = menu, onSessionEnd = onSessionEnd)
             }
             composable<IncidentsRoute> {
-                HomeScaffold(stringResource(R.string.role_das), onBack = null, menu = menu) {
-                    Message(stringResource(R.string.no_incidents))
-                }
+                IncidentsScreen(
+                    menu = menu,
+                    onOpen = { nav.navigate(IncidentRoute(it)) },
+                    onSessionEnd = onSessionEnd
+                )
             }
+            composable<IncidentRoute> { }
         }
     }
 }

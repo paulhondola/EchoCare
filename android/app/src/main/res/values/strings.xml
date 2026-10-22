@@ -131,4 +131,16 @@
     <string name="mock_send">Trimite răspunsurile</string>
     <string name="mock_later">Nu acum</string>
     <string name="welcome_title">Apel de bun venit DAS</string>
+
+    <!-- The DAS home and its incidents (UC-11, UC-12), worded as the dashboard -->
+    <string name="incidents_open">Deschise · %1$d</string>
+    <string name="incidents_in_progress">În lucru · %1$d</string>
+    <string name="status_open">Deschis</string>
+    <string name="status_taken_by">Preluat de %1$s</string>
+    <string name="status_resolved">Rezolvat</string>
+    <string name="ago_moments">acum câteva secunde</string>
+    <string name="ago_minutes">acum %1$d min</string>
+    <string name="ago_hours">acum %1$d h %2$d min</string>
+    <string name="handover_yes">Transferat la DAS</string>
+    <string name="handover_no">Nepreluat</string>
 </resources>

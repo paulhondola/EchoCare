@@ -19,9 +19,13 @@ data class SeniorRoute(val id: String)
 @Serializable
 data object OwnRoute
 
-/** The DAS home. Empty until incidents exist in the app (UC-11). */
+/** The DAS home: open and in-progress incidents (UC-12). */
 @Serializable
 data object IncidentsRoute
+
+/** One incident's page (UC-11). */
+@Serializable
+data class IncidentRoute(val id: String)
 
 /** „Pacient nou”: the medic's form, empty, or filled from the senior [id] (seniors §9.1). */
 @Serializable
