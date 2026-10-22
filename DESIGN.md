@@ -135,7 +135,7 @@ components:
 
 **Creative North Star: "The Signal Board"**
 
-The dashboard is a board of cards and bars where colour means status and nothing else. Everything structural is graphite: near-black canvas, grey rules, grey type. Red, amber and green are the three codes, Cod Roșu, Cod Galben and Cod Verde, and the same three meanings everywhere else: alarm, caution, clear. A dispatcher scanning the board at hour ten reads colour as information, never as decoration. Blue is the one colour that is not a status; it marks what can be clicked, focused or chosen.
+The dashboard is a board of cards and bars where colour means status and nothing else. Everything structural is graphite: near-black canvas, grey rules, grey type. Red, amber and green are the three codes, Cod Roșu, Cod Galben and Cod Verde, and the same three meanings everywhere else: alarm, caution, clear. A dispatcher scanning the board at hour ten reads colour as information, never as decoration. Blue is the one colour outside that scale; it marks what can be clicked, focused or chosen, and an enrollment still under way.
 
 The structure is Modernist and compact: square corners everywhere, 2px rules between regions, 1px borders around things, flush-left heavy button labels, small 13px body text, and monospace for every id, time and count. Density is high on purpose: the board, the table and the dossier hold a whole shift's worth of incidents without scrolling hunts. The palette is GitHub's dark theme (spec 07 §2.1) on that square structure.
 
@@ -154,7 +154,7 @@ One theme only: dark. There is no light mode and no rounded variant.
 A graphite ramp for structure plus three code colours and one signal blue, each code with a fill, a strong fill and a light text tint.
 
 ### Primary
-- **Signal Blue** (link): links, the link button, the active tab underline, the focus ring (2px outline, 2px offset), text selection at 30%, hovered card borders, the selected option in a segmented control or outcome list (12–15% wash), the 3px bar on an enrollment request, the agent's speaker label in a transcript. It means "you can act or choose here" and never stands for a status.
+- **Signal Blue** (link): links, the link button, the active tab underline, the focus ring (2px outline, 2px offset), text selection at 30%, hovered card borders, the selected option in a segmented control or outcome list (12–15% wash), the 3px bar on an enrollment request, the agent's speaker label in a transcript. It means "you can act or choose here". Its one status use is an enrollment still in progress (Cerere trimisă, Acceptat, the În înrolare tab dot): a step under way, never an alarm, caution or all-clear.
 
 ### Status colours
 - **Alarm Red** (rosu): Cod Roșu and anything that needs a person now. The 3px bar on an open incident card, the banner's 2px bottom rule and dot, the open-count badge in the sidebar, the "Nimeni de serviciu" chip and the no-one-on-duty bar on Personal, failed-load notices. **Alarm Red Strong** (rosu-strong) fills the danger button (Preiau, Încheie) and the alarm bar wash at 20%; **Alarm Red Hover** (rosu-hover) is its hover. **Alarm Red Text** (rosu-fg) is red text on dark: the COD ROȘU and ATENȚIE labels, an open incident's reason, error messages.
@@ -203,15 +203,17 @@ A graphite ramp for structure plus three code colours and one signal blue, each 
 
 ## Layout
 
-A fixed 240px sidebar beside a full-height workspace (`240px | 1fr`) from the `md` breakpoint (768px) up; below it the sidebar stacks above the page with a 2px rule under it. The page header has 20px side padding, the 22px title and the on-duty chip on one row, then the page's tabs and search over a 2px rule. The incident board is three equal columns with 12px gaps inside 16px padding, each column scrolling on its own. The slide-over dossier is 540px wide (full width on narrow screens) from the right edge, so the board stays in place behind it.
+Desktop only. The dashboard is designed for desktop browser windows 1280px and wider, and must still hold at 1024px (a half-width window or a small laptop). Phones and tablets are not a target: dispatchers away from the desk use the Android app. The code stacks the sidebar above the page below the `md` breakpoint (768px); that is a fallback, not a supported layout, and needs no design work.
+
+A fixed 240px sidebar beside a full-height workspace (`240px | 1fr`). The page header has 20px side padding, the 22px title and the on-duty chip on one row, then the page's tabs and search over a 2px rule. The incident board is three equal columns with 12px gaps inside 16px padding, each column scrolling on its own. The slide-over dossier is 540px wide from the right edge, so the board stays in place behind it.
 
 Spacing steps by 4px: 4, 8, 12, 16, 20. Inside a card, 5px between lines and 10–12px padding; between cards, 8px. List rows are 12px tall in padding with 20px sides, divided by 1px rules.
 
 ### Page patterns
 - **Board (Dispecerat Incidente, `/`):** Board and Table underline tabs with a search field on the header's rule; three columns (Deschise, În lucru, Rezolvate) of incident cards, or one table of the same incidents.
-- **Table (Monitorizare Seniori, `/seniors`):** status filter tabs with a dot and mono count each (Toți, Cod Roșu, Cod Galben, Cod Verde), search, Exportă CSV and a square refresh button in the header; a full-width table; a footer bar over a 2px rule with "Afișez N din M seniori" and the last update time in mono.
+- **Table (Monitorizare Seniori, `/seniors`):** enrollment filter tabs with a dot and mono count each (Toți, Activi, În înrolare, Necesită atenție), search, Exportă CSV and a square refresh button in the header; a full-width table; a footer bar over a 2px rule with "Afișez N din M seniori" and the last update time in mono.
 - **Queue (Cereri de înrolare, `/enrollments`):** one column of request cards, at most 896px wide, oldest first, each expanding in place to the registration details.
-- **List and form (Personal `/staff`, Campanii meteo `/campaigns`):** a scrolling list on the left and a fixed 360px form on the right, split by a 2px rule; below 768px the form drops under the list.
+- **List and form (Personal `/staff`, Campanii meteo `/campaigns`):** a scrolling list on the left and a fixed 360px form on the right, split by a 2px rule.
 - **Sign-in:** one 384px panel centred on Night Canvas, Panel Graphite with a 2px Rule Grey border and 24px padding: the brand, a 2px rule, the headline, then one field and one button per step.
 - **Dossiers:** the incident dossier and the senior dossier are both 540px slide-overs.
 
@@ -294,7 +296,6 @@ Compact and exact: small, bordered, heavy, label flush left.
 - **Default:** Soft Text, transparent 1px border, Muted Text icon; hover fills Card Graphite.
 - **Active:** Card Graphite fill, Rule Grey border, 600 Paper White text, Signal Blue icon (Alarm Red on Incidente).
 - **Count badge:** Rule Grey behind Soft Text; on Incidente with any open incident, Alarm Red Strong behind white.
-- **Narrow screens:** the sidebar sits on top of the page instead of beside it.
 
 ### Incident Card (signature)
 The unit of the board. A 3px state bar on the left (Alarm Red open, Caution Amber in progress, All-Clear Green resolved), then: mono id · relative time and a state chip; the senior's name as a 15px title with the form of address in Muted Text; the reason, in Alarm Red Text while open; a 1px rule; the one action for the state (Preiau, Rezolvă cazul, or the Rezolvat chip) and who has it. The whole card opens the dossier.

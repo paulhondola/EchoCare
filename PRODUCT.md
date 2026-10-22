@@ -12,7 +12,9 @@ Design work targets the DAS web dashboard (`dashboard/`). The Android phone and 
 
 DAS dispatchers (Direcția de Asistență Socială) at a desk, through shifts that can run 8 to 12 hours. Their jobs on the dashboard: notice a red incident the moment it opens, take it, reach the senior, caregiver or 112, and resolve it with an outcome and a note; watch every enrolled senior's code; accept enrollment requests, which starts the welcome call; start and end heat or cold weather campaigns; grant medic and DAS staff and set who is on duty.
 
-The on-duty dispatcher also carries the DAS phone, which receives the live hand-over call and shows red incidents in the Android app. The dashboard is the desk surface; the phone is the away-from-desk one (G15).
+The on-duty dispatcher also carries the DAS phone, which receives the live hand-over call and shows red incidents in the Android app, with take, resolve, call buttons and "open in maps" to the senior's location in Google Maps. The dashboard is the desk surface; the phone is the away-from-desk one (G15).
+
+The dashboard is desktop only: dispatchers use it at a desk, on a desktop browser. Phone use is the Android app's DAS role, never the dashboard, so the dashboard needs no phone or tablet layout.
 
 ## Product Purpose
 

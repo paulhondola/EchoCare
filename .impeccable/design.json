@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-22T16:42:59+00:00",
+  "generatedAt": "2026-10-22T19:32:19+00:00",
   "title": "Design System: EchoCare DAS",
   "extensions": {
     "colorMeta": {
@@ -384,7 +384,8 @@
     "breakpoints": [
       {
         "name": "md",
-        "value": "768px"
+        "value": "768px",
+        "note": "Fallback only: desktop is the target (1280px+, holds at 1024px)."
       }
     ]
   },
@@ -481,9 +482,9 @@
       "name": "Underline Tabs",
       "kind": "nav",
       "refersTo": "tabs",
-      "description": "Board/Table, the seniors' status filter and the dossier sections, on the header's 2px rule.",
-      "html": "<div class=\"ds-tabs\" role=\"tablist\" aria-label=\"Filtru stare\"><button role=\"tab\" aria-selected=\"true\" class=\"ds-tab\">Toți<span class=\"ds-tab-n\">18</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-rosu\"></span>Cod Roșu<span class=\"ds-tab-n\">2</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-galben\"></span>Cod Galben<span class=\"ds-tab-n\">3</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-verde\"></span>Cod Verde<span class=\"ds-tab-n\">13</span></button></div>",
-      "css": ".ds-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 2px solid var(--color-line, #30363d); font: 600 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; gap: 7px; margin-bottom: -2px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--color-fg-muted, #8b949e); font: inherit; cursor: pointer; } .ds-tab:hover { color: var(--color-fg, #f0f6fc); } .ds-tab[aria-selected=\"true\"] { border-bottom-color: var(--color-link, #58a6ff); color: var(--color-fg, #f0f6fc); } .ds-tab:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-tab-dot { width: 8px; height: 8px; } .ds-dot-rosu { background: var(--color-rosu, #f85149); } .ds-dot-galben { background: var(--color-galben, #d29922); } .ds-dot-verde { background: var(--color-verde, #3fb950); } .ds-tab-n { padding: 0 6px; background: var(--color-line, #30363d); color: var(--color-fg-soft, #c9d1d9); font: 500 11px/1.6 var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); }"
+      "description": "Board/Table, the seniors' enrollment filter and the dossier sections, on the header's 2px rule.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\" aria-label=\"Filtru stare\"><button role=\"tab\" aria-selected=\"true\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-muted\"></span>Toți<span class=\"ds-tab-n\">19</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-verde\"></span>Activi<span class=\"ds-tab-n\">15</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-link\"></span>În înrolare<span class=\"ds-tab-n\">3</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-galben\"></span>Necesită atenție<span class=\"ds-tab-n\">1</span></button></div>",
+      "css": ".ds-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 2px solid var(--color-line, #30363d); font: 600 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; gap: 7px; margin-bottom: -2px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--color-fg-muted, #8b949e); font: inherit; cursor: pointer; } .ds-tab:hover { color: var(--color-fg, #f0f6fc); } .ds-tab[aria-selected=\"true\"] { border-bottom-color: var(--color-link, #58a6ff); color: var(--color-fg, #f0f6fc); } .ds-tab:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-tab-dot { width: 8px; height: 8px; } .ds-dot-muted { background: var(--color-fg-muted, #8b949e); } .ds-dot-link { background: var(--color-link, #58a6ff); } .ds-dot-galben { background: var(--color-galben, #d29922); } .ds-dot-verde { background: var(--color-verde, #3fb950); } .ds-tab-n { padding: 0 6px; background: var(--color-line, #30363d); color: var(--color-fg-soft, #c9d1d9); font: 500 11px/1.6 var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); }"
     },
     {
       "name": "Segmented Control",
@@ -552,7 +553,7 @@
   ],
   "narrative": {
     "northStar": "The Signal Board",
-    "overview": "The dashboard is a board of cards and bars where colour means status and nothing else. Everything structural is graphite: near-black canvas, grey rules, grey type. Red, amber and green are the three codes, Cod Roșu, Cod Galben and Cod Verde, and the same three meanings everywhere else: alarm, caution, clear. A dispatcher scanning the board at hour ten reads colour as information, never as decoration. Blue is the one colour that is not a status; it marks what can be clicked, focused or chosen.\n\nThe structure is Modernist and compact: square corners everywhere, 2px rules between regions, 1px borders around things, flush-left heavy button labels, small 13px body text, and monospace for every id, time and count. Density is high on purpose: the board, the table and the dossier hold a whole shift's worth of incidents without scrolling hunts. The palette is GitHub's dark theme (spec 07 §2.1) on that square structure.\n\nOne theme only: dark. There is no light mode and no rounded variant.",
+    "overview": "The dashboard is a board of cards and bars where colour means status and nothing else. Everything structural is graphite: near-black canvas, grey rules, grey type. Red, amber and green are the three codes, Cod Roșu, Cod Galben and Cod Verde, and the same three meanings everywhere else: alarm, caution, clear. A dispatcher scanning the board at hour ten reads colour as information, never as decoration. Blue is the one colour outside that scale; it marks what can be clicked, focused or chosen, and an enrollment still under way.\n\nThe structure is Modernist and compact: square corners everywhere, 2px rules between regions, 1px borders around things, flush-left heavy button labels, small 13px body text, and monospace for every id, time and count. Density is high on purpose: the board, the table and the dossier hold a whole shift's worth of incidents without scrolling hunts. The palette is GitHub's dark theme (spec 07 §2.1) on that square structure.\n\nOne theme only: dark. There is no light mode and no rounded variant.",
     "keyCharacteristics": [
       "Colour is reserved for status: red alarm, amber caution, green clear; blue is the only other accent.",
       "Square corners (0px) on every element.",
