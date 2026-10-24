@@ -20,8 +20,8 @@ from app.voice.calls import (
     CallState,
     answered_by_machine,
 )
-from app.voice.dialogue import LANGUAGE, greeting, sorry, twiml
-from app.voice.service import form_of_address
+from app.voice.dialogue import LANGUAGE, greeting, sorry, twiml, welcome_standin
+from app.voice.service import form_of_address, move_call
 from app.voice.twilio import hang_up, public_url, signed, voice_url
 
 log = logging.getLogger("echocare.voice")
@@ -65,6 +65,23 @@ async def answer(call: uuid.UUID, _: Params, session: Db) -> Response:
     }
     relay_tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
     return twiml(f"<Connect><ConversationRelay{relay_tag}/></Connect>")
+
+
+@router.post("/voice/welcome")
+async def welcome(call: uuid.UUID, params: Params, session: Db) -> Response:
+    """Picked up: the stand-in welcome call says one sentence and hangs up (04 §4.2).
+    The call is marked completed first, so Twilio's later completed callback leaves it
+    completed rather than dropped (03 §9)."""
+    try:
+        addressed = await form_of_address(session, call)
+        if addressed is None:
+            log.warning("welcome for unknown call %s", call)
+            return sorry()
+        await move_call(session, call, params.get("CallSid"), CallState.completed)
+    except SQLAlchemyError, OSError:
+        log.exception("welcome for call %s: database unavailable", call)
+        return sorry()
+    return welcome_standin(addressed)
 
 
 @router.post("/voice/status", status_code=204)
