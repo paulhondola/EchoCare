@@ -127,6 +127,7 @@ erDiagram
         string starting_severity
         string state "queued, ringing, in_progress, completed, handed_over, dropped, unanswered, failed, canceled (a queued call that never went out)"
         datetime due_at
+        datetime dialed_at "set when the scheduler hands the call to Twilio, committed before Twilio is asked; null for a call never dialed"
         string twilio_call_id
         datetime started_at
         datetime ended_at
@@ -241,6 +242,8 @@ Several rules from the other files are enforced by the database itself, so they 
 **The current code is its own row.** Apps read `SeniorStatus` constantly and `Call` rarely. Keeping the code separate makes the most frequent read a single-row lookup.
 
 **The call table is the timer store.** Redials, welcome-call retries and campaign calls are rows in `queued` state with a `due_at`. Nothing is held only in memory, so a restart of the FastAPI service picks up where it left off. A queued call that will never go out, because its campaign ended, its warning lapsed or the senior withdrew consent, becomes `canceled`: an ended state, not live, so it frees the senior's slot for the next call ([03-status-model.md](03-status-model.md) section 9).
+
+**`dialed_at` says a call was handed to Twilio.** The scheduler sets it and commits before it asks Twilio, so a crash or a timeout can leave a dialed call without a `twilio_call_id` but never lets it be dialed twice. It decides four things: the dialer picks only queued calls without it; cancelling (a lapsed or ended campaign, a withdrawal) touches only calls without it, since a dialed call ends through Twilio; the mock card ignores a dialed call and `POST /calls/{id}/mock-answer` refuses it (`wrong_state`); and the sweep counts a call as stuck from it (06 §2). A scripted `test` call is stamped as it is created, so the scheduler never picks it up. The column is nullable and added only, so old copies, which have no scheduler, ignore it (ADR-001 §2.3).
 
 **"Sunați-mă" is stored as an event.** It enters the same path as a watch anomaly (D9), with type `manual_request`.
 

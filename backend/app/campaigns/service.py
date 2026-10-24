@@ -149,9 +149,9 @@ async def start_campaign(
 async def cancel_lapsed(session: AsyncSession, now: datetime | None = None) -> None:
     """Cancels the queued calls of every campaign whose warning has lapsed (design 4.1).
 
-    There is no scheduler, so the campaign endpoints do this lazily, first. `now` is the
-    caller's clock when it reads the warnings too. Does not commit: the caller's
-    transaction does.
+    The scheduler runs it on every tick (06 §2); the campaign and mock-call endpoints
+    still run it first, as a fallback when the scheduler is off. `now` is the caller's
+    clock when it reads the warnings too. Does not commit: the caller's transaction does.
     """
     now = now or datetime.now(UTC)
     await cancel_queued(

@@ -17,7 +17,8 @@ backend/
 │   ├── campaigns/     weather campaigns: start, list, end, the lapsed warning
 │   ├── voice/         Twilio signatures and dialing, call lifecycle, TwiML
 │   ├── agent/         the call session: relay socket and dialogue; talks only to voice
-│   ├── calls/         call history and transcripts
+│   ├── calls/         call history and transcripts, the step that ends and settles a call
+│   ├── scheduler/     the loop in the lifespan: lapsed warnings, dialer, sweep, watch silence; one copy by advisory lock
 │   ├── system/        /api/health and the dashboard's system health
 │   └── status/        alarm phrases, status matrix and engine; pure logic
 ├── scripts/

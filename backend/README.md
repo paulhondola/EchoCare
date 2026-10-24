@@ -44,7 +44,30 @@ cp .env.example .env
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | empty | The Twilio account and the project's number (Romanian, +40). Empty, the scheduler dials nothing and every callback is refused. See [Real calls locally](#real-calls-locally) |
+| `TWILIO_API_HOST` | `api.twilio.com` | The Voice API's host. The project runs in Ireland: `api.dublin.ie1.twilio.com`, with the IE1 auth token in `TWILIO_AUTH_TOKEN` (credentials are per region) |
+| `MAX_LIVE_CALLS` | `3` | How many calls the scheduler keeps live at once |
+| `DIAL_ALLOWLIST` | empty | Whom the scheduler and `place_call.py` may ring: comma-separated numbers, `*` for everyone. Empty dials nobody, in every environment; a call it will not dial stays queued and keeps its mock card |
 | `FIREBASE_WEB_API_KEY` | your Firebase web API key | Used by `dev_token.py` to sign in test numbers; same as dashboard's `VITE_FIREBASE_API_KEY` |
+
+## Real calls locally
+
+The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside the API and dials queued calls that are due: accepting a senior, or starting a campaign, rings their phone with no script. With nothing set, it dials nothing and the mock card answers as before.
+
+1. **Twilio.** In `backend/.env`, set `TWILIO_ACCOUNT_SID`, `TWILIO_FROM_NUMBER`, and `TWILIO_AUTH_TOKEN` with `TWILIO_API_HOST=api.dublin.ie1.twilio.com`. Use the IE1 auth token, not the US one.
+2. **A tunnel.** Twilio calls the API back, so it must reach port 8000. Run one, and set `PUBLIC_BASE_URL` to its https address:
+
+   ```bash
+   cloudflared tunnel --url http://localhost:8000
+   ```
+
+   (`ngrok http 8000` works too.) Settings are read once, so **restart the API whenever the tunnel's address changes**. Without a tunnel the phone still rings, but no callback arrives, and the sweep settles the call about 4.5 minutes later.
+3. **A number to ring.** The seeded seniors' numbers are made up. Replace an active senior's number with your own by hand, then list it in `DIAL_ALLOWLIST` (a number off the list is never dialed).
+4. **Try it.** Accept a senior, or start a campaign, and your phone rings. The welcome call is a stand-in: it says „Bună ziua, {form of address}. Acesta este un apel de test EchoCare. La revedere.” and hangs up. It ends `completed` with no consent, so the senior stays `accepted` until UC-04's real welcome flow exists.
+
+`uv run python scripts/place_call.py <number>` places a scripted test call instead, and follows the allowlist too. Run once on a new Twilio setup, it also checks two things Twilio's docs do not confirm for IE1: that callbacks verify (a 403 on every callback says they do not) and that voicemail detection runs.
+
+Twilio's console webhook on the number is not used: every outbound call carries its own callback addresses.
 
 ## Test and lint
 
@@ -135,7 +158,7 @@ railway ssh -s api -e staging
 Two things must change before that:
 
 - **The guard.** The script refuses every database but a local one, including from inside Railway. It would follow `alembic/env.py`: allowed inside a Railway deployment, still refused from a laptop.
-- **The phone numbers.** The seeded seniors' numbers are made up and may belong to real people; two are Timișoara landlines. Locally nothing dials them, but with Twilio set up a campaign or `place_call.py` would. The active seniors need the team's own phones first.
+- **The phone numbers.** The seeded seniors' numbers are made up and may belong to real people; two are Timișoara landlines. Nothing dials them unless they are on `DIAL_ALLOWLIST` (empty by default), but with Twilio set up and `*` there, a campaign or `place_call.py` would. The active seniors need the team's own phones first.
 
 On the day, run `--reset` shortly before the demo, so the open incident is minutes old and the resolved ones are still on the board. Never during a live demo: `--reset` deletes every incident and call attached to a seeded senior.
 
