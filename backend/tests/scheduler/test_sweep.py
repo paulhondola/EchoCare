@@ -164,3 +164,17 @@ async def test_a_sid_twilio_does_not_know_fails(db, twilio, add_call):
     assert (await row(db, call)).state is CallState.failed
     redial = await db.scalar(select(Call).where(Call.previous_call_id == call.id))
     assert redial.attempt == 2 and redial.state is CallState.queued
+
+
+async def test_an_answered_call_twilio_does_not_know_drops(db, twilio, add_call):
+    fetch, _ = twilio
+    request = httpx.Request("GET", "https://api.twilio.com/x")
+    fetch.side_effect = httpx.HTTPStatusError(
+        "x", request=request, response=httpx.Response(404, request=request)
+    )
+    call = await add_call(state=CallState.in_progress, twilio_call_id="CA1")
+
+    assert await sweep(NOW) == 1
+
+    assert (await row(db, call)).state is CallState.dropped
+    assert await db.scalar(select(Call).where(Call.previous_call_id == call.id)) is None

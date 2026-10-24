@@ -56,11 +56,17 @@ async def sweep(now: datetime) -> int:
                     except httpx.HTTPStatusError as e:
                         if e.response.status_code != 404:
                             raise
-                        # Twilio has no such call, and never will.
+                        # Twilio has no such call, and never will. One that was
+                        # answered can't fail; it ends as a lost line (03 §9).
                         log.warning("call %s: Twilio does not know its sid", call_id)
                         status = None
+                        lost = (
+                            CallState.dropped
+                            if state is CallState.in_progress
+                            else CallState.failed
+                        )
                         moved = await settle(
-                            session, call_id, sid, CallState.failed, only_from=state
+                            session, call_id, sid, lost, only_from=state
                         )
                     else:
                         # A voicemail whose /voice/amd callback was lost reads
