@@ -189,7 +189,7 @@ Caregivers are sorted by name. This object is called **the senior's page** below
 | `POST /seniors/{id}/caregivers` | Medic or DAS, in reach | Makes the caregiver grant | 201, the caregiver as in the page | 409 `already_done` |
 | `DELETE /seniors/{id}/caregivers/{user_id}` | Medic or DAS, in reach | Deletes that caregiver grant | 204 | 404 `not_found` |
 | `POST /seniors/{id}/submit` | Medic, in reach | `draft` → `submitted` | 200, the page | 409 `wrong_state`, 422 `missing_fields` |
-| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`, and queues the welcome call in the same step ([04 §2](echocare/04-interfaces.md)); the scheduler dials it if the number is on `DIAL_ALLOWLIST`, otherwise the senior's app answers it as a mock card | 200, the page | 409 `wrong_state` |
+| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`, and queues the welcome call in the same step ([04 §2](echocare/04-interfaces.md)); the scheduler dials it if the number is on `DIAL_ALLOWLIST`, otherwise a mobile senior's app answers it as a mock card and a landline's call stays queued | 200, the page | 409 `wrong_state` |
 
 A refused command changes nothing: its transaction rolls back.
 
