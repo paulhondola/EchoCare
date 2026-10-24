@@ -17,9 +17,9 @@ NOW = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
 @pytest.fixture(autouse=True)
 def twilio(monkeypatch):
     """Twilio's reads and hang-ups, patched where the sweep uses them."""
-    fetch = AsyncMock(return_value="completed")
+    fetch = AsyncMock(return_value=("completed", None))
     hang = AsyncMock()
-    monkeypatch.setattr("app.scheduler.sweep.fetch_status", fetch)
+    monkeypatch.setattr("app.scheduler.sweep.fetch_call", fetch)
     monkeypatch.setattr("app.scheduler.sweep.hang_up", hang)
     return fetch, hang
 
@@ -67,7 +67,7 @@ async def test_a_call_stuck_in_progress_is_settled_from_twilio(db, twilio, add_c
 
 async def test_a_call_twilio_still_has_live_is_hung_up_first(db, twilio, add_call):
     fetch, hang = twilio
-    fetch.side_effect = ["in-progress", "completed"]
+    fetch.side_effect = [("in-progress", None), ("completed", None)]
     call = await add_call(twilio_call_id="CA1")
 
     assert await sweep(NOW) == 1
@@ -78,7 +78,7 @@ async def test_a_call_twilio_still_has_live_is_hung_up_first(db, twilio, add_cal
 
 async def test_an_initiated_call_is_canceled_like_a_queued_one(db, twilio, add_call):
     fetch, hang = twilio
-    fetch.side_effect = ["initiated", "canceled"]
+    fetch.side_effect = [("initiated", None), ("canceled", None)]
     call = await add_call(state=CallState.queued, twilio_call_id="CA1")
 
     assert await sweep(NOW) == 1
@@ -111,7 +111,7 @@ async def test_a_call_inside_the_limit_is_left_alone(db, twilio, add_call):
 
 async def test_a_twilio_error_on_one_call_does_not_stop_the_sweep(db, twilio, add_call):
     fetch, _ = twilio
-    fetch.side_effect = [httpx.ReadTimeout("x"), "completed"]
+    fetch.side_effect = [httpx.ReadTimeout("x"), ("completed", None)]
     first = await add_call(twilio_call_id="CA1")
     second = await add_call(twilio_call_id="CA2")
     first, second = sorted((first, second), key=lambda c: c.id)
@@ -120,3 +120,47 @@ async def test_a_twilio_error_on_one_call_does_not_stop_the_sweep(db, twilio, ad
 
     assert (await row(db, first)).state is CallState.in_progress
     assert (await row(db, second)).state is CallState.dropped
+
+
+async def test_a_malformed_twilio_body_on_one_call_does_not_stop_the_sweep(
+    db, twilio, add_call
+):
+    fetch, _ = twilio
+    fetch.side_effect = [KeyError("status"), ("completed", None)]
+    first = await add_call(twilio_call_id="CA1")
+    second = await add_call(twilio_call_id="CA2")
+    first, second = sorted((first, second), key=lambda c: c.id)
+
+    assert await sweep(NOW) == 1
+
+    assert (await row(db, first)).state is CallState.in_progress
+    assert (await row(db, second)).state is CallState.dropped
+
+
+async def test_a_voicemail_whose_callback_was_lost_ends_unanswered(
+    db, twilio, add_call
+):
+    fetch, _ = twilio
+    fetch.return_value = ("completed", "machine_end_beep")
+    call = await add_call(twilio_call_id="CA1")
+
+    assert await sweep(NOW) == 1
+
+    assert (await row(db, call)).state is CallState.unanswered
+    redial = await db.scalar(select(Call).where(Call.previous_call_id == call.id))
+    assert redial.attempt == 2 and redial.state is CallState.queued
+
+
+async def test_a_sid_twilio_does_not_know_fails(db, twilio, add_call):
+    fetch, _ = twilio
+    request = httpx.Request("GET", "https://api.twilio.com/x")
+    fetch.side_effect = httpx.HTTPStatusError(
+        "x", request=request, response=httpx.Response(404, request=request)
+    )
+    call = await add_call(state=CallState.ringing, twilio_call_id="CA1")
+
+    assert await sweep(NOW) == 1
+
+    assert (await row(db, call)).state is CallState.failed
+    redial = await db.scalar(select(Call).where(Call.previous_call_id == call.id))
+    assert redial.attempt == 2 and redial.state is CallState.queued

@@ -10,17 +10,21 @@ import base64
 import hashlib
 import hmac
 import logging
+import re
 import uuid
 from collections.abc import Iterable
 
 import httpx
 
+from app.core.phones import mask
 from app.core.settings import get_settings
 
 log = logging.getLogger("echocare.twilio")
 
 # How long the senior's phone rings before Twilio gives up (04 §4.1).
 RING_SECONDS = 30
+# The longest a call may run (04 §4.1, 06 §3); Twilio hangs up at the limit.
+CALL_LIMIT_SECONDS = 180
 
 
 def signature(auth_token: str, url: str, params: Iterable[tuple[str, str]]) -> str:
@@ -95,15 +99,17 @@ async def dial(to: str, call_id: uuid.UUID, answer: str = "answer") -> str:
         "AsyncAmdStatusCallback": voice_url("amd", call_id),
         "AsyncAmdStatusCallbackMethod": "POST",
         "Timeout": str(RING_SECONDS),
+        "TimeLimit": str(CALL_LIMIT_SECONDS),
     }
     r = await _request("POST", "Calls.json", data)
     return r.json()["sid"]
 
 
-async def fetch_status(sid: str) -> str:
-    """Twilio's own status for a call, to settle one whose callbacks never came."""
-    r = await _request("GET", f"Calls/{sid}.json")
-    return r.json()["status"]
+async def fetch_call(sid: str) -> tuple[str, str | None]:
+    """Twilio's own status for a call and who answered it (`answered_by`, set for calls
+    placed with voicemail detection), to settle one whose callbacks never came."""
+    body = (await _request("GET", f"Calls/{sid}.json")).json()
+    return body["status"], body.get("answered_by")
 
 
 async def hang_up(sid: str, status: str = "in-progress") -> None:
@@ -125,7 +131,14 @@ async def _request(method: str, path: str, data: dict | None = None) -> httpx.Re
         )
     if r.is_error:
         # Twilio's own code and message (21219 unverified number, 21215 geo
-        # permissions) are in the body, which raise_for_status leaves out.
-        log.warning("Twilio %s on %s: %s", r.status_code, path, r.text)
+        # permissions) are in the body, which raise_for_status leaves out. The message
+        # repeats the To number, so numbers are masked (auth-layer AL15).
+        try:
+            body = r.json()
+            code = body["code"]
+            message = re.sub(r"\+\d+", lambda m: mask(m.group()), body["message"])
+            log.warning("Twilio %s on %s: %s %s", r.status_code, path, code, message)
+        except ValueError, KeyError, TypeError:
+            log.warning("Twilio %s on %s", r.status_code, path)
     r.raise_for_status()
     return r

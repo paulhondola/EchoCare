@@ -11,6 +11,7 @@ from app.models import Call, CallTrigger, EnrollmentState
 from app.scheduler.dialer import dial_due
 from app.status.engine import Severity
 from app.voice.calls import CallState
+from app.voice.service import take_for_dialing
 
 NOW = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
 PHONE = "+40700000101"
@@ -179,3 +180,16 @@ async def test_a_welcome_call_answers_at_the_welcome_address(db, twilio, add_sen
 
     assert await dial_due(NOW) == 1
     assert twilio.await_args.args[2] == "welcome"
+
+
+async def test_taking_a_call_for_dialing_works_once(db, add_call):
+    call = await add_call()
+    assert await take_for_dialing(db, call.id, NOW) is True
+    assert await take_for_dialing(db, call.id, NOW) is False
+
+
+async def test_a_canceled_call_or_one_already_stamped_is_not_taken(db, add_call):
+    canceled = await add_call(state=CallState.canceled)
+    stamped = await add_call(dialed_at=NOW)
+    assert await take_for_dialing(db, canceled.id, NOW) is False
+    assert await take_for_dialing(db, stamped.id, NOW) is False

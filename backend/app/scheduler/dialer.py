@@ -67,7 +67,7 @@ async def dial_due(now: datetime) -> int:
             if dial_allowed(phone):
                 wanted.append((call_id, trigger, phone))
             else:
-                log.debug("call %s: %s is not on the dial allowlist", call_id, phone)
+                log.debug("call %s: not on the dial allowlist", call_id)
         for call_id, trigger, phone in wanted[:free]:
             if not await take_for_dialing(session, call_id, now):
                 continue

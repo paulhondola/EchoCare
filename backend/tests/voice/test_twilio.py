@@ -13,7 +13,7 @@ from app.voice.calls import CallState, after_callback, answered_by_machine
 from app.voice.twilio import (
     dial,
     dial_allowed,
-    fetch_status,
+    fetch_call,
     hang_up,
     public_url,
     refused,
@@ -145,7 +145,9 @@ def twilio_api(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"sid": "CA1", "status": "completed"})
+        return httpx.Response(
+            200, json={"sid": "CA1", "status": "completed", "answered_by": "human"}
+        )
 
     real = httpx.AsyncClient
     monkeypatch.setattr(
@@ -165,6 +167,7 @@ async def test_requests_go_to_the_configured_host(twilio_api):
     )
     url = parse_qs(request.content.decode())["Url"][0]
     assert url.endswith(f"/api/voice/welcome?call={call_id}")
+    assert parse_qs(request.content.decode())["TimeLimit"] == ["180"]
 
 
 async def test_hang_up_cancels_a_ringing_call_and_completes_a_live_one(twilio_api):
@@ -177,10 +180,27 @@ async def test_hang_up_cancels_a_ringing_call_and_completes_a_live_one(twilio_ap
     assert str(twilio_api[0].url).endswith("/Accounts/AC1/Calls/CA1.json")
 
 
-async def test_fetch_status_reads_the_call(twilio_api):
-    assert await fetch_status("CA1") == "completed"
+async def test_fetch_call_reads_the_status_and_who_answered(twilio_api):
+    assert await fetch_call("CA1") == ("completed", "human")
     (request,) = twilio_api
     assert request.method == "GET"
     assert str(request.url) == (
         "https://api.dublin.ie1.twilio.com/2010-04-01/Accounts/AC1/Calls/CA1.json"
     )
+
+
+async def test_an_error_is_logged_without_the_number(monkeypatch, caplog):
+    body = {"code": 21211, "message": "The 'To' number +40722123456 is not valid"}
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        twilio.httpx,
+        "AsyncClient",
+        lambda **kw: real(
+            transport=httpx.MockTransport(lambda r: httpx.Response(400, json=body)),
+            **kw,
+        ),
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await dial("+40722123456", uuid.uuid4())
+    assert "+40722***456" in caplog.text and "21211" in caplog.text
+    assert "+40722123456" not in caplog.text
