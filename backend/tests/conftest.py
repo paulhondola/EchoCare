@@ -15,6 +15,8 @@ os.environ["DATABASE_URL"] = (
 # Twilio's callbacks are signed with this token for the address Twilio would call (#15).
 os.environ["TWILIO_AUTH_TOKEN"] = "test-auth-token"
 os.environ["PUBLIC_BASE_URL"] = "https://echocare.test"
+# No scheduler loop in tests: a tick would dial and settle behind their backs.
+os.environ["SCHEDULER_ENABLED"] = "false"
 
 import pytest
 from fastapi import Depends

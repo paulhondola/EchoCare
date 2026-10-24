@@ -1,4 +1,7 @@
+import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +11,7 @@ from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
 from app.core.settings import check_environment, get_settings
 from app.incidents.router import router as incidents_router
+from app.scheduler.loop import run
 from app.seniors.router import router as seniors_router
 from app.system.router import router as system_router
 from app.voice.router import router as voice_router
@@ -20,12 +24,25 @@ logging.getLogger("echocare.incidents").setLevel(logging.INFO)
 settings = get_settings()
 check_environment(settings)
 
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """The scheduler loop (06 §1) lives as long as the app does."""
+    task = asyncio.create_task(run()) if settings.scheduler_enabled else None
+    yield
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 # Everything under /api, docs included, so the API and the dashboard can share one domain.
 app = FastAPI(
     title="EchoCare",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 # Browser requests only from the dashboard's own address (01 §4, channel 3).
 app.add_middleware(
