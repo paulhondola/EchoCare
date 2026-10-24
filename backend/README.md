@@ -62,7 +62,7 @@ The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside th
    ```
 
    (`ngrok http 8000` works too.) Settings are read once, so **restart the API whenever the tunnel's address changes**. Without a tunnel the phone still rings, but no callback arrives, and the sweep settles the call about 4.5 minutes later.
-3. **A number to ring.** The seeded seniors' numbers are made up. Replace an active senior's number with your own by hand, then list it in `DIAL_ALLOWLIST` (a number off the list is never dialed).
+3. **A number to ring.** The seeded seniors' numbers are made up. Replace an active senior's number with your own by hand, then list it in `DIAL_ALLOWLIST` (a number off the list is never dialed). Before listing it, cancel or delete the old queued calls in your local database: welcome, manual and watch calls never lapse, so every old one for a listed senior is dialed at once.
 4. **Try it.** Accept a senior, or start a campaign, and your phone rings. The welcome call is a stand-in: it says „Bună ziua, {form of address}. Acesta este un apel de test EchoCare. La revedere.” and hangs up. It ends `completed` with no consent, so the senior stays `accepted` until UC-04's real welcome flow exists.
 
 `uv run python scripts/place_call.py <number>` places a scripted test call instead, and follows the allowlist too. Run once on a new Twilio setup, it also checks two things Twilio's docs do not confirm for IE1: that callbacks verify (a 403 on every callback says they do not) and that voicemail detection runs.
