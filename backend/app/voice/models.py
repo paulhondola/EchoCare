@@ -86,6 +86,9 @@ class Call(Base):
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Twilio's CallSid; status callbacks find the call by it.
     twilio_call_id: Mapped[str | None] = mapped_column(String(64))
+    # Set, and committed, before Twilio is asked to dial: the call is then out of our
+    # hands, and only its status callback settles it.
+    dialed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     final_severity: Mapped[Severity | None] = mapped_column(enum_type(Severity))

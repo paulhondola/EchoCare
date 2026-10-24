@@ -54,8 +54,9 @@ def forbid_in_production(caller: Caller) -> None:
 
 
 async def due_mock_call(session: AsyncSession, caller: Caller) -> MockCallView | None:
-    """The senior's oldest queued call that is due and whose senior is in the state its
-    trigger needs, or None. Commits, since it cancels lapsed campaigns' calls first."""
+    """The senior's oldest queued call that is due, not yet dialed, and whose senior is in
+    the state its trigger needs, or None. Commits, since it cancels lapsed campaigns'
+    calls first."""
     forbid_in_production(caller)
     if Role.senior not in caller.roles:
         log.info("refused not_allowed: user %s", caller.user.id)
@@ -69,6 +70,7 @@ async def due_mock_call(session: AsyncSession, caller: Caller) -> MockCallView |
             .where(
                 reach(caller, Role.senior),
                 Call.state == CallState.queued,
+                Call.dialed_at.is_(None),
                 Call.due_at <= datetime.now(UTC),
                 or_(
                     *(
@@ -136,6 +138,7 @@ async def answer_mock_call(
     # state is never None.
     if (
         call.state is not CallState.queued
+        or call.dialed_at is not None
         or call.due_at > now
         or enrollment is not REQUIRES.get(call.trigger)
     ):

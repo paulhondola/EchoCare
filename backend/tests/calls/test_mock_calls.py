@@ -288,6 +288,21 @@ async def test_a_canceled_call_is_wrong_state(client, db, queued):
     assert (r.status_code, r.json()) == (409, {"detail": {"reason": "wrong_state"}})
 
 
+async def test_the_card_skips_a_dialed_call(client, db, queued):
+    await db.execute(update(Call).values(dialed_at=datetime.now(UTC)))
+    await db.commit()
+    assert (await card(client)).status_code == 204
+
+
+async def test_answering_a_dialed_call_is_wrong_state(client, db, queued):
+    call_id = (await card(client)).json()["call_id"]
+    await db.execute(update(Call).values(dialed_at=datetime.now(UTC)))
+    await db.commit()
+    r = await answer(client, call_id, {"declined": True})
+    assert (r.status_code, r.json()) == (409, {"detail": {"reason": "wrong_state"}})
+    assert (await db.scalar(select(Call.state))) is CallState.queued
+
+
 async def test_a_senior_no_longer_active_has_no_card_and_cannot_answer(
     client, db, queued
 ):

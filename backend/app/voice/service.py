@@ -153,10 +153,11 @@ async def cancel_queued(
     """Cancels the queued calls `which` picks: a lapsed or ended campaign's, a
     withdrawn senior's (03 §9). The condition is required: none would cancel them all.
     `queued -> canceled` is an allowed move (03 §9), and the state filter is its guard.
+    A dialed call (`dialed_at` set) is left alone: Twilio's callback settles it.
     """
     await session.execute(
         update(Call)
-        .where(Call.state == CallState.queued, which)
+        .where(Call.state == CallState.queued, Call.dialed_at.is_(None), which)
         .values(state=CallState.canceled, ended_at=now)
     )
 
