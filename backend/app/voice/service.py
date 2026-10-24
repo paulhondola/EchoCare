@@ -155,6 +155,33 @@ async def cancel_queued(
     )
 
 
+async def take_for_dialing(
+    session: AsyncSession, call_id: uuid.UUID, now: datetime
+) -> bool:
+    """Marks a queued call as handed to Twilio (`dialed_at`), only if nobody did first;
+    whether this caller got it. The scheduler commits this before it dials, so a call is
+    dialed once at most (06 §1). Doesn't commit.
+    """
+    taken = await session.scalar(
+        update(Call)
+        .where(Call.id == call_id, Call.state == CallState.queued)
+        .where(Call.dialed_at.is_(None))
+        .values(dialed_at=now)
+        .returning(Call.id)
+    )
+    return taken is not None
+
+
+async def store_sid(session: AsyncSession, call_id: uuid.UUID, sid: str) -> None:
+    """Twilio's id for a dialed call, unless a status callback stored it first. Doesn't
+    commit."""
+    await session.execute(
+        update(Call)
+        .where(Call.id == call_id, Call.twilio_call_id.is_(None))
+        .values(twilio_call_id=sid)
+    )
+
+
 # A call's progress, transcript and answers, for the mock and the agent (ADR-005).
 
 

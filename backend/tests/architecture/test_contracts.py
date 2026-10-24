@@ -1,7 +1,7 @@
 """The import contracts in pyproject.toml reach packages that don't exist yet.
 
 Each case adds a violation to a copy of app/ and expects lint-imports to name the contract
-it breaks, so a new package (01 §8: scheduler, notifier, …) is held to the same rules, at
+it breaks, so a new package (01 §8: notifier, …) is held to the same rules, at
 any depth. The last two tests check what import-linter can't express, by reading files.
 """
 
@@ -21,31 +21,31 @@ LINT_IMPORTS = Path(sys.executable).parent / "lint-imports"
 CASES = {
     "new package's schemas import its service": (
         {
-            "app/scheduler/__init__.py": "",
-            "app/scheduler/service.py": "def tick(): ...\n",
-            "app/scheduler/schemas.py": "from app.scheduler.service import tick\n",
+            "app/notifier/__init__.py": "",
+            "app/notifier/service.py": "def tick(): ...\n",
+            "app/notifier/schemas.py": "from app.notifier.service import tick\n",
         },
         "Inside a feature",
     ),
     "status imports a new package": (
         {
-            "app/scheduler/__init__.py": "",
-            "app/scheduler/service.py": "def tick(): ...\n",
-            "app/status/clock.py": "from app.scheduler.service import tick\n",
+            "app/notifier/__init__.py": "",
+            "app/notifier/service.py": "def tick(): ...\n",
+            "app/status/clock.py": "from app.notifier.service import tick\n",
         },
         "The status engine is pure logic",
     ),
     "new package imports app.models": (
         {
-            "app/scheduler/__init__.py": "",
-            "app/scheduler/service.py": "from app.models import Call\n",
+            "app/notifier/__init__.py": "",
+            "app/notifier/service.py": "from app.models import Call\n",
         },
         "app.models is for Alembic",
     ),
     "new package's router imports another router": (
         {
-            "app/scheduler/__init__.py": "",
-            "app/scheduler/router.py": "from app.voice.router import router\n",
+            "app/notifier/__init__.py": "",
+            "app/notifier/router.py": "from app.voice.router import router\n",
         },
         "Only app.main imports a router",
     ),
@@ -55,8 +55,8 @@ CASES = {
     ),
     "a new package is not placed in a layer": (
         {
-            "app/scheduler/__init__.py": "",
-            "app/scheduler/service.py": "def tick(): ...\n",
+            "app/notifier/__init__.py": "",
+            "app/notifier/service.py": "def tick(): ...\n",
         },
         "Packages sit in layers",
     ),
@@ -74,8 +74,8 @@ CASES = {
     ),
     "new package's models import fastapi": (
         {
-            "app/scheduler/__init__.py": "",
-            "app/scheduler/models.py": "import fastapi\n",
+            "app/notifier/__init__.py": "",
+            "app/notifier/models.py": "import fastapi\n",
         },
         "Models and schemas import no web framework",
     ),
