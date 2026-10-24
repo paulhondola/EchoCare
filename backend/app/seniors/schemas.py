@@ -4,6 +4,7 @@ from typing import Annotated, Any, Self
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     BeforeValidator,
     Field,
@@ -197,3 +198,13 @@ class SeniorView(SeniorDetail):
     since: datetime | None = None
     medic: MedicView
     caregivers: list[CaregiverView]
+
+
+class CheckInForm(BaseModel):
+    """The watch's latest reading, relayed by the senior's phone (UC-13). `measured_at`
+    carries an offset: a naive time is 422."""
+
+    measured_at: AwareDatetime
+    battery: int | None = Field(None, ge=0, le=100)
+    worn: bool | None = None
+    last_pulse: int | None = Field(None, ge=0, le=300)
