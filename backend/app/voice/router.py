@@ -4,18 +4,25 @@ from typing import Annotated
 from urllib.parse import parse_qsl
 from xml.sax.saxutils import quoteattr
 
+import httpx
 from fastapi import APIRouter, Depends, Request, Response, WebSocket
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.session import serve
 from app.auth.service import refuse
+from app.calls.ending import settle
 from app.core.db import get_session
 from app.core.settings import get_settings
-from app.voice.calls import TWILIO_DIALING, TWILIO_STATUSES, answered_by_machine
+from app.voice.calls import (
+    TWILIO_DIALING,
+    TWILIO_STATUSES,
+    CallState,
+    answered_by_machine,
+)
 from app.voice.dialogue import LANGUAGE, greeting, sorry, twiml
-from app.voice.service import form_of_address, machine_answered, move_call
-from app.voice.twilio import public_url, signed, voice_url
+from app.voice.service import form_of_address
+from app.voice.twilio import hang_up, public_url, signed, voice_url
 
 log = logging.getLogger("echocare.voice")
 
@@ -68,7 +75,7 @@ async def status(call: uuid.UUID, params: Params, session: Db) -> Response:
     new = TWILIO_STATUSES.get(twilio_status)
     if new is None and twilio_status not in TWILIO_DIALING:
         log.warning("call %s: unknown Twilio status %r", call, twilio_status)
-    await move_call(session, call, params.get("CallSid"), new)
+    await settle(session, call, params.get("CallSid"), new)
     return Response(status_code=204)
 
 
@@ -78,7 +85,15 @@ async def amd(call: uuid.UUID, params: Params, session: Db) -> Response:
     answered_by = params.get("AnsweredBy", "")
     log.info("call %s: answered by %s", call, answered_by)
     if answered_by_machine(answered_by):
-        await machine_answered(session, call, params.get("CallSid"))
+        sid = params.get("CallSid")
+        moved = await settle(session, call, sid, CallState.unanswered)
+        if moved is CallState.unanswered and sid:
+            try:
+                await hang_up(sid)
+            except httpx.HTTPError:
+                log.warning(
+                    "call %s: could not hang up on the machine", call, exc_info=True
+                )
     return Response(status_code=204)
 
 

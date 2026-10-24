@@ -5,9 +5,10 @@ the senior's code and, on a red, an incident. The mock call calls it today. `voi
 import `calls` (a cycle), so the Twilio relay reaches it through `voice/router.py`, which
 may import anything.
 
-Nothing here commits: the caller owns the transaction.
+Nothing here commits but `settle`: the caller owns the transaction.
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import exists, select
@@ -32,8 +33,8 @@ from app.status.engine import (
     today_in_bucharest,
 )
 from app.voice.calls import CallState
-from app.voice.models import Call, WelcomeOutcome
-from app.voice.service import finish, queue_redial
+from app.voice.models import Call, CallTrigger, WelcomeOutcome
+from app.voice.service import finish, queue_redial, transition
 
 
 def redial_delay() -> timedelta:
@@ -127,6 +128,27 @@ async def conclude(
     if opens_incident(result, unresolved):
         open_incident(session, call.senior_id, call.id, reason)
     return result
+
+
+async def settle(
+    session: AsyncSession,
+    call_id: uuid.UUID,
+    sid: str | None,
+    new: CallState | None,
+    *,
+    only_from: CallState | None = None,
+) -> CallState | None:
+    """Apply Twilio's word on a call (`transition`); a real call that ends unanswered or
+    failed then runs the redial-or-yellow rule (06 §1). Welcome and test calls don't:
+    no campaign waits on them. Commits; returns the state it moved to, or None.
+    """
+    moved = await transition(session, call_id, sid, new, only_from=only_from)
+    if moved in (CallState.unanswered, CallState.failed):
+        call = await session.get(Call, call_id)  # the row transition just locked
+        if call.trigger not in (CallTrigger.welcome, CallTrigger.test):
+            await conclude(session, call, None)
+    await session.commit()
+    return moved
 
 
 async def conclude_welcome(

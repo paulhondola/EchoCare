@@ -3,7 +3,6 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-import httpx
 from sqlalchemy import ColumnElement, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,18 +20,24 @@ from app.voice.models import (
     TurnKind,
     WelcomeOutcome,
 )
-from app.voice.twilio import hang_up
 
 log = logging.getLogger("echocare.voice")
 
 
 async def transition(
-    session: AsyncSession, call_id: uuid.UUID, sid: str | None, new: CallState | None
+    session: AsyncSession,
+    call_id: uuid.UUID,
+    sid: str | None,
+    new: CallState | None,
+    *,
+    only_from: CallState | None = None,
 ) -> CallState | None:
     """Applies a callback to the call record; the state it moved to, or None (03 §9).
 
     The row is locked, so a status callback and voicemail detection arriving together
-    apply one after the other. Doesn't commit: `move_call` does, for the callbacks.
+    apply one after the other. With `only_from`, nothing moves unless the locked row is
+    in that state: a sweep acts on what it read, not on what the call became since.
+    Doesn't commit: `move_call` and `settle` do.
     """
     call = await session.scalar(
         select(Call).where(Call.id == call_id).with_for_update()
@@ -42,6 +47,8 @@ async def transition(
         return None
     if call.twilio_call_id is None and sid:
         call.twilio_call_id = sid  # the callback can beat the dial's own answer
+    if only_from is not None and call.state != only_from:
+        return None
     moved = after_callback(call.state, new)
     if moved is not None:
         log.info("call %s: %s -> %s", call_id, call.state, moved)
@@ -55,7 +62,7 @@ async def transition(
 async def move_call(
     session: AsyncSession, call_id: uuid.UUID, sid: str | None, new: CallState | None
 ) -> CallState | None:
-    """`transition`, committed: the Twilio callbacks' way in (04 §4.2)."""
+    """`transition`, committed, for a move that needs no more (04 §4.2)."""
     moved = await transition(session, call_id, sid, new)
     await session.commit()
     return moved
@@ -68,20 +75,6 @@ async def form_of_address(session: AsyncSession, call_id: uuid.UUID) -> str | No
         .join(Call, Call.senior_id == Senior.id)
         .where(Call.id == call_id)
     )
-
-
-async def machine_answered(
-    session: AsyncSession, call_id: uuid.UUID, sid: str | None
-) -> None:
-    """A machine picked up: the call ends unanswered and we hang up (04 §4.2)."""
-    moved = await move_call(session, call_id, sid, CallState.unanswered)
-    if moved is CallState.unanswered and sid:
-        try:
-            await hang_up(sid)
-        except httpx.HTTPError:
-            log.warning(
-                "call %s: could not hang up on the machine", call_id, exc_info=True
-            )
 
 
 # The call rows' writes for other packages (ADR-005): queueing, redialing and canceling.
@@ -175,7 +168,7 @@ def stamp(call: Call, state: CallState, now: datetime) -> None:
 
 def advance_call(call: Call, new: CallState, now: datetime) -> None:
     """One allowed step of the call's lifecycle, stamped (03 §9); the same state again
-    changes nothing. A Twilio callback, which may skip ahead, uses `move_call`."""
+    changes nothing. A Twilio callback, which may skip ahead, uses `transition`."""
     if new == call.state:
         return
     call.state = advance(call.state, new)

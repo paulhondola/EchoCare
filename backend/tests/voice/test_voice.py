@@ -19,7 +19,6 @@ from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn
 from app.voice import router as voice_router
-from app.voice import service as voice_service
 from app.voice.dialogue import SORRY
 from app.voice.twilio import signature
 
@@ -130,7 +129,7 @@ async def test_a_machine_is_hung_up_and_unanswered(client, db, call, monkeypatch
     async def fake_hang_up(sid):
         hung_up.append(sid)
 
-    monkeypatch.setattr(voice_service, "hang_up", fake_hang_up)
+    monkeypatch.setattr(voice_router, "hang_up", fake_hang_up)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
     r = await callback(client, "amd", call.id, FIXTURES["amd_machine"])
@@ -141,7 +140,7 @@ async def test_a_machine_is_hung_up_and_unanswered(client, db, call, monkeypatch
 
 
 async def test_a_person_is_left_alone(client, db, call, monkeypatch):
-    monkeypatch.setattr(voice_service, "hang_up", pytest.fail)
+    monkeypatch.setattr(voice_router, "hang_up", pytest.fail)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
     r = await callback(client, "amd", call.id, FIXTURES["amd_human"])

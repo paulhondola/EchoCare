@@ -12,6 +12,7 @@ from app.calls.ending import (
     conclude,
     conclude_welcome,
     redial_delay,
+    settle,
 )
 from app.models import (
     Call,
@@ -25,10 +26,12 @@ from app.models import (
     IncidentStatus,
     Senior,
     SeniorStatus,
+    StatusReport,
     WarningLevel,
 )
 from app.status.engine import Answer, CallAnswers, Certainty, Question, Severity
 from app.voice.calls import CallState
+from tests.voice.test_voice import FIXTURES, SID, callback, stored
 
 
 def answers(feeling: str, day: str, shelter: str) -> CallAnswers:
@@ -262,3 +265,99 @@ async def test_welcome_refusal_and_a_senior_no_longer_accepted(db, welcome_call)
     assert not await conclude_welcome(
         db, late, given=True, method=ConsentMethod.app, text_version="v1-app"
     )
+
+
+# `settle`: Twilio's word on a real call runs the redial rule (design §6, 06 §1).
+
+
+async def twilio_says(client, call, twilio_status, sid=SID):
+    params = {**FIXTURES["status_common"], "CallStatus": twilio_status, "CallSid": sid}
+    return await callback(client, "status", call.id, params)
+
+
+async def redials(db, call) -> list[Call]:
+    rows = await db.scalars(select(Call).where(Call.previous_call_id == call.id))
+    return list(rows)
+
+
+async def test_no_answer_on_a_first_attempt_queues_the_redial(
+    client, db, campaign_call
+):
+    call = await campaign_call(state=CallState.ringing)
+    assert (await twilio_says(client, call, "no-answer")).status_code == 204
+    assert (await stored(db, call)).state == CallState.unanswered
+    (redial,) = await redials(db, call)
+    assert (redial.attempt, redial.state) == (2, CallState.queued)
+    assert (
+        redial_delay() - timedelta(seconds=15)
+        < redial.due_at - datetime.now(UTC)
+        <= redial_delay()
+    )
+
+
+async def test_busy_on_a_second_attempt_ends_yellow(client, db, campaign_call):
+    first = await campaign_call(state=CallState.unanswered)
+    second = await campaign_call(
+        state=CallState.ringing, attempt=2, previous_call_id=first.id
+    )
+    await twilio_says(client, second, "busy")
+    row = await stored(db, second)
+    assert (row.state, row.final_severity, row.reason) == (
+        CallState.unanswered,
+        Severity.yellow,
+        "Nu a răspuns de două ori",
+    )
+    assert await redials(db, second) == []
+
+
+async def test_failed_counts_as_unanswered(client, db, campaign_call):
+    call = await campaign_call(state=CallState.ringing)
+    await twilio_says(client, call, "failed")
+    assert (await stored(db, call)).state == CallState.failed
+    (redial,) = await redials(db, call)
+    assert redial.attempt == 2
+
+
+async def test_a_repeated_no_answer_queues_one_redial(client, db, campaign_call):
+    call = await campaign_call(state=CallState.ringing)
+    await twilio_says(client, call, "no-answer")
+    await twilio_says(client, call, "no-answer")
+    assert len(await redials(db, call)) == 1
+
+
+async def test_voicemail_queues_the_redial_and_hangs_up(
+    client, db, campaign_call, monkeypatch
+):
+    hung_up = []
+
+    async def fake_hang_up(sid):
+        hung_up.append(sid)
+
+    monkeypatch.setattr("app.voice.router.hang_up", fake_hang_up)
+    call = await campaign_call(state=CallState.in_progress)
+    r = await callback(client, "amd", call.id, FIXTURES["amd_machine"])
+    assert r.status_code == 204
+    assert (await stored(db, call)).state == CallState.unanswered
+    assert len(await redials(db, call)) == 1
+    assert hung_up == [SID]
+
+
+async def test_welcome_and_test_calls_are_not_concluded(client, db, welcome_call):
+    welcome = await welcome_call()
+    test = await welcome_call()
+    test.trigger = CallTrigger.test
+    await db.commit()
+    for sid, call in (("CA" + "1" * 32, welcome), ("CA" + "2" * 32, test)):
+        await twilio_says(client, call, "no-answer", sid)
+        assert (await stored(db, call)).state == CallState.unanswered
+        assert await redials(db, call) == []
+    assert await db.scalar(select(func.count()).select_from(StatusReport)) == 0
+
+
+async def test_only_from_leaves_a_call_that_moved_on(db, campaign_call):
+    call = await campaign_call(state=CallState.ringing)
+    moved = await settle(
+        db, call.id, None, CallState.failed, only_from=CallState.queued
+    )
+    assert moved is None
+    assert (await stored(db, call)).state == CallState.ringing
