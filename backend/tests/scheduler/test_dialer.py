@@ -91,6 +91,34 @@ async def test_due_calls_go_in_id_order_up_to_the_free_lines(
     assert dialed == [True, True, False]
 
 
+async def test_due_calls_go_by_priority_then_id(
+    db, twilio, add_call, add_senior, monkeypatch
+):
+    monkeypatch.setattr(get_settings(), "max_live_calls", 4)
+    # Created least urgent first, so id order alone would dial them backwards.
+    accepted = await add_senior(
+        "+40700000150", enrollment_state=EnrollmentState.accepted
+    )
+    welcome = Call(
+        senior_id=accepted.id,
+        trigger=CallTrigger.welcome,
+        starting_severity=Severity.green,
+        due_at=NOW - timedelta(minutes=1),
+    )
+    db.add(welcome)
+    await db.commit()
+    first = await add_call()
+    redial = await add_call(attempt=2)
+    manual = await add_call(
+        trigger=CallTrigger.manual, starting_severity=Severity.yellow
+    )
+
+    assert await dial_due(NOW) == 4
+
+    order = [awaited.args[1] for awaited in twilio.await_args_list]
+    assert order == [manual.id, redial.id, first.id, welcome.id]
+
+
 async def test_a_dialed_call_is_never_dialed_again(db, twilio, add_call):
     call = await add_call()
     twilio.side_effect = httpx.ReadTimeout("x")

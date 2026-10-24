@@ -1,7 +1,7 @@
 """The dialer: hands queued calls that have come due to Twilio (06 §1, G9).
 
-A call is dialed in id order, up to `max_live_calls` live calls, and only to a number on
-the allowlist. `dialed_at` is committed before Twilio is asked, so a call is dialed once
+A call is dialed by priority, then in id order, up to `max_live_calls` live calls, and
+only to a number on the allowlist. `dialed_at` is committed before Twilio is asked, so a call is dialed once
 at most: a timeout leaves it queued with its stamp, and its status callback settles it.
 """
 
@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 
 import httpx
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 
 from app.calls.ending import settle
 from app.core.db import Session
@@ -29,6 +29,16 @@ DIALABLE = {
     CallTrigger.manual: EnrollmentState.active,
     CallTrigger.welcome: EnrollmentState.accepted,
 }
+
+# Which due calls go first when lines are short, as during a campaign (06 §2): a senior
+# or their watch asked, then a senior already not reached, then a campaign's first
+# attempt, then a welcome call, where nothing is wrong yet.
+PRIORITY = case(
+    (Call.trigger.in_([CallTrigger.watch, CallTrigger.manual]), 0),
+    (Call.attempt > 1, 1),
+    (Call.trigger == CallTrigger.campaign, 2),
+    else_=3,
+)
 
 
 async def dial_due(now: datetime) -> int:
@@ -59,7 +69,7 @@ async def dial_due(now: datetime) -> int:
                     )
                 ),
             )
-            .order_by(Call.id)
+            .order_by(PRIORITY, Call.id)
         )
         # The allowlist comes before the free lines: calls it refuses must not hold them.
         wanted = []
