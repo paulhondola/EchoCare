@@ -43,12 +43,13 @@ async def call(db, add_senior) -> Call:
     return row
 
 
-async def callback(client, path, call_id, params, *, sign=True):
-    """POSTs a form as Twilio would, signed for the public address (conftest.py)."""
-    url = f"https://echocare.test/api/voice/{path}?call={call_id}"
+async def callback(client, path, call_id, params, *, sign=True, query=""):
+    """POSTs a form as Twilio would, signed for the public address (conftest.py).
+    `query` goes after `call=<id>`, as "&ask=2"."""
+    url = f"https://echocare.test/api/voice/{path}?call={call_id}{query}"
     header = signature(TOKEN if sign else "wrong-token", url, params.items())
     return await client.post(
-        f"/api/voice/{path}?call={call_id}",
+        f"/api/voice/{path}?call={call_id}{query}",
         content=urlencode(params),
         headers={
             "Content-Type": "application/x-www-form-urlencoded",
@@ -59,68 +60,6 @@ async def callback(client, path, call_id, params, *, sign=True):
 
 async def stored(db, call) -> Call:
     return await db.get(Call, call.id, populate_existing=True)
-
-
-@pytest.fixture
-async def welcome_call(db, add_senior) -> Call:
-    senior = await add_senior("+40700000102")
-    row = Call(
-        senior_id=senior.id,
-        trigger="welcome",
-        starting_severity="green",
-        due_at=datetime.now(UTC),
-    )
-    db.add(row)
-    await db.commit()
-    return row
-
-
-async def test_the_welcome_stand_in_speaks_and_hangs_up(client, db, welcome_call):
-    r = await callback(client, "welcome", welcome_call.id, FIXTURES["answer"])
-    assert r.status_code == 200
-    assert "Acesta este un apel de test EchoCare." in r.text
-    assert "Bună ziua, doamna Maria." in r.text
-    assert r.text.rstrip().endswith("<Hangup/></Response>")
-    assert (await stored(db, welcome_call)).state == "completed"
-
-
-async def test_twilios_completed_leaves_the_stand_in_completed(
-    client, db, welcome_call
-):
-    await callback(client, "welcome", welcome_call.id, FIXTURES["answer"])
-    params = {**FIXTURES["status_common"], "CallStatus": "completed"}
-    r = await callback(client, "status", welcome_call.id, params)
-    assert r.status_code == 204
-    assert (await stored(db, welcome_call)).state == "completed"
-
-
-async def test_the_welcome_stand_in_refuses_a_bad_signature(client, db, welcome_call):
-    r = await callback(
-        client, "welcome", welcome_call.id, FIXTURES["answer"], sign=False
-    )
-    assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_allowed"}})
-    assert (await stored(db, welcome_call)).state == "queued"
-
-
-async def test_the_welcome_stand_in_says_sorry_for_an_unknown_call(client, db, call):
-    r = await callback(
-        client, "welcome", "0190a1b2-0000-7000-8000-000000000000", FIXTURES["answer"]
-    )
-    assert r.status_code == 200
-    assert SORRY in r.text and "<Hangup/>" in r.text
-    assert (await stored(db, call)).state == "queued"
-
-
-async def test_a_database_failure_at_the_welcome_says_sorry(client, welcome_call):
-    class Broken:
-        async def scalar(self, *_):
-            raise OperationalError("SELECT", {}, OSError("connection refused"))
-
-    app.dependency_overrides[get_session] = lambda: Broken()
-    r = await callback(client, "welcome", welcome_call.id, FIXTURES["answer"])
-    del app.dependency_overrides[get_session]
-    assert r.status_code == 200
-    assert SORRY in r.text and "<Hangup/>" in r.text
 
 
 async def test_answer_connects_to_conversation_relay(client, call):

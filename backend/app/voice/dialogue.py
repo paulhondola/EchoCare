@@ -2,6 +2,8 @@ from xml.sax.saxutils import escape, quoteattr
 
 from fastapi import Response
 
+from app.core.settings import get_settings
+
 LANGUAGE = "ro-RO"
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
 
@@ -31,23 +33,40 @@ def greeting(form_of_address: str) -> str:
     )
 
 
-# The stand-in welcome call until UC-04's real steps replace it (04 §4.2).
-WELCOME_STANDIN = (
-    "Bună ziua, {form_of_address}. Acesta este un apel de test EchoCare. La revedere."
-)
-
-
-def welcome_standin(form_of_address: str) -> Response:
-    """The welcome call's one sentence, then hang up."""
-    text = WELCOME_STANDIN.format(form_of_address=form_of_address)
-    return twiml(f"<Say language={quoteattr(LANGUAGE)}>{escape(text)}</Say><Hangup/>")
-
-
 def twiml(body: str) -> Response:
     xml = f'<?xml version="1.0" encoding="UTF-8"?><Response>{body}</Response>'
     return Response(xml, media_type="text/xml")
 
 
+def say(text: str) -> str:
+    """Romanian in the voice the relay speaks with (04 §4.3)."""
+    s = get_settings()
+    voice = f"{s.twilio_tts_provider}.{s.twilio_voice}"
+    return f"<Say language={quoteattr(LANGUAGE)} voice={quoteattr(voice)}>{escape(text)}</Say>"
+
+
+def say_and_hang_up(text: str) -> Response:
+    return twiml(f"{say(text)}<Hangup/>")
+
+
+def gather(action: str, text: str) -> Response:
+    """One question of the welcome call, by key or by voice (04 §4.2, G7). An empty
+    answer still calls `action`, so silence is counted there."""
+    attrs = {
+        "input": "dtmf speech",
+        "numDigits": "1",
+        "language": LANGUAGE,
+        "speechTimeout": "auto",
+        "timeout": "6",
+        "hints": "da, nu, sunt de acord",
+        "actionOnEmptyResult": "true",
+        "action": action,
+        "method": "POST",
+    }
+    tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
+    return twiml(f"<Gather{tag}>{say(text)}</Gather>")
+
+
 def sorry() -> Response:
     """A polite Romanian goodbye, never Twilio's own English error (06 §1)."""
-    return twiml(f"<Say language={quoteattr(LANGUAGE)}>{escape(SORRY)}</Say><Hangup/>")
+    return say_and_hang_up(SORRY)

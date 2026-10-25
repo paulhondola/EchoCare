@@ -5,24 +5,54 @@ from urllib.parse import parse_qsl
 from xml.sax.saxutils import quoteattr
 
 import httpx
-from fastapi import APIRouter, Depends, Request, Response, WebSocket
+from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.session import serve
 from app.auth.service import refuse
-from app.calls.ending import settle
+from app.calls.ending import close_welcome, conclude_welcome, settle
 from app.core.db import get_session
 from app.core.settings import get_settings
+from app.seniors.models import ConsentMethod
 from app.voice.calls import (
     TWILIO_DIALING,
     TWILIO_STATUSES,
     CallState,
     answered_by_machine,
 )
-from app.voice.dialogue import LANGUAGE, greeting, sorry, twiml, welcome_standin
-from app.voice.service import form_of_address, move_call
+from app.voice.dialogue import (
+    CONSENT_TEXT,
+    CONSENT_VERSION,
+    LANGUAGE,
+    SORRY,
+    gather,
+    greeting,
+    say_and_hang_up,
+    sorry,
+    twiml,
+)
+from app.voice.models import WelcomeOutcome
+from app.voice.service import (
+    form_of_address,
+    live_call_for_update,
+    move_call,
+    transition,
+)
 from app.voice.twilio import hang_up, public_url, signed, voice_url
+from app.voice.welcome import (
+    GIVEN,
+    NOT_AVAILABLE,
+    NOT_HEARD,
+    REFUSED,
+    SILENT,
+    UNCLEAR,
+    WRONG_NUMBER,
+    consent_answer,
+    evidence,
+    identity,
+    identity_answer,
+)
 
 log = logging.getLogger("echocare.voice")
 
@@ -69,19 +99,100 @@ async def answer(call: uuid.UUID, _: Params, session: Db) -> Response:
 
 @router.post("/voice/welcome")
 async def welcome(call: uuid.UUID, params: Params, session: Db) -> Response:
-    """Picked up: the stand-in welcome call says one sentence and hangs up (04 §4.2).
-    The call is marked completed first, so Twilio's later completed callback leaves it
-    completed rather than dropped (03 §9)."""
+    """Picked up: the welcome call asks who answers (04 §4.2, UC-04 step 2)."""
     try:
         addressed = await form_of_address(session, call)
         if addressed is None:
             log.warning("welcome for unknown call %s", call)
             return sorry()
-        await move_call(session, call, params.get("CallSid"), CallState.completed)
+        await move_call(session, call, params.get("CallSid"), CallState.in_progress)
     except SQLAlchemyError, OSError:
         log.exception("welcome for call %s: database unavailable", call)
         return sorry()
-    return welcome_standin(addressed)
+    return gather(voice_url("welcome/identity", call, ask="1"), identity(addressed))
+
+
+Ask = Annotated[int, Query(alias="ask", ge=1, le=2)]
+IDENTITY_ENDINGS = {
+    WelcomeOutcome.not_available: NOT_AVAILABLE,
+    WelcomeOutcome.wrong_number: WRONG_NUMBER,
+}
+
+
+@router.post("/voice/welcome/identity")
+async def welcome_identity(
+    call: uuid.UUID, ask: Ask, params: Params, session: Db
+) -> Response:
+    """Who answered (UC-04 step 2): the senior goes on to consent; „not now” and a
+    wrong number end the call; silence asks once more."""
+    try:
+        row = await live_call_for_update(session, call)
+        if row is None:
+            log.warning("welcome identity for a call not in progress: %s", call)
+            return sorry()
+        outcome = identity_answer(
+            params.get("Digits", ""), params.get("SpeechResult", "")
+        )
+        if outcome is WelcomeOutcome.confirmed:
+            await session.commit()
+            return gather(voice_url("welcome/consent", call, ask="1"), CONSENT_TEXT)
+        if outcome is None and ask == 1:
+            addressed = await form_of_address(session, call)
+            await session.commit()
+            return gather(
+                voice_url("welcome/identity", call, ask="2"),
+                f"{NOT_HEARD} {identity(addressed)}",
+            )
+        await close_welcome(session, row, outcome or WelcomeOutcome.no_answer)
+        await session.commit()
+    except SQLAlchemyError, OSError:
+        log.exception("welcome identity for call %s: database unavailable", call)
+        return sorry()
+    return say_and_hang_up(IDENTITY_ENDINGS.get(outcome, SILENT))
+
+
+@router.post("/voice/welcome/consent")
+async def welcome_consent(
+    call: uuid.UUID, ask: Ask, params: Params, session: Db
+) -> Response:
+    """The consent text's answer (UC-04 step 3): recorded on key 1 or 2, or an exact
+    „da” or „nu” (G7); key 0 reads it again; anything else is asked once more."""
+    digits = params.get("Digits", "")
+    try:
+        row = await live_call_for_update(session, call)
+        if row is None:
+            log.warning("welcome consent for a call not in progress: %s", call)
+            return sorry()
+        if digits == "0":
+            await session.commit()
+            return gather(
+                voice_url("welcome/consent", call, ask=str(ask)), CONSENT_TEXT
+            )
+        given = consent_answer(digits, params.get("SpeechResult", ""))
+        if given is None and ask == 1:
+            await session.commit()
+            return gather(voice_url("welcome/consent", call, ask="2"), CONSENT_TEXT)
+        if given is None:
+            await close_welcome(session, row, WelcomeOutcome.confirmed)
+            said = UNCLEAR
+        elif await conclude_welcome(
+            session,
+            row,
+            given=given,
+            method=ConsentMethod.call,
+            text_version=CONSENT_VERSION,
+            evidence=evidence(params),
+        ):
+            said = GIVEN if given else REFUSED
+        else:
+            # No longer `accepted` (withdrawn meanwhile): end the call, record nothing.
+            await transition(session, call, None, CallState.completed)
+            said = SORRY
+        await session.commit()
+    except SQLAlchemyError, OSError:
+        log.exception("welcome consent for call %s: database unavailable", call)
+        return sorry()
+    return say_and_hang_up(said)
 
 
 @router.post("/voice/status", status_code=204)

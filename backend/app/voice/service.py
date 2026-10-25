@@ -68,6 +68,18 @@ async def move_call(
     return moved
 
 
+async def live_call_for_update(
+    session: AsyncSession, call_id: uuid.UUID
+) -> Call | None:
+    """The call while it is in progress, locked until the caller's transaction ends, so
+    two answers for one call apply one after the other; None otherwise."""
+    return await session.scalar(
+        select(Call)
+        .where(Call.id == call_id, Call.state == CallState.in_progress)
+        .with_for_update()
+    )
+
+
 async def form_of_address(session: AsyncSession, call_id: uuid.UUID) -> str | None:
     """How the call greets its senior; None for an unknown call (04 §4.2)."""
     return await session.scalar(

@@ -55,9 +55,12 @@ def public_url(path: str, query: str = "", scheme: str | None = None) -> str:
     return base + path + (f"?{query}" if query else "")
 
 
-def voice_url(path: str, call_id: uuid.UUID, scheme: str | None = None) -> str:
-    """A callback address carrying our call id (04 §4.1)."""
-    return public_url(f"/api/voice/{path}", f"call={call_id}", scheme)
+def voice_url(
+    path: str, call_id: uuid.UUID, scheme: str | None = None, **params: str
+) -> str:
+    """A callback address carrying our call id (04 §4.1), then `params` in order."""
+    query = f"call={call_id}" + "".join(f"&{k}={v}" for k, v in params.items())
+    return public_url(f"/api/voice/{path}", query, scheme)
 
 
 def configured() -> bool:
