@@ -6,6 +6,8 @@ from app.core.settings import get_settings
 
 LANGUAGE = "ro-RO"
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
+# When the hand-over reaches nobody (UC-07).
+CALL_BACK = "Un coleg vă va suna înapoi în cel mai scurt timp."
 
 # The consent the call reads, and the one the mock card shows; the version is stored
 # with every consent so a text change is traceable (05 §1, design §4.4).
@@ -101,3 +103,21 @@ def gather(action: str, text: str) -> Response:
 def sorry() -> Response:
     """A polite Romanian goodbye, never Twilio's own English error (06 §1)."""
     return say_and_hang_up(SORRY)
+
+
+def hangup() -> Response:
+    return twiml("<Hangup/>")
+
+
+def dial_on_duty(
+    number: str, *, ring: int, result_url: str, answered_url: str
+) -> Response:
+    """Rings the on-duty DAS phone from the project's number (04 §4.4 step 4).
+    `answered_url` is fetched when it picks up, before the two are connected."""
+    caller = quoteattr(get_settings().twilio_from_number)
+    dial = f"callerId={caller} timeout={quoteattr(str(ring))}"
+    dial += f' action={quoteattr(result_url)} method="POST"'
+    who = (
+        f'<Number url={quoteattr(answered_url)} method="POST">{escape(number)}</Number>'
+    )
+    return twiml(f"<Dial {dial}>{who}</Dial>")

@@ -27,6 +27,12 @@ RING_SECONDS = 30
 CALL_LIMIT_SECONDS = 180
 
 
+def handover_ring_seconds() -> int:
+    """How long the on-duty phone rings before the senior hears a call-back is coming
+    (06 §3)."""
+    return 15 if get_settings().demo_mode else 30
+
+
 def signature(auth_token: str, url: str, params: Iterable[tuple[str, str]]) -> str:
     """Twilio's X-Twilio-Signature: HMAC-SHA1 over the full URL Twilio called, then each
     POST parameter as name and value, sorted by name; base64."""

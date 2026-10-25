@@ -337,6 +337,15 @@ async def set_on_duty(session: AsyncSession, user_id: uuid.UUID | None) -> None:
     await session.commit()
 
 
+async def on_duty(session: AsyncSession) -> tuple[uuid.UUID, str] | None:
+    """The on-duty DAS employee's id and phone, read at hand-over time (06 §4); None
+    when nobody is on duty."""
+    row = (
+        await session.execute(select(User.id, User.phone_e164).where(User.on_duty))
+    ).first()
+    return None if row is None else (row.id, row.phone_e164)
+
+
 # What `seniors` writes in `auth`'s tables, transaction-neutral: these don't commit and
 # report failure in their return value (ADR-005).
 

@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from typing import Annotated
@@ -11,12 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.relay import Escalation, HandOver
 from app.agent.session import serve
-from app.auth.service import refuse
+from app.auth.service import on_duty, refuse
 from app.calls.ending import begin_handover, close_welcome, conclude_welcome, settle
 from app.calls.service import answer_context
 from app.codes.models import ReportSource
 from app.core.db import Session, get_session
+from app.core.phones import mask
 from app.core.settings import get_settings
+from app.incidents.service import take_for_handover
 from app.seniors.models import ConsentMethod
 from app.voice.calls import (
     TWILIO_DIALING,
@@ -25,23 +28,34 @@ from app.voice.calls import (
     answered_by_machine,
 )
 from app.voice.dialogue import (
+    CALL_BACK,
     CONSENT_TEXT,
     CONSENT_VERSION,
     LANGUAGE,
     SORRY,
+    dial_on_duty,
     gather,
+    hangup,
     say_and_hang_up,
     sorry,
     twiml,
 )
 from app.voice.models import CallTrigger, WelcomeOutcome
 from app.voice.service import (
+    answer_handover,
     form_of_address,
     live_call_for_update,
     move_call,
     transition,
 )
-from app.voice.twilio import hang_up, public_url, signed, voice_url
+from app.voice.twilio import (
+    dial_allowed,
+    handover_ring_seconds,
+    hang_up,
+    public_url,
+    signed,
+    voice_url,
+)
 from app.voice.welcome import (
     GIVEN,
     NOT_AVAILABLE,
@@ -230,6 +244,78 @@ async def amd(call: uuid.UUID, params: Params, session: Db) -> Response:
                     "call %s: could not hang up on the machine", call, exc_info=True
                 )
     return Response(status_code=204)
+
+
+@router.post("/voice/handoff")
+async def handoff(call: uuid.UUID, params: Params, session: Db) -> Response:
+    """The relay session ended, the `<Connect>` action (04 §4.4 step 3). With hand-over
+    data, ring the on-duty phone; nobody on duty, or a number we may not ring, hears
+    that someone will call back. Without, the session ended normally: hang up."""
+    try:
+        data = json.loads(params.get("HandoffData", ""))
+    except ValueError:
+        data = None
+    if not isinstance(data, dict) or data.get("call") != str(call):
+        return hangup()
+    try:
+        duty = await on_duty(session)
+    except SQLAlchemyError, OSError:
+        log.exception("hand-over for call %s: database unavailable", call)
+        return say_and_hang_up(CALL_BACK)
+    if duty is None:
+        log.warning("hand-over for call %s: nobody on duty", call)
+        return say_and_hang_up(CALL_BACK)
+    user, phone = duty
+    # The allowlist guards every number we ring, staff included (design §5).
+    if not dial_allowed(phone):
+        log.warning(
+            "refused hand-over for call %s: %s is not on DIAL_ALLOWLIST",
+            call,
+            mask(phone),
+        )
+        return say_and_hang_up(CALL_BACK)
+    log.info("hand-over for call %s: ringing %s", call, mask(phone))
+    return dial_on_duty(
+        phone,
+        ring=handover_ring_seconds(),
+        result_url=voice_url("handoff-result", call),
+        answered_url=voice_url("handoff-answered", call, user=str(user)),
+    )
+
+
+@router.post("/voice/handoff-answered")
+async def handoff_answered(
+    call: uuid.UUID, user: uuid.UUID, _: Params, session: Db
+) -> Response:
+    """The on-duty phone picked up (04 §4.4 step 5): the incident is taken by the one we
+    rang, and Twilio connects the two. Nothing to say."""
+    try:
+        row = await answer_handover(session, call, True)
+        if row is not None and not await take_for_handover(
+            session, row.senior_id, user
+        ):
+            log.info("hand-over for call %s: no open incident to take", call)
+        await session.commit()
+    except SQLAlchemyError, OSError:
+        # Still connect them: DAS is on the line.
+        log.exception("hand-over answer for call %s: database unavailable", call)
+    return twiml("")
+
+
+@router.post("/voice/handoff-result")
+async def handoff_result(call: uuid.UUID, params: Params, session: Db) -> Response:
+    """The dial to DAS finished (04 §4.4 step 6). Not answered: the senior hears that
+    someone will call back, and the incident stays open on the dashboard (UC-07)."""
+    status = params.get("DialCallStatus", "")
+    log.info("hand-over for call %s: dial %s", call, status)
+    if status == "completed":
+        return hangup()
+    try:
+        await answer_handover(session, call, False)
+        await session.commit()
+    except SQLAlchemyError, OSError:
+        log.exception("hand-over result for call %s: database unavailable", call)
+    return say_and_hang_up(CALL_BACK)
 
 
 @router.websocket("/voice/relay")
