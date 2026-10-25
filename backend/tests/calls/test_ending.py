@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.calls.ending import (
+    begin_handover,
     campaign_reason,
     close_welcome,
     conclude,
@@ -25,6 +26,7 @@ from app.models import (
     EnrollmentState,
     Incident,
     IncidentStatus,
+    ReportSource,
     Senior,
     SeniorStatus,
     StatusReport,
@@ -475,3 +477,114 @@ async def test_only_from_leaves_a_call_that_moved_on(db, campaign_call):
     )
     assert moved is None
     assert (await stored(db, call)).state == CallState.ringing
+
+
+# `begin_handover`: key 9 or a tier 1 phrase, written before the session ends (#48, §4).
+
+
+@pytest.fixture
+def live_call(db, add_active_senior):
+    """live_call(code=None, incident=False): a manual call in progress for an active
+    senior, with that code and an open incident if asked."""
+
+    async def make(code: Severity | None = None, incident: bool = False) -> Call:
+        senior = await add_active_senior("+40700000301")
+        call = Call(
+            senior_id=senior.id,
+            trigger=CallTrigger.manual,
+            starting_severity=Severity.yellow,
+            state=CallState.in_progress,
+            due_at=datetime.now(UTC),
+        )
+        db.add(call)
+        await db.flush()
+        if code is not None:
+            db.add(
+                SeniorStatus(
+                    senior_id=senior.id,
+                    code=code,
+                    reason="Înainte",
+                    since=datetime.now(UTC),
+                    source_call_id=call.id,
+                )
+            )
+        if incident:
+            db.add(
+                Incident(
+                    senior_id=senior.id,
+                    status=IncidentStatus.open,
+                    opened_by_call_id=call.id,
+                    reason="Înainte",
+                )
+            )
+        await db.commit()
+        return call
+
+    return make
+
+
+async def code_of(db, call) -> SeniorStatus:
+    return await db.get(SeniorStatus, call.senior_id, populate_existing=True)
+
+
+async def incidents_of(db, call) -> list[Incident]:
+    rows = await db.scalars(
+        select(Incident)
+        .where(Incident.senior_id == call.senior_id)
+        .execution_options(populate_existing=True)
+    )
+    return list(rows)
+
+
+async def test_key_9_on_a_green_senior(db, live_call):
+    call = await live_call(code=Severity.green)
+    reason = "A cerut un operator (tasta 9)"
+    assert await begin_handover(call.id, ReportSource.request_human, reason)
+    status = await code_of(db, call)
+    assert (status.code, status.reason) == (Severity.yellow, reason)
+    report = await db.scalar(select(StatusReport))
+    assert (report.source, report.severity) == (
+        ReportSource.request_human,
+        Severity.yellow,
+    )
+    (incident,) = await incidents_of(db, call)
+    assert (incident.status, incident.opened_by_call_id, incident.reason) == (
+        IncidentStatus.open,
+        call.id,
+        reason,
+    )
+    row = await stored(db, call)
+    assert (row.state, row.final_severity, row.reason) == (
+        CallState.handed_over,
+        Severity.yellow,
+        reason,
+    )
+
+
+async def test_key_9_on_a_red_senior_joins_the_incident(db, live_call):
+    call = await live_call(code=Severity.red, incident=True)
+    assert await begin_handover(
+        call.id, ReportSource.request_human, "A cerut un operator (tasta 9)"
+    )
+    status = await code_of(db, call)
+    assert (status.code, status.reason) == (Severity.red, "Înainte")
+    assert len(await incidents_of(db, call)) == 1
+
+
+async def test_tier_1_makes_red_and_opens_an_incident(db, live_call):
+    call = await live_call()
+    reason = "A spus: «am căzut și nu mă pot ridica»"
+    assert await begin_handover(call.id, ReportSource.alarm_tier1, reason)
+    assert (await code_of(db, call)).code == Severity.red
+    (incident,) = await incidents_of(db, call)
+    assert incident.reason == reason
+    assert (await stored(db, call)).final_severity == Severity.red
+
+
+async def test_a_second_hand_over_is_a_no_op(db, live_call):
+    call = await live_call()
+    reason = "A cerut un operator (tasta 9)"
+    assert await begin_handover(call.id, ReportSource.request_human, reason)
+    assert not await begin_handover(call.id, ReportSource.request_human, reason)
+    assert await db.scalar(select(func.count()).select_from(StatusReport)) == 1
+    assert len(await incidents_of(db, call)) == 1

@@ -9,10 +9,12 @@ from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.relay import Escalation, HandOver
 from app.agent.session import serve
 from app.auth.service import refuse
-from app.calls.ending import close_welcome, conclude_welcome, settle
+from app.calls.ending import begin_handover, close_welcome, conclude_welcome, settle
 from app.calls.service import answer_context
+from app.codes.models import ReportSource
 from app.core.db import Session, get_session
 from app.core.settings import get_settings
 from app.seniors.models import ConsentMethod
@@ -250,4 +252,23 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
         log.warning("relay connect for unknown call %s", call)
         await ws.close(code=1008)
         return
-    await serve(ws, call, context.greeting)
+    hand_over = None if context.trigger is CallTrigger.test else hand_over_for(call)
+    await serve(ws, call, context.greeting, hand_over)
+
+
+KEY_9_REASON = "A cerut un operator (tasta 9)"
+ALARM_REASON = "A spus: «{words}»"
+
+
+def hand_over_for(call: uuid.UUID) -> HandOver:
+    """The session's way to start a hand-over: `agent` can't import `calls` (layers),
+    and a router may import anything."""
+
+    async def hand_over(escalation: Escalation, words: str) -> bool:
+        if escalation is Escalation.key_9:
+            return await begin_handover(call, ReportSource.request_human, KEY_9_REASON)
+        room = 200 - len(ALARM_REASON.format(words=""))  # Call.reason's length
+        reason = ALARM_REASON.format(words=words[:room])
+        return await begin_handover(call, ReportSource.alarm_tier1, reason)
+
+    return hand_over

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.campaigns.models import Campaign, CampaignKind
 from app.codes.models import ReportSource, SeniorStatus
 from app.codes.service import add_report, set_code
+from app.core.db import Session
 from app.core.settings import get_settings
 from app.incidents.models import UNRESOLVED, Incident
 from app.incidents.service import open_incident, opens_incident
@@ -33,7 +34,12 @@ from app.status.engine import (
 )
 from app.voice.calls import CallState
 from app.voice.models import Call, CallTrigger, WelcomeOutcome
-from app.voice.service import finish, queue_redial, transition
+from app.voice.service import (
+    finish,
+    live_call_for_update,
+    queue_redial,
+    transition,
+)
 
 
 def redial_delay() -> timedelta:
@@ -220,4 +226,41 @@ async def close_welcome(
     else:
         await session.flush()  # the call leaves the live index before its retry
         await retry_welcome(session, call)
+    return True
+
+
+async def begin_handover(call_id: uuid.UUID, source: ReportSource, reason: str) -> bool:
+    """A call going to a person (04 §4.4): key 9 (`request_human`, at least yellow) or
+    a tier 1 phrase (`alarm_tier1`, red). Every hand-over opens an incident, or joins
+    the senior's unresolved one, so the DAS phone that rings shows who is calling
+    (design §4). Written before the session closes, so a line lost now keeps it.
+
+    Owns its session, like `voice.service.save_turn`: the relay holds none (ADR-004).
+    False, with nothing written, once the call is no longer in progress.
+    """
+    severity = Severity.red if source is ReportSource.alarm_tier1 else Severity.yellow
+    async with Session() as session:
+        call = await live_call_for_update(session, call_id)
+        if call is None:
+            return False
+        now = datetime.now(UTC)
+        add_report(session, call.id, source, severity, reason)
+        current = await session.scalar(
+            select(SeniorStatus.code).where(SeniorStatus.senior_id == call.senior_id)
+        )
+        # Never lowers the code; a red kept by its incident stays as it is (03 §8).
+        if current is None or severity >= current:
+            await set_code(session, call.senior_id, call.id, severity, reason, now)
+        unresolved = await session.scalar(
+            select(
+                exists().where(
+                    Incident.senior_id == call.senior_id,
+                    Incident.status.in_(UNRESOLVED),
+                )
+            )
+        )
+        if not unresolved:
+            open_incident(session, call.senior_id, call.id, reason)
+        finish(call, CallState.handed_over, now, final_severity=severity, reason=reason)
+        await session.commit()
     return True

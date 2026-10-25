@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from xml.etree import ElementTree
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -18,7 +18,7 @@ from app.agent import session as agent_session
 from app.agent.relay import GOODBYE
 from app.core.db import get_session
 from app.main import app
-from app.models import Call, CallTurn, Campaign
+from app.models import Call, CallTurn, Campaign, Incident, StatusReport
 from app.voice import router as voice_router
 from app.voice.dialogue import SORRY, greeting
 from app.voice.twilio import signature
@@ -429,3 +429,30 @@ async def test_a_dropped_relay_keeps_its_turns(client, db, call):
         select(CallTurn.content).where(CallTurn.call_id == call.id)
     )
     assert "Bine" in turns.all()
+
+
+async def test_key_9_on_a_wellbeing_call_ends_handed_over(client, db, call):
+    await answered(client, call)
+    ws = Socket(call.id, [SETUP, {"type": "dtmf", "digit": "9"}])
+    await voice_router.relay(ws, call.id)
+    end = ws.sent[-1]
+    assert end["type"] == "end"
+    assert json.loads(end["handoffData"]) == {"call": str(call.id), "reason": "key_9"}
+    assert (await stored(db, call)).state == "handed_over"
+    assert await db.scalar(select(func.count()).select_from(Incident)) == 1
+    # Twilio's completed once the hand-over is over changes nothing (03 §9)
+    params = {**FIXTURES["status_common"], **FIXTURES["status"][-1]}
+    await callback(client, "status", call.id, params)
+    assert (await stored(db, call)).state == "handed_over"
+
+
+async def test_key_9_on_a_test_call_writes_nothing(client, db, call):
+    call.trigger = "test"
+    await db.commit()
+    await answered(client, call)
+    ws = Socket(call.id, [SETUP, {"type": "dtmf", "digit": "9"}])
+    await voice_router.relay(ws, call.id)
+    assert ws.sent[-1] == {"type": "text", "token": "Ați apăsat tasta 9.", "last": True}
+    assert (await stored(db, call)).state == "in_progress"
+    assert await db.scalar(select(func.count()).select_from(Incident)) == 0
+    assert await db.scalar(select(func.count()).select_from(StatusReport)) == 0
