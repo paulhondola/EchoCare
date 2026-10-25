@@ -2,10 +2,11 @@
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlencode
+from xml.etree import ElementTree
 
 import pytest
 from sqlalchemy import select
@@ -17,9 +18,9 @@ from app.agent import session as agent_session
 from app.agent.relay import GOODBYE
 from app.core.db import get_session
 from app.main import app
-from app.models import Call, CallTurn
+from app.models import Call, CallTurn, Campaign
 from app.voice import router as voice_router
-from app.voice.dialogue import SORRY
+from app.voice.dialogue import SORRY, greeting
 from app.voice.twilio import signature
 
 FIXTURES = json.loads(
@@ -66,10 +67,137 @@ async def test_answer_connects_to_conversation_relay(client, call):
     r = await callback(client, "answer", call.id, FIXTURES["answer"])
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/xml")
-    assert "<Connect><ConversationRelay" in r.text
-    assert f'url="wss://echocare.test/api/voice/relay?call={call.id}"' in r.text
-    assert 'language="ro-RO"' in r.text
-    assert "Bună ziua, doamna Maria." in r.text
+    connect = ElementTree.fromstring(r.text).find("Connect")
+    # The session's end comes back here, with hand-over data or without (04 §4.4).
+    assert (
+        connect.get("action")
+        == f"https://echocare.test/api/voice/handoff?call={call.id}"
+    )
+    relay = connect.find("ConversationRelay")
+    assert relay.get("url") == f"wss://echocare.test/api/voice/relay?call={call.id}"
+    assert relay.get("language") == "ro-RO"
+    assert relay.get("welcomeGreeting").startswith("Bună ziua, doamna Maria.")
+
+
+def welcome_greeting(r) -> str:
+    assert r.status_code == 200
+    return (
+        ElementTree.fromstring(r.text)
+        .find("Connect/ConversationRelay")
+        .get("welcomeGreeting")
+    )
+
+
+@pytest.fixture
+def wellbeing_call(db, add_senior):
+    """wellbeing_call(trigger, kind=None, level=None): a ringing call of that trigger,
+    with its campaign for a campaign call."""
+
+    async def make(trigger, kind=None, level=None) -> Call:
+        senior = await add_senior("+40700000103", enrollment_state="active")
+        campaign = None
+        if trigger == "campaign":
+            campaign = Campaign(
+                kind=kind,
+                level=level,
+                started_by=senior.medic_id,
+                warning_until=datetime.now(UTC) + timedelta(hours=24),
+            )
+            db.add(campaign)
+            await db.flush()
+        row = Call(
+            senior_id=senior.id,
+            trigger=trigger,
+            campaign_id=campaign and campaign.id,
+            starting_severity="green",
+            state="ringing",
+            due_at=datetime.now(UTC),
+        )
+        db.add(row)
+        await db.commit()
+        return row
+
+    return make
+
+
+async def test_a_welcome_call_answered_at_answer_gets_the_welcome(
+    client, db, add_senior
+):
+    senior = await add_senior("+40700000104", enrollment_state="accepted")
+    row = Call(
+        senior_id=senior.id,
+        trigger="welcome",
+        starting_severity="green",
+        due_at=datetime.now(UTC),
+    )
+    db.add(row)
+    await db.commit()
+    r = await callback(client, "answer", row.id, FIXTURES["answer"])
+    gather = ElementTree.fromstring(r.text).find("Gather")
+    assert gather.get("action") == (
+        f"https://echocare.test/api/voice/welcome/identity?call={row.id}&ask=1"
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "level", "words"),
+    [
+        ("cold", "red", "Vă sun pentru că azi e cod roșu de ger."),
+        ("heat", "yellow", "Vă sun pentru că azi e cod galben de caniculă."),
+    ],
+)
+async def test_a_campaign_call_greets_with_its_warning(
+    client, wellbeing_call, kind, level, words
+):
+    call = await wellbeing_call("campaign", kind, level)
+    said = welcome_greeting(
+        await callback(client, "answer", call.id, FIXTURES["answer"])
+    )
+    assert said == (
+        f"Bună ziua, doamna Maria. Sunt asistentul DAS Timișoara. {words} "
+        "Nu vă cer niciodată bani sau date. Cum vă simțiți azi?"
+    )
+
+
+@pytest.mark.parametrize(
+    ("trigger", "words"),
+    [
+        ("watch", "Vă sun pentru că ceasul a semnalat ceva neobișnuit."),
+        ("manual", "Vă sun pentru că ați cerut să vorbim."),
+    ],
+)
+async def test_wellbeing_greetings(client, wellbeing_call, trigger, words):
+    call = await wellbeing_call(trigger)
+    said = welcome_greeting(
+        await callback(client, "answer", call.id, FIXTURES["answer"])
+    )
+    assert said == (
+        f"Bună ziua, doamna Maria. Sunt asistentul DAS Timișoara. {words} "
+        "Nu vă cer niciodată bani sau date. Cum vă simțiți?"
+    )
+
+
+async def test_a_test_call_keeps_the_s1_greeting(client, wellbeing_call):
+    call = await wellbeing_call("test")
+    said = welcome_greeting(
+        await callback(client, "answer", call.id, FIXTURES["answer"])
+    )
+    assert said == greeting("doamna Maria")
+
+
+async def test_the_transcript_opens_with_the_same_greeting(client, db, call):
+    said = welcome_greeting(
+        await callback(client, "answer", call.id, FIXTURES["answer"])
+    )
+    await answered(client, call)
+    ws = Socket(call.id, [SETUP])
+    await voice_router.relay(ws, call.id)
+    first = await db.scalar(
+        select(CallTurn.content)
+        .where(CallTurn.call_id == call.id)
+        .order_by(CallTurn.position)
+    )
+    assert first == said
 
 
 async def test_a_bad_signature_gets_403(client, db, call):
@@ -184,6 +312,8 @@ async def test_a_database_failure_at_pickup_says_sorry(client, call):
         async def scalar(self, *_):
             raise OperationalError("SELECT", {}, OSError("connection refused"))
 
+        execute = scalar
+
     app.dependency_overrides[get_session] = lambda: Broken()
     r = await callback(client, "answer", call.id, FIXTURES["answer"])
     del app.dependency_overrides[get_session]
@@ -246,7 +376,7 @@ async def test_our_close_ends_completed(client, db, call):
 async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
     await answered(client, call)
     ws = Socket(call.id, [SETUP, "not json", "[1, 2]", {"type": "dtmf", "digit": "0"}])
-    await agent_session.serve(ws, call.id)
+    await agent_session.serve(ws, call.id, "Bună ziua.")
     assert (ws.closed, ws.sent[-1]) == (None, {"type": "end"})
 
 
@@ -260,7 +390,7 @@ async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
 async def test_the_relay_needs_the_calls_own_setup_first(client, db, call, first):
     await answered(client, call)
     ws = Socket(call.id, [first, {"type": "dtmf", "digit": "0"}])
-    await agent_session.serve(ws, call.id)
+    await agent_session.serve(ws, call.id, "Bună ziua.")
     assert (ws.closed, ws.sent) == (1008, [])
     assert (await stored(db, call)).state == "in_progress"
 
@@ -271,7 +401,7 @@ async def test_an_ended_call_takes_no_relay(client, db, call):
         params = {**FIXTURES["status_common"], "CallStatus": status}
         await callback(client, "status", call.id, params)
     ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
-    await agent_session.serve(ws, call.id)
+    await agent_session.serve(ws, call.id, "Bună ziua.")
     assert (ws.accepted, ws.closed) == (False, 1008)
 
 
@@ -292,7 +422,9 @@ async def test_a_dropped_relay_keeps_its_turns(client, db, call):
     ws = Socket(
         call.id, [SETUP, {"type": "prompt", "voicePrompt": "Bine", "last": True}]
     )
-    await agent_session.serve(ws, call.id)  # the script runs out: WebSocketDisconnect
+    await agent_session.serve(
+        ws, call.id, "Bună ziua."
+    )  # the script runs out: WebSocketDisconnect
     turns = await db.scalars(
         select(CallTurn.content).where(CallTurn.call_id == call.id)
     )

@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.session import serve
 from app.auth.service import refuse
 from app.calls.ending import close_welcome, conclude_welcome, settle
-from app.core.db import get_session
+from app.calls.service import answer_context
+from app.core.db import Session, get_session
 from app.core.settings import get_settings
 from app.seniors.models import ConsentMethod
 from app.voice.calls import (
@@ -27,12 +28,11 @@ from app.voice.dialogue import (
     LANGUAGE,
     SORRY,
     gather,
-    greeting,
     say_and_hang_up,
     sorry,
     twiml,
 )
-from app.voice.models import WelcomeOutcome
+from app.voice.models import CallTrigger, WelcomeOutcome
 from app.voice.service import (
     form_of_address,
     live_call_for_update,
@@ -74,27 +74,32 @@ Db = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.post("/voice/answer")
-async def answer(call: uuid.UUID, _: Params, session: Db) -> Response:
-    """Picked up: connect to ConversationRelay in ro-RO (04 §4.2)."""
+async def answer(call: uuid.UUID, params: Params, session: Db) -> Response:
+    """Picked up: a welcome call gets its script; any other connects to
+    ConversationRelay in ro-RO, whose end comes back to the hand-over address
+    (04 §4.2)."""
     try:
-        addressed = await form_of_address(session, call)
+        context = await answer_context(session, call)
     except SQLAlchemyError, OSError:
         log.exception("answer for call %s: database unavailable", call)
         return sorry()
-    if addressed is None:
+    if context is None:
         log.warning("answer for unknown call %s", call)
         return sorry()
+    if context.trigger is CallTrigger.welcome:
+        return await welcome(call, params, session)
     s = get_settings()
     attrs = {
         "url": voice_url("relay", call, scheme="wss"),
         "language": LANGUAGE,
         "ttsProvider": s.twilio_tts_provider,
         "voice": s.twilio_voice,
-        "welcomeGreeting": greeting(addressed),
+        "welcomeGreeting": context.greeting,
         "dtmfDetection": "true",
     }
     relay_tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
-    return twiml(f"<Connect><ConversationRelay{relay_tag}/></Connect>")
+    action = quoteattr(voice_url("handoff", call))
+    return twiml(f"<Connect action={action}><ConversationRelay{relay_tag}/></Connect>")
 
 
 @router.post("/voice/welcome")
@@ -238,4 +243,11 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
         log.warning("refused not_allowed: unsigned relay connect, call %s", call)
         await ws.close(code=1008)
         return
-    await serve(ws, call)
+    # The session holds no database session (ADR-004), so its greeting is read here.
+    async with Session() as session:
+        context = await answer_context(session, call)
+    if context is None:
+        log.warning("relay connect for unknown call %s", call)
+        await ws.close(code=1008)
+        return
+    await serve(ws, call, context.greeting)

@@ -15,7 +15,6 @@ from typing import Any, Protocol
 from fastapi.websockets import WebSocketDisconnect
 
 from app.agent.relay import Relay
-from app.voice.dialogue import greeting
 from app.voice.models import Speaker, TurnKind
 from app.voice.service import end_completed, open_line, save_turn
 
@@ -36,7 +35,7 @@ class Socket(Protocol):
     async def close(self, code: int) -> None: ...
 
 
-async def serve(ws: Socket, call: uuid.UUID) -> None:
+async def serve(ws: Socket, call: uuid.UUID, greeting: str) -> None:
     """Runs the session until Twilio disconnects or the call's own setup is missing."""
     line = await open_line(call)
     if line is None:
@@ -50,7 +49,7 @@ async def serve(ws: Socket, call: uuid.UUID) -> None:
         await save_turn(call, position, speaker, kind, content)
         position += 1
 
-    session_relay = Relay(greeting(line.form_of_address), store)
+    session_relay = Relay(greeting, store)
     await ws.accept()
     log.info("relay open: call %s", call)
     set_up = False

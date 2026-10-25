@@ -33,6 +33,37 @@ def greeting(form_of_address: str) -> str:
     )
 
 
+# Why a wellbeing call rings, by trigger (04 §4.2). Plain strings, since `voice` can't
+# import `campaigns`' enums.
+WHY = {
+    "watch": "Vă sun pentru că ceasul a semnalat ceva neobișnuit.",
+    "manual": "Vă sun pentru că ați cerut să vorbim.",
+}
+LEVELS = {"yellow": "galben", "red": "roșu"}
+KINDS = {"cold": "ger", "heat": "caniculă"}
+
+
+def wellbeing_greeting(
+    form_of_address: str,
+    trigger: str,
+    kind: str | None = None,
+    level: str | None = None,
+) -> str:
+    """A wellbeing call's opening, built from its trigger and, for a campaign, the
+    warning (04 §4.2); a test call keeps the S1 greeting."""
+    if trigger == "test":
+        return greeting(form_of_address)
+    if trigger == "campaign":
+        why = f"Vă sun pentru că azi e cod {LEVELS[level]} de {KINDS[kind]}."
+        question = "Cum vă simțiți azi?"
+    else:
+        why, question = WHY[trigger], "Cum vă simțiți?"
+    return (
+        f"Bună ziua, {form_of_address}. Sunt asistentul DAS Timișoara. {why} "
+        f"Nu vă cer niciodată bani sau date. {question}"
+    )
+
+
 def twiml(body: str) -> Response:
     xml = f'<?xml version="1.0" encoding="UTF-8"?><Response>{body}</Response>'
     return Response(xml, media_type="text/xml")
