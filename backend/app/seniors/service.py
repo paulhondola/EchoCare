@@ -2,6 +2,7 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -528,9 +529,11 @@ async def confirm_welcome(
     given: bool,
     method: ConsentMethod,
     text_version: str,
+    evidence: dict[str, Any] | None = None,
 ) -> bool:
     """The welcome call's answer to the consent text: `accepted` becomes `active` or
-    `refused`, with its consent record (UC-02, 03 §8). Doesn't commit (ADR-005).
+    `refused`, with its consent record (UC-02, 03 §8). `evidence` is the key or the
+    words a phone call heard (G7). Doesn't commit (ADR-005).
 
     False, with nothing written, when the senior is no longer `accepted`: of two moves
     at once one wins (05 §3's pattern).
@@ -557,9 +560,31 @@ async def confirm_welcome(
             method=method,
             text_version=text_version,
             call_id=call_id,
+            evidence=evidence,
         )
     )
     return True
+
+
+async def end_welcome(
+    session: AsyncSession, senior_id: uuid.UUID, state: EnrollmentState
+) -> bool:
+    """A welcome call that reached no consent: `accepted` becomes `wrong_number` or
+    `unreachable` (UC-04). Doesn't commit (ADR-005).
+
+    False, with nothing written, when the senior is no longer `accepted`, as for
+    `confirm_welcome`.
+    """
+    moved = await session.scalar(
+        update(Senior)
+        .where(
+            Senior.id == senior_id,
+            Senior.enrollment_state == EnrollmentState.accepted,
+        )
+        .values(enrollment_state=state)
+        .returning(Senior.id)
+    )
+    return moved is not None
 
 
 async def record_check_in(

@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.calls.ending import (
     campaign_reason,
+    close_welcome,
     conclude,
     conclude_welcome,
     redial_delay,
@@ -28,6 +29,7 @@ from app.models import (
     SeniorStatus,
     StatusReport,
     WarningLevel,
+    WelcomeOutcome,
 )
 from app.status.engine import Answer, CallAnswers, Certainty, Question, Severity
 from app.voice.calls import CallState
@@ -92,18 +94,23 @@ def campaign_call(db, add_active_senior):
 
 @pytest.fixture
 def welcome_call(db, add_senior):
-    """welcome_call(state=accepted): a fresh senior in that state, with a welcome call
-    in progress."""
+    """welcome_call(state=accepted, call_state=in_progress, **columns): a fresh senior in
+    that state, with a welcome call."""
     numbers = count(200)
 
-    async def make(state: EnrollmentState = EnrollmentState.accepted) -> Call:
+    async def make(
+        state: EnrollmentState = EnrollmentState.accepted,
+        call_state: CallState = CallState.in_progress,
+        **columns,
+    ) -> Call:
         senior = await add_senior(f"+40700000{next(numbers)}", enrollment_state=state)
         call = Call(
             senior_id=senior.id,
             trigger=CallTrigger.welcome,
             starting_severity=Severity.green,
-            state=CallState.in_progress,
+            state=call_state,
             due_at=datetime.now(UTC),
+            **columns,
         )
         db.add(call)
         await db.commit()
@@ -267,6 +274,93 @@ async def test_welcome_refusal_and_a_senior_no_longer_accepted(db, welcome_call)
     )
 
 
+# The phone's welcome call: its endings, the retry and `unreachable` (#48, UC-04).
+
+
+async def senior_of(db, call) -> Senior:
+    return await db.get(Senior, call.senior_id, populate_existing=True)
+
+
+async def test_a_call_consent_keeps_its_evidence(db, welcome_call):
+    call = await welcome_call()
+    assert await conclude_welcome(
+        db,
+        call,
+        given=True,
+        method=ConsentMethod.call,
+        text_version="v1",
+        evidence={"digits": "1"},
+    )
+    await db.commit()
+    consent = await db.scalar(select(Consent))
+    assert (consent.method, consent.text_version, consent.evidence) == (
+        ConsentMethod.call,
+        "v1",
+        {"digits": "1"},
+    )
+    assert (await senior_of(db, call)).enrollment_state == EnrollmentState.active
+    assert (await db.get(SeniorStatus, call.senior_id)).code == Severity.green
+
+
+async def test_wrong_number_ends_the_welcome(db, welcome_call):
+    call = await welcome_call()
+    assert await close_welcome(db, call, WelcomeOutcome.wrong_number)
+    await db.commit()
+    row = await stored(db, call)
+    assert (row.state, row.welcome_outcome) == (
+        CallState.completed,
+        WelcomeOutcome.wrong_number,
+    )
+    assert (await senior_of(db, call)).enrollment_state == EnrollmentState.wrong_number
+    assert await redials(db, call) == []
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [WelcomeOutcome.not_available, WelcomeOutcome.no_answer, WelcomeOutcome.confirmed],
+)
+async def test_a_first_welcome_that_gets_nowhere_is_retried(db, welcome_call, outcome):
+    call = await welcome_call()
+    before = datetime.now(UTC)
+    assert await close_welcome(db, call, outcome)
+    await db.commit()
+    row = await stored(db, call)
+    assert (row.state, row.welcome_outcome) == (CallState.completed, outcome)
+    (retry,) = await redials(db, call)
+    assert (retry.trigger, retry.attempt, retry.state) == (
+        CallTrigger.welcome,
+        2,
+        CallState.queued,
+    )
+    assert before + redial_delay() <= retry.due_at <= datetime.now(UTC) + redial_delay()
+    assert (await senior_of(db, call)).enrollment_state == EnrollmentState.accepted
+
+
+async def test_a_second_welcome_that_gets_nowhere_makes_the_senior_unreachable(
+    db, welcome_call
+):
+    call = await welcome_call(attempt=2)
+    assert await close_welcome(db, call, WelcomeOutcome.no_answer)
+    await db.commit()
+    assert (await senior_of(db, call)).enrollment_state == EnrollmentState.unreachable
+    assert await redials(db, call) == []
+
+
+async def test_closing_an_ended_welcome_changes_nothing(db, welcome_call):
+    call = await welcome_call(call_state=CallState.completed)
+    assert not await close_welcome(db, call, WelcomeOutcome.no_answer)
+    await db.commit()
+    assert (await stored(db, call)).welcome_outcome is None
+    assert await redials(db, call) == []
+
+
+async def test_a_withdrawn_senior_is_left_as_they_are(db, welcome_call):
+    call = await welcome_call(state=EnrollmentState.withdrawn, attempt=2)
+    assert await close_welcome(db, call, WelcomeOutcome.no_answer)
+    await db.commit()
+    assert (await senior_of(db, call)).enrollment_state == EnrollmentState.withdrawn
+
+
 # `settle`: Twilio's word on a real call runs the redial rule (design §6, 06 §1).
 
 
@@ -342,15 +436,35 @@ async def test_voicemail_queues_the_redial_and_hangs_up(
     assert hung_up == [SID]
 
 
-async def test_welcome_and_test_calls_are_not_concluded(client, db, welcome_call):
-    welcome = await welcome_call()
-    test = await welcome_call()
-    test.trigger = CallTrigger.test
+@pytest.mark.parametrize(
+    ("call_state", "twilio_status", "ended"),
+    [
+        (CallState.ringing, "no-answer", CallState.unanswered),
+        (CallState.ringing, "failed", CallState.failed),
+        # a hang-up partway through the script (design §2)
+        (CallState.in_progress, "completed", CallState.dropped),
+    ],
+)
+async def test_a_welcome_twilio_ends_runs_the_retry_rule(
+    client, db, welcome_call, call_state, twilio_status, ended
+):
+    call = await welcome_call(call_state=call_state)
+    await twilio_says(client, call, twilio_status)
+    row = await stored(db, call)
+    assert (row.state, row.welcome_outcome) == (ended, WelcomeOutcome.no_answer)
+    (retry,) = await redials(db, call)
+    assert retry.attempt == 2
+    assert await db.scalar(select(func.count()).select_from(StatusReport)) == 0
+
+
+async def test_a_test_call_is_still_never_concluded(client, db, welcome_call):
+    call = await welcome_call(call_state=CallState.ringing)
+    call.trigger = CallTrigger.test
     await db.commit()
-    for sid, call in (("CA" + "1" * 32, welcome), ("CA" + "2" * 32, test)):
-        await twilio_says(client, call, "no-answer", sid)
-        assert (await stored(db, call)).state == CallState.unanswered
-        assert await redials(db, call) == []
+    await twilio_says(client, call, "no-answer")
+    row = await stored(db, call)
+    assert (row.state, row.welcome_outcome) == (CallState.unanswered, None)
+    assert await redials(db, call) == []
     assert await db.scalar(select(func.count()).select_from(StatusReport)) == 0
 
 
