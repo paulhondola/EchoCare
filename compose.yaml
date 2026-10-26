@@ -92,6 +92,16 @@ services:
         - { action: sync, path: ./dashboard/src, target: /app/src }
         - { action: rebuild, path: ./dashboard/package-lock.json }
 
+  tunnel:
+    profiles: [tunnel] # only with --profile tunnel
+    image: ngrok/ngrok:3.39.11-alpine
+    # the account's free dev domain is assigned automatically and stays the same across restarts
+    command: http api:8000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-} # from the root .env, not committed
+    ports: ["4040:4040"] # request inspector at http://localhost:4040
+    depends_on: [api]
+
 configs:
   create-test-db:
     content: "CREATE DATABASE echocare_test;"

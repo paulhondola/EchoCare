@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import func, select, update
 
+from app.campaigns.service import cancel_lapsed
 from app.models import (
     Call,
     CallTrigger,
@@ -342,3 +343,39 @@ async def test_ending_cancels_a_redial_and_leaves_another_campaign_alone(
         for c in (await client.get("/api/campaigns", headers=signed_in(DAS))).json()
     }
     assert (listed[a["id"]]["active"], listed[b["id"]]["active"]) == (False, True)
+
+
+async def start_with_a_dialed_call(client, db, add_active_senior):
+    """A campaign with two queued calls, the older one dialed: Twilio has been asked
+    (`dialed_at`), and its status callback, not the campaign, settles it."""
+    await add_active_senior("+40700000101")
+    await add_active_senior("+40700000102")
+    c = (await start(client)).json()
+    dialed, waiting = (await db.scalars(select(Call).order_by(Call.created_at))).all()
+    dialed.dialed_at = datetime.now(UTC)
+    await db.commit()
+    return c, dialed.id, waiting.id
+
+
+async def test_a_lapsed_campaign_leaves_a_dialed_call(
+    client, db, das, add_active_senior
+):
+    _, dialed, waiting = await start_with_a_dialed_call(client, db, add_active_senior)
+    await db.execute(
+        update(Campaign).values(warning_until=datetime.now(UTC) - timedelta(seconds=1))
+    )
+    await db.commit()
+    await cancel_lapsed(db)
+    await db.commit()
+    states = {x.id: x.state for x in await db.scalars(select(Call))}
+    assert states == {dialed: CallState.queued, waiting: CallState.canceled}
+
+
+async def test_ending_a_campaign_leaves_a_dialed_call(
+    client, db, das, add_active_senior
+):
+    c, dialed, waiting = await start_with_a_dialed_call(client, db, add_active_senior)
+    r = await end(client, c["id"])
+    assert r.status_code == 200
+    states = {x.id: x.state for x in await db.scalars(select(Call))}
+    assert states == {dialed: CallState.queued, waiting: CallState.canceled}

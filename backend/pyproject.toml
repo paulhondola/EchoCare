@@ -96,6 +96,7 @@ name = "Packages sit in layers; a new package must be placed (ADR-005)"
 type = "layers"
 containers = ["app"]
 layers = [
+    "scheduler",
     "calls | agent | system",
     "campaigns",
     "incidents",

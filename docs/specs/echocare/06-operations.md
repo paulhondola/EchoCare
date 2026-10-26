@@ -8,7 +8,7 @@ One principle covers most rows: **a failure is treated as uncertainty, and uncer
 
 | Failure | What the system does | What people see |
 |---|---|---|
-| Twilio cannot place the call | The attempt is marked failed and counts as unanswered; the redial rule applies | Same as "nobody answers" |
+| Twilio cannot place the call | Twilio refusing the request marks the attempt failed, and it counts as unanswered: the redial rule applies. A timeout or a lost connection leaves the call dialed and queued, since Twilio may have placed it; its callbacks settle it, or the sweep (section 2) | Same as "nobody answers" |
 | No answer, busy, or voicemail | Redial rule ([03-status-model.md](03-status-model.md) section 5) | Yellow per the matrix |
 | Senior hangs up, or the connection to Twilio drops mid-call | The call is marked dropped and counts as answered with low certainty | Usually yellow |
 | Model provider fails or is too slow during a call | The agent says a fixed apology, the call is closed and counts as dropped. Alarm phrases and their confirmation do not depend on the model and keep working until then | Usually yellow; the failure is logged |
@@ -18,8 +18,8 @@ One principle covers most rows: **a failure is treated as uncertainty, and uncer
 | Two DAS employees take the same incident | The first take wins; the second is refused | The second sees who has it |
 | The dashboard's browser blocks sound | Browsers play sound only after a click on the page | The dashboard asks for one click after sign-in („Pornește alertele sonore”) and shows a warning until it gets it |
 | A push cannot be delivered | An invalid token is removed; there is no retry | Open screens catch up at the next backstop re-read |
-| FastAPI restarts | Queued calls and redials are database rows with a due time, so they resume. Live calls drop and count as dropped | A short gap; affected calls usually end yellow |
-| A deploy runs two copies for a few seconds | The scheduler's database lock lets only one copy place calls. Live calls on the old copy drop. No deploys after the freeze | As for a restart |
+| FastAPI restarts | Queued calls and redials are database rows with a due time, so they resume. A call already dialed keeps its `dialed_at` and is never dialed again; one whose dial or callbacks were lost is settled by the sweep (section 2). Live calls drop and count as dropped | A short gap; affected calls usually end yellow |
+| A deploy runs two copies for a few seconds | The scheduler's advisory lock in the database lets one copy tick at a time, so no call is dialed twice. Live calls on the old copy drop. No deploys after the freeze | As for a restart |
 | Database unreachable | No new calls are placed. Twilio callbacks get a safe answer: a polite message, then hang up. The health check fails | Apps show the last data with a „Fără conexiune” banner |
 | A callback or event arrives twice | Ignored by its id | Nothing |
 | The watch cannot reach the phone | The watch keeps events and resends them; missed check-ins mark the watch offline | A device warning, no alert |
@@ -40,21 +40,33 @@ Every timer in the system is a row with a due time. The scheduler is a short loo
 
 ```mermaid
 flowchart TD
-    TICK["Scheduler tick<br/>every few seconds"] --> LOCK{"Database lock<br/>taken?"}
+    TICK["Scheduler tick<br/>every 5 seconds"] --> LOCK{"Database lock<br/>taken?"}
     LOCK -->|"no, another copy holds it"| SLEEP["Sleep until the next tick"]
-    LOCK -->|yes| DUE{"Any queued call due,<br/>and a free line?"}
+    LOCK -->|yes| LAPSE["Cancel the undialed calls<br/>of lapsed warnings"]
+    LAPSE --> DUE{"Any queued call due,<br/>a free line, and its number<br/>on the allowlist?"}
     DUE -->|yes| PLACE["Dialer places the call"]
-    DUE -->|no| WD
-    PLACE --> WD{"Any watch or home node<br/>silent past the limit?"}
-    WD -->|yes| OFF["Mark it offline<br/>device warning, refresh, no alert"]
+    DUE -->|no| STUCK
+    PLACE --> STUCK{"Any dialed call<br/>unsettled past the limit?"}
+    STUCK -->|yes| SWEEP["Sweep: ask Twilio,<br/>hang up if live, settle it"]
+    STUCK -->|no| WD
+    SWEEP --> WD{"Any watch silent past the limit?<br/>(a home node too: P20, proposed)"}
+    WD -->|yes| OFF["Mark it offline<br/>device warning, no alert"]
     WD -->|no| NM
-    OFF --> NM{"Any home node without motion<br/>past the limit, during a warning?"}
+    OFF --> NM{"(P20, proposed) Any home node without<br/>motion past the limit, during a warning?"}
     NM -->|yes| INA["Record an inactivity event<br/>queue a call"]
     NM -->|no| SLEEP
     INA --> SLEEP
 ```
 
-"A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow.
+Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep and the watch's silence step. The home node's silence and inactivity steps are proposed with the node (P20).
+
+- **The lock** is a Postgres advisory lock held for the whole tick, so during a deploy one copy works. A step that fails is logged and the others still run. A tick logs a line only when a step did something.
+- **Lapsed warnings** (04 §2): the queued calls of a campaign whose warning has passed are canceled, undialed ones only.
+- **The dialer** hands due calls to Twilio up to the free lines, in this order, and in id order within each group: a watch or "Sunați-mă" call, then a redial (a senior already not reached), then a campaign's first attempt, then a welcome call. The order matters only when more calls are due than there are lines, as during a campaign. It uses no risk score and no medical data (03 §11). A call is stamped `dialed_at` and committed before Twilio is asked, so it is dialed once at most (05 §1). It dials only numbers on `DIAL_ALLOWLIST`: empty, the default, dials nobody in every environment, production included, and `*` dials everyone. A call it will not dial stays queued, so the mock card keeps working. Without the Twilio variables it does nothing.
+- **The sweep** settles a dialed call still live after the ring time, the call length limit and a minute (section 3). It asks Twilio for the call, hangs up if Twilio still has it live, and applies Twilio's final status as a status callback would (04 §4.2). A call with no Twilio id, whose dial timed out and which no callback reached, becomes `failed`. A machine that answered, per Twilio's record, ends the call `unanswered`, as voicemail detection would. A Twilio id Twilio no longer knows (after a change of region or account) ends the call `failed`, or `dropped` if it was answered. Each call it settles is logged at warning level.
+- **The watch's silence** (UC-13): a watch in `ok` or `not_worn` whose last check-in is older than the silence limit (section 3) becomes `offline`. No alert; its next check-in (04 §3) brings it back.
+
+"A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow. It is a cap in our code, not a number of Twilio numbers.
 
 ## 3. Timers and demo mode
 
@@ -82,6 +94,8 @@ Demo mode is one setting on FastAPI and one on each client. It shortens waits so
 | Active warning after a campaign | 24 hours | 24 hours |
 | On-duty phone ring time | 30 seconds | 15 seconds |
 | Calls in progress at once | 3 | 3 |
+| Scheduler tick | 5 seconds | 5 seconds |
+| Sweep: a dialed call counts as stuck after | 4.5 minutes (ring time 30 seconds, call length limit 3 minutes, and 1 minute) | 4.5 minutes |
 
 All values are proposals. The 20-minute redial and the 3-minute call limit come from v3; the inactivity limit is within v3's 4–6 hours. The room limits are orientative, have no medical value, and await a medical mentor (README open question 11); the inactivity limit applies to the home node's motion as to the watch's steps.
 
@@ -91,7 +105,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 |---|---|---|
 | "Simulează avertizare", heat or cold | DAS dashboard | A real weather warning |
 | "Sunați-mă" | Senior's phone app | A watch anomaly, if the watch misbehaves on stage (D9) |
-| The mock card, which shows a queued welcome or campaign call and takes the senior's answers on screen | Senior's phone app, on their own home | The phone line, until Twilio places the call. The answers go through the same rules and the same ending step as a real call, so a code, an incident or a consent is stored as for a real call. Refused by the API in production (`GET /profile/mock-call`, `POST /calls/{id}/mock-answer`, [04-interfaces.md](04-interfaces.md)), where a fake call must never give a code, an incident or a consent |
+| The mock card, which shows a queued welcome or campaign call and takes the senior's answers on screen | Senior's phone app, on their own home | The phone line, for a call the scheduler does not dial (a number not on `DIAL_ALLOWLIST`, or no Twilio variables). A call the scheduler has dialed is never shown as a card. The answers go through the same rules and the same ending step as a real call, so a code, an incident or a consent is stored as for a real call. Refused by the API in production (`GET /profile/mock-call`, `POST /calls/{id}/mock-answer`, [04-interfaces.md](04-interfaces.md)), where a fake call must never give a code, an incident or a consent |
 | A hidden "force anomaly" action, for pulse, for inactivity and for a fall | Wear OS app | Waiting for a real reading, or a real fall |
 | An ice pack or a hair dryer next to the home node's sensor | On the table | A cold or hot room; the temperature moves live on every screen |
 | The home node's SOS button | On the table | Its own trigger; also a fallback if the watch misbehaves |
@@ -123,12 +137,17 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Minimal home data | Only the latest room reading is kept; there is no history of temperature or motion. The node has no camera and no microphone |
 | Location only with events | The phone attaches its last known location when it sends an event; there is no tracking |
 | Push carries no health details | Generic text and an id (P18) |
-| Region | Database and FastAPI on Railway, EU West |
+| Region | Database and FastAPI on Railway, EU West. Twilio places and processes the calls in its Ireland region (IE1), by choice of `TWILIO_API_HOST` |
 | Demo data | Fictitious people only |
 
-**Honest limits for a real pilot.** Transcripts pass through the model provider, speech passes through Twilio, phone numbers pass through Firebase, and the database sits on Railway. A pilot needs data-processing agreements with all four and a named data controller (v3 §14 assigns this to the medic and DAS). DAS must also confirm that a recorded spoken „da” counts as explicit consent for health data (README open question 7). None of that is needed to demo with fictitious data.
+**Honest limits for a real pilot.** Transcripts pass through the model provider, speech passes through Twilio, phone numbers pass through Firebase, and the database sits on Railway. Twilio's processing is now in the EU by region choice (IE1); the model provider and Firebase are still outside it. A pilot needs data-processing agreements with all four and a named data controller (v3 §14 assigns this to the medic and DAS). DAS must also confirm that a recorded spoken „da” counts as explicit consent for health data (README open question 7). None of that is needed to demo with fictitious data.
 
-**Telephony constraints** are unchanged from v3 §12: a US Twilio number for the hackathon, Romania enabled in geographic permissions, the AI features addendum accepted, and a test on each mobile network for how the number is displayed and whether it is flagged as spam.
+**Telephony constraints** follow v3 §12 apart from the number and the region: Romania enabled in geographic permissions, the AI features addendum accepted, and a test on each mobile network for how the number is displayed and whether it is flagged as spam.
+
+- **The number is Romanian (+40)**, not the US number that v3 §12 and spike S11 assumed.
+- **Twilio runs in Ireland (IE1).** `TWILIO_API_HOST` is `api.dublin.ie1.twilio.com` (default `api.twilio.com`) and `TWILIO_AUTH_TOKEN` holds the IE1 auth token, since credentials are valid only in their region.
+- **Two IE1 behaviours are not confirmed in Twilio's documentation.** That IE1 signs callbacks with the IE1 token (a 403 on every callback says no), and that voicemail detection runs there. One test call with `scripts/place_call.py` checks both.
+- **The number's own incoming-call webhook** in the Twilio Console is not used: every outbound call carries its own callback addresses (04 §4.1).
 
 ## 5. Testing
 
@@ -168,13 +187,13 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 | S8 | Does Railway hold a WebSocket for a full call, stay running between calls, and keep the scheduler single during a deploy? | Host on a small EU virtual machine |
 | S9 | Does Firebase phone sign-in deliver SMS codes to Romanian numbers on each network, and do test numbers work on the demo devices and in the dashboard's browser, reCAPTCHA included? | Test numbers only for the demo; the medic's practice signs people in |
 | S10 | Does an SMS from the project's Twilio number reach Orange, Vodafone and Digi phones? | Drop the caregiver notice; the caregiver signs in on the spot |
-| S11 | How does the US number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
+| S11 | How does the project's Romanian number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
 | S12 | Does the phone app keep its Bluetooth connection to the home node, and relay readings, while it is in the background for an hour? | Keep the phone app in the foreground on the demo phone; a foreground service in the app |
 | S13 | Can the Wear OS app read the accelerometer fast enough (about 50 readings a second) in the background to see a fall, and what does it cost in battery? | Fall detection only while the monitoring screen is open; the hidden "force fall" action for the demo |
 
-**S1 and S8, how to answer them.** The telephony edge for both is built (#15): `scripts/place_call.py <number>` dials a registered senior's number with a scripted ConversationRelay call that repeats what it hears and ends on key 0. Run it on staging through `railway ssh -s api -e staging` with the Twilio variables set, then write here:
+**S1 and S8, how to answer them.** The telephony edge for both is built (#15): `scripts/place_call.py <number>` dials a registered senior's number with a scripted ConversationRelay call that repeats what it hears and ends on key 0. Run it on staging through `railway ssh -s api -e staging` with the Twilio variables set (the script follows `DIAL_ALLOWLIST` too), then write here. The same call answers the two IE1 questions of section 4:
 
 | Spike | Answer | Date |
 |---|---|---|
-| S1 | *Not run yet.* Record: whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/voice/fixtures/twilio_callbacks.json` | |
+| S1 | *Not run yet.* Record: whether callbacks verify under the IE1 token, whether voicemail detection runs in IE1, whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/voice/fixtures/twilio_callbacks.json` | |
 | S8 | *Not run yet.* Record: whether one call holds its WebSocket for three minutes, and what a redeploy during a call does to it | |

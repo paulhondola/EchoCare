@@ -19,7 +19,6 @@ from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn
 from app.voice import router as voice_router
-from app.voice import service as voice_service
 from app.voice.dialogue import SORRY
 from app.voice.twilio import signature
 
@@ -60,6 +59,68 @@ async def callback(client, path, call_id, params, *, sign=True):
 
 async def stored(db, call) -> Call:
     return await db.get(Call, call.id, populate_existing=True)
+
+
+@pytest.fixture
+async def welcome_call(db, add_senior) -> Call:
+    senior = await add_senior("+40700000102")
+    row = Call(
+        senior_id=senior.id,
+        trigger="welcome",
+        starting_severity="green",
+        due_at=datetime.now(UTC),
+    )
+    db.add(row)
+    await db.commit()
+    return row
+
+
+async def test_the_welcome_stand_in_speaks_and_hangs_up(client, db, welcome_call):
+    r = await callback(client, "welcome", welcome_call.id, FIXTURES["answer"])
+    assert r.status_code == 200
+    assert "Acesta este un apel de test EchoCare." in r.text
+    assert "Bună ziua, doamna Maria." in r.text
+    assert r.text.rstrip().endswith("<Hangup/></Response>")
+    assert (await stored(db, welcome_call)).state == "completed"
+
+
+async def test_twilios_completed_leaves_the_stand_in_completed(
+    client, db, welcome_call
+):
+    await callback(client, "welcome", welcome_call.id, FIXTURES["answer"])
+    params = {**FIXTURES["status_common"], "CallStatus": "completed"}
+    r = await callback(client, "status", welcome_call.id, params)
+    assert r.status_code == 204
+    assert (await stored(db, welcome_call)).state == "completed"
+
+
+async def test_the_welcome_stand_in_refuses_a_bad_signature(client, db, welcome_call):
+    r = await callback(
+        client, "welcome", welcome_call.id, FIXTURES["answer"], sign=False
+    )
+    assert (r.status_code, r.json()) == (403, {"detail": {"reason": "not_allowed"}})
+    assert (await stored(db, welcome_call)).state == "queued"
+
+
+async def test_the_welcome_stand_in_says_sorry_for_an_unknown_call(client, db, call):
+    r = await callback(
+        client, "welcome", "0190a1b2-0000-7000-8000-000000000000", FIXTURES["answer"]
+    )
+    assert r.status_code == 200
+    assert SORRY in r.text and "<Hangup/>" in r.text
+    assert (await stored(db, call)).state == "queued"
+
+
+async def test_a_database_failure_at_the_welcome_says_sorry(client, welcome_call):
+    class Broken:
+        async def scalar(self, *_):
+            raise OperationalError("SELECT", {}, OSError("connection refused"))
+
+    app.dependency_overrides[get_session] = lambda: Broken()
+    r = await callback(client, "welcome", welcome_call.id, FIXTURES["answer"])
+    del app.dependency_overrides[get_session]
+    assert r.status_code == 200
+    assert SORRY in r.text and "<Hangup/>" in r.text
 
 
 async def test_answer_connects_to_conversation_relay(client, call):
@@ -130,7 +191,7 @@ async def test_a_machine_is_hung_up_and_unanswered(client, db, call, monkeypatch
     async def fake_hang_up(sid):
         hung_up.append(sid)
 
-    monkeypatch.setattr(voice_service, "hang_up", fake_hang_up)
+    monkeypatch.setattr(voice_router, "hang_up", fake_hang_up)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
     r = await callback(client, "amd", call.id, FIXTURES["amd_machine"])
@@ -141,7 +202,7 @@ async def test_a_machine_is_hung_up_and_unanswered(client, db, call, monkeypatch
 
 
 async def test_a_person_is_left_alone(client, db, call, monkeypatch):
-    monkeypatch.setattr(voice_service, "hang_up", pytest.fail)
+    monkeypatch.setattr(voice_router, "hang_up", pytest.fail)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
     r = await callback(client, "amd", call.id, FIXTURES["amd_human"])

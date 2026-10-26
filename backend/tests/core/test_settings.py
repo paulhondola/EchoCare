@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from app.core.settings import Settings, check_environment, is_local_db
 
@@ -107,3 +108,21 @@ def test_s3_settings_from_railway_env(monkeypatch):
         monkeypatch.setenv(name, value)
     s = Settings(database_url=LOCAL, _env_file=None)
     assert {name: getattr(s, name.lower()) for name in env} == env
+
+
+def test_allowlist_normalizes_and_drops_blanks():
+    s = Settings(
+        database_url="postgresql://x@localhost/x",
+        dial_allowlist="0722 123 456, ,+40722000001,",
+    )
+    assert s.dial_allowlist == "+40722123456,+40722000001"
+
+
+def test_allowlist_keeps_a_lone_star():
+    s = Settings(database_url="postgresql://x@localhost/x", dial_allowlist=" * ")
+    assert s.dial_allowlist == "*"
+
+
+def test_allowlist_refuses_an_invalid_number():
+    with pytest.raises(ValidationError):
+        Settings(database_url="postgresql://x@localhost/x", dial_allowlist="12")

@@ -189,7 +189,7 @@ Caregivers are sorted by name. This object is called **the senior's page** below
 | `POST /seniors/{id}/caregivers` | Medic or DAS, in reach | Makes the caregiver grant | 201, the caregiver as in the page | 409 `already_done` |
 | `DELETE /seniors/{id}/caregivers/{user_id}` | Medic or DAS, in reach | Deletes that caregiver grant | 204 | 404 `not_found` |
 | `POST /seniors/{id}/submit` | Medic, in reach | `draft` → `submitted` | 200, the page | 409 `wrong_state`, 422 `missing_fields` |
-| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`, and queues the welcome call in the same step ([04 §2](echocare/04-interfaces.md)); until Twilio, the senior's app answers it as a mock card | 200, the page | 409 `wrong_state` |
+| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`, and queues the welcome call in the same step ([04 §2](echocare/04-interfaces.md)); the scheduler dials it if the number is on `DIAL_ALLOWLIST`, otherwise a mobile senior's app answers it as a mock card and a landline's call stays queued | 200, the page | 409 `wrong_state` |
 
 A refused command changes nothing: its transaction rolls back.
 
@@ -254,7 +254,7 @@ Auth-layer §5 listed four before this work, which adds two, configured by a per
 | `+40700000004` | `444444` | A caregiver |
 | `+40700000005` | `555555` | A senior |
 
-A test number is enough for a senior here, because nothing dials it yet. When calls arrive, a senior with a test number must not be dialled (auth-layer §5).
+A test number is enough for a senior here, because the scheduler dials only numbers on `DIAL_ALLOWLIST`, which is empty by default. A senior with a test number must not be dialled (auth-layer §5): keep such a number off the list, and never set it to `*` while one is active.
 
 ## 6. Slice 1: Backend
 

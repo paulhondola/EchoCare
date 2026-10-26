@@ -1,11 +1,15 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from sqlalchemy import func, select
 
+from app.core.settings import get_settings
 from app.models import Call, Grant, Incident, Role, Senior, User
+from app.voice.calls import CallState
 from scripts import seed as seed_script
 from scripts.grant_das import grant_das
+from scripts.place_call import place_call
 from scripts.seed import SENIORS, seed
 
 DAS = {"Authorization": "Bearer +40700000001"}
@@ -113,3 +117,28 @@ def test_dev_token_errors_when_key_missing(tmp_path, monkeypatch):
     empty_env.write_text("OTHER_VAR=123\n")
     with pytest.raises(SystemExit, match="FIREBASE_WEB_API_KEY"):
         get_web_api_key(env_path=empty_env)
+
+
+async def test_place_call_stamps_dialed_at_and_follows_the_allowlist(
+    db, add_senior, monkeypatch
+):
+    s = get_settings()
+    monkeypatch.setattr(s, "twilio_account_sid", "AC1")
+    monkeypatch.setattr(s, "twilio_auth_token", "token")
+    monkeypatch.setattr(s, "twilio_from_number", "+40700000999")
+    monkeypatch.setattr(s, "dial_allowlist", "")
+    await add_senior("+40700000101")
+
+    placed, message = await place_call("0700000101")
+    assert not placed and "DIAL_ALLOWLIST" in message
+    assert await count(db, Call) == 0
+
+    async def times_out(*_):
+        raise httpx.ReadTimeout("x")
+
+    monkeypatch.setattr(s, "dial_allowlist", "+40700000101")
+    monkeypatch.setattr("scripts.place_call.dial", times_out)
+    placed, message = await place_call("0700000101")
+    assert not placed and message.startswith("outcome unknown")
+    call = await db.scalar(select(Call))
+    assert call.state is CallState.queued and call.dialed_at is not None

@@ -16,7 +16,7 @@ EchoCare checks on seniors living alone with automated phone calls in Romanian, 
 | `docs/adr/` | Architecture decisions | Markdown | |
 | `docs/specs/esti-bine-specificatii-v3.md`, `unihack.md` | The earlier v3 spec and the hackathon brief, in Romanian. History, not the current design | Markdown | |
 | `.github/workflows/` | One CI workflow per folder, path-filtered | GitHub Actions | |
-| `compose.yaml` | Local stack: Postgres 18, API, dashboard | Docker Compose | |
+| `compose.yaml` | Local stack: Postgres 18, API, dashboard, optional ngrok tunnel | Docker Compose | |
 | `lefthook.yml` | Git hooks: each folder's checks on commit, Android's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
 
 Run each toolchain from its own folder. There is no root `package.json`, Makefile or task runner.
@@ -31,8 +31,9 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 
 | Task | Command |
 |---|---|
-| Create the local env files, once | `cp backend/.env.example backend/.env && cp dashboard/.env.example dashboard/.env` |
+| Create the local env files, once | `cp .env.example .env && cp backend/.env.example backend/.env && cp dashboard/.env.example dashboard/.env` |
 | Start the whole stack, reloading on save | `docker compose up --watch` |
+| Same, with the ngrok tunnel for Twilio | `docker compose --profile tunnel up --watch` |
 | Postgres and dashboard only, to run the API on the host | `docker compose up --watch db dashboard` |
 | Check the stack is up | `curl localhost:8000/api/health` → `{"status":"ok","env":"local"}` |
 | Fill the local database with mock data ([backend/README.md](backend/README.md#mock-data)) | `cd backend && uv run python scripts/seed.py` (`--reset` for fresh times) |
@@ -45,6 +46,7 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 | http://localhost:8000/api/docs | API and its OpenAPI docs |
 | http://localhost:5173 | Dashboard |
 | localhost:5432 | Postgres; user, password and database `echocare`; tests use `echocare_test` |
+| http://localhost:4040 | ngrok request inspector, with the tunnel profile |
 
 ## How changes ship
 

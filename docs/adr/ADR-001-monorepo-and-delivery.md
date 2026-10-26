@@ -59,7 +59,7 @@ echocare/
 │                                watch threshold logic (no Android imports)
 ├── docs/
 ├── .railway/                    railway.ts: every Railway service, setting and variable (IaC); its own package.json
-├── compose.yaml                 local Postgres, API, dashboard dev server; Railway ignores it
+├── compose.yaml                 local Postgres, API, dashboard dev server, tunnel; Railway ignores it
 ├── .github/
 │   ├── CODEOWNERS
 │   └── workflows/  backend.yml  dashboard.yml  android.yml  android-release.yml
@@ -332,7 +332,7 @@ Railpack, Railway's builder without a Dockerfile, can detect a Vite project and 
 |---|---|---|---|
 | API runs | On the laptop, in Compose: `docker compose up --watch` | Railway, follows `main` | Railway, follows `release` |
 | Database | Postgres in Docker on the laptop | Railway Postgres, staging environment | Railway Postgres, production environment |
-| Public address, for Twilio | n/a (deployed) | Railway domain | Railway domain |
+| Public address, for Twilio | A tunnel to port 8000 | Railway domain | Railway domain |
 | Data | Seed script plus your own phone as a senior. Wiped whenever you like | Seed script plus the team's test phones | The demo cast only, seeded once before the freeze |
 | Who uses it | One backend developer | The whole team: Android debug builds, the staging dashboard, S1 and S8 | The demo: Android release builds, the production dashboard |
 | Migrated by | You: `alembic upgrade`, `downgrade`, or a fresh volume | Its pre-deploy command, on push to `main` | Its pre-deploy command, on push to `release` |
@@ -343,7 +343,9 @@ flowchart LR
     subgraph L["local, one per backend developer"]
         LAPI["api, uvicorn --reload<br/>+ dashboard dev server"]
         LDB[("Docker Postgres<br/>echocare + echocare_test")]
+        TUN["tunnel<br/>static domain"]
         LAPI --- LDB
+        TUN --> LAPI
     end
 
     subgraph S["staging, Railway"]
@@ -359,7 +361,7 @@ flowchart LR
 
     L -->|"git push origin main"| S
     S -->|"PR main → release"| P
-    TW -->|"callbacks to the address<br/>each call was placed with"| SAPI & PAPI
+    TW -->|"callbacks to the address<br/>each call was placed with"| TUN & SAPI & PAPI
     LAPI & SAPI & PAPI --> FB
 ```
 
@@ -369,7 +371,7 @@ flowchart LR
 |---|---|---|---|
 | `APP_ENV` | `local` | `staging` | `production` |
 | `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | `${{postgres.DATABASE_URL}}` | `${{postgres.DATABASE_URL}}` |
-| `PUBLIC_BASE_URL` | `http://localhost:8000` | `https://echocare-api-staging.up.railway.app` | `https://echocare-api-prod.up.railway.app` |
+| `PUBLIC_BASE_URL` | `https://<your static domain>`, the tunnel | `https://echocare-api-staging.up.railway.app` | `https://echocare-api-prod.up.railway.app` |
 | `ALLOWED_ORIGIN` | `http://localhost:5173`, Vite's dev server | `https://echocare-dashboard-staging.up.railway.app` | `https://echocare-dashboard-prod.up.railway.app` |
 | `SCHEDULER_ENABLED` | `true` | `true` | `true` |
 | `DEMO_MODE` | `true` | `true` | `true` for the demo; `false` is the pilot setting |
@@ -378,12 +380,12 @@ flowchart LR
 | Model provider key | A personal key, so local spending shows separately | Team key | Team key |
 
 **The external services are shared, and that is safe:**
-- **Twilio.** Every call is outbound and carries its own callback addresses (04 §4.1). A call placed from staging calls back staging; a call placed from production calls back production. One number serves both deployed environments, and nothing changes in the Twilio console.
+- **Twilio.** Every call is outbound and carries its own callback addresses (04 §4.1). A call placed from the laptop calls back the tunnel; a call placed from staging calls back staging. One number serves all three environments, and nothing changes in the Twilio console.
 - **Firebase.** Firebase only proves who owns a phone number; roles are grants stored in *each environment's database* (G6). So one number can be DAS in staging and unknown in production. One project means one `google-services.json`, one set of SHA fingerprints and one list of test phone numbers. Each device's push token is stored by the API it signed in to.
 
 #### The local environment
 
-**One command runs everything: `docker compose up --watch`.** It starts Postgres, the API and the dashboard's dev server. This matters most for the teammates who do not work on the backend. The Android and dashboard owners get a working API with no Python setup, and the Wear OS owner can test the whole watch → phone → API chain on a laptop.
+**One command runs everything: `docker compose up --watch`.** It starts Postgres, the API and the dashboard's dev server, and the tunnel too with a profile. This matters most for the teammates who do not work on the backend. The Android and dashboard owners get a working API with no Python setup, and the Wear OS owner can test the whole watch → phone → API chain on a laptop.
 
 Compose Watch keeps the inner loop fast inside containers. It copies each saved file into the running container, where uvicorn's `--reload` and Vite's hot reload pick it up. When a lock file changes, it rebuilds the image.
 
@@ -437,6 +439,16 @@ services:
         - { action: sync, path: ./dashboard/src, target: /app/src }
         - { action: rebuild, path: ./dashboard/package-lock.json }
 
+  tunnel:
+    profiles: [tunnel]            # only with --profile tunnel
+    image: ngrok/ngrok:3.39.11-alpine
+    # the account's free dev domain is assigned automatically and stays the same across restarts
+    command: http api:8000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}  # from the root .env, not committed
+    ports: ["4040:4040"]          # request inspector at http://localhost:4040
+    depends_on: [api]
+
 configs:
   create-test-db:
     content: "CREATE DATABASE echocare_test;"
@@ -448,6 +460,7 @@ volumes:
 | Command | Does |
 |---|---|
 | `docker compose up --watch` | Postgres, the API on `localhost:8000` (migrated) and the dashboard on `localhost:5173`, all reloading on save |
+| `docker compose --profile tunnel up --watch` | The same, plus the ngrok tunnel to the API, for Twilio and real phones |
 | `docker compose exec api alembic upgrade head` | Applies a new migration without restarting. `--reload` restarts uvicorn, not the migration step |
 | `docker compose exec api alembic revision --autogenerate -m "…"` | Writes the migration into `backend/alembic/versions` on the host, through the bind mount |
 | `DATABASE_URL=postgresql://echocare:echocare@localhost:5432/echocare_test uv run pytest`, in `backend/` | Tests on the host against `echocare_test`, which they may wipe freely. The image has no dev dependencies, so pytest is not run inside it |
@@ -455,9 +468,19 @@ volumes:
 | `docker compose down -v` | Wipes both databases, for a clean start |
 
 Three details of this file are easy to get wrong:
-- **`VITE_API_URL` is `localhost`, not `api`.** The dashboard's JavaScript runs in the browser on the host, which cannot resolve Compose's service names. Only container-to-container addresses, such as `DATABASE_URL`, use service names.
+- **`VITE_API_URL` is `localhost`, not `api`.** The dashboard's JavaScript runs in the browser on the host, which cannot resolve Compose's service names. Only container-to-container addresses, such as `DATABASE_URL` and the tunnel's `api:8000`, use service names.
 - **Migrations need a bind mount, not watch's sync.** Sync copies files one way, from host to container. A migration generated with `alembic revision` inside the container would never appear in Git.
 - **Backend developers still keep a local `uv sync`**, so the IDE has the virtual environment for autocompletion and type checks. Teammates who only run the stack do not need it.
+
+**The tunnel: ngrok with its free static domain.** Both ngrok and Cloudflare Tunnel carry the WebSocket Twilio needs. What matters is a **stable address**:
+- `PUBLIC_BASE_URL` in `backend/.env` stays the same from one session to the next.
+- An Android teammate can point a debug build at your laptop through `local.properties`, and it keeps working tomorrow.
+
+ngrok's free plan includes one static domain. Cloudflare's quick tunnels need no account but give a new random address every run. Its named tunnels are stable, but need a domain of your own on Cloudflare. Each backend developer uses their own ngrok account, whose dev domain ngrok assigns automatically. They keep `NGROK_AUTHTOKEN` in a root `.env`, which Compose reads automatically.
+
+ngrok runs in Compose, not on the host, so one command brings up the whole local environment, and nobody installs ngrok. It targets `api:8000` over Compose's network. It stays behind a profile because only backend developers have an ngrok account, and two tunnels cannot claim the same domain at once.
+
+The tunnel also makes local behave like Railway. A public HTTPS edge terminates TLS and forwards plain HTTP, so the signature check built from `PUBLIC_BASE_URL` (spike S1) is exercised on the laptop too.
 
 **Other clients against the local API**
 
@@ -465,10 +488,11 @@ Three details of this file are easy to get wrong:
 |---|---|
 | Dashboard | Already in Compose, at `localhost:5173`. `localhost` is authorized in Firebase by default |
 | Android emulator | `http://10.0.2.2:8000`, set as `echocare.apiUrl` in `local.properties`. Android 17 blocks apps from private addresses without the runtime permission `ACCESS_LOCAL_NETWORK`, which debug builds declare; grant it once per install with `adb shell pm grant ro.echocare android.permission.ACCESS_LOCAL_NETWORK`. Without it the request times out rather than being refused |
+| A real phone, yours or a teammate's | The tunnel's static domain |
 
 #### Moving a change through the environments
 
-1. **local.** Write the change and its migration. Iterate freely: `alembic downgrade -1`, edit, `upgrade`, or `down -v`. Test with pytest.
+1. **local.** Write the change and its migration. Iterate freely: `alembic downgrade -1`, edit, `upgrade`, or `down -v`. Test with pytest and with a real call to your phone through the tunnel.
 2. **staging.** `git push origin main`. With one or two backend developers, push straight to `main`. CI still runs, and Wait for CI keeps a red build off staging. Switch to pull requests once the Android app depends on staging every day. The pre-deploy command applies the migration.
 3. **production.** A pull request from `main` into `release`, merged with a merge commit, when staging is good. The same code is built again for production, and its pre-deploy command applies the same migrations.
 
@@ -483,7 +507,7 @@ The three databases can only be mixed up by a person with a laptop. Three small 
 | Mistake | Check |
 |---|---|
 | Running `alembic upgrade` from a laptop against staging or production | `alembic/env.py` refuses any database host other than `localhost` and `db`, unless it runs inside a Railway deployment (`RAILWAY_DEPLOYMENT_ID` is set; `railway run` on a laptop can copy `RAILWAY_ENVIRONMENT_NAME`, but not a deployment id). The cloud databases are migrated only by their own pre-deploy command |
-| A local API on a cloud database, competing with that environment's scheduler for the lock (G9) and dialing its queue with a local address | The API refuses to start when the `DATABASE_URL` host is not `localhost` or the Compose service `db`, `SCHEDULER_ENABLED` is `true`, and it is not inside a Railway deployment. It does not rely on `APP_ENV`, which `railway run` would set to the cloud environment's value |
+| A local API on a cloud database, competing with that environment's scheduler for the lock (G9) and dialing its queue with the tunnel's address | The API refuses to start when the `DATABASE_URL` host is not `localhost` or the Compose service `db`, `SCHEDULER_ENABLED` is `true`, and it is not inside a Railway deployment. It does not rely on `APP_ENV`, which `railway run` would set to the cloud environment's value |
 | pytest wiping the development database | The test settings require a database name ending in `_test` |
 
 #### Debugging against staging data
@@ -582,7 +606,7 @@ The keystore is PKCS12 with alias `key0`, and the key password equals the store 
 | `debug` | staging | Every push to `main` that touches `android/**` | App Distribution group `team` |
 | `release` | production | Every push to `release` that touches `android/**` | App Distribution group `demo-devices` |
 
-The address is a `BuildConfig` field, which a developer can override in `local.properties`. The watch never calls the API, but it must be built in the same build type as the phone, so that the package name and the key match.
+The address is a `BuildConfig` field, which a developer can override in `local.properties` to point at a tunnel to their laptop. The watch never calls the API, but it must be built in the same build type as the phone, so that the package name and the key match.
 
 `versionCode` comes from the workflow run number, the same for phone and watch, so every new build installs over the last one.
 
@@ -652,7 +676,7 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 ## Action items
 
 1. [ ] Create `backend/`, `dashboard/` and `android/` with the layout above. `android/` gets `:app`, `:wear` and `:shared`, with one `applicationId` and the shared signing config. *`android/` done in PR #6: `applicationId` `ro.echocare`.*
-2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments.
+2. [ ] Add `compose.yaml` at the root and `backend/.env` to `.gitignore`. Add the three checks against crossing environments. Each backend developer puts their ngrok authtoken in the root `.env`.
 3. [ ] Generate the shared keystore, store it in the team's password manager, add it to GitHub secrets, and register its SHA-1 and SHA-256 in Firebase. *Generated and in GitHub secrets; password manager and Firebase still to do.*
 4. [ ] Railway: one project, EU West, environments `staging` (follows `main`) and `production` (follows `release`). Apply `.railway/railway.ts` to each (services `api`, `dashboard` and `Postgres`, root directories, watch paths, Wait for CI, variables), then generate each service's public domain.
 5. [ ] Add both dashboard domains to Firebase Auth's authorized domains.

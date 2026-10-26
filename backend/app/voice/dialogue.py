@@ -31,6 +31,18 @@ def greeting(form_of_address: str) -> str:
     )
 
 
+# The stand-in welcome call until UC-04's real steps replace it (04 §4.2).
+WELCOME_STANDIN = (
+    "Bună ziua, {form_of_address}. Acesta este un apel de test EchoCare. La revedere."
+)
+
+
+def welcome_standin(form_of_address: str) -> Response:
+    """The welcome call's one sentence, then hang up."""
+    text = WELCOME_STANDIN.format(form_of_address=form_of_address)
+    return twiml(f"<Say language={quoteattr(LANGUAGE)}>{escape(text)}</Say><Hangup/>")
+
+
 def twiml(body: str) -> Response:
     xml = f'<?xml version="1.0" encoding="UTF-8"?><Response>{body}</Response>'
     return Response(xml, media_type="text/xml")

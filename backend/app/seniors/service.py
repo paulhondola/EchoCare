@@ -1,8 +1,10 @@
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
 
 from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,17 +18,21 @@ from app.auth.service import (
     sync_senior_grant,
 )
 from app.codes.models import SeniorStatus
+from app.core.settings import get_settings
 from app.seniors.models import (
     Consent,
     ConsentDecision,
     ConsentMethod,
     EnrollmentState,
     Senior,
+    WatchCondition,
+    WatchState,
 )
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
+    CheckInForm,
     MedicView,
     SeniorForm,
     SeniorSummary,
@@ -554,3 +560,52 @@ async def confirm_welcome(
         )
     )
     return True
+
+
+async def record_check_in(
+    session: AsyncSession, senior_id: uuid.UUID, form: CheckInForm, now: datetime
+) -> None:
+    """Stores the watch's latest check-in (UC-13). A time ahead of `now` is stored as
+    `now`; a check-in older than the stored one changes nothing, since the phone may
+    relay late and out of order."""
+    check_in = insert(WatchState).values(
+        senior_id=senior_id,
+        state=WatchCondition.not_worn if form.worn is False else WatchCondition.ok,
+        last_check_in_at=min(form.measured_at, now),
+        battery=form.battery,
+        worn=form.worn,
+        last_pulse=form.last_pulse,
+    )
+    await session.execute(
+        check_in.on_conflict_do_update(
+            index_elements=[WatchState.senior_id],
+            set_={
+                c: check_in.excluded[c]
+                for c in ("state", "last_check_in_at", "battery", "worn", "last_pulse")
+            },
+            where=WatchState.last_check_in_at <= check_in.excluded.last_check_in_at,
+        )
+    )
+    await session.commit()
+
+
+def watch_silence() -> timedelta:
+    """How long a watch may go without a check-in before it is `offline` (UC-13)."""
+    return timedelta(seconds=90) if get_settings().demo_mode else timedelta(minutes=45)
+
+
+async def silence_watches(session: AsyncSession, now: datetime) -> int:
+    """Marks every watch whose check-ins stopped `offline` (UC-13); its next check-in
+    puts it back. Returns how many."""
+    result = await session.execute(
+        update(WatchState)
+        .where(
+            WatchState.state.in_([WatchCondition.ok, WatchCondition.not_worn]),
+            WatchState.last_check_in_at < now - watch_silence(),
+        )
+        .values(state=WatchCondition.offline)
+    )
+    await session.commit()
+    if result.rowcount:
+        log.info("%d watches gone offline", result.rowcount)
+    return result.rowcount

@@ -1,11 +1,25 @@
 """The pure pieces of the telephony edge: signatures and how callbacks move a call
 (#15). The scripted relay session is tests/agent/test_relay.py."""
 
+import uuid
+from urllib.parse import parse_qs
+
+import httpx
 import pytest
 
 from app.core.settings import get_settings
+from app.voice import twilio
 from app.voice.calls import CallState, after_callback, answered_by_machine
-from app.voice.twilio import public_url, signature, signed
+from app.voice.twilio import (
+    dial,
+    dial_allowed,
+    fetch_call,
+    hang_up,
+    public_url,
+    refused,
+    signature,
+    signed,
+)
 
 C = CallState
 
@@ -83,3 +97,110 @@ def test_after_callback(current, new, expected):
 )
 def test_answered_by_machine(answered_by, machine):
     assert answered_by_machine(answered_by) is machine
+
+
+@pytest.mark.parametrize(
+    ("allowlist", "phone", "allowed"),
+    [
+        ("", "+40722123456", False),
+        ("*", "+40722123456", True),
+        ("+40722123456", "+40722123456", True),
+        ("+40722123456", "+40722000001", False),
+    ],
+)
+def test_dial_allowed(monkeypatch, allowlist, phone, allowed):
+    monkeypatch.setattr(get_settings(), "dial_allowlist", allowlist)
+    assert dial_allowed(phone) is allowed
+
+
+def test_configured_needs_all_three(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "twilio_account_sid", "AC1")
+    monkeypatch.setattr(s, "twilio_auth_token", "t")
+    monkeypatch.setattr(s, "twilio_from_number", "+1555")
+    assert twilio.configured()
+    monkeypatch.setattr(s, "twilio_from_number", "")
+    assert not twilio.configured()
+
+
+def test_refused_is_a_4xx_only():
+    def status_error(code):
+        request = httpx.Request("POST", "https://api.twilio.com/x")
+        return httpx.HTTPStatusError(
+            "x", request=request, response=httpx.Response(code, request=request)
+        )
+
+    assert refused(status_error(400))
+    assert not refused(status_error(500))
+    assert not refused(httpx.ConnectTimeout("slow"))
+
+
+@pytest.fixture
+def twilio_api(monkeypatch):
+    """Twilio's API answered by a mock transport; the requests it saw."""
+    s = get_settings()
+    monkeypatch.setattr(s, "twilio_account_sid", "AC1")
+    monkeypatch.setattr(s, "twilio_api_host", "api.dublin.ie1.twilio.com")
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200, json={"sid": "CA1", "status": "completed", "answered_by": "human"}
+        )
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        twilio.httpx,
+        "AsyncClient",
+        lambda **kw: real(transport=httpx.MockTransport(handler), **kw),
+    )
+    return seen
+
+
+async def test_requests_go_to_the_configured_host(twilio_api):
+    call_id = uuid.uuid4()
+    assert await dial("+40722123456", call_id, answer="welcome") == "CA1"
+    (request,) = twilio_api
+    assert str(request.url) == (
+        "https://api.dublin.ie1.twilio.com/2010-04-01/Accounts/AC1/Calls.json"
+    )
+    url = parse_qs(request.content.decode())["Url"][0]
+    assert url.endswith(f"/api/voice/welcome?call={call_id}")
+    assert parse_qs(request.content.decode())["TimeLimit"] == ["180"]
+
+
+async def test_hang_up_cancels_a_ringing_call_and_completes_a_live_one(twilio_api):
+    await hang_up("CA1", "ringing")
+    await hang_up("CA1", "queued")
+    await hang_up("CA1", "in-progress")
+    await hang_up("CA1")
+    sent = [parse_qs(r.content.decode())["Status"][0] for r in twilio_api]
+    assert sent == ["canceled", "canceled", "completed", "completed"]
+    assert str(twilio_api[0].url).endswith("/Accounts/AC1/Calls/CA1.json")
+
+
+async def test_fetch_call_reads_the_status_and_who_answered(twilio_api):
+    assert await fetch_call("CA1") == ("completed", "human")
+    (request,) = twilio_api
+    assert request.method == "GET"
+    assert str(request.url) == (
+        "https://api.dublin.ie1.twilio.com/2010-04-01/Accounts/AC1/Calls/CA1.json"
+    )
+
+
+async def test_an_error_is_logged_without_the_number(monkeypatch, caplog):
+    body = {"code": 21211, "message": "The 'To' number +40722123456 is not valid"}
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        twilio.httpx,
+        "AsyncClient",
+        lambda **kw: real(
+            transport=httpx.MockTransport(lambda r: httpx.Response(400, json=body)),
+            **kw,
+        ),
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await dial("+40722123456", uuid.uuid4())
+    assert "+40722***456" in caplog.text and "21211" in caplog.text
+    assert "+40722123456" not in caplog.text

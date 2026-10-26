@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
@@ -12,6 +13,7 @@ from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
+    CheckInForm,
     SeniorForm,
     SeniorSummary,
     SeniorView,
@@ -25,6 +27,7 @@ from app.seniors.service import (
     enrollments_query,
     grant_caregiver,
     reach_senior,
+    record_check_in,
     register,
     revoke_caregiver,
     save_signature,
@@ -193,3 +196,15 @@ async def list_enrollments(
     """Cereri de înrolare: the seniors in `submitted`, oldest first (04 §1)."""
     seniors = await session.scalars(enrollments_query())
     return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
+
+
+@router.post("/me/check-ins", status_code=204)
+async def check_in(
+    body: CheckInForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.senior))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """The watch's latest reading, relayed by the senior's phone (UC-13). Keeps only
+    the latest; an older one than the stored is ignored."""
+    senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
+    await record_check_in(session, senior_id, body, datetime.now(UTC))
