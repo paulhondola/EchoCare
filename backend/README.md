@@ -149,18 +149,31 @@ A second run adds nothing. Its times are relative to when it ran, and resolved i
 uv run python scripts/seed.py --reset
 ```
 
-**Staging and production: planned, not ready.** ADR-001 expects staging to hold the seed plus the team's test phones, and production the demo cast, seeded once before the freeze. Seeding stays a person's action, never part of a deploy: no pre-deploy command, no start-up hook. It would run inside the `api` container, as `grant_das.py` does, since a laptop cannot reach `postgres.railway.internal`:
-
-```bash
-railway ssh -s api -e staging
-```
-
-Two things must change before that:
-
-- **The guard.** The script refuses every database but a local one, including from inside Railway. It would follow `alembic/env.py`: allowed inside a Railway deployment, still refused from a laptop.
-- **The phone numbers.** The seeded seniors' numbers are made up and may belong to real people; two are Timișoara landlines. Nothing dials them unless they are on `DIAL_ALLOWLIST` (empty by default), but with Twilio set up and `*` there, a campaign or `place_call.py` would. The active seniors need the team's own phones first.
+`seed.py` stays local. Its seniors' numbers are made up and may belong to real people; two are Timișoara landlines.
 
 On the day, run `--reset` shortly before the demo, so the open incident is minutes old and the resolved ones are still on the board. Never during a live demo: `--reset` deletes every incident and call attached to a seeded senior.
+
+### The demo cast on staging and production
+
+ADR-001 has staging hold the team's phones and production the demo cast, seeded once before the freeze. [scripts/seed_cast.py](scripts/seed_cast.py) seeds four people through the same steps the apps take:
+- a medic;
+- a DAS employee, put on duty, so hand-overs ring them;
+- a senior the medic registered;
+- the senior's caregiver.
+
+The senior is left `submitted`, so the demo starts with DAS pressing „Acceptă”, which rings the welcome call. A second run adds nothing.
+
+The cast is real people, so it never enters Git (#48). Keep it in a JSON file outside the repository, or as `backend/cast.json`, which Git and Docker ignore. [cast.example.json](cast.example.json) shows its shape; every field is checked as the API checks it.
+
+Seeding stays a person's action, never part of a deploy. Run it inside the `api` container, since a laptop cannot reach `postgres.railway.internal`, and pipe the file in from the laptop. `--confirm` must name the environment, so production is never seeded by mistake:
+
+```bash
+railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging - < cast.json
+```
+
+From a laptop the script refuses any database but a local one, as `alembic/env.py` does.
+
+For the senior's calls to ring, put the senior's and the DAS number on that environment's `DIAL_ALLOWLIST`.
 
 ## Migrations
 
