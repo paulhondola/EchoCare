@@ -40,7 +40,7 @@ cp .env.example .env
 |---|---|---|
 | `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
 | `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
-| `PUBLIC_BASE_URL` | `http://localhost:8000` | The API's public address, for Twilio callbacks and signature checks |
+| `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
@@ -55,13 +55,13 @@ cp .env.example .env
 The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside the API and dials queued calls that are due: accepting a senior, or starting a campaign, rings their phone with no script. With nothing set, it dials nothing and the mock card answers as before.
 
 1. **Twilio.** In `backend/.env`, set `TWILIO_ACCOUNT_SID`, `TWILIO_FROM_NUMBER`, and `TWILIO_AUTH_TOKEN` with `TWILIO_API_HOST=api.dublin.ie1.twilio.com`. Use the IE1 auth token, not the US one.
-2. **A tunnel.** Twilio calls the API back, so it must reach port 8000. Run one, and set `PUBLIC_BASE_URL` to its https address:
+2. **The tunnel.** Twilio calls the API back, so it must reach port 8000. Compose runs ngrok for it ([ADR-001](../docs/adr/ADR-001-monorepo-and-delivery.md)): put your ngrok authtoken in `NGROK_AUTHTOKEN` in the root `.env`, and your account's dev domain in `PUBLIC_BASE_URL`. From the repository root:
 
    ```bash
-   cloudflared tunnel --url http://localhost:8000
+   docker compose --profile tunnel up --watch
    ```
 
-   (`ngrok http 8000` works too.) Settings are read once, so **restart the API whenever the tunnel's address changes**. Without a tunnel the phone still rings, but no callback arrives, and the sweep settles the call about 4.5 minutes later.
+   The domain stays the same across restarts; ngrok's request inspector at http://localhost:4040 shows it, with every callback Twilio sends. Compose reads `backend/.env` only when it creates the container, so **recreate the API after changing it** (`docker compose up -d --force-recreate api`). Without a tunnel the phone still rings, but no callback arrives, and the sweep settles the call about 4.5 minutes later.
 3. **A number to ring.** The seeded seniors' numbers are made up. Replace an active senior's number with your own by hand, then list it in `DIAL_ALLOWLIST` (a number off the list is never dialed). Before listing it, cancel or delete the old queued calls in your local database: welcome, manual and watch calls never lapse, so every old one for a listed senior is dialed at once.
 4. **Try it.** Accept a senior, or start a campaign, and your phone rings. The welcome call is a stand-in: it says „Bună ziua, {form of address}. Acesta este un apel de test EchoCare. La revedere.” and hangs up. It ends `completed` with no consent, so the senior stays `accepted` until UC-04's real welcome flow exists.
 
