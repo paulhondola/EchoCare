@@ -39,7 +39,8 @@ services:
     depends_on:
       db: { condition: service_healthy }
       # waits for the bucket, but nothing calls storage yet, so a broken MinIO doesn't stop the API
-      minio-create-bucket: { condition: service_completed_successfully, required: false }
+      minio-create-bucket:
+        { condition: service_completed_successfully, required: false }
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'"
     volumes:
       # bind mount, not sync: migrations generated inside the container must land on the host
