@@ -33,7 +33,7 @@ import ro.echocare.ui.theme.Palette
 // Campaign calls ask three questions (Q8); the welcome call asks for consent (Q11).
 
 // Larger than SnButton's 44dp: these are the buttons a senior presses
-private val BUTTON_HEIGHT = 56.dp
+internal val BUTTON_HEIGHT = 56.dp
 
 /** The days the server reads (design §4.2), in the order of [DAY_LABELS]. */
 val DAYS = listOf("luni", "marți", "miercuri", "joi", "vineri", "sâmbătă", "duminică")

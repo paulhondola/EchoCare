@@ -91,11 +91,13 @@ The node's clock is not set. It reports ages in seconds; the phone turns them in
 
 | Request | Indicative address | Who | Input | Output |
 |---|---|---|---|---|
-| Send event | `POST /me/events` | Senior | Event id, type (the watch's types, or `manual_request` for "Sunați-mă"), source (`watch`, `home_node` or `phone`; optional, an old app that omits it means `watch` or `phone` by type) **(proposed)**, time measured, snapshot if any, last known location (latitude, longitude, accuracy, when) if the app has one | Recorded; whether a call was queued; the existing call if one was |
+| Send event | `POST /me/events` | Senior | `id` (a UUID the phone generates, so a resend is a duplicate), `type` and `measured_at` (with an offset: a naive time is 422). Built so far: `type` is `manual_request` ("Sunați-mă"); any other type is 422 until the watch's events are built (#51). Not built yet: `source`, `snapshot` and the last known location. A new optional field is ignored today, so an app can send them early | `{queued, call_id}`: `queued` is true when this event queued a call; `call_id` is the call it started or joined, null when none (stale, or the senior is not `active`). 200 also for a duplicate, with the stored event's call. The call is `manual`, starting yellow, due now: the dialer takes it on its next tick (06 §3) |
 | Send check-in | `POST /me/check-ins` | Senior | The watch's check-in, as relayed: `measured_at` (with an offset), and optional `battery` (0 to 100), `worn` (true or false) and `last_pulse` (0 to 300) | 204. Keeps only the latest (05 §4): the senior's one watch state becomes `not_worn` when `worn` is false, otherwise `ok`, which also brings an `offline` watch back (UC-13). A `measured_at` in the future is stored as the time the check-in arrived, so a wrong watch clock cannot hide a silent watch. One measured before the stored one is acknowledged and changes nothing, since the phone resends held-back check-ins. Stored whatever the senior's enrollment state; starts no call. The scheduler marks a watch `offline` when its latest check-in is older than the silence limit ([06-operations.md](06-operations.md) §3) |
 | Send room reading | `POST /me/room-readings` **(P21, proposed)** | Senior | Time measured, temperature, humidity, time of the last motion, as relayed from the home node | Recorded; whether it started a call |
 
 **Intake rules**
+
+Built so far, for `manual_request`: duplicates, cooldown, stale events and not active. The cooldown is 10 minutes, 30 seconds in demo mode, and a canceled call does not count; the stale limit is 30 minutes (06 §3).
 
 | Rule | Behaviour |
 |---|---|

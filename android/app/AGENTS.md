@@ -19,6 +19,7 @@ app/src/
 │   ├── home/Frame.kt      the shared top bar, the timed re-read, loading and failure states
 │   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
 │   ├── home/Senior*.kt    one senior's page
+│   ├── home/CallMe.kt     „Sunați-mă”: the request, the states after its answer, the button, tested on the JVM (UC-10)
 │   ├── das/Incidents.kt   DAS: sorting, relative time, the senior's words, Maps link, refusals, tested on the JVM (UC-11, UC-12)
 │   ├── das/Incident*.kt   the DAS home (open and in progress) and one incident's page with Preiau
 │   ├── das/Resolve*.kt    „Rezolvare caz”: an outcome and a note

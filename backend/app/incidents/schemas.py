@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, StringConstraints
+from pydantic import AwareDatetime, BaseModel, BeforeValidator, StringConstraints
 
-from app.incidents.models import IncidentOutcome, IncidentStatus
+from app.incidents.models import EventType, IncidentOutcome, IncidentStatus
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
 
 # Severity and Certainty are IntEnums; clients read their names, "red", not "2".
@@ -35,6 +35,22 @@ class ResolutionForm(BaseModel):
 
     outcome: IncidentOutcome
     note: Note
+
+
+class EventForm(BaseModel):
+    """POST /me/events' body (04 §3). Only „Sunați-mă” so far; the id is the phone's, so
+    a resend is a duplicate. `measured_at` carries an offset: a naive time is 422."""
+
+    id: uuid.UUID
+    type: Literal[EventType.manual_request]
+    measured_at: AwareDatetime
+
+
+class EventView(BaseModel):
+    """Whether the event queued a call, and the call it started or joined, if any."""
+
+    queued: bool
+    call_id: uuid.UUID | None
 
 
 class TriggerEventView(BaseModel):

@@ -60,6 +60,8 @@ fun SeniorScreen(
                     .padding(horizontal = 16.dp, vertical = 20.dp)
                     .widthIn(max = 600.dp)
             ) {
+                // The senior's home only: asks for a wellbeing call (UC-10)
+                if (id == null) CallMeButton(vm.callMe, vm::requestCall)
                 // The senior's home only: a call to answer here instead of on the phone (design §6.2)
                 vm.mock?.let { MockCallCard(it, vm::answer) }
                 // „Editează” for the medic, while the server still takes an edit (seniors §9.1)

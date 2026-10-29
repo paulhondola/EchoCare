@@ -27,6 +27,20 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var mock by mutableStateOf<MockCall?>(null)
         private set
 
+    /** What „Sunați-mă” shows (UC-10). */
+    var callMe by mutableStateOf(CallMe.Idle)
+        private set
+
+    /**
+     * „Sunați-mă”. No retry: a failed tap shows [CallMe.NotSent] and the senior taps again, with a
+     * new id. A signed-out session ends on the next reread.
+     */
+    fun requestCall() {
+        if (callMe == CallMe.Sending) return
+        callMe = CallMe.Sending
+        viewModelScope.launch { callMe = callMeAfter(answer { api.sendEvent(manualRequest()) }) }
+    }
+
     /** [id] is null on the senior's own home: the one senior their grant names. */
     fun reread(id: String?) {
         viewModelScope.launch {

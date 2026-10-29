@@ -104,6 +104,11 @@
     <string name="field_invalid">Valoare invalidă.</string>
     <string name="too_long">Cel mult %1$d de caractere.</string>
 
+    <!-- „Sunați-mă” on the senior's home (UC-10) -->
+    <string name="call_me">Sunați-mă</string>
+    <string name="call_me_sent">Cererea a fost trimisă. Veți primi un apel în scurt timp.</string>
+    <string name="call_me_failed">Cererea nu a putut fi trimisă. Încercați din nou.</string>
+
     <!-- The mock call card on the senior's home (design §6.2, Q8, Q11) -->
     <string name="mock_calling">DAS Timișoara vă sună</string>
     <string name="mock_note">Apel simulat: răspundeți aici în loc de telefon.</string>

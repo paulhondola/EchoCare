@@ -127,6 +127,23 @@ data class MockAnswer(
     val consent: Boolean? = null
 )
 
+// POST /me/events' body (04 §3). [type] is "manual_request" so far; [measuredAt] is ISO-8601 with
+// an offset, and [id] is the phone's, so a resend is a duplicate.
+@Serializable
+data class EventForm(
+    val id: String,
+    val type: String,
+    @SerialName("measured_at") val measuredAt: String
+)
+
+// POST /me/events' answer: [queued] when this event queued a call, [callId] the call it started or
+// joined, null when no call was queued (a stale event, or a senior who is not active).
+@Serializable
+data class EventResult(
+    val queued: Boolean = false,
+    @SerialName("call_id") val callId: String? = null
+)
+
 // One row of GET /incidents (04 §1). [status] stays a string: a later server may add one.
 @Serializable
 data class IncidentRow(
@@ -269,6 +286,10 @@ interface EchoCareApi {
     /** 204; a 409 means the call is no longer due (design §4.2). */
     @POST("calls/{id}/mock-answer")
     suspend fun mockAnswer(@Path("id") id: String, @Body body: MockAnswer): Response<Unit>
+
+    /** Senior only. 200 also for a duplicate; [EventResult.callId] is null when no call was queued (04 §3). */
+    @POST("me/events")
+    suspend fun sendEvent(@Body body: EventForm): EventResult
 
     /** DAS only. [status] is comma-separated; the DAS app asks for `open,in_progress` (04 §1). */
     @GET("incidents")

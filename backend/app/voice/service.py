@@ -1,13 +1,14 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, func, literal, select, update
+from sqlalchemy import ColumnElement, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import Session
+from app.core.settings import get_settings
 from app.seniors.models import Senior
 from app.status.engine import Certainty, Question, Severity
 from app.voice.calls import ANSWERED, ENDED, LIVE, CallState, advance, after_callback
@@ -113,9 +114,10 @@ async def queue_calls(
     trigger: CallTrigger,
     due_at: datetime,
     campaign_id: uuid.UUID | None = None,
+    starting_severity: Severity = Severity.green,
 ) -> None:
-    """Queues a first attempt, starting green, for each senior the `seniors` condition
-    picks; it may correlate with `Senior.id`.
+    """Queues a first attempt, starting green unless `starting_severity` says otherwise,
+    for each senior the `seniors` condition picks; it may correlate with `Senior.id`.
 
     A senior who already has a live call is skipped by `uq_calls_live_senior` (05 §3),
     so nobody gets two.
@@ -137,12 +139,38 @@ async def queue_calls(
                 literal(trigger, Call.trigger.type),
                 literal(campaign_id, Call.campaign_id.type),
                 literal(1, Call.attempt.type),
-                literal(Severity.green, Call.starting_severity.type),
+                literal(starting_severity, Call.starting_severity.type),
                 literal(CallState.queued, Call.state.type),
                 literal(due_at, Call.due_at.type),
             ).where(seniors),
         )
         .on_conflict_do_nothing()
+    )
+
+
+def cooldown() -> timedelta:
+    """How long after a call ended a new event attaches to it instead of starting a
+    call (06 §3)."""
+    return timedelta(seconds=30) if get_settings().demo_mode else timedelta(minutes=10)
+
+
+async def recent_call(
+    session: AsyncSession, senior_id: uuid.UUID, now: datetime
+) -> Call | None:
+    """The senior's call a new event attaches to: one queued or live, or one that ended
+    within the cooldown (04 §3). A canceled call never took place."""
+    return await session.scalar(
+        select(Call)
+        .where(
+            Call.senior_id == senior_id,
+            or_(
+                Call.state.in_(LIVE),
+                (Call.state != CallState.canceled)
+                & (Call.ended_at >= now - cooldown()),
+            ),
+        )
+        .order_by(Call.created_at.desc())
+        .limit(1)
     )
 
 

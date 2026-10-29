@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from sqlalchemy import Select, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -13,6 +14,8 @@ from app.core.db import engine
 from app.incidents.models import Event, Incident, IncidentStatus
 from app.incidents.schemas import (
     CallDetail,
+    EventForm,
+    EventView,
     IncidentDetail,
     IncidentSummary,
     ReportView,
@@ -20,13 +23,69 @@ from app.incidents.schemas import (
     TriggerEventView,
     TurnView,
 )
-from app.seniors.models import Senior
+from app.seniors.models import EnrollmentState, Senior
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
 from app.seniors.service import caregivers_query
 from app.status.engine import Severity
-from app.voice.models import Call, CallTurn
+from app.voice.models import Call, CallTrigger, CallTurn
+from app.voice.service import queue_calls, recent_call
 
 log = logging.getLogger("echocare.incidents")
+
+# An event measured longer ago than this starts no call (04 §3, 06 §3).
+STALE = timedelta(minutes=30)
+
+
+async def record_event(
+    session: AsyncSession, senior_id: uuid.UUID, form: EventForm, now: datetime
+) -> EventView:
+    """Stores the senior's „Sunați-mă” and applies the intake rules (UC-10, 04 §3): a
+    resent id is ignored; a stale event, or one for a senior who is not `active`, is
+    recorded and starts no call; otherwise the event joins the call queued, live or just
+    ended, or queues a yellow one.
+    """
+    stored = await session.scalar(
+        insert(Event)
+        .values(
+            id=form.id,
+            senior_id=senior_id,
+            type=form.type,
+            measured_at=form.measured_at,
+        )
+        .on_conflict_do_nothing()
+        .returning(Event.id)
+    )
+    if stored is None:
+        call_id = await session.scalar(
+            select(Event.call_id).where(
+                Event.id == form.id, Event.senior_id == senior_id
+            )
+        )
+        return EventView(queued=False, call_id=call_id)
+
+    senior = await session.get(Senior, senior_id)
+    call_id, queued = None, False
+    if (
+        senior is not None
+        and senior.enrollment_state is EnrollmentState.active
+        and now - form.measured_at <= STALE
+    ):
+        call = await recent_call(session, senior_id, now)
+        if call is None:
+            await queue_calls(
+                session,
+                Senior.id == senior_id,
+                trigger=CallTrigger.manual,
+                due_at=now,
+                starting_severity=Severity.yellow,
+            )
+            call, queued = await recent_call(session, senior_id, now), True
+        call_id = call.id
+        await session.execute(
+            update(Event).where(Event.id == form.id).values(call_id=call_id)
+        )
+    await session.commit()
+    return EventView(queued=queued, call_id=call_id)
 
 
 def opens_incident(result: Severity, unresolved: bool) -> bool:
