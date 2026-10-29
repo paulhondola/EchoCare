@@ -1,32 +1,59 @@
 {
-  "_about": "Twilio's callback bodies for one answered call and one machine, in the shape of Twilio's documentation. Replace them with the requests recorded on staging in spike S1 (06 §5), keeping the keys; tests sign them with their own token and address.",
+  "_about": "Twilio's callback bodies recorded on the local stack in spike S1 (#48, 2026-10-29), numbers and SIDs replaced; amd_machine is still in the shape of Twilio's documentation, since no machine answered. Tests sign them with their own token and address.",
   "answer": {
-    "AccountSid": "AC00000000000000000000000000000000",
-    "ApiVersion": "2010-04-01",
-    "CallSid": "CA11111111111111111111111111111111",
-    "CallStatus": "in-progress",
     "Called": "+40700000101",
-    "Caller": "+15005550006",
+    "CallerCountry": "RO",
     "Direction": "outbound-api",
+    "CallSid": "CA11111111111111111111111111111111",
+    "To": "+40700000101",
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
     "From": "+15005550006",
-    "To": "+40700000101"
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
   },
   "status": [
-    {"CallStatus": "initiated", "SequenceNumber": "0", "CallbackSource": "call-progress-events"},
-    {"CallStatus": "ringing", "SequenceNumber": "1", "CallbackSource": "call-progress-events"},
-    {"CallStatus": "in-progress", "SequenceNumber": "2", "CallbackSource": "call-progress-events"},
-    {"CallStatus": "completed", "SequenceNumber": "3", "CallbackSource": "call-progress-events", "CallDuration": "184", "Duration": "4"}
+    {
+      "Timestamp": "Thu, 29 Oct 2026 19:32:03 +0000",
+      "SequenceNumber": "0",
+      "CallStatus": "initiated"
+    },
+    {
+      "Timestamp": "Thu, 29 Oct 2026 19:32:04 +0000",
+      "SequenceNumber": "1",
+      "CallStatus": "ringing"
+    },
+    {
+      "Timestamp": "Thu, 29 Oct 2026 19:32:07 +0000",
+      "SequenceNumber": "2",
+      "CallStatus": "in-progress"
+    },
+    {
+      "Timestamp": "Thu, 29 Oct 2026 19:32:34 +0000",
+      "SipResponseCode": "200",
+      "SequenceNumber": "3",
+      "CallStatus": "completed",
+      "Duration": "1",
+      "CallDuration": "27"
+    }
   ],
   "status_common": {
-    "AccountSid": "AC00000000000000000000000000000000",
-    "ApiVersion": "2010-04-01",
-    "CallSid": "CA11111111111111111111111111111111",
     "Called": "+40700000101",
-    "Caller": "+15005550006",
+    "CallerCountry": "RO",
     "Direction": "outbound-api",
-    "From": "+15005550006",
+    "CallbackSource": "call-progress-events",
+    "CallSid": "CA11111111111111111111111111111111",
     "To": "+40700000101",
-    "Timestamp": "Tue, 13 Oct 2026 09:00:00 +0000"
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "From": "+15005550006",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
   },
   "amd_machine": {
     "AccountSid": "AC00000000000000000000000000000000",
@@ -34,10 +61,116 @@
     "CallSid": "CA11111111111111111111111111111111",
     "MachineDetectionDuration": "4130"
   },
-  "amd_human": {
-    "AccountSid": "AC00000000000000000000000000000000",
-    "AnsweredBy": "human",
+  "amd_unknown": {
+    "MachineDetectionDuration": "5479",
     "CallSid": "CA11111111111111111111111111111111",
-    "MachineDetectionDuration": "2210"
+    "AnsweredBy": "unknown",
+    "AccountSid": "AC00000000000000000000000000000000"
+  },
+  "welcome": {
+    "Called": "+40700000101",
+    "CallerCountry": "RO",
+    "Direction": "outbound-api",
+    "CallSid": "CA22222222222222222222222222222222",
+    "To": "+40700000101",
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
+    "From": "+15005550006",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
+  },
+  "welcome_gather_keys": {
+    "msg": "Gather End",
+    "Called": "+40700000101",
+    "Digits": "1",
+    "CallerCountry": "RO",
+    "Direction": "outbound-api",
+    "CallSid": "CA22222222222222222222222222222222",
+    "To": "+40700000101",
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
+    "From": "+15005550006",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
+  },
+  "welcome_gather_speech": {
+    "Called": "+40700000101",
+    "CallerCountry": "RO",
+    "Direction": "outbound-api",
+    "SpeechResult": "da",
+    "Language": "ro-RO",
+    "Confidence": "0.7100429",
+    "CallSid": "CA33333333333333333333333333333333",
+    "To": "+40700000101",
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
+    "From": "+15005550006",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
+  },
+  "handoff": {
+    "Called": "+40700000101",
+    "CallerCountry": "RO",
+    "Direction": "outbound-api",
+    "SessionDuration": "12",
+    "SessionStatus": "ended",
+    "CallSid": "CA11111111111111111111111111111111",
+    "To": "+40700000101",
+    "ToCountry": "RO",
+    "SessionId": "VX11111111111111111111111111111111",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
+    "HandoffData": "{\"call\": \"00000000-0000-0000-0000-000000000000\", \"reason\": \"alarm\"}",
+    "From": "+15005550006",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
+  },
+  "handoff_answered": {
+    "Called": "+40700000001",
+    "ParentCallSid": "CA11111111111111111111111111111111",
+    "CallerCountry": "RO",
+    "Direction": "outbound-dial",
+    "CalledVia": "+40700000101",
+    "CallSid": "CA44444444444444444444444444444444",
+    "To": "+40700000001",
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
+    "From": "+15005550006",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006",
+    "ForwardedFrom": "+40700000101"
+  },
+  "handoff_result": {
+    "Called": "+40700000101",
+    "DialCallStatus": "completed",
+    "CallerCountry": "RO",
+    "Direction": "outbound-api",
+    "DialCallSid": "CA44444444444444444444444444444444",
+    "CallSid": "CA11111111111111111111111111111111",
+    "To": "+40700000101",
+    "ToCountry": "RO",
+    "ApiVersion": "2010-04-01",
+    "CallStatus": "in-progress",
+    "From": "+15005550006",
+    "DialBridged": "true",
+    "AccountSid": "AC00000000000000000000000000000000",
+    "DialCallDuration": "6",
+    "CalledCountry": "RO",
+    "FromCountry": "RO",
+    "Caller": "+15005550006"
   }
 }

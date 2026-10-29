@@ -33,7 +33,7 @@ from app.voice.welcome import (
     WRONG_NUMBER,
     identity,
 )
-from tests.voice.test_voice import callback, stored
+from tests.voice.test_voice import FIXTURES, callback, stored
 
 BASE = "https://echocare.test/api/voice"
 
@@ -64,11 +64,20 @@ def spoken(root: ElementTree.Element) -> str:
 
 
 async def picked_up(client, call):
-    return twiml(await callback(client, "welcome", call.id, {"CallSid": "CA1"}))
+    return twiml(await callback(client, "welcome", call.id, FIXTURES["welcome"]))
+
+
+def gathered(params: dict) -> dict:
+    """A recorded `<Gather>` body carrying this answer (S1): with a key Twilio sends the
+    speech fields empty, with speech it sends no `Digits`."""
+    if "SpeechResult" in params:
+        return {**FIXTURES["welcome_gather_speech"], **params}
+    return {**FIXTURES["welcome_gather_keys"], "Digits": "", **params}
 
 
 async def answer(client, call, step, params, ask=1):
-    r = await callback(client, f"welcome/{step}", call.id, params, query=f"&ask={ask}")
+    body = gathered(params)
+    r = await callback(client, f"welcome/{step}", call.id, body, query=f"&ask={ask}")
     return twiml(r)
 
 

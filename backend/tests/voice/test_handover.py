@@ -22,7 +22,7 @@ from app.status.engine import Severity
 from app.voice.calls import CallState
 from app.voice.dialogue import CALL_BACK
 from app.voice.twilio import handover_ring_seconds
-from tests.voice.test_voice import callback, stored
+from tests.voice.test_voice import FIXTURES, callback, stored
 
 BASE = "https://echocare.test/api/voice"
 DAS = "+40700000001"
@@ -67,7 +67,12 @@ def allow(monkeypatch):
 
 
 def handoff(call, reason="key_9") -> dict:
-    return {"HandoffData": json.dumps({"call": str(call.id), "reason": reason})}
+    data = json.dumps({"call": str(call.id), "reason": reason})
+    return {**FIXTURES["handoff"], "HandoffData": data}
+
+
+def dialed(status: str) -> dict:
+    return {**FIXTURES["handoff_result"], "DialCallStatus": status}
 
 
 def twiml(r) -> ElementTree.Element:
@@ -132,7 +137,9 @@ async def test_an_on_duty_number_off_the_allowlist_is_not_dialed(
 async def test_no_usable_handoff_data_hangs_up(
     client, handed_over, on_duty_das, allow, data
 ):
-    params = {} if data is None else {"HandoffData": data}
+    params = {k: v for k, v in FIXTURES["handoff"].items() if k != "HandoffData"}
+    if data is not None:
+        params["HandoffData"] = data
     root = twiml(await callback(client, "handoff", handed_over.id, params))
     assert root.find("Hangup") is not None
     assert root.find("Dial") is None and root.find("Say") is None
@@ -143,7 +150,7 @@ async def test_answering_takes_the_incident(client, db, handed_over, on_duty_das
         client,
         "handoff-answered",
         handed_over.id,
-        {"CallStatus": "in-progress"},
+        FIXTURES["handoff_answered"],
         query=f"&user={on_duty_das.id}",
     )
     root = twiml(r)
@@ -170,7 +177,7 @@ async def test_an_incident_already_taken_stays_theirs(
         client,
         "handoff-answered",
         handed_over.id,
-        {"CallStatus": "in-progress"},
+        FIXTURES["handoff_answered"],
         query=f"&user={on_duty_das.id}",
     )
     assert (await incident_of(db, handed_over)).taken_by == other.id
@@ -178,9 +185,7 @@ async def test_an_incident_already_taken_stays_theirs(
 
 
 async def test_no_answer_says_someone_will_call_back(client, db, handed_over):
-    r = await callback(
-        client, "handoff-result", handed_over.id, {"DialCallStatus": "no-answer"}
-    )
+    r = await callback(client, "handoff-result", handed_over.id, dialed("no-answer"))
     assert says_call_back(twiml(r))
     assert (await stored(db, handed_over)).handover_answered is False
     assert (await incident_of(db, handed_over)).status == IncidentStatus.open
@@ -189,14 +194,12 @@ async def test_no_answer_says_someone_will_call_back(client, db, handed_over):
 async def test_a_late_no_answer_keeps_an_answered_hand_over(client, db, handed_over):
     handed_over.handover_answered = True
     await db.commit()
-    await callback(client, "handoff-result", handed_over.id, {"DialCallStatus": "busy"})
+    await callback(client, "handoff-result", handed_over.id, dialed("busy"))
     assert (await stored(db, handed_over)).handover_answered is True
 
 
 async def test_a_completed_dial_hangs_up(client, db, handed_over):
-    r = await callback(
-        client, "handoff-result", handed_over.id, {"DialCallStatus": "completed"}
-    )
+    r = await callback(client, "handoff-result", handed_over.id, dialed("completed"))
     root = twiml(r)
     assert root.find("Hangup") is not None and root.find("Say") is None
 

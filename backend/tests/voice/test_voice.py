@@ -272,7 +272,8 @@ async def test_a_person_is_left_alone(client, db, call, monkeypatch):
     monkeypatch.setattr(voice_router, "hang_up", pytest.fail)
     common = FIXTURES["status_common"]
     await callback(client, "status", call.id, {**common, "CallStatus": "in-progress"})
-    r = await callback(client, "amd", call.id, FIXTURES["amd_human"])
+    # In IE1 a person comes back `unknown`, never `human` (S1).
+    r = await callback(client, "amd", call.id, FIXTURES["amd_unknown"])
     assert r.status_code == 204
     assert (await stored(db, call)).state == "in_progress"
 
