@@ -253,15 +253,15 @@ There are no pairing codes typed by the medic and no device tokens, as for the w
 | Identity 1, consent 1 | Consent given, senior `active`, code green |
 | Identity 1, consent 2 | Consent refused, senior `refused`; the medic sees it |
 | Identity 1, consent unclear twice | One more welcome call later; if still unclear, `unreachable` and the medic follows up in person |
-| Identity 2 (not available now) | One more welcome call after the redial delay |
+| Identity 2 (not available now) | One more welcome call after the redial delay; if the second ends the same way, `unreachable` |
 | Identity 3 (wrong number) | Senior `wrong_number`; the medic corrects the number and presses "Sună din nou" |
-| Not answered, or silent twice | One redial; if still unanswered, `unreachable` |
+| Not answered, or silent twice, or hung up partway through | One redial; if still unanswered, `unreachable` |
 
 The call is a fixed script whose answers are keys or short spoken words (G7). If a dedicated agent runs it instead, the server still records consent only on key 1 or an exact „da” / „sunt de acord” in the transcript.
 
 A welcome call never changes a code; the code is created when consent is given.
 
-**The scheduler dials the call when the senior's number is on `DIAL_ALLOWLIST`; otherwise the mock card answers it.** Step 1 queues the welcome call. A dialed call is a stand-in: it says one sentence, hangs up, ends `completed` and records no consent, so the senior stays `accepted` until the steps above exist. A call the scheduler does not dial shows in the senior's own app as a card with the consent text (version `v1-app`, which leaves out the key instructions) and „Da” / „Nu”. „Da” stores the consent with method `app`, makes the senior `active` and starts the code green; „Nu” stores a refusal and makes the senior `refused`. The identity question, `wrong_number`, `not_available` and the retries are not part of the mock. A landline senior has no app, so their call is placed only if the number is on the allowlist (and Twilio is set up); otherwise it waits. The card is refused in production ([06-operations.md](06-operations.md) section 3).
+**The scheduler dials the call when the senior's number is on `DIAL_ALLOWLIST`; otherwise the mock card answers it.** Step 1 queues the welcome call. A dialed call runs the steps above (#48). Each question takes one key or speech in `ro-RO`, and is asked once more, opened by „Nu v-am auzit.”, after silence or an unclear answer. Speech counts only as a whole answer once punctuation and diacritics are removed: „da” for identity; „da”, „sunt de acord” or „da, sunt de acord” for consent, „nu” or „nu sunt de acord” for a refusal. The consent is recorded with method `call`, text version `v1`, and the key or the words with Twilio's confidence. Every ending says a Romanian goodbye, then hangs up. The rows that retry apply to the first attempt; a second attempt that ends the same way makes the senior `unreachable`. A call that is not answered, fails, reaches voicemail or is hung up before consent counts as not answered. A senior DAS withdrew during the call is left as they are. A call the scheduler does not dial shows in the senior's own app as a card with the consent text (version `v1-app`, which leaves out the key instructions) and „Da” / „Nu”. „Da” stores the consent with method `app`, makes the senior `active` and starts the code green; „Nu” stores a refusal and makes the senior `refused`. The identity question, `wrong_number`, `not_available` and the retries are not part of the mock. A landline senior has no app, so their call is placed only if the number is on the allowlist (and Twilio is set up); otherwise it waits. The card is refused in production ([06-operations.md](06-operations.md) section 3).
 
 A senior who later withdraws consent becomes `withdrawn`. The medic or DAS records it; the senior leaves the campaigns and gets no more calls. There is no way back yet.
 
@@ -394,10 +394,12 @@ sequenceDiagram
 **A tier 2 phrase** („am leșinat”, „mi-e rău de tot”, „tremur tot”) does not act at once. The server, not the model, asks a fixed question naming what was said: „Ați spus că v-ați simțit leșinată. Aveți nevoie de ajutor acum? Spuneți «da» sau apăsați 1. Dacă nu, spuneți «nu» sau apăsați 2.” Yes, silence, an unclear answer or a hang-up means red and the steps above. A clear no returns the conversation to the model, with the phrase stored for review.
 
 Variations:
-- **Senior asks for a person, or presses 9.** Same hand-over; the code becomes at least yellow.
+- **Senior asks for a person, or presses 9.** Same hand-over; the code becomes at least yellow, and an incident opens as for a red (G16).
 - **On-duty phone not answered.** The senior hears that someone will call back. The incident stays open at the top of the dashboard, with its audible cue, until someone takes it.
 - **Nobody is on duty.** No dial is attempted; same message to the senior; the dashboard shows the open incident with a "nobody on duty" warning.
 - **Red with no call left to hand over.** Happens if the line drops between the red and the hand-over. The incident opens as usual and DAS phones the senior.
+
+**Built so far (#48): key 9 and a tier 1 phrase.** Either one starts the hand-over at any point in a wellbeing call. Before the session closes, one step writes the status report, the code, the incident (or joins the senior's unresolved one) and the call's `handed_over`, so a line lost at step 3 keeps them. A second 9 changes nothing. A tier 2 phrase, the rules' red, the model's red concern and a spoken request for a person wait for the agent loop: until then a tier 2 match is kept in the transcript and acts on nothing. The on-duty number is dialed only if it is on `DIAL_ALLOWLIST`; otherwise the senior hears the call-back message. An incident someone took from the dashboard before the phone was answered stays theirs. No push alerts are sent yet. Test calls (`place_call.py`) never hand over.
 
 ### UC-08 Nobody answers
 

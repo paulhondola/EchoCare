@@ -52,7 +52,7 @@ cp .env.example .env
 
 ## Real calls locally
 
-The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside the API and dials queued calls that are due: accepting a senior, or starting a campaign, rings their phone with no script. With nothing set, it dials nothing and the mock card answers as before.
+The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside the API and dials queued calls that are due: accepting a senior, or starting a campaign, rings their phone. With nothing set, it dials nothing and the mock card answers as before.
 
 1. **Twilio.** In `backend/.env`, set `TWILIO_ACCOUNT_SID`, `TWILIO_FROM_NUMBER`, and `TWILIO_AUTH_TOKEN` with `TWILIO_API_HOST=api.dublin.ie1.twilio.com`. Use the IE1 auth token, not the US one.
 2. **The tunnel.** Twilio calls the API back, so it must reach port 8000. Compose runs ngrok for it ([ADR-001](../docs/adr/ADR-001-monorepo-and-delivery.md)): put your ngrok authtoken in `NGROK_AUTHTOKEN` in the root `.env`, and your account's dev domain in `PUBLIC_BASE_URL`. From the repository root:
@@ -63,7 +63,7 @@ The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside th
 
    The domain stays the same across restarts; ngrok's request inspector at http://localhost:4040 shows it, with every callback Twilio sends. Compose reads `backend/.env` only when it creates the container, so **recreate the API after changing it** (`docker compose up -d --force-recreate api`). Without a tunnel the phone still rings, but no callback arrives, and the sweep settles the call about 4.5 minutes later.
 3. **A number to ring.** The seeded seniors' numbers are made up. Replace an active senior's number with your own by hand, then list it in `DIAL_ALLOWLIST` (a number off the list is never dialed). Before listing it, cancel or delete the old queued calls in your local database: welcome, manual and watch calls never lapse, so every old one for a listed senior is dialed at once.
-4. **Try it.** Accept a senior, or start a campaign, and your phone rings. The welcome call is a stand-in: it says „Bună ziua, {form of address}. Acesta este un apel de test EchoCare. La revedere.” and hangs up. It ends `completed` with no consent, so the senior stays `accepted` until UC-04's real welcome flow exists.
+4. **Try it.** Accept a senior, or start a campaign, and your phone rings. The welcome call runs UC-04 ([02-use-cases.md](../docs/specs/echocare/02-use-cases.md)): press 1 for identity and 1 for consent, or say „da” twice, and the senior becomes `active` with code green. On a wellbeing call, pressing 9 or saying a tier 1 phrase („am căzut”) opens an incident and rings the on-duty DAS employee, whose number must be on `DIAL_ALLOWLIST` too. Answering takes the incident.
 
 `uv run python scripts/place_call.py <number>` places a scripted test call instead, and follows the allowlist too. Run once on a new Twilio setup, it also checks two things Twilio's docs do not confirm for IE1: that callbacks verify (a 403 on every callback says they do not) and that voicemail detection runs.
 

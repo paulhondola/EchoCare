@@ -92,7 +92,7 @@ flowchart LR
 | G13 | Location for DAS: a structured address with access details, a landline badge, the phone app's last known location attached to events, and the live hand-over. An "open in maps" button. No continuous tracking | n/a |
 | G14 | Both seasons. Watch signals: inactivity during an active warning, high pulse at rest, the "Nu mă simt bine" button. The demo leads with cold | P12 (extended) |
 | G15 | DAS has two surfaces. A React web dashboard at the desk does everything: all seniors and codes, incidents, enrollment requests, campaigns, staff and on duty. The DAS role in the Android app, on the on-duty phone, shows only red incidents and their details, with take, resolve, call and "open in maps". The dashboard is another client of the same API and re-reads every few seconds | G3 (DAS part) |
-| G16 | Every red opens an incident: `open`, then `in_progress` when someone takes it (answering the hand-over takes it automatically), then `resolved` with an outcome and a note. Taking replaces acknowledging. Resolving does not change the code; campaigns skip seniors with an open or in-progress incident | P9 (acknowledge), open question 3 |
+| G16 | Every red, and every hand-over to DAS, opens an incident, or joins the senior's unresolved one (#48): `open`, then `in_progress` when someone takes it (answering the hand-over takes it automatically), then `resolved` with an outcome and a note. Taking replaces acknowledging. Resolving does not change the code; campaigns skip seniors with an open or in-progress incident | P9 (acknowledge), open question 3 |
 
 ### Decided in the design session
 

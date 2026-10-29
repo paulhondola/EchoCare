@@ -195,5 +195,6 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 
 | Spike | Answer | Date |
 |---|---|---|
-| S1 | *Not run yet.* Record: whether callbacks verify under the IE1 token, whether voicemail detection runs in IE1, whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/voice/fixtures/twilio_callbacks.json` | |
+| S1 | *Not run yet.* Record: whether callbacks verify under the IE1 token, whether voicemail detection runs in IE1, whether `ro-RO` connects, the voice used and how it sounds, how „Mă simt bine” and two alarm phrases come back as text, and save the callback bodies over `backend/tests/voice/fixtures/twilio_callbacks.json`. Since #48 the same run can record the welcome and hand-over callbacks, with numbers replaced by `+40700000xxx` and SIDs by placeholders of the same shape | |
+| S3 | *Not run yet.* The welcome call accepts speech since #48: accept a senior whose number is on `DIAL_ALLOWLIST` and answer the consent question. Record: about ten „da” and ten „nu”, how many came back right, and Twilio's `Confidence`. If either misses more than twice, the welcome call goes keys only and the spoken answers of UC-04 are dropped | |
 | S8 | *Not run yet.* Record: whether one call holds its WebSocket for three minutes, and what a redeploy during a call does to it | |
