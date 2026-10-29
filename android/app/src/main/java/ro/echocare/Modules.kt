@@ -25,8 +25,13 @@ object FirebaseModule {
     fun firebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance().apply {
         // Affects only Firebase's test numbers: emulators sign in before the SHA fingerprints
         // are registered (auth-layer §8.2, §9 step 1). Real numbers need verification on, so
-        // echocare.realSms=true in local.properties leaves it on in a debug build.
-        if (!BuildConfig.REAL_SMS) firebaseAuthSettings.setAppVerificationDisabledForTesting(true)
+        // echocare.realSms=true in local.properties leaves it on in a debug build, which then
+        // verifies with the web reCAPTCHA: Play Integrity refused it with 17028 on an emulator.
+        if (!BuildConfig.REAL_SMS) {
+            firebaseAuthSettings.setAppVerificationDisabledForTesting(true)
+        } else if (BuildConfig.DEBUG) {
+            firebaseAuthSettings.forceRecaptchaFlowForTesting(true)
+        }
     }
 }
 

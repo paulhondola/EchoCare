@@ -77,7 +77,7 @@ The toolchain is Vite+ ([ADR-002](../docs/adr/ADR-002-git-hooks.md), [ADR-003](.
 
 - **`VITE_*` variables are compiled into the bundle.** A change needs a rebuild. Each new one must also be an `ARG` in the Dockerfile's `build` stage and a variable in [.railway/railway.ts](../.railway/railway.ts), or Railway builds without it.
 - **`VITE_API_URL` is read by the browser**, so locally it is `http://localhost:8000`, never Compose's `api`.
-- **Firebase web config is public**, not a secret. Phone sign-in works only on authorized domains; test with Firebase test numbers, never real SMS.
+- **Firebase web config is public**, not a secret. Phone sign-in works only on authorized domains; test with Firebase test numbers; real SMS only on the dev server with `VITE_REAL_SMS=true` in `.env`, never in a deployed bundle.
 - **The Caddy stage stays last** in the Dockerfile; Railway builds the last stage.
 - **Lefthook owns the Git hooks**, for the whole repository. Run `vp config` and `vp migrate` only with `--no-hooks`: Vite+'s hooks set `core.hooksPath`, which silently turns lefthook off. To undo that, run `npx vp hooks disable`, then `lefthook install`.
 - **`vite` is Vite+'s build of it** (`npm:@voidzero-dev/vite-plus-core`), forced by `overrides` in `package.json`. Keep both entries on the same version as `vite-plus`.
