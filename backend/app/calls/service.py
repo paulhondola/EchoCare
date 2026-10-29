@@ -1,5 +1,6 @@
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import or_, select
@@ -8,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
 from app.calls.schemas import AnswerView, CallSummary, TranscriptDetail
+from app.campaigns.models import Campaign
 from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
 from app.seniors.models import Senior
 from app.seniors.service import reach, reach_senior
+from app.voice.dialogue import wellbeing_greeting
 from app.voice.models import Answer, Call, CallTrigger, CallTurn
 from app.voice.service import cancel_queued, queue_calls
 
@@ -97,3 +100,36 @@ async def cancel_queued_calls(session: AsyncSession, senior_id: uuid.UUID) -> No
     Doesn't commit: `withdraw_consent` does, with the move.
     """
     await cancel_queued(session, Call.senior_id == senior_id, now=datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class AnswerContext:
+    """What a picked-up call is answered with (04 §4.2)."""
+
+    trigger: CallTrigger
+    form_of_address: str
+    greeting: str
+
+
+async def answer_context(
+    session: AsyncSession, call_id: uuid.UUID
+) -> AnswerContext | None:
+    """The call's trigger and its greeting, with the campaign's warning for a campaign
+    call; None for an unknown call."""
+    row = (
+        await session.execute(
+            select(Call.trigger, Senior.form_of_address, Campaign.kind, Campaign.level)
+            .join(Senior, Senior.id == Call.senior_id)
+            .outerjoin(Campaign, Campaign.id == Call.campaign_id)
+            .where(Call.id == call_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    # A welcome call speaks its own script (UC-04), no greeting.
+    said = (
+        ""
+        if row.trigger is CallTrigger.welcome
+        else wellbeing_greeting(row.form_of_address, row.trigger, row.kind, row.level)
+    )
+    return AnswerContext(row.trigger, row.form_of_address, said)

@@ -14,8 +14,7 @@ from typing import Any, Protocol
 
 from fastapi.websockets import WebSocketDisconnect
 
-from app.agent.relay import Relay
-from app.voice.dialogue import greeting
+from app.agent.relay import HandOver, Relay
 from app.voice.models import Speaker, TurnKind
 from app.voice.service import end_completed, open_line, save_turn
 
@@ -36,8 +35,11 @@ class Socket(Protocol):
     async def close(self, code: int) -> None: ...
 
 
-async def serve(ws: Socket, call: uuid.UUID) -> None:
-    """Runs the session until Twilio disconnects or the call's own setup is missing."""
+async def serve(
+    ws: Socket, call: uuid.UUID, greeting: str, hand_over: HandOver | None = None
+) -> None:
+    """Runs the session until Twilio disconnects or the call's own setup is missing.
+    `hand_over` is None for a call that never hands over, a test call (05 §1)."""
     line = await open_line(call)
     if line is None:
         log.warning("relay connect for unknown or ended call %s", call)
@@ -50,7 +52,7 @@ async def serve(ws: Socket, call: uuid.UUID) -> None:
         await save_turn(call, position, speaker, kind, content)
         position += 1
 
-    session_relay = Relay(greeting(line.form_of_address), store)
+    session_relay = Relay(greeting, store, hand_over, call=str(call))
     await ws.accept()
     log.info("relay open: call %s", call)
     set_up = False
@@ -80,9 +82,10 @@ async def serve(ws: Socket, call: uuid.UUID) -> None:
                     return
                 set_up = True
             replies = await session_relay.handle(message)
-            if any(reply["type"] == "end" for reply in replies):
-                # We close it, so it ends completed even if they hang up during the
-                # goodbye; a hang-up before this ends dropped (03 §9).
+            # We close it, so it ends completed even if they hang up during the
+            # goodbye; a hang-up before this ends dropped (03 §9). A hand-over's end
+            # leaves the call as `hand_over` already ended it, `handed_over`.
+            if any(r["type"] == "end" and "handoffData" not in r for r in replies):
                 await end_completed(call)
             for reply in replies:
                 await ws.send_json(reply)

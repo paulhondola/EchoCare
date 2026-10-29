@@ -309,6 +309,24 @@ async def take(
     return await incident_summary(session, incident_id)
 
 
+async def take_for_handover(
+    session: AsyncSession, senior_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    """Answering the hand-over takes the senior's open incident for the on-duty
+    employee (G16, UC-07 step 5); False when none is open, as when someone took it from
+    the dashboard first. Never refuses: the call is already connecting. Doesn't commit.
+    """
+    taken = await session.execute(
+        update(Incident)
+        .where(Incident.senior_id == senior_id, Incident.status == IncidentStatus.open)
+        .values(
+            status=IncidentStatus.in_progress, taken_by=user_id, taken_at=func.now()
+        )
+        .returning(Incident.id)
+    )
+    return taken.first() is not None
+
+
 async def resolve(
     session: AsyncSession,
     incident_id: uuid.UUID,

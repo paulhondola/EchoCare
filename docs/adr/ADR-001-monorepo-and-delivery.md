@@ -446,7 +446,7 @@ services:
     command: http api:8000
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}  # from the root .env, not committed
-    ports: ["4040:4040"]          # request inspector at http://localhost:4040
+    ports: ["127.0.0.1:4040:4040"] # request inspector at http://localhost:4040, loopback only
     depends_on: [api]
 
 configs:

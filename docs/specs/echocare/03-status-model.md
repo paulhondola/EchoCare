@@ -221,7 +221,8 @@ stateDiagram-v2
 Rules **(P9, proposed; G16)**:
 
 - A yellow is replaced by the result of the next wellbeing call.
-- A red opens an incident. The red stays red while the incident is open or in progress; a later call cannot lower it before the incident is resolved.
+- A red opens an incident, and so does a hand-over, whatever its code (#48): the phone that rings at DAS always has an incident to show. While the senior has one open or in progress, a later red or hand-over is added to it.
+- The red stays red while the incident is open or in progress; a later call cannot lower it before the incident is resolved. A hand-over's incident does not hold a yellow: the next call may replace it.
 - A resolved red is still displayed as red, marked resolved, until the next wellbeing call produces a new result.
 - Campaigns skip seniors with an open or in-progress incident; DAS is already dealing with them.
 - The incident lifecycle (open, in progress, resolved) is in [02-use-cases.md](02-use-cases.md) UC-11. It records what DAS did and never changes the code.
@@ -271,7 +272,7 @@ stateDiagram-v2
 | 6 | Watch | Answers „am urcat scările, sunt bine”, clear on all three questions | Starting yellow, rules green and high. Code stays green, nobody notified |
 | 7 | Watch | First call not answered | Code yellow and caregiver alert at once; one redial |
 | 8 | Campaign | Two calls not answered | Code yellow after the second, reason "no answer twice" |
-| 9 | Any | Presses 9 or asks for a person | Hand-over; code at least yellow |
+| 9 | Any | Presses 9 or asks for a person | Hand-over and an incident; code at least yellow |
 | 10 | Campaign | Senior's red from this morning still has an open or in-progress incident | No call is placed |
 | 11 | Campaign, heat | „Mor de cald!” Tier 2 confirmation; answers „nu, sunt bine, doar e cald” | No forced change; the call continues and ends green if the answers are fine |
 | 12 | Campaign, cold | „Tremur tot.” Tier 2 confirmation; no reply | Red, hand-over |

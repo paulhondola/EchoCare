@@ -68,6 +68,31 @@ async def move_call(
     return moved
 
 
+async def live_call_for_update(
+    session: AsyncSession, call_id: uuid.UUID
+) -> Call | None:
+    """The call while it is in progress, locked until the caller's transaction ends, so
+    two answers for one call apply one after the other; None otherwise."""
+    return await session.scalar(
+        select(Call)
+        .where(Call.id == call_id, Call.state == CallState.in_progress)
+        .with_for_update()
+    )
+
+
+async def answer_handover(
+    session: AsyncSession, call_id: uuid.UUID, answered: bool
+) -> Call | None:
+    """Whether DAS picked up the hand-over (05 §1). An answer always counts; a later
+    "not answered" doesn't undo one. Doesn't commit."""
+    call = await session.scalar(
+        select(Call).where(Call.id == call_id).with_for_update()
+    )
+    if call is not None and (answered or call.handover_answered is None):
+        call.handover_answered = answered
+    return call
+
+
 async def form_of_address(session: AsyncSession, call_id: uuid.UUID) -> str | None:
     """How the call greets its senior; None for an unknown call (04 §4.2)."""
     return await session.scalar(

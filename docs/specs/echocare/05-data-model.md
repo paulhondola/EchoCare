@@ -203,7 +203,7 @@ erDiagram
 | User | One row per phone number that has been granted anything. Created at grant time, before the person signs in; the Firebase account is attached at first sign-in. A DAS user's phone is also their hand-over number |
 | Grant | One role for one user, and for caregiver and senior grants the senior it applies to. A user may hold several. Replaces the earlier role field, caregiver link and invite |
 | Senior | The enrolled person, registration details, structured address and enrollment state |
-| Consent | Every consent decision as a history: given or refused on the welcome call (or on the mock card in the senior's app, method `app`), an optional signature, a withdrawal recorded by the medic or DAS |
+| Consent | Every consent decision as a history: given or refused on the welcome call (or on the mock card in the senior's app, method `app`), an optional signature, a withdrawal recorded by the medic or DAS. For method `call`, `evidence` holds what decided it: `{"digits": "1"}` for a key, or `{"speech": "Da.", "confidence": 0.91}` for words (#48) |
 | WatchState | The watch's latest check-in, one row per senior |
 | HomeNodeState | The home node's latest room reading and when the room went out of range, one row per senior with a node **(P20, proposed)** |
 | Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
@@ -213,7 +213,7 @@ erDiagram
 | Answer | What the model extracted for one of the three questions |
 | StatusReport | Every severity reached during a call, with its source and the senior's words. The audit trail behind a code |
 | SeniorStatus | The current code, one row per active senior |
-| Incident | DAS's handling of one red: opened when the red is established, taken by a person, resolved with an outcome and a note (G16). A later red while it is still open is added to it, through the call |
+| Incident | DAS's handling of one red or one hand-over: opened when the red is established or the call is handed over, taken by a person, resolved with an outcome and a note (G16). A later red or hand-over while it is still open is added to it, through the call |
 | PushToken | Where to deliver pushes for a user, one row per device |
 
 FastAPI writes every entity. Apps change data only through the endpoints in [04-interfaces.md](04-interfaces.md).

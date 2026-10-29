@@ -27,6 +27,12 @@ RING_SECONDS = 30
 CALL_LIMIT_SECONDS = 180
 
 
+def handover_ring_seconds() -> int:
+    """How long the on-duty phone rings before the senior hears a call-back is coming
+    (06 §3)."""
+    return 15 if get_settings().demo_mode else 30
+
+
 def signature(auth_token: str, url: str, params: Iterable[tuple[str, str]]) -> str:
     """Twilio's X-Twilio-Signature: HMAC-SHA1 over the full URL Twilio called, then each
     POST parameter as name and value, sorted by name; base64."""
@@ -55,9 +61,12 @@ def public_url(path: str, query: str = "", scheme: str | None = None) -> str:
     return base + path + (f"?{query}" if query else "")
 
 
-def voice_url(path: str, call_id: uuid.UUID, scheme: str | None = None) -> str:
-    """A callback address carrying our call id (04 §4.1)."""
-    return public_url(f"/api/voice/{path}", f"call={call_id}", scheme)
+def voice_url(
+    path: str, call_id: uuid.UUID, scheme: str | None = None, **params: str
+) -> str:
+    """A callback address carrying our call id (04 §4.1), then `params` in order."""
+    query = f"call={call_id}" + "".join(f"&{k}={v}" for k, v in params.items())
+    return public_url(f"/api/voice/{path}", query, scheme)
 
 
 def configured() -> bool:

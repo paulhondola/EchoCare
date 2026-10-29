@@ -39,7 +39,8 @@ services:
     depends_on:
       db: { condition: service_healthy }
       # waits for the bucket, but nothing calls storage yet, so a broken MinIO doesn't stop the API
-      minio-create-bucket: { condition: service_completed_successfully, required: false }
+      minio-create-bucket:
+        { condition: service_completed_successfully, required: false }
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'"
     volumes:
       # bind mount, not sync: migrations generated inside the container must land on the host
@@ -99,7 +100,8 @@ services:
     command: http api:8000
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-} # from the root .env, not committed
-    ports: ["4040:4040"] # request inspector at http://localhost:4040
+    # request inspector at http://localhost:4040; loopback only, since it shows and replays every request
+    ports: ["127.0.0.1:4040:4040"]
     depends_on: [api]
 
 configs:
