@@ -533,6 +533,44 @@ async def accept(
     return SeniorSummary.model_validate(senior, from_attributes=True)
 
 
+async def call_again(
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    then: Hook,
+    pending: Callable[[AsyncSession, uuid.UUID], Awaitable[bool]],
+) -> SeniorSummary:
+    """Sună din nou: `wrong_number` or `unreachable` -> `accepted`, with a new welcome
+    call queued in the same transaction, by the registering medic (UC-04, 04 §2). The
+    number is not checked: a correct one can come back as `wrong_number`.
+
+    A repeat, `accepted` with a welcome call already queued or live, answers the same
+    and queues nothing (04 §0). `accepted` without one, or any other state, is
+    `wrong_state`. `accepted_at` and `accepted_by` stay: they record DAS's acceptance.
+    """
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state == EnrollmentState.accepted and await pending(
+        session, senior.id
+    ):
+        return SeniorSummary.model_validate(senior, from_attributes=True)
+    if senior.enrollment_state not in (
+        EnrollmentState.wrong_number,
+        EnrollmentState.unreachable,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    await then(session, senior.id)
+    await move(
+        session,
+        caller,
+        senior,
+        (EnrollmentState.wrong_number, EnrollmentState.unreachable),
+        EnrollmentState.accepted,
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
 async def withdraw_consent(
     session: AsyncSession,
     caller: Caller,
