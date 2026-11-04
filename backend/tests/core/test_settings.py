@@ -1,7 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from app.core.settings import Settings, check_environment, is_local_db
+from app.core.settings import (
+    AppEnv,
+    Settings,
+    check_environment,
+    cors_origins,
+    is_local_db,
+)
 
 
 def test_railway_url_gets_asyncpg_driver():
@@ -126,3 +132,23 @@ def test_allowlist_keeps_a_lone_star():
 def test_allowlist_refuses_an_invalid_number():
     with pytest.raises(ValidationError):
         Settings(database_url="postgresql://x@localhost/x", dial_allowlist="12")
+
+
+def test_local_cors_allows_the_dev_server_under_both_names():
+    # Real-SMS sign-in works only on 127.0.0.1 (dashboard/README.md), test numbers on either
+    s = Settings(database_url=LOCAL, app_env=AppEnv.local, _env_file=None)
+    assert sorted(cors_origins(s)) == [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ]
+
+
+def test_cloud_cors_allows_only_allowed_origin():  # 01 §4, channel 3
+    origin = "https://echocare-dashboard-staging.up.railway.app"
+    s = Settings(
+        database_url=REMOTE,
+        app_env=AppEnv.staging,
+        allowed_origin=origin,
+        _env_file=None,
+    )
+    assert cors_origins(s) == [origin]

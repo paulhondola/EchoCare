@@ -41,7 +41,7 @@ cp .env.example .env
 | `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
 | `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
 | `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
-| `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
+| `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard. With `APP_ENV=local` the API also allows `http://localhost:5173` and `http://127.0.0.1:5173`, the dev server under both names (real-SMS sign-in needs `127.0.0.1`) |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | empty | The Twilio account and the project's number (Romanian, +40). Empty, the scheduler dials nothing and every callback is refused. See [Real calls locally](#real-calls-locally) |
