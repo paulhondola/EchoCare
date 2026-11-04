@@ -109,11 +109,17 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
         (page as? Load.Ready)?.value?.let { phoneBeforeEdit = it.phone }
     }
 
-    /** „Sună din nou”: queues a welcome call to the number on file, at once (UC-04, 04 §2). */
-    fun callAgain(id: String) = runCommand(id) { api.callAgain(id) }
+    /**
+     * „Sună din nou”: queues a welcome call to the number on file, at once (UC-04, 04 §2).
+     * [onChanged] runs after an answer that may have moved the senior: a list beside the page
+     * rereads, so the patient changes group at once (UC-12).
+     */
+    fun callAgain(id: String, onChanged: () -> Unit = {}) =
+        runCommand(id, onChanged) { api.callAgain(id) }
 
-    /** „Retrage”, after the dialog: the senior is called no more (04 §2). */
-    fun withdraw(id: String) = runCommand(id) { api.withdraw(id) }
+    /** „Retrage”, after the dialog: the senior is called no more (04 §2). As [callAgain]. */
+    fun withdraw(id: String, onChanged: () -> Unit = {}) =
+        runCommand(id, onChanged) { api.withdraw(id) }
 
     /** „Transcriere”: reads the call's transcript once; a failed read is tried again on a tap. */
     fun openTranscript(callId: String) {
@@ -126,8 +132,11 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
         }
     }
 
-    /** One command at a time. Any answer but [CommandOutcome.Offline] rereads the senior. */
-    private fun runCommand(id: String, call: suspend () -> Unit) {
+    /**
+     * One command at a time. Any answer but [CommandOutcome.Offline] rereads the senior and runs
+     * [onChanged].
+     */
+    private fun runCommand(id: String, onChanged: () -> Unit, call: suspend () -> Unit) {
         if (busy) return
         busy = true
         notice = null
@@ -137,6 +146,7 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
             if (outcome != CommandOutcome.Offline) {
                 numberChanged = false
                 reread(id)
+                onChanged()
             }
             busy = false
         }

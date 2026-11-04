@@ -104,7 +104,7 @@ fun MonitorScreen(
                             } else {
                                 // One page per patient, so a new choice starts clean
                                 key(id) {
-                                    PatientPane(id, onSessionEnd, onEdit)
+                                    PatientPane(id, onSessionEnd, onEdit, onChanged = vm::reread)
                                 }
                             }
                         }

@@ -68,7 +68,7 @@ fun SeniorScreen(
 ) {
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
-        PatientPane(id, onSessionEnd, onEdit, vm)
+        PatientPane(id, onSessionEnd, onEdit, vm = vm)
     }
 }
 
@@ -76,13 +76,15 @@ fun SeniorScreen(
  * One senior's page without its scaffold: the body the page and Monitorizare's right pane share,
  * so a change to it is made once (UC-12). [id] null is the senior's own page. [onEdit] is given
  * to the medic only: with it the page adds her patient's stages, consent, every call with its
- * transcript, and the actions of her panel (UC-04, UC-12).
+ * transcript, and the actions of her panel (UC-04, UC-12). [onChanged] runs after a command the
+ * server answered, so Monitorizare's list beside the pane moves the patient at once.
  */
 @Composable
 fun PatientPane(
     id: String?,
     onSessionEnd: (Failure) -> Unit,
     onEdit: ((String) -> Unit)? = null,
+    onChanged: () -> Unit = {},
     vm: SeniorViewModel = hiltViewModel(key = id)
 ) {
     RereadWhileShown { vm.reread(id) }
@@ -119,7 +121,7 @@ fun PatientPane(
                             busy = vm.busy,
                             onAction = { action ->
                                 when (action) {
-                                    Action.CallAgain -> vm.callAgain(senior.id)
+                                    Action.CallAgain -> vm.callAgain(senior.id, onChanged)
                                     Action.Withdraw -> withdrawing = true
                                     Action.Sign -> signing = !signing
                                     Action.Edit -> {
@@ -153,7 +155,7 @@ fun PatientPane(
                 busy = vm.busy,
                 onConfirm = {
                     withdrawing = false
-                    vm.withdraw(senior.id)
+                    vm.withdraw(senior.id, onChanged)
                 },
                 onDismiss = { withdrawing = false }
             )
