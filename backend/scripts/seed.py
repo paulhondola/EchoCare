@@ -1352,8 +1352,9 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     h.welcome("nicolae", 5, refused="Nu, nu vreau să fiu sunat.")
 
     # Ștefan Rusu never picked up, twice; Rodica Neagu's number was someone else's.
-    h.welcome_unreached("stefan", 5.5)
-    h.welcome_unreached("rodica", 6.5, wrong=True)
+    # Each after DAS accepted them, 20 hours after registering (`register`).
+    h.welcome_unreached("stefan", 5)
+    h.welcome_unreached("rodica", 6, wrong=True)
     return h
 
 

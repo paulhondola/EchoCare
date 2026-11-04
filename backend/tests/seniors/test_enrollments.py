@@ -284,6 +284,17 @@ async def test_enrollments_by_submit_time(client, db, staff):  # 04 §1
     assert [r["id"] for r in (await enrollments(client)).json()] == [late, early]
 
 
+async def test_requests_from_before_the_stamp_come_first(client, db, staff):  # 04 §1
+    # submitted before submitted_at was recorded: null, and older than any stamp
+    stamped = await register(client)
+    await submit(client, stamped)
+    old = await register(client, {**MARIA, "phone": "0700 000 006"})
+    await submit(client, old)
+    await db.execute(update(Senior).where(Senior.id == old).values(submitted_at=None))
+    await db.commit()
+    assert [r["id"] for r in (await enrollments(client)).json()] == [old, stamped]
+
+
 async def calls_of(db, senior_id):
     return (
         await db.execute(

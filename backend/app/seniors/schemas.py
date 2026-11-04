@@ -214,8 +214,9 @@ class SeniorView(SeniorDetail):
     created_at: datetime | None = None
     submitted_at: datetime | None = None
     accepted_at: datetime | None = None
-    # Set by GET /seniors/{id} (04 §1). A signature is not a decision: it only sets
-    # `signed_at`, so `consent` stays null until the welcome call (G7).
+    # Set on every answer `senior_view` builds: GET, POST and PUT /seniors (04 §1).
+    # A signature is not a decision: it only sets `signed_at`, so `consent` stays
+    # null until the welcome call (G7).
     consent: ConsentView | None = None
     consent_given_at: datetime | None = None
     signed_at: datetime | None = None

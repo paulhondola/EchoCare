@@ -11,6 +11,7 @@ erDiagram
     USER ||--o{ GRANT : "holds"
     USER ||--o{ PUSH_TOKEN : "has"
     USER ||--o{ SENIOR : "registers, as medic"
+    USER |o--o{ SENIOR : "accepts, as DAS"
     SENIOR ||--o{ GRANT : "is followed through"
     SENIOR ||--o{ CONSENT : "gives or refuses"
     SENIOR ||--o| WATCH_STATE : "wears"

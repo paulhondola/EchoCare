@@ -307,4 +307,8 @@ async def test_a_refusal_is_the_consent(client, db, staff):
 
 def test_the_signature_text():
     assert SIGNATURE_CONSENT_VERSION == "v1-semnatura"
-    assert SIGNATURE_CONSENT_TEXT.endswith("Semnând mai jos, sunteți de acord.")
+    assert SIGNATURE_CONSENT_TEXT == (
+        "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva "
+        "neobișnuit. Ce spuneți în apel văd medicul de familie, familia și DAS. "
+        "Puteți renunța oricând. Semnând mai jos, sunteți de acord."
+    )

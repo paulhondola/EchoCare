@@ -328,7 +328,7 @@ def enrollments_query() -> Select:
     return (
         select(Senior)
         .where(Senior.enrollment_state == EnrollmentState.submitted)
-        .order_by(Senior.submitted_at.asc().nulls_last(), Senior.created_at, Senior.id)
+        .order_by(Senior.submitted_at.asc().nulls_first(), Senior.created_at, Senior.id)
     )
 
 

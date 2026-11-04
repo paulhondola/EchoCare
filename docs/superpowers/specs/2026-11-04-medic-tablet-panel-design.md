@@ -63,7 +63,7 @@ This change gives the medic a home with two jobs, **Monitorizare** (who needs me
 ### Enrollment timestamps
 
 - Nullable `submitted_at`, `accepted_at` (timestamps) and `accepted_by` (user FK) on `seniors`, each set in the same conditional UPDATE that moves the state (submit, accept). Existing rows stay null; no backfill.
-- `GET /enrollments` orders by `submitted_at`, then `created_at`, then `id` (nulls last for `submitted_at`).
+- `GET /enrollments` orders by `submitted_at`, then `created_at`, then `id` (nulls first for `submitted_at`: a null means submitted before the stamp existed, so older than any stamped request).
 - `GET /seniors/{id}` and the rows of `GET /seniors` add optional `created_at`, `submitted_at`, `accepted_at`.
 
 ### Watch state on the rows
