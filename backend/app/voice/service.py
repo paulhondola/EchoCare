@@ -3,10 +3,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, func, literal, or_, select, update
+from sqlalchemy import ColumnElement, exists, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import object_session
 
+from app.core.changes import Change, ChangeKind, note
 from app.core.db import Session
 from app.core.settings import get_settings
 from app.seniors.models import Senior
@@ -55,6 +57,7 @@ async def transition(
         log.info("call %s: %s -> %s", call_id, call.state, moved)
         stamp(call, moved, datetime.now(UTC))
         call.state = moved
+        note(session, Change(ChangeKind.call_moved, call.senior_id))
     elif new is not None and new is not call.state:
         log.info("call %s: %s ignored in %s", call_id, new, call.state)
     return moved
@@ -92,6 +95,20 @@ async def answer_handover(
     if call is not None and (answered or call.handover_answered is None):
         call.handover_answered = answered
     return call
+
+
+async def call_in_progress(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """Whether one of the senior's calls is ringing or live, for the badge (UC-12)."""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Call.senior_id == senior_id,
+                    Call.state.in_([CallState.ringing, CallState.in_progress]),
+                )
+            )
+        )
+    )
 
 
 async def form_of_address(session: AsyncSession, call_id: uuid.UUID) -> str | None:
@@ -253,6 +270,7 @@ def advance_call(call: Call, new: CallState, now: datetime) -> None:
         return
     call.state = advance(call.state, new)
     stamp(call, new, now)
+    note(object_session(call), Change(ChangeKind.call_moved, call.senior_id))
 
 
 def finish(

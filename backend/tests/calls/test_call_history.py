@@ -241,3 +241,21 @@ async def test_signed_out_and_unknown(client, people, headers, status, reason):
         assert r.headers.get("www-authenticate") == (
             "Bearer" if status == 401 else None
         )
+
+
+@pytest.mark.parametrize(
+    ("state", "badge"),
+    [
+        ("queued", False),
+        ("ringing", True),
+        ("in_progress", True),
+        ("completed", False),
+    ],
+)
+async def test_the_page_says_whether_a_call_is_live(client, db, people, state, badge):
+    """The "call in progress" badge (UC-12): ringing or live, for every role."""
+    db.add(call(people.maria, state=state))
+    await db.commit()
+    for who in (CAREGIVER, MEDIC, DAS):
+        r = await client.get(f"/api/seniors/{people.maria.id}", headers=signed_in(who))
+        assert r.json()["call_in_progress"] is badge

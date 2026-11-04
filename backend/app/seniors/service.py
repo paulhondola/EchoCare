@@ -19,6 +19,7 @@ from app.auth.service import (
     sync_senior_grant,
 )
 from app.codes.models import SeniorStatus
+from app.core.changes import Change, ChangeKind, note
 from app.core.settings import get_settings
 from app.seniors.models import (
     Consent,
@@ -190,6 +191,7 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "code",
         "reason",
         "since",
+        "call_in_progress",
     }
     return SeniorView(
         **{name: getattr(senior, name) for name in fields},
@@ -338,6 +340,7 @@ async def grant_caregiver(
     if user is None:
         await session.rollback()
         raise refuse(409, "already_done")
+    note(session, Change(ChangeKind.caregivers, senior_id))
     await session.commit()
     return CaregiverView(
         user_id=user.id,
@@ -398,6 +401,7 @@ async def revoke_caregiver(
         log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
         await session.rollback()  # expires every row, so log first
         raise refuse(422, "incomplete", missing=["caregiver"])
+    note(session, Change(ChangeKind.caregivers, senior_id))
     await session.commit()
 
 

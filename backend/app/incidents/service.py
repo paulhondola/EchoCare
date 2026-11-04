@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 from app.auth.models import User
 from app.auth.service import refuse
 from app.codes.models import StatusReport
+from app.core.changes import Change, ChangeKind, note
 from app.core.db import engine
 from app.incidents.models import Event, Incident, IncidentStatus
 from app.incidents.schemas import (
@@ -101,14 +102,18 @@ def open_incident(
 ) -> None:
     """The incident a call's red opens; `opens_incident` decides whether (G16).
     Doesn't commit (ADR-005)."""
+    # Its id made here, not by the database, so the push can name it (04 §6)
+    incident_id = uuid.uuid7()
     session.add(
         Incident(
+            id=incident_id,
             senior_id=senior_id,
             status=IncidentStatus.open,
             opened_by_call_id=call_id,
             reason=reason,
         )
     )
+    note(session, Change(ChangeKind.incident_opened, senior_id, incident_id))
 
 
 def take_refusal(
@@ -350,9 +355,11 @@ async def take(
             taken_by=user_id,
             taken_at=func.now(),
         )
-        .returning(Incident.id)
+        .returning(Incident.senior_id)
     )
-    if taken.first() is None:
+    if (senior_id := taken.scalar()) is not None:
+        note(session, Change(ChangeKind.incident_moved, senior_id, incident_id))
+    else:
         incident = await current_incident(session, incident_id)
         reason = take_refusal(incident.status, incident.taken_by, user_id)
         if reason is not None:
@@ -383,7 +390,10 @@ async def take_for_handover(
         )
         .returning(Incident.id)
     )
-    return taken.first() is not None
+    if (incident_id := taken.scalar()) is None:
+        return False
+    note(session, Change(ChangeKind.incident_moved, senior_id, incident_id))
+    return True
 
 
 async def resolve(
@@ -407,9 +417,11 @@ async def resolve(
             outcome=form.outcome,
             note=form.note,
         )
-        .returning(Incident.id)
+        .returning(Incident.senior_id)
     )
-    if resolved.first() is None:
+    if (senior_id := resolved.scalar()) is not None:
+        note(session, Change(ChangeKind.incident_moved, senior_id, incident_id))
+    else:
         incident = await current_incident(session, incident_id)
         reason = resolve_refusal(
             incident.status,

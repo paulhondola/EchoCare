@@ -196,6 +196,9 @@ class SeniorView(SeniorDetail):
     code: Code | None = None
     reason: str | None = None
     since: datetime | None = None
+    # True while one of her calls rings or is live, for the badge (UC-12). Set by
+    # GET /seniors/{id} only; null on the other answers that carry the senior.
+    call_in_progress: bool | None = None
     medic: MedicView
     caregivers: list[CaregiverView]
 
