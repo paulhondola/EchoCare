@@ -233,20 +233,22 @@
     <string name="stage_refused">Refuzat</string>
     <string name="stage_withdrawn">Retras</string>
     <string name="stage_wrong_number">Număr greșit</string>
-    <string name="stage_unreachable">Nu a putut fi contactat</string>
+    <string name="stage_unreachable">Nu am putut lua legătura</string>
     <string name="pick_patient">Alegeți un pacient.</string>
     <string name="no_patients_yet">Încă nu aveți pacienți.</string>
     <string name="show_n">Arată (%d)</string>
     <string name="hide">Ascunde</string>
-    <string name="says_wrong_number">Număr greșit</string>
-    <string name="says_unreachable">Nu a putut fi contactat</string>
     <string name="says_welcome_pending">Apel de bun venit în curs</string>
     <string name="monitor">Monitorizare</string>
     <string name="register">Înregistrare</string>
-    <string name="count_red">%d roșu</string>
-    <string name="count_yellow">%d galben</string>
-    <string name="count_to_resolve">%d de rezolvat</string>
-    <string name="drafts_left">%d ciorne nefinalizate</string>
+    <string name="count_red">Roșu: %d</string>
+    <string name="count_yellow">Galben: %d</string>
+    <string name="count_to_resolve">De rezolvat: %d</string>
+    <plurals name="drafts_left">
+        <item quantity="one">%d ciornă nefinalizată</item>
+        <item quantity="few">%d ciorne nefinalizate</item>
+        <item quantity="other">%d de ciorne nefinalizate</item>
+    </plurals>
     <string name="drafts">Ciorne</string>
     <!-- The medic's patient: commands, consent and transcripts (UC-04, UC-12, 04 §2) -->
     <string name="call_again">Sună din nou</string>
@@ -262,6 +264,13 @@
     <string name="number_changed">Numărul a fost schimbat. Apăsați «Sună din nou» ca să-l sunăm.</string>
     <string name="transcript">Transcriere</string>
     <string name="no_transcript">Nimic înregistrat la acest apel.</string>
+    <string name="answers">Răspunsuri</string>
+    <string name="answer_feeling">Stare</string>
+    <string name="answer_orientation">Ziua</string>
+    <string name="answer_shelter">Adăpost</string>
+    <string name="answer_identity">Identitate</string>
+    <string name="answer_unclear">neclar</string>
+    <string name="answer_quote">„%1$s”</string>
     <string name="signed_on_tablet">Semnat pe tabletă · %1$s</string>
     <string name="consent_label">Consimțământ</string>
     <string name="consent_line">%1$s · %2$s · %3$s</string>
@@ -273,7 +282,7 @@
     <string name="consent_medic">de medic</string>
     <string name="consent_das">de DAS</string>
     <!-- The signature under its consent text (G7, UC-01 step 5); the text matches SIGNATURE_CONSENT_TEXT, v1-semnatura -->
-    <string name="consent_signature_label">Consimțământ (opțional, se confirmă și la apelul de bun venit) · v1-semnatura</string>
+    <string name="consent_signature_note">Opțional: consimțământul se confirmă și la apelul de bun venit.</string>
     <string name="consent_signature_text">Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. Semnând mai jos, sunteți de acord.</string>
     <string name="sign_here">Semnați aici</string>
     <string name="clear_signature">Șterge</string>

@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -124,7 +125,11 @@ fun MedicHomeScreen(
                         Tile(stringResource(R.string.register), onRegister, m) {
                             Text(
                                 if (counts.drafts > 0) {
-                                    stringResource(R.string.drafts_left, counts.drafts)
+                                    pluralStringResource(
+                                        R.plurals.drafts_left,
+                                        counts.drafts,
+                                        counts.drafts
+                                    )
                                 } else {
                                     stringResource(R.string.new_patient)
                                 },

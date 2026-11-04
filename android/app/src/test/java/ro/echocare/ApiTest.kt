@@ -193,4 +193,27 @@ class ApiTest {
         val robot = page(consent("given", "robot"))
         assertEquals("robot", robot.consent?.method)
     }
+
+    @Test
+    fun aTranscriptCarriesItsAnswers() {
+        // GET /calls/{id}/transcript (04 §1): the turns and reports, plus the answers
+        val call = json.decodeFromString<IncidentCall>(
+            """
+            {"id": "c1", "trigger": "campaign", "attempt": 1, "state": "completed",
+             "reports": [], "turns": [],
+             "answers": [{"field": "feeling", "value": "unwell", "clear": false,
+                          "quote": "Nu prea bine", "at": "2026-11-04T09:00:00Z",
+                          "later": true}]}
+            """
+        )
+        assertEquals(
+            listOf(CallAnswer("feeling", "unwell", false, "Nu prea bine", "2026-11-04T09:00:00Z")),
+            call.answers
+        )
+        // An incident's call, or an older server, sends none
+        val bare = json.decodeFromString<IncidentCall>(
+            """{"id": "c2", "trigger": "welcome", "attempt": 1, "state": "completed"}"""
+        )
+        assertEquals(emptyList<CallAnswer>(), bare.answers)
+    }
 }

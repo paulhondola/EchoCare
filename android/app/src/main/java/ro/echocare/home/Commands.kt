@@ -55,6 +55,13 @@ suspend fun command(call: suspend () -> Unit): CommandOutcome = try {
 }
 
 /**
+ * The notice once a reread went through: the connection is back, so „Fără conexiune” goes. A
+ * refusal stays until the next command.
+ */
+fun noticeAfterRead(notice: CommandOutcome?): CommandOutcome? =
+    notice.takeIf { it != CommandOutcome.Offline }
+
+/**
  * A number saved in the form for a senior the calls could not reach: no call is queued for it
  * (04 §2), so the page says to press „Sună din nou”. [before] is the number the page showed
  * when „Editează datele” was pressed.

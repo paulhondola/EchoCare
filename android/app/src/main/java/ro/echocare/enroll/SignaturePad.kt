@@ -50,7 +50,12 @@ fun ConsentSection(
     onSave: (List<List<Point>>, Float, Float) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionLabel(stringResource(R.string.consent_signature_label))
+        SectionLabel(stringResource(R.string.consent_label))
+        Text(
+            stringResource(R.string.consent_signature_note),
+            color = Palette.FgMuted,
+            style = MaterialTheme.typography.bodyMedium
+        )
         Text(
             stringResource(R.string.consent_signature_text),
             style = MaterialTheme.typography.bodyLarge

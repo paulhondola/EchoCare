@@ -200,14 +200,18 @@ private fun SignedIn(name: String, wide: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier
-                .size(28.dp)
-                .background(Palette.Card)
-                .border(1.dp, Palette.LineStrong),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(initials(name), style = MaterialTheme.typography.labelMedium)
+        // A name of titles only, such as "Dr.", has no letters: no empty square
+        val letters = initials(name)
+        if (letters.isNotEmpty()) {
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .background(Palette.Card)
+                    .border(1.dp, Palette.LineStrong),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(letters, style = MaterialTheme.typography.labelMedium)
+            }
         }
         if (wide) {
             Text(

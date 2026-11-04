@@ -114,6 +114,15 @@ val CODE_TONES = mapOf(
 )
 
 /** What started each call (05 §1), as the dashboard names it. Unknown: shown as it is. */
+/** A transcript answer's question (05 §2) under the medic's transcript. Unknown: shown raw. */
+val ANSWER_FIELDS = mapOf(
+    "feeling" to R.string.answer_feeling,
+    "orientation" to R.string.answer_orientation,
+    "shelter" to R.string.answer_shelter,
+    "identity" to R.string.answer_identity,
+    "consent" to R.string.consent_label
+)
+
 val TRIGGER_LABELS = mapOf(
     "campaign" to R.string.trigger_campaign,
     "watch" to R.string.trigger_watch,

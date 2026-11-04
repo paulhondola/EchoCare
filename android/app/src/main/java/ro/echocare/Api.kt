@@ -267,7 +267,19 @@ data class IncidentCall(
     @SerialName("final_severity") val finalSeverity: String? = null,
     @SerialName("handover_answered") val handoverAnswered: Boolean? = null,
     val reports: List<CallReport> = emptyList(),
-    val turns: List<CallTurn> = emptyList()
+    val turns: List<CallTurn> = emptyList(),
+    // GET /calls/{id}/transcript only (04 §1); none on the incident page or from an older server
+    val answers: List<CallAnswer> = emptyList()
+)
+
+// One answer the call heard (05 §2): [field] stays a string, so a question added later decodes.
+@Serializable
+data class CallAnswer(
+    val field: String,
+    val value: String,
+    val clear: Boolean,
+    val quote: String,
+    val at: String
 )
 
 @Serializable

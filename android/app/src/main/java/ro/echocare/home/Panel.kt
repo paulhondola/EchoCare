@@ -71,9 +71,19 @@ fun countsOf(rows: List<SeniorRow>): Counts = Counts(
 
 enum class Action { CallAgain, Withdraw, Sign, Edit }
 
+// The consent text and its signature belong before the welcome call: until acceptance, signed
+// or not, so a saved signature shows „Semnat” in its place (G7, UC-01 step 5, UC-04).
+fun showsConsent(page: SeniorPage): Boolean = page.state in setOf("draft", "submitted", "accepted")
+
 // Not yet signed, and not past acceptance (UC-04).
-fun signable(page: SeniorPage): Boolean =
-    page.state in setOf("draft", "submitted", "accepted") && page.signedAt == null
+fun signable(page: SeniorPage): Boolean = showsConsent(page) && page.signedAt == null
+
+// The state in the medic's words on a card, for a state whose chip does not say it all
+// (UC-12). `wrong_number` and `unreachable` have none: their chip says it.
+fun says(state: String): Int? = when (state) {
+    "accepted" -> R.string.says_welcome_pending
+    else -> null
+}
 
 // The actions on the medic's own patient.
 fun actionsFor(page: SeniorPage): List<Action> = when (page.state) {

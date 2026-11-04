@@ -140,6 +140,33 @@ class PanelTest {
     }
 
     @Test
+    fun `the consent section stays through acceptance, signed or not`() {
+        // Once saved, the section shows „Semnat” with the date instead of the pad (G7)
+        for (state in listOf("draft", "submitted", "accepted")) {
+            assertTrue(state, showsConsent(page(state)))
+            assertTrue(state, showsConsent(page(state, signedAt = "2026-11-04T09:00:00Z")))
+        }
+        for (state in listOf(
+            "active",
+            "wrong_number",
+            "unreachable",
+            "refused",
+            "withdrawn",
+            "x"
+        )) {
+            assertFalse(state, showsConsent(page(state)))
+        }
+    }
+
+    @Test
+    fun `a card's sentence does not repeat its chip`() {
+        assertEquals(null, says("wrong_number"))
+        assertEquals(null, says("unreachable"))
+        assertEquals(R.string.says_welcome_pending, says("accepted"))
+        assertEquals(null, says("active"))
+    }
+
+    @Test
     fun `stages for an active senior`() {
         val stages = stagesOf(
             page(

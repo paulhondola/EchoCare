@@ -60,6 +60,16 @@ class CommandsTest {
     }
 
     @Test
+    fun `a read that went through clears an offline notice, not a refusal`() {
+        assertEquals(null, noticeAfterRead(CommandOutcome.Offline))
+        assertEquals(
+            CommandOutcome.Refused("wrong_state"),
+            noticeAfterRead(CommandOutcome.Refused("wrong_state"))
+        )
+        assertEquals(null, noticeAfterRead(null))
+    }
+
+    @Test
     fun `a new number on a senior to resolve is a changed number`() {
         assertTrue(numberChanged("+40700000001", page("wrong_number", "+40700000002")))
         assertTrue(numberChanged("+40700000001", page("unreachable", "+40700000002")))

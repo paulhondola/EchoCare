@@ -33,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.ZoneId
+import ro.echocare.CallAnswer
 import ro.echocare.CallRow
 import ro.echocare.IncidentCall
 import ro.echocare.R
@@ -132,7 +133,8 @@ fun PatientPane(
                                 }
                             }
                         )
-                        if (signing && Action.Sign in actionsFor(senior)) {
+                        // Stays open after the save, showing „Semnat” with the date (G7)
+                        if (signing && showsConsent(senior)) {
                             ConsentSection(senior.signedAt, vm.busy) { strokes, w, h ->
                                 vm.sign(senior.id, strokes, w, h, onChanged)
                             }
@@ -522,10 +524,15 @@ private fun TranscriptOf(read: Load<IncidentCall>) {
         when (read) {
             Load.Loading -> CircularProgressIndicator(Modifier.size(20.dp), color = Palette.FgMuted)
 
-            is Load.Ready -> if (read.value.turns.isEmpty() && read.value.reports.isEmpty()) {
+            is Load.Ready -> if (
+                read.value.turns.isEmpty() &&
+                read.value.reports.isEmpty() &&
+                read.value.answers.isEmpty()
+            ) {
                 Text(stringResource(R.string.no_transcript), color = Palette.FgMuted)
             } else {
                 Transcript(read.value)
+                Answers(read.value.answers)
             }
 
             // „Transcriere” again reads it again
@@ -540,6 +547,27 @@ private fun TranscriptOf(read: Load<IncidentCall>) {
                 color = Palette.FgMuted
             )
         }
+    }
+}
+
+/**
+ * What the call heard, under its transcript, one line per answer (04 §1):
+ * Stare: unwell · neclar · „Rău”.
+ */
+@Composable
+private fun Answers(answers: List<CallAnswer>) {
+    if (answers.isEmpty()) return
+    SectionLabel(stringResource(R.string.answers), Modifier.padding(top = 4.dp))
+    answers.forEach { answer ->
+        val field = ANSWER_FIELDS[answer.field]?.let { stringResource(it) } ?: answer.field
+        val parts = listOfNotNull(
+            "$field: ${answer.value}",
+            if (answer.clear) null else stringResource(R.string.answer_unclear),
+            answer.quote.takeIf { it.isNotBlank() }?.let {
+                stringResource(R.string.answer_quote, it)
+            }
+        )
+        Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
     }
 }
 

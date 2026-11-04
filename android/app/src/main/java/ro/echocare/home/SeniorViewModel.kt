@@ -79,7 +79,10 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
         reading = viewModelScope.launch {
             val read = read(id)
             page = page.after(read)
-            if (read is Answer.Ok) noteNumber(read.value)
+            if (read is Answer.Ok) {
+                noteNumber(read.value)
+                notice = noticeAfterRead(notice)
+            }
             // A failed read keeps the last list, as the page keeps its last answer
             if (id != null) (answer { api.calls(id) } as? Answer.Ok)?.let { calls = it.value }
             // A failed read keeps the last answer: the page's own banner says offline

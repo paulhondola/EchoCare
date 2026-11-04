@@ -24,5 +24,6 @@ class FormatTest {
         assertEquals("M", initials("Maria"))
         assertEquals("AP", initials("ana maria pop"))
         assertEquals("", initials("  "))
+        assertEquals("", initials("Dr."))
     }
 }

@@ -201,8 +201,11 @@ fun PatientCard(
         ) {
             if (row.state == "active" && row.code != null) {
                 CodeLabel(row.code, row.reason)
-            } else {
+            } else if (row.state in STATE_LABELS) {
                 StateLabel(row.state)
+            } else {
+                // A state this build does not know, in Inactivi under its raw name (UC-12)
+                Chip(row.state, Tone.Muted)
             }
             Text(row.formOfAddress, style = MaterialTheme.typography.titleMedium)
             Text(
@@ -210,7 +213,7 @@ fun PatientCard(
                 color = Palette.FgMuted,
                 style = MaterialTheme.typography.bodyMedium
             )
-            says(row)?.let {
+            says(row.state)?.let {
                 Text(stringResource(it), style = MaterialTheme.typography.bodyMedium)
             }
             val at = when (group) {
@@ -232,14 +235,6 @@ fun PatientCard(
             }
         }
     }
-}
-
-// The state in the medic's words, for the states that need her (UC-12).
-private fun says(row: SeniorRow): Int? = when (row.state) {
-    "wrong_number" -> R.string.says_wrong_number
-    "unreachable" -> R.string.says_unreachable
-    "accepted" -> R.string.says_welcome_pending
-    else -> null
 }
 
 /** Grey boxes where the cards will be while the list loads: no spinner (UC-12). */
