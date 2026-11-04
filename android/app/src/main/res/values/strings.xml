@@ -235,6 +235,13 @@
     <string name="stage_withdrawn">Retras</string>
     <string name="stage_wrong_number">Număr greșit</string>
     <string name="stage_unreachable">Nu a putut fi contactat</string>
+    <string name="pick_patient">Alegeți un pacient.</string>
+    <string name="no_patients_yet">Încă nu aveți pacienți.</string>
+    <string name="show_n">Arată (%d)</string>
+    <string name="hide">Ascunde</string>
+    <string name="says_wrong_number">Număr greșit</string>
+    <string name="says_unreachable">Nu a putut fi contactat</string>
+    <string name="says_welcome_pending">Apel de bun venit în curs</string>
     <string name="monitor">Monitorizare</string>
     <string name="register">Înregistrare</string>
     <string name="count_red">%d roșu</string>

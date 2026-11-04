@@ -67,12 +67,14 @@ fun HomeNav(
                     )
                 }
                 composable<MonitorRoute> {
-                    // Task 9 replaces this with Monitorizare (UC-12)
-                    HomeScaffold(
-                        stringResource(R.string.monitor),
+                    MonitorScreen(
                         onBack = { nav.popBackStack<MonitorRoute>(inclusive = true) },
-                        menu = menu
-                    ) { Text(stringResource(R.string.monitor)) }
+                        menu = menu,
+                        onOpen = { nav.navigate(SeniorRoute(it)) },
+                        onRegister = { nav.navigate(RegisterRoute) },
+                        onEdit = { nav.navigate(EnrollRoute(it)) },
+                        onSessionEnd = onSessionEnd
+                    )
                 }
                 composable<RegisterRoute> {
                     RegisterScreen(

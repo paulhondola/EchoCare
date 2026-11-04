@@ -48,37 +48,51 @@ fun SeniorScreen(
     onEdit: ((String) -> Unit)? = null,
     vm: SeniorViewModel = hiltViewModel()
 ) {
-    RereadWhileShown { vm.reread(id) }
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
-        LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
-            // The senior's home only: the warning the campaign's calls are about (Q5)
-            if (id == null && vm.warning) {
-                Banner(stringResource(R.string.warning_active), Tone.Galben)
-            }
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 20.dp)
-                    .widthIn(max = 600.dp)
-            ) {
-                // The senior's home only: asks for a wellbeing call (UC-10)
-                if (id == null) CallMeButton(vm.callMe, vm::requestCall)
-                // The senior's home only: a call to answer here instead of on the phone (design §6.2)
-                vm.mock?.let { MockCallCard(it, vm::answer) }
-                // „Editează” for the medic, in every state (04 §2, SE9)
-                val edit = onEdit
-                SeniorDetails(
-                    senior,
-                    callSenior = id != null,
-                    action = edit?.let {
-                        { SnButton(stringResource(R.string.edit), { it(senior.id) }) }
-                    }
-                )
-                // A senior's page opened from a list: the caregiver's and the medic's (UC-12)
-                vm.calls?.let { RecentCalls(recentCalls(it)) }
-            }
+        PatientPane(id, onSessionEnd, onEdit, vm)
+    }
+}
+
+/**
+ * One senior's page without its scaffold: the body the page and Monitorizare's right pane share,
+ * so a change to it is made once (UC-12). [id] null is the senior's own page; [onEdit] is the
+ * medic's „Editează”.
+ */
+@Composable
+fun PatientPane(
+    id: String?,
+    onSessionEnd: (Failure) -> Unit,
+    onEdit: ((String) -> Unit)? = null,
+    vm: SeniorViewModel = hiltViewModel(key = id)
+) {
+    RereadWhileShown { vm.reread(id) }
+    LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
+        // The senior's home only: the warning the campaign's calls are about (Q5)
+        if (id == null && vm.warning) {
+            Banner(stringResource(R.string.warning_active), Tone.Galben)
+        }
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .widthIn(max = 600.dp)
+        ) {
+            // The senior's home only: asks for a wellbeing call (UC-10)
+            if (id == null) CallMeButton(vm.callMe, vm::requestCall)
+            // The senior's home only: a call to answer here instead of on the phone (design §6.2)
+            vm.mock?.let { MockCallCard(it, vm::answer) }
+            // „Editează” for the medic, in every state (04 §2, SE9)
+            SeniorDetails(
+                senior,
+                callSenior = id != null,
+                action = onEdit?.let {
+                    { SnButton(stringResource(R.string.edit), { it(senior.id) }) }
+                }
+            )
+            // A senior's page opened from a list: the caregiver's and the medic's (UC-12)
+            vm.calls?.let { RecentCalls(recentCalls(it)) }
         }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,13 +45,26 @@ import ro.echocare.ui.Tone
 import ro.echocare.ui.theme.Palette
 
 /**
- * The medic's seniors, shared by her home, Înregistrare and Monitorizare (UC-12, UC-01):
- * GET /seniors?role=medic (04 §2).
+ * The medic's seniors for her home, Înregistrare and Monitorizare (UC-12, UC-01):
+ * GET /seniors?role=medic (04 §2). `hiltViewModel()` is scoped to the nav entry, so each of those
+ * destinations has its own instance. [selected] is Monitorizare's chosen patient, kept in
+ * [SavedStateHandle] so a rotation or a process death keeps it.
  */
 @HiltViewModel
-class MedicViewModel @Inject constructor(private val api: EchoCareApi) : ViewModel() {
+class MedicViewModel @Inject constructor(
+    private val api: EchoCareApi,
+    private val saved: SavedStateHandle
+) : ViewModel() {
     var seniors by mutableStateOf<Load<List<SeniorRow>>>(Load.Loading)
         private set
+
+    var selected by mutableStateOf(saved.get<String>("selected"))
+        private set
+
+    fun select(id: String?) {
+        selected = id
+        saved["selected"] = id
+    }
 
     /** Called when a screen appears and on every timed re-read (06 §3). */
     fun reread() {
