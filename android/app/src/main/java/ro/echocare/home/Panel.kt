@@ -2,6 +2,9 @@ package ro.echocare.home
 
 import androidx.annotation.StringRes
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.SeniorRow
@@ -114,3 +117,25 @@ fun stagesOf(page: SeniorPage): List<Stage> {
     }
     return if (end == null) stages else stages + end
 }
+
+// The consent line's words (04 §1); a decision or method a later server adds shows raw.
+val CONSENT_DECISIONS = mapOf(
+    "given" to R.string.consent_given,
+    "refused" to R.string.consent_refused,
+    "withdrawn" to R.string.consent_withdrawn
+)
+
+val CONSENT_METHODS = mapOf(
+    "call" to R.string.consent_call,
+    "app" to R.string.consent_app,
+    "medic" to R.string.consent_medic,
+    "das" to R.string.consent_das
+)
+
+private val romanian = Locale.forLanguageTag("ro")
+private val dayMonth = DateTimeFormatter.ofPattern("d MMM", romanian)
+private val dayMonthYear = DateTimeFormatter.ofPattern("d MMM yyyy", romanian)
+
+// A stage's date, "4 nov."; with [year], "4 nov. 2026". An unreadable date shows as sent.
+fun shortDate(iso: String, zone: ZoneId, year: Boolean = false): String =
+    instantOf(iso)?.atZone(zone)?.let { (if (year) dayMonthYear else dayMonth).format(it) } ?: iso

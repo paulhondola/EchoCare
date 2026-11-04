@@ -162,9 +162,13 @@ internal fun NavController.openAlert(route: Any) {
     if (!inFront) navigate(route)
 }
 
-/** „Gata”: back to the senior's page, the one „Editează” opened the form from, or a new one. */
+/**
+ * „Gata”: back to where „Editează datele” opened the form, the senior's page or Monitorizare with
+ * the patient still selected (UC-12), or a new page.
+ */
 private fun NavController.toPage(id: String) {
-    if (previousBackStackEntry?.destination?.hasRoute<SeniorRoute>() == true) {
+    val from = previousBackStackEntry?.destination
+    if (from?.hasRoute<SeniorRoute>() == true || from?.hasRoute<MonitorRoute>() == true) {
         popBackStack()
     } else {
         navigate(SeniorRoute(id)) { popUpTo<EnrollRoute> { inclusive = true } }

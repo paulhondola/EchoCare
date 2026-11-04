@@ -357,8 +357,9 @@ private fun callLine(call: IncidentCall): String = stringResource(
         ?: call.state
 )
 
+/** A call's turns and reported codes in time order; the medic's patient page shows it too (UC-12). */
 @Composable
-private fun Transcript(call: IncidentCall) {
+internal fun Transcript(call: IncidentCall) {
     timeline(call).forEach { line ->
         when (line) {
             is Line.Said -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

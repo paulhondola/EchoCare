@@ -1,5 +1,6 @@
 package ro.echocare.home
 
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -212,5 +213,24 @@ class PanelTest {
         assertEquals(null, wrong[4].at)
         assertTrue(wrong[4].reached)
         assertEquals(R.string.stage_unreachable, stagesOf(page("unreachable"))[4].label)
+    }
+
+    @Test
+    fun `a stage date is day and month in Romanian`() {
+        val date = shortDate("2026-11-04T09:30:00Z", ZoneOffset.UTC)
+        assertTrue(date, date.startsWith("4 nov"))
+        assertTrue(shortDate("2026-11-04T09:30:00Z", ZoneOffset.UTC, year = true).endsWith("2026"))
+    }
+
+    @Test
+    fun `an unreadable date shows as sent`() {
+        assertEquals("ieri", shortDate("ieri", ZoneOffset.UTC))
+    }
+
+    @Test
+    fun `a consent decision or method this build does not know has no label`() {
+        assertEquals(R.string.consent_withdrawn, CONSENT_DECISIONS["withdrawn"])
+        assertEquals(R.string.consent_das, CONSENT_METHODS["das"])
+        assertEquals(null, CONSENT_METHODS["signature"])
     }
 }

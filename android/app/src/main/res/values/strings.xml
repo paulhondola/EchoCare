@@ -66,7 +66,6 @@
 
     <!-- Pacient nou (seniors §9.4) -->
     <string name="new_patient">Pacient nou</string>
-    <string name="edit">Editează</string>
     <string name="step_senior">Senior</string>
     <string name="step_address">Adresă și acces</string>
     <string name="step_caregivers">Aparținători</string>
@@ -249,4 +248,28 @@
     <string name="count_to_resolve">%d de rezolvat</string>
     <string name="drafts_left">%d ciorne nefinalizate</string>
     <string name="drafts">Ciorne</string>
+    <!-- The medic's patient: commands, consent and transcripts (UC-04, UC-12, 04 §2) -->
+    <string name="call_again">Sună din nou</string>
+    <string name="withdraw">Retragere consimțământ</string>
+    <string name="withdraw_title">Retrageți consimțământul pentru %1$s?</string>
+    <string name="withdraw_text">Nu va mai primi apeluri. Nu se poate anula.</string>
+    <string name="withdraw_confirm">Retrage</string>
+    <string name="cancel">Renunță</string>
+    <string name="sign">Semnătură</string>
+    <string name="edit_data">Editează datele</string>
+    <string name="changed_state">Starea pacientului s-a schimbat între timp.</string>
+    <string name="offline_retry">Fără conexiune. Încercați din nou.</string>
+    <string name="number_changed">Numărul a fost schimbat. Apăsați «Sună din nou» ca să-l sunăm.</string>
+    <string name="transcript">Transcriere</string>
+    <string name="no_transcript">Nimic înregistrat la acest apel.</string>
+    <string name="signed_on_tablet">Semnat pe tabletă · %1$s</string>
+    <string name="consent_label">Consimțământ</string>
+    <string name="consent_line">%1$s · %2$s · %3$s</string>
+    <string name="consent_given">Dat</string>
+    <string name="consent_refused">Refuzat</string>
+    <string name="consent_withdrawn">Retras</string>
+    <string name="consent_call">la apel</string>
+    <string name="consent_app">în aplicație</string>
+    <string name="consent_medic">de medic</string>
+    <string name="consent_das">de DAS</string>
 </resources>
