@@ -24,6 +24,14 @@ CARD_CONSENT_TEXT = (
     "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
     "Sunteți de acord?"
 )
+# The text signed on the medic's tablet: the card's wording, closing on the signature
+# instead of the question (G7, 04 §2).
+SIGNATURE_CONSENT_VERSION = "v1-semnatura"
+SIGNATURE_CONSENT_TEXT = (
+    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Semnând mai jos, sunteți de acord."
+)
 
 
 def greeting(form_of_address: str) -> str:

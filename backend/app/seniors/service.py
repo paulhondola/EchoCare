@@ -201,6 +201,33 @@ def caregivers_query(senior_id: uuid.UUID) -> Select:
     )
 
 
+async def consent_fields(session: AsyncSession, senior_id: uuid.UUID) -> dict[str, Any]:
+    """`consent`, `consent_given_at` and `signed_at` for GET /seniors/{id} (04 §1, G7)."""
+
+    def latest(*where: ColumnElement[bool]) -> Select[tuple[Consent]]:
+        return (
+            select(Consent)
+            .where(Consent.senior_id == senior_id, *where)
+            .order_by(Consent.at.desc(), Consent.id.desc())
+            .limit(1)
+        )
+
+    decided = await session.scalar(latest(Consent.method != ConsentMethod.signature))
+    given = await session.scalar(
+        latest(
+            Consent.decision == ConsentDecision.given,
+            Consent.method.in_((ConsentMethod.call, ConsentMethod.app)),
+        )
+    )
+    signed = await session.scalar(latest(Consent.method == ConsentMethod.signature))
+    return {
+        "consent": decided
+        and {"decision": decided.decision, "method": decided.method, "at": decided.at},
+        "consent_given_at": given and given.at,
+        "signed_at": signed and signed.at,
+    }
+
+
 async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
     medic = await session.get(User, senior.medic_id)
     caregivers = (await session.execute(caregivers_query(senior.id))).mappings()
@@ -217,9 +244,13 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "since",
         "call_in_progress",
         "watch_state",
+        "consent",
+        "consent_given_at",
+        "signed_at",
     }
     return SeniorView(
         **{name: getattr(senior, name) for name in fields},
+        **await consent_fields(session, senior.id),
         **status,
         medic=MedicView.model_validate(medic, from_attributes=True),
         caregivers=[CaregiverView.model_validate(dict(c)) for c in caregivers],

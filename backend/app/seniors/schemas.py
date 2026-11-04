@@ -194,6 +194,14 @@ class MedicView(BaseModel):
     practice: str | None
 
 
+class ConsentView(BaseModel):
+    """The latest consent decision off the signature (04 §1, G7)."""
+
+    decision: State
+    method: State
+    at: datetime
+
+
 class SeniorView(SeniorDetail):
     """GET /seniors/{id} (04 §1): registration, address, medic and caregivers. One
     shape for every role (seniors SE7)."""
@@ -206,6 +214,11 @@ class SeniorView(SeniorDetail):
     created_at: datetime | None = None
     submitted_at: datetime | None = None
     accepted_at: datetime | None = None
+    # Set by GET /seniors/{id} (04 §1). A signature is not a decision: it only sets
+    # `signed_at`, so `consent` stays null until the welcome call (G7).
+    consent: ConsentView | None = None
+    consent_given_at: datetime | None = None
+    signed_at: datetime | None = None
     # True while one of her calls rings or is live, for the badge (UC-12). Set by
     # GET /seniors/{id} only; null on the other answers that carry the senior.
     call_in_progress: bool | None = None
