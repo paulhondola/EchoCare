@@ -7,6 +7,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +29,7 @@ import ro.echocare.das.IncidentScreen
 import ro.echocare.das.IncidentsScreen
 import ro.echocare.das.ResolveScreen
 import ro.echocare.enroll.EnrollScreen
+import ro.echocare.push.Push
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.theme.Palette
 
@@ -40,7 +42,9 @@ fun HomeNav(
     home: Screen.Home,
     onSwitchRole: () -> Unit,
     onSignOut: () -> Unit,
-    onSessionEnd: (Failure) -> Unit
+    onSessionEnd: (Failure) -> Unit,
+    opening: Push.Alert? = null,
+    onOpened: () -> Unit = {}
 ) {
     // A new graph for a new role, so that role's home is the start destination.
     key(home.role) {
@@ -108,6 +112,14 @@ fun HomeNav(
                     onSessionEnd = onSessionEnd
                 )
             }
+        }
+        // A tapped alert opens its senior, or for DAS its incident, over the home (04 §6)
+        LaunchedEffect(opening) {
+            val alert = opening ?: return@LaunchedEffect
+            alertRoute(alert.seniorId, alert.incidentId, home.role)?.let {
+                nav.navigate(it) { launchSingleTop = true }
+            }
+            onOpened()
         }
     }
 }

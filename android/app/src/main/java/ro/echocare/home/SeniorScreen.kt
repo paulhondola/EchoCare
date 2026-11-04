@@ -17,10 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import java.time.ZoneId
+import ro.echocare.CallRow
 import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
+import ro.echocare.ui.Chip
 import ro.echocare.ui.FieldRow
 import ro.echocare.ui.PhoneNumber
 import ro.echocare.ui.Rule
@@ -73,6 +76,8 @@ fun SeniorScreen(
                         { SnButton(stringResource(R.string.edit), { it(senior.id) }) }
                     }
                 )
+                // A senior's page opened from a list: the caregiver's and the medic's (UC-12)
+                vm.calls?.let { RecentCalls(recentCalls(it)) }
             }
         }
     }
@@ -102,6 +107,7 @@ fun SeniorDetails(
                 Text(senior.fullName, style = MaterialTheme.typography.headlineSmall)
                 StateLabel(senior.state)
                 CodeLabel(senior.code, senior.reason)
+                if (showsCallBadge(senior)) Chip(stringResource(R.string.call_live), Tone.Galben)
             }
             action?.invoke()
         }
@@ -170,6 +176,65 @@ fun SeniorDetails(
                 }
                 Rule(strong = i == senior.caregivers.lastIndex)
             }
+        }
+    }
+}
+
+/** „Apeluri recente”: when, what started it, and the code it ended with or its state. */
+@Composable
+private fun RecentCalls(calls: List<CallRow>) {
+    SectionLabel(
+        stringResource(R.string.section_recent_calls),
+        Modifier.padding(top = 20.dp, bottom = 4.dp)
+    )
+    if (calls.isEmpty()) {
+        Text(
+            stringResource(R.string.no_recent_calls),
+            Modifier.padding(vertical = 12.dp),
+            color = Palette.FgMuted
+        )
+    }
+    val zone = ZoneId.systemDefault()
+    calls.forEachIndexed { i, call ->
+        Column {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(
+                            R.string.recent_call_line,
+                            callTime(call, zone),
+                            TRIGGER_LABELS[call.trigger]?.let { stringResource(it) }
+                                ?: call.trigger
+                        ),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    call.reason?.let {
+                        Text(
+                            it,
+                            color = Palette.FgMuted,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+                when (val result = outcome(call)) {
+                    is Outcome.Code -> Chip(
+                        stringResource(CODE_LABELS.getValue(result.code)),
+                        CODE_TONES.getValue(result.code)
+                    )
+
+                    is Outcome.State -> Chip(
+                        CALL_STATE_LABELS[result.state]?.let { stringResource(it) } ?: result.state,
+                        stateTone(result.state)
+                    )
+                }
+            }
+            Rule(strong = i == calls.lastIndex)
         }
     }
 }

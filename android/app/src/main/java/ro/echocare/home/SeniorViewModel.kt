@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import ro.echocare.CallRow
 import ro.echocare.EchoCareApi
 import ro.echocare.MockAnswer
 import ro.echocare.MockCall
@@ -25,6 +26,10 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
 
     /** The call the card answers; null when none is due or on production (design §6.2). */
     var mock by mutableStateOf<MockCall?>(null)
+        private set
+
+    /** The short call history (UC-12); null until read, and on the senior's own home. */
+    var calls by mutableStateOf<List<CallRow>?>(null)
         private set
 
     /** What „Sunați-mă” shows (UC-10). */
@@ -45,6 +50,8 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     fun reread(id: String?) {
         viewModelScope.launch {
             page = page.after(read(id))
+            // A failed read keeps the last list, as the page keeps its last answer
+            if (id != null) (answer { api.calls(id) } as? Answer.Ok)?.let { calls = it.value }
             // A failed read keeps the last answer: the page's own banner says offline
             if (id == null) {
                 (answer { api.me() } as? Answer.Ok)?.let { warning = it.value.warningActive }

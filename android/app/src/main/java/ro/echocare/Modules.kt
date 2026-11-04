@@ -3,6 +3,7 @@ package ro.echocare
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -33,6 +34,11 @@ object FirebaseModule {
             firebaseAuthSettings.forceRecaptchaFlowForTesting(true)
         }
     }
+
+    /** This device's push token (04 §6). */
+    @Provides
+    @Singleton
+    fun firebaseMessaging(): FirebaseMessaging = FirebaseMessaging.getInstance()
 }
 
 @Module

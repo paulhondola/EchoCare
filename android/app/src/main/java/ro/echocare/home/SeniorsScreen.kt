@@ -33,6 +33,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import ro.echocare.R
 import ro.echocare.SeniorRow
+import ro.echocare.push.NotificationsPrompt
 import ro.echocare.ui.Banner
 import ro.echocare.ui.Chip
 import ro.echocare.ui.Kind
@@ -65,6 +66,8 @@ fun SeniorsScreen(
     }
     HomeScaffold(stringResource(title), onBack = null, menu = menu) {
         LoadBody(vm.seniors, onRetry = vm::reread, onSessionEnd = onSessionEnd) { seniors ->
+            // The caregiver's and the medic's alerts (04 §6), asked for where they land
+            NotificationsPrompt()
             if (sent) Banner(stringResource(R.string.sent), Tone.Verde)
             onNew?.let {
                 SnButton(

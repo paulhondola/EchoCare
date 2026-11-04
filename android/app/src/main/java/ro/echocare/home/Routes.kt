@@ -48,6 +48,17 @@ fun openFor(role: String, senior: SeniorRow): Any = when {
     else -> SeniorRoute(senior.id)
 }
 
+/**
+ * Where a tapped alert goes for the role the app is in (04 §6): DAS to the incident, the others to
+ * the senior's page. Null for the senior, whose own page is their home already, and for an incident
+ * alert without its incident.
+ */
+fun alertRoute(seniorId: String, incidentId: String?, role: String): Any? = when (role) {
+    "senior" -> null
+    "das" -> incidentId?.let(::IncidentRoute)
+    else -> SeniorRoute(seniorId)
+}
+
 /** „Editează” shows while the medic may still edit: PUT refuses past `submitted` (04 §2). */
 fun editable(state: String) = state == "draft" || state == "submitted"
 
