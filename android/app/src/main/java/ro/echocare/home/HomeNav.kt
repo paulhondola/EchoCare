@@ -7,6 +7,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +29,7 @@ import ro.echocare.das.IncidentScreen
 import ro.echocare.das.IncidentsScreen
 import ro.echocare.das.ResolveScreen
 import ro.echocare.enroll.EnrollScreen
+import ro.echocare.push.Push
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.theme.Palette
 
@@ -40,7 +42,9 @@ fun HomeNav(
     home: Screen.Home,
     onSwitchRole: () -> Unit,
     onSignOut: () -> Unit,
-    onSessionEnd: (Failure) -> Unit
+    onSessionEnd: (Failure) -> Unit,
+    opening: Push.Alert? = null,
+    onOpened: () -> Unit = {}
 ) {
     // A new graph for a new role, so that role's home is the start destination.
     key(home.role) {
@@ -109,7 +113,24 @@ fun HomeNav(
                 )
             }
         }
+        // A tapped alert opens its senior, or for DAS its incident, over the home (04 §6)
+        LaunchedEffect(opening) {
+            val alert = opening ?: return@LaunchedEffect
+            nav.openAlert(alertRoute(alert.seniorId, alert.incidentId, home.role))
+            onOpened()
+        }
     }
+}
+
+/**
+ * A tapped alert's page, unless it is the one in front. Not `launchSingleTop`: that reuses the entry
+ * for any route of the same type, and with it the ViewModel, which goes on reading the old id.
+ */
+internal fun NavController.openAlert(route: Any) {
+    val top = currentBackStackEntry
+    val inFront = top?.destination?.hasRoute(route::class) == true &&
+        top.toRoute<Any>(route::class) == route
+    if (!inFront) navigate(route)
 }
 
 /** „Gata”: back to the senior's page, the one „Editează” opened the form from, or a new one. */

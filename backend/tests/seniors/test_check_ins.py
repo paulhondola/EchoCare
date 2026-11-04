@@ -6,12 +6,14 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from app.models import Role, WatchCondition, WatchState
+from app.models import EnrollmentState, Grant, Role, WatchCondition, WatchState
 from app.seniors.service import silence_watches, watch_silence
 from tests.seniors.test_seniors import NOT_ALLOWED, refusal, signed_in
 
 SENIOR = "+40700000101"
 MEDIC = "+40700000102"
+CAREGIVER = "+40700000103"
+DAS = "+40700000104"
 
 
 @pytest.fixture
@@ -115,3 +117,47 @@ def test_silence_is_90_seconds_in_demo_mode(monkeypatch):
             lambda demo=demo: SimpleNamespace(demo_mode=demo),
         )
         assert watch_silence() == limit
+
+
+@pytest.fixture
+async def watched(db, add_user, add_senior):
+    """A senior whose watch is not worn, with everyone who can open her page."""
+    medic = await add_user(MEDIC, Role.medic)
+    maria = await add_senior(
+        SENIOR, medic=medic, enrollment_state=EnrollmentState.accepted
+    )
+    herself = await add_user(SENIOR)
+    caregiver = await add_user(CAREGIVER)
+    other = await add_senior("+40700000105", medic=medic)
+    das = await add_user(DAS, Role.das)
+    db.add_all(
+        [
+            Grant(user_id=herself.id, role=Role.senior, senior_id=maria.id),
+            Grant(user_id=caregiver.id, role=Role.caregiver, senior_id=maria.id),
+            # Reaches Maria as DAS only: caring for someone else shows no watch of hers
+            Grant(user_id=das.id, role=Role.caregiver, senior_id=other.id),
+            WatchState(
+                senior_id=maria.id,
+                state=WatchCondition.not_worn,
+                last_check_in_at=datetime.now(UTC),
+            ),
+        ]
+    )
+    await db.commit()
+    return SimpleNamespace(maria=maria, other=other)
+
+
+@pytest.mark.parametrize(
+    ("token", "state"),
+    [(CAREGIVER, "not_worn"), (MEDIC, "not_worn"), (DAS, None), (SENIOR, None)],
+)
+async def test_only_who_looks_after_her_sees_the_watch(client, watched, token, state):
+    """UC-12: the caregiver's and the medic's page shows it."""
+    r = await client.get(f"/api/seniors/{watched.maria.id}", headers=signed_in(token))
+    assert r.status_code == 200
+    assert r.json()["watch_state"] == state
+
+
+async def test_no_watch_yet_is_no_state(client, watched):
+    r = await client.get(f"/api/seniors/{watched.other.id}", headers=signed_in(MEDIC))
+    assert r.json()["watch_state"] is None

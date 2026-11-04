@@ -7,7 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import ro.echocare.CallRow
 import ro.echocare.EchoCareApi
 import ro.echocare.MockAnswer
 import ro.echocare.MockCall
@@ -27,9 +29,15 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var mock by mutableStateOf<MockCall?>(null)
         private set
 
+    /** The short call history (UC-12); null until read, and on the senior's own home. */
+    var calls by mutableStateOf<List<CallRow>?>(null)
+        private set
+
     /** What „Sunați-mă” shows (UC-10). */
     var callMe by mutableStateOf(CallMe.Idle)
         private set
+
+    private var reading: Job? = null
 
     /**
      * „Sunați-mă”. No retry: a failed tap shows [CallMe.NotSent] and the senior taps again, with a
@@ -43,8 +51,12 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
 
     /** [id] is null on the senior's own home: the one senior their grant names. */
     fun reread(id: String?) {
-        viewModelScope.launch {
+        // A read still under way is out of date; left running, it could land after this one
+        reading?.cancel()
+        reading = viewModelScope.launch {
             page = page.after(read(id))
+            // A failed read keeps the last list, as the page keeps its last answer
+            if (id != null) (answer { api.calls(id) } as? Answer.Ok)?.let { calls = it.value }
             // A failed read keeps the last answer: the page's own banner says offline
             if (id == null) {
                 (answer { api.me() } as? Answer.Ok)?.let { warning = it.value.warningActive }

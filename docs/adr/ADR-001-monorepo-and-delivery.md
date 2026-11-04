@@ -648,7 +648,7 @@ Path-filtered workflows have one known trap: a check marked *required* in branch
 | End-to-end runs with Twilio | Real calls cost money and need real phones. Covered by the rehearsal in 06 §5 |
 | Launching a release build | Only release builds run R8, and R8 bugs appear at run time, not at build time. The wizard's partial mode (`optimization { packageScope = … }`) crashed every release build at startup with an `IllegalAccessError`, so R8 now processes the whole app. Before a release build reaches the demo devices, someone launches it on an emulator or a phone |
 
-**Secrets in GitHub:** the keystore with its passwords, and a Firebase service account for App Distribution. That is all. Twilio and model provider credentials stay in Railway's variables (06 §4). The API holds no Firebase credential ([auth-layer.md](../specs/auth-layer.md) AL11). Railway pulls from GitHub itself, so GitHub never needs a Railway token.
+**Secrets in GitHub:** the keystore with its passwords, and a Firebase service account for App Distribution. That is all. Twilio and model provider credentials stay in Railway's variables (06 §4). So does the API's one Firebase credential, for sending pushes ([auth-layer.md](../specs/auth-layer.md) AL11). Railway pulls from GitHub itself, so GitHub never needs a Railway token.
 
 `google-services.json` is committed. It holds identifiers, not secrets, and access is protected by the registered SHA fingerprints and by FastAPI checking every token.
 

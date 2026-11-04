@@ -13,15 +13,18 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.HttpException
 import ro.echocare.EchoCareApi
 import ro.echocare.Me
@@ -38,6 +41,7 @@ private const val SAVED_ROLE = "role"
 class AuthViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     private val api: EchoCareApi,
+    private val messaging: FirebaseMessaging,
     @ApplicationContext context: Context
 ) : ViewModel() {
     // The picked role survives a restart (auth-layer §8.2).
@@ -61,7 +65,10 @@ class AuthViewModel @Inject constructor(
     private var resendTimer: Job? = null
 
     init {
-        if (auth.currentUser != null) loadMe()
+        // Signed out with no network, the token outlives the sign-out: deleted once one is back.
+        // ponytail: until then, a closed app still shows the tray's alert, which names nobody (P18).
+        // A WorkManager job if a device can stay offline and signed out for long.
+        if (auth.currentUser != null) loadMe() else messaging.deleteToken()
     }
 
     fun sending(phone: String) {
@@ -114,6 +121,7 @@ class AuthViewModel @Inject constructor(
             show(
                 try {
                     me = api.me()
+                    savePushToken()
                     screenFor(me, prefs.getString(SAVED_ROLE, null))
                 } catch (e: HttpException) {
                     screenFor(e.code())
@@ -132,8 +140,25 @@ class AuthViewModel @Inject constructor(
     /** *Schimbă rolul*: back to the picker, forgetting the saved role. */
     fun switchRole() = show(screenFor(me, saved = null))
 
-    /** *Ieșire*. */
-    fun signOut() = show(Screen.Phone())
+    /**
+     * *Ieșire*. The API forgets this device's token first, while the caller is still signed in to
+     * say whose it is (Q19). Offline, neither that nor the delete in [show] gets through: the next
+     * start tries the delete again.
+     */
+    fun signOut() {
+        screen = Screen.Loading
+        viewModelScope.launch {
+            withTimeoutOrNull(5.seconds) {
+                try {
+                    api.dropPushToken(messaging.token.await())
+                } catch (e: Exception) {
+                    // IOException, an HTTP refusal or no token: the delete in [show] still follows
+                    if (e is CancellationException) throw e
+                }
+            }
+            show(Screen.Phone())
+        }
+    }
 
     /**
      * A read after sign-in was refused as signed out or not registered (seniors §8.2): a grant
@@ -142,12 +167,26 @@ class AuthViewModel @Inject constructor(
     fun sessionEnded(failure: Failure) =
         show(if (failure == Failure.NotRegistered) Screen.NotRegistered else Screen.Phone())
 
+    /** Every start and sign-in, so the API always holds this device's current token (04 §6). */
+    private fun savePushToken() {
+        viewModelScope.launch {
+            try {
+                api.savePushToken(messaging.token.await())
+            } catch (e: Exception) {
+                // Offline or refused: tried again at the next start, or on a new token
+                if (e is CancellationException) throw e
+            }
+        }
+    }
+
     private fun show(next: Screen) {
         when (next) {
             // auth-layer §3.2: not_registered and a second 401 sign out of Firebase.
             is Screen.Phone, Screen.NotRegistered -> {
                 auth.signOut()
                 prefs.edit { remove(SAVED_ROLE) }
+                // Firebase forgets the token, so pushes stop; the next sign-in saves a new one
+                messaging.deleteToken()
             }
             // A saved role that is no longer among the grants is dropped (auth-layer §8.2).
             is Screen.PickRole -> prefs.edit { remove(SAVED_ROLE) }

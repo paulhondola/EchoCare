@@ -154,6 +154,12 @@ async def drop_push_token(session: AsyncSession, caller: Caller, token: str) -> 
     await session.commit()
 
 
+async def drop_dead_tokens(session: AsyncSession, tokens: list[str]) -> None:
+    """Tokens Firebase says no longer reach a device (04 §6), whoever held them.
+    Doesn't commit."""
+    await session.execute(delete(PushToken).where(PushToken.token.in_(tokens)))
+
+
 def require_roles(*roles: Role):
     """A dependency: the caller, if any of their grants has one of `roles` (AL2)."""
 

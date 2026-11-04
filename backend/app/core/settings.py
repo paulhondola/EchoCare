@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     s3_access_key_id: str = ""
     s3_secret_access_key: str = ""
     s3_region: str = "ams"
+    # Firebase push (04 §6): the JSON of a Google credential allowed to send Cloud
+    # Messaging, a service account key or a keyless workload identity configuration.
+    # Empty, as locally, sends no pushes. Signing in needs none (auth-layer AL11).
+    firebase_push_credentials: str = ""
 
     @field_validator("dial_allowlist")
     @classmethod

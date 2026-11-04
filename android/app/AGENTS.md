@@ -20,12 +20,17 @@ app/src/
 │   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
 │   ├── home/Senior*.kt    one senior's page
 │   ├── home/CallMe.kt     „Sunați-mă”: the request, the states after its answer, the button, tested on the JVM (UC-10)
+│   ├── home/Calls.kt      the senior page's short call history and call-in-progress badge, tested on the JVM (UC-12)
 │   ├── das/Incidents.kt   DAS: sorting, relative time, the senior's words, Maps link, refusals, tested on the JVM (UC-11, UC-12)
 │   ├── das/Incident*.kt   the DAS home (open and in progress) and one incident's page with Preiau
 │   ├── das/Resolve*.kt    „Rezolvare caz”: an outcome and a note
 │   ├── enroll/Form.kt     „Pacient nou”: steps, fields, validation, what each step sends, tested on the JVM (seniors §9)
 │   ├── enroll/Refusal.kt  both refusal bodies and what the form does with each, tested on the JVM (seniors §9.3)
 │   ├── enroll/Enroll*.kt  the medic's four-step form
+│   ├── push/Push.kt       what a push says, the refresh signal, tested on the JVM (04 §6)
+│   ├── push/MessagingService.kt   Firebase Messaging: saves a new token, shows an alert in front, signals refreshes
+│   ├── push/Notifications.kt      the `alerts` channel and the alert notification
+│   ├── push/NotificationsPrompt.kt   asks for notifications, in Romanian, on the caregiver's, medic's and DAS home
 │   ├── ui/Components.kt   the dashboard's pieces: SnButton, Chip, FieldRow, Banner, CallButton, SnTextField
 │   ├── ui/Format.kt       phone numbers as people read them, tested on the JVM
 │   └── ui/theme/          one dark Material 3 theme: Palette.kt (spec 07 §2.1), Type.kt, Theme.kt

@@ -150,6 +150,9 @@
     <string name="handover_yes">Transferat la DAS</string>
     <string name="handover_no">Nepreluat</string>
     <string name="call_live">Apel în curs</string>
+    <string name="watch_ok">Ceasul funcționează</string>
+    <string name="watch_not_worn">Ceasul nu este purtat</string>
+    <string name="watch_offline">Ceasul nu transmite</string>
     <string name="section_access">Adresă și acces</string>
     <string name="open_in_maps">Deschide în Hărți</string>
     <string name="section_event">Eveniment</string>
@@ -204,4 +207,15 @@
     <string name="send_failed">Nu am putut trimite. Încercați din nou.</string>
     <string name="not_allowed_action">Nu aveți dreptul să faceți asta.</string>
     <string name="incident_gone">Incidentul nu mai există.</string>
+    <!-- Alerts (04 §6, P18): no name, no code, no reason -->
+    <string name="alert_title">EchoCare</string>
+    <string name="alert_text">O persoană pe care o urmăriți are nevoie de atenție.</string>
+    <string name="alerts_channel">Alerte</string>
+    <string name="alerts_channel_description">Când o persoană pe care o urmăriți are nevoie de atenție</string>
+    <string name="notifications_off">Notificările sunt oprite. Porniți-le ca să aflați imediat când o persoană pe care o urmăriți are nevoie de atenție.</string>
+    <string name="notifications_on">Pornește notificările</string>
+    <!-- One senior's page: the short call history (UC-12) -->
+    <string name="section_recent_calls">Apeluri recente</string>
+    <string name="no_recent_calls">Niciun apel încă.</string>
+    <string name="recent_call_line">%1$s · %2$s</string>
 </resources>

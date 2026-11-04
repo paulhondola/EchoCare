@@ -1,5 +1,6 @@
 package ro.echocare
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -46,6 +47,9 @@ import ro.echocare.auth.AuthViewModel
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
+import ro.echocare.push.PUSH_KEYS
+import ro.echocare.push.Push
+import ro.echocare.push.pushFrom
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SnButton
@@ -53,12 +57,20 @@ import ro.echocare.ui.SnTextField
 import ro.echocare.ui.theme.EchoCareTheme
 import ro.echocare.ui.theme.Palette
 
+/** Saved across a rotation: no alert is waiting to open. */
+private const val ALERT_OPENED = "alert_opened"
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var auth: FirebaseAuth
 
+    /** A tapped alert to open once the role's home is shown (04 §6); null when there is none. */
+    private var opening by mutableStateOf<Push.Alert?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Not again after a rotation, once opened: its page is on the back stack already
+        if (savedInstanceState?.getBoolean(ALERT_OPENED) != true) opening = alertIn(intent)
         // One dark theme (spec 07 §2.1): light status and navigation icons whatever the system uses
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -73,7 +85,9 @@ class MainActivity : ComponentActivity() {
                         screen,
                         onSwitchRole = vm::switchRole,
                         onSignOut = vm::signOut,
-                        onSessionEnd = vm::sessionEnded
+                        onSessionEnd = vm::sessionEnded,
+                        opening = opening,
+                        onOpened = { opening = null }
                     )
 
                     else -> Scaffold(
@@ -90,6 +104,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** A tap on an alert while the app is open: singleTop brings it here (04 §6). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        alertIn(intent)?.let {
+            opening = it
+            // So a rotation before it opens, while the sign-in loads, still finds it
+            setIntent(intent)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(ALERT_OPENED, opening == null)
+    }
+
+    /** The alert a notification tap carries, from the tray or from [ro.echocare.push.showAlert]. */
+    private fun alertIn(intent: Intent?): Push.Alert? {
+        val extras = intent?.extras ?: return null
+        return pushFrom(PUSH_KEYS.associateWith { extras.getString(it) }) as? Push.Alert
     }
 
     // PhoneAuthOptions needs an Activity for the reCAPTCHA fallback, so verification starts here

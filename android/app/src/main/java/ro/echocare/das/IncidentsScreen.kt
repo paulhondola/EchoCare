@@ -35,6 +35,7 @@ import ro.echocare.home.HomeScaffold
 import ro.echocare.home.LoadBody
 import ro.echocare.home.Message
 import ro.echocare.home.RereadWhileShown
+import ro.echocare.push.NotificationsPrompt
 import ro.echocare.ui.Chip
 import ro.echocare.ui.SectionLabel
 import ro.echocare.ui.Tone
@@ -51,6 +52,7 @@ fun IncidentsScreen(
     RereadWhileShown(vm::reread)
     HomeScaffold(stringResource(R.string.role_das), onBack = null, menu = menu) {
         LoadBody(vm.incidents, onRetry = vm::reread, onSessionEnd = onSessionEnd) { rows ->
+            NotificationsPrompt()
             val s = sections(rows)
             if (s.open.isEmpty() && s.inProgress.isEmpty()) {
                 Message(stringResource(R.string.no_incidents))

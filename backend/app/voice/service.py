@@ -3,10 +3,13 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, func, literal, or_, select, update
+from sqlalchemy import ColumnElement, exists, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session as OrmSession
+from sqlalchemy.orm import object_session
 
+from app.core.changes import Change, ChangeKind, note
 from app.core.db import Session
 from app.core.settings import get_settings
 from app.seniors.models import Senior
@@ -23,6 +26,13 @@ from app.voice.models import (
 )
 
 log = logging.getLogger("echocare.voice")
+
+
+def _note_moved(session: AsyncSession | OrmSession | None, call: Call) -> None:
+    """A scripted test call is counted by no rule (05 §1) and left out of the history,
+    so it tells nobody either."""
+    if call.trigger != CallTrigger.test:
+        note(session, Change(ChangeKind.call_moved, call.senior_id))
 
 
 async def transition(
@@ -55,6 +65,7 @@ async def transition(
         log.info("call %s: %s -> %s", call_id, call.state, moved)
         stamp(call, moved, datetime.now(UTC))
         call.state = moved
+        _note_moved(session, call)
     elif new is not None and new is not call.state:
         log.info("call %s: %s ignored in %s", call_id, new, call.state)
     return moved
@@ -92,6 +103,21 @@ async def answer_handover(
     if call is not None and (answered or call.handover_answered is None):
         call.handover_answered = answered
     return call
+
+
+async def call_in_progress(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """Whether one of the senior's calls is ringing or live, for the badge (UC-12)."""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Call.senior_id == senior_id,
+                    Call.state.in_([CallState.ringing, CallState.in_progress]),
+                    Call.trigger != CallTrigger.test,
+                )
+            )
+        )
+    )
 
 
 async def form_of_address(session: AsyncSession, call_id: uuid.UUID) -> str | None:
@@ -253,6 +279,7 @@ def advance_call(call: Call, new: CallState, now: datetime) -> None:
         return
     call.state = advance(call.state, new)
     stamp(call, new, now)
+    _note_moved(object_session(call), call)
 
 
 def finish(

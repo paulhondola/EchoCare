@@ -34,8 +34,10 @@ from app.seniors.service import (
     senior_summaries,
     senior_view,
     submit,
+    watch_state,
     withdraw_consent,
 )
+from app.voice.service import call_in_progress
 
 router = APIRouter()
 
@@ -57,7 +59,12 @@ async def get_senior(
     caller: Annotated[Caller, Depends(current_caller)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorView:
-    return await senior_view(session, await reach_senior(session, caller, senior_id))
+    senior = await reach_senior(session, caller, senior_id)
+    view = await senior_view(session, senior)
+    # `seniors` can't import `voice` (ADR-005); the router composes them
+    view.call_in_progress = await call_in_progress(session, senior_id)
+    view.watch_state = await watch_state(session, caller, senior)
+    return view
 
 
 @router.post("/seniors", status_code=201)

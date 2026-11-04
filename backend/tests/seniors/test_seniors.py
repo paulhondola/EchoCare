@@ -94,7 +94,8 @@ async def test_the_medic_registers_a_draft(client, staff):
     assert maria["caregivers"] == []
     assert maria["medic"] == {"display_name": "Dr. Pop", "practice": None}
     r = await get(client, f"/api/seniors/{maria['id']}", MEDIC)
-    assert r.json() == maria
+    # Only the read says whether a call is live (04 §1)
+    assert r.json() == {**maria, "call_in_progress": False}
 
 
 async def test_a_mobile_senior_signs_in_as_herself(client, staff):

@@ -32,8 +32,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import ro.echocare.BuildConfig
 import ro.echocare.R
+import ro.echocare.push.Refreshes
 import ro.echocare.ui.Banner
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
@@ -111,13 +113,17 @@ private fun TopBar(title: String, onBack: (() -> Unit)?, menu: @Composable () ->
     }
 }
 
-/** Reads when the screen appears, then every REREAD_SECONDS while it is in front (06 §3). */
+/**
+ * Reads when the screen appears, on every push refresh while it is in front (04 §6), and every
+ * REREAD_SECONDS as the backstop for a lost push (06 §3).
+ */
 @Composable
 fun RereadWhileShown(reread: () -> Unit) {
     val owner = LocalLifecycleOwner.current
     val latest by rememberUpdatedState(reread)
     LaunchedEffect(owner) {
         owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            launch { Refreshes.events.collect { latest() } }
             while (true) {
                 latest()
                 delay(BuildConfig.REREAD_SECONDS.seconds)

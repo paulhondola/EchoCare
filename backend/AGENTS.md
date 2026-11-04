@@ -8,7 +8,7 @@ The FastAPI service, `api` on Railway. It is the only backend and the only part 
 backend/
 ├── app/
 │   ├── main.py        assembly: logging, CORS, the /api router, mounts every router
-│   ├── core/          settings, async db engine/session, phone E.164 normalization, S3 storage
+│   ├── core/          settings, async db engine/session, phone E.164 normalization, S3 storage, change notes for pushes
 │   ├── models/        the one ORM aggregator, for Alembic, scripts and tests; app/ never imports it
 │   ├── auth/          Firebase token verification, callers, grants, /me, staff roles, on duty
 │   ├── codes/         the senior's code and its status reports
@@ -19,6 +19,7 @@ backend/
 │   ├── agent/         the call session: relay socket and dialogue; talks only to voice
 │   ├── calls/         call history and transcripts, the step that ends and settles a call
 │   ├── scheduler/     the loop in the lifespan: lapsed warnings, dialer, sweep, watch silence; one copy by advisory lock
+│   ├── notify/        Firebase pushes after a commit: who hears about each change (04 §6), the sender
 │   ├── system/        /api/health and the dashboard's system health
 │   └── status/        alarm phrases, status matrix and engine; pure logic
 ├── scripts/

@@ -11,6 +11,7 @@ from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
 from app.core.settings import check_environment, cors_origins, get_settings
 from app.incidents.router import router as incidents_router
+from app.notify.service import drain, install, sender_from
 from app.scheduler.loop import run
 from app.seniors.router import router as seniors_router
 from app.system.router import router as system_router
@@ -23,17 +24,21 @@ logging.getLogger("echocare.incidents").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
+# Pushes after every commit (04 §6), when a credential is set.
+install(sender_from(settings.firebase_push_credentials))
 
 
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """The scheduler loop (06 §1) lives as long as the app does."""
+    """The scheduler loop (06 §1) lives as long as the app does; pushes under way
+    finish before it ends."""
     task = asyncio.create_task(run()) if settings.scheduler_enabled else None
     yield
     if task:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+    await drain()  # the pushes already under way
 
 
 # Everything under /api, docs included, so the API and the dashboard can share one domain.

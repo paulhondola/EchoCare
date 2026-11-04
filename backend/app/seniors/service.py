@@ -19,6 +19,7 @@ from app.auth.service import (
     sync_senior_grant,
 )
 from app.codes.models import SeniorStatus
+from app.core.changes import Change, ChangeKind, note
 from app.core.settings import get_settings
 from app.seniors.models import (
     Consent,
@@ -190,6 +191,8 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "code",
         "reason",
         "since",
+        "call_in_progress",
+        "watch_state",
     }
     return SeniorView(
         **{name: getattr(senior, name) for name in fields},
@@ -338,6 +341,7 @@ async def grant_caregiver(
     if user is None:
         await session.rollback()
         raise refuse(409, "already_done")
+    note(session, Change(ChangeKind.caregivers, senior_id))
     await session.commit()
     return CaregiverView(
         user_id=user.id,
@@ -398,6 +402,7 @@ async def revoke_caregiver(
         log.info("refused incomplete: user %s, senior %s", caller.user.id, senior_id)
         await session.rollback()  # expires every row, so log first
         raise refuse(422, "incomplete", missing=["caregiver"])
+    note(session, Change(ChangeKind.caregivers, senior_id))
     await session.commit()
 
 
@@ -601,7 +606,11 @@ async def record_check_in(
         worn=form.worn,
         last_pulse=form.last_pulse,
     )
-    await session.execute(
+    before = await session.scalar(
+        select(WatchState.state).where(WatchState.senior_id == senior_id)
+    )
+    # None when the check-in was too old to be written
+    after = await session.scalar(
         check_in.on_conflict_do_update(
             index_elements=[WatchState.senior_id],
             set_={
@@ -609,9 +618,28 @@ async def record_check_in(
                 for c in ("state", "last_check_in_at", "battery", "worn", "last_pulse")
             },
             where=WatchState.last_check_in_at <= check_in.excluded.last_check_in_at,
-        )
+        ).returning(WatchState.state)
     )
+    # A watch that goes on checking in tells nobody anything new (04 §6)
+    if after is not None and after != before:
+        note(session, Change(ChangeKind.watch, senior_id))
     await session.commit()
+
+
+async def watch_state(
+    session: AsyncSession, caller: Caller, senior: Senior
+) -> WatchCondition | None:
+    """The watch's state, for who looks after this senior (UC-12): not for DAS or the
+    senior herself, whatever else the caller holds elsewhere."""
+    registered = Role.medic in caller.roles and senior.medic_id == caller.user.id
+    caring = any(
+        g.role == Role.caregiver and g.senior_id == senior.id for g in caller.grants
+    )
+    if not registered and not caring:
+        return None
+    return await session.scalar(
+        select(WatchState.state).where(WatchState.senior_id == senior.id)
+    )
 
 
 def watch_silence() -> timedelta:
@@ -622,15 +650,20 @@ def watch_silence() -> timedelta:
 async def silence_watches(session: AsyncSession, now: datetime) -> int:
     """Marks every watch whose check-ins stopped `offline` (UC-13); its next check-in
     puts it back. Returns how many."""
-    result = await session.execute(
-        update(WatchState)
-        .where(
-            WatchState.state.in_([WatchCondition.ok, WatchCondition.not_worn]),
-            WatchState.last_check_in_at < now - watch_silence(),
+    silent = list(
+        await session.scalars(
+            update(WatchState)
+            .where(
+                WatchState.state.in_([WatchCondition.ok, WatchCondition.not_worn]),
+                WatchState.last_check_in_at < now - watch_silence(),
+            )
+            .values(state=WatchCondition.offline)
+            .returning(WatchState.senior_id)
         )
-        .values(state=WatchCondition.offline)
     )
+    for senior_id in silent:
+        note(session, Change(ChangeKind.watch, senior_id))
     await session.commit()
-    if result.rowcount:
-        log.info("%d watches gone offline", result.rowcount)
-    return result.rowcount
+    if silent:
+        log.info("%d watches gone offline", len(silent))
+    return len(silent)

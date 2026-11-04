@@ -62,7 +62,27 @@ data class SeniorPage(
     val landmark: String? = null,
     @SerialName("call_window") val callWindow: String? = null,
     val medic: Medic,
-    val caregivers: List<Caregiver> = emptyList()
+    val caregivers: List<Caregiver> = emptyList(),
+    // One of her calls is ringing or live: the "call in progress" badge (UC-12). Null from an
+    // older API, which reads as no.
+    @SerialName("call_in_progress") val callInProgress: Boolean? = null,
+    // The watch's state, for her caregivers and her medic (UC-12); null for anyone else, or from an
+    // older API. A string: the server may add a state (ADR-001 §2.3)
+    @SerialName("watch_state") val watchState: String? = null
+)
+
+// One row of GET /seniors/{id}/calls (04 §1), newest first. What a caregiver may see: no turns,
+// no transcript (01 §6). [trigger] and [state] stay strings (ADR-001 §2.3).
+@Serializable
+data class CallRow(
+    val id: String,
+    val trigger: String,
+    val state: String,
+    @SerialName("due_at") val dueAt: String,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("ended_at") val endedAt: String? = null,
+    @SerialName("final_severity") val finalSeverity: String? = null,
+    val reason: String? = null
 )
 
 @Serializable
@@ -257,6 +277,10 @@ interface EchoCareApi {
     @GET("seniors/{id}")
     suspend fun senior(@Path("id") id: String): SeniorPage
 
+    /** The senior's calls, newest first, queued ones included (04 §1). */
+    @GET("seniors/{id}/calls")
+    suspend fun calls(@Path("id") id: String): List<CallRow>
+
     /** A new senior in `draft`, registered by the calling medic (04 §2). Not repeat-safe (SE14). */
     @POST("seniors")
     suspend fun createSenior(@Body body: SeniorForm): SeniorPage
@@ -290,6 +314,14 @@ interface EchoCareApi {
     /** Senior only. 200 also for a duplicate; [EventResult.callId] is null when no call was queued (04 §3). */
     @POST("me/events")
     suspend fun sendEvent(@Body body: EventForm): EventResult
+
+    /** This device's push token, now the caller's (04 §6, Q19). 204, also on a repeat. */
+    @PUT("profile/push-tokens/{token}")
+    suspend fun savePushToken(@Path("token") token: String): Response<Unit>
+
+    /** Forgets the caller's own token before signing out (Q19). 204 whether or not it was there. */
+    @DELETE("profile/push-tokens/{token}")
+    suspend fun dropPushToken(@Path("token") token: String): Response<Unit>
 
     /** DAS only. [status] is comma-separated; the DAS app asks for `open,in_progress` (04 §1). */
     @GET("incidents")
