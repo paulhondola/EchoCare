@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select, update
 
-from app.models import Call, CallTrigger, EnrollmentState, Role, Senior
+from app.models import Call, CallTrigger, EnrollmentState, Role, Senior, User
 from app.seniors import service as seniors_service
 from app.status.engine import Severity
 from app.voice.calls import CallState
@@ -87,7 +87,11 @@ async def test_from_draft_to_accepted(client, staff):
 
     r = await submit(client, maria)
     assert r.status_code == 200
+    stamps = {k: r.json()[k] for k in ("created_at", "submitted_at")}
+    assert all(stamps.values()) and r.json()["accepted_at"] is None
     assert r.json() == {
+        **stamps,
+        "accepted_at": None,
         "id": maria,
         "full_name": "Maria Pop",
         "form_of_address": "doamna Maria",
@@ -229,14 +233,54 @@ async def test_only_das_lists_enrollments(client, staff, token):
     assert refusal(await enrollments(client, token)) == NOT_ALLOWED
 
 
-async def test_enrollments_oldest_first(client, staff):
+async def test_enrollments_in_the_order_submitted(client, staff):
     first = await register(client)
     second = await register(
         client, {**MARIA, "full_name": "Ana Ionescu", "phone": "0700 000 008"}
     )
-    for senior_id in (second, first):
+    for senior_id in (first, second):
         await submit(client, senior_id)
     assert [s["id"] for s in (await enrollments(client)).json()] == [first, second]
+
+
+async def user_id(db, phone) -> uuid.UUID:
+    return await db.scalar(select(User.id).where(User.phone_e164 == phone))
+
+
+async def test_submit_and_accept_stamp_their_times(client, db, staff):  # 05 §1
+    maria = await register(client)
+    before = datetime.now(UTC)
+    row = (await submit(client, maria)).json()
+    assert row["accepted_at"] is None
+    assert (
+        timedelta(0)
+        <= datetime.fromisoformat(row["submitted_at"]) - before
+        < timedelta(seconds=5)
+    )
+    row = (await accept(client, maria)).json()
+    senior = await db.get(Senior, uuid.UUID(maria))
+    await db.refresh(senior)
+    assert senior.accepted_by == (await user_id(db, DAS))
+    assert row["accepted_at"] is not None and row["created_at"] is not None
+
+
+async def test_a_refused_move_stamps_nothing(client, db, staff):
+    maria = await register(client)
+    await submit(client, maria)
+    url = f"/api/seniors/{maria}"
+    first = (await client.get(url, headers=signed_in(MEDIC))).json()["submitted_at"]
+    assert refusal(await submit(client, maria)) == ALREADY_DONE
+    again = (await client.get(url, headers=signed_in(MEDIC))).json()["submitted_at"]
+    assert again == first
+
+
+async def test_enrollments_by_submit_time(client, db, staff):  # 04 §1
+    # registered first, submitted second: listed second
+    early = await register(client)
+    late = await register(client, {**MARIA, "phone": "0700 000 006"})
+    await submit(client, late)
+    await submit(client, early)
+    assert [r["id"] for r in (await enrollments(client)).json()] == [late, early]
 
 
 async def calls_of(db, senior_id):

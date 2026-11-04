@@ -175,6 +175,9 @@ class SeniorSummary(BaseModel):
     code: Code | None = None
     reason: str | None = None
     since: datetime | None = None
+    created_at: datetime | None = None
+    submitted_at: datetime | None = None
+    accepted_at: datetime | None = None
 
 
 class CaregiverView(CaregiverSummary):
@@ -197,6 +200,9 @@ class SeniorView(SeniorDetail):
     code: Code | None = None
     reason: str | None = None
     since: datetime | None = None
+    created_at: datetime | None = None
+    submitted_at: datetime | None = None
+    accepted_at: datetime | None = None
     # True while one of her calls rings or is live, for the badge (UC-12). Set by
     # GET /seniors/{id} only; null on the other answers that carry the senior.
     call_in_progress: bool | None = None

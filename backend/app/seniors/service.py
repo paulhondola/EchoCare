@@ -4,7 +4,17 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    and_,
+    delete,
+    false,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -242,16 +252,21 @@ async def move(
     session: AsyncSession,
     caller: Caller,
     senior: Senior,
-    before: EnrollmentState,
+    before: EnrollmentState | tuple[EnrollmentState, ...],
     after: EnrollmentState,
+    *,
+    values: dict[str, Any] | None = None,
 ) -> None:
-    """`before` -> `after`, only where the senior is still `before`, so of two at once
-    one wins (05 §3's pattern). Already `after` is `already_done`, anything else
+    """`before` (any of them, if a tuple) -> `after`, only where the senior is still
+    there, so of two at once one wins (05 §3's pattern). `values` are more columns set
+    in the same statement. Already `after` is `already_done`, anything else
     `wrong_state`; either way nothing changes (04 §0)."""
+    states = before if isinstance(before, tuple) else (before,)
+    extra = values or {}
     moved = await session.scalar(
         update(Senior)
-        .where(Senior.id == senior.id, Senior.enrollment_state == before)
-        .values(enrollment_state=after)
+        .where(Senior.id == senior.id, Senior.enrollment_state.in_(states))
+        .values(enrollment_state=after, **extra)
         .returning(Senior.id)
     )
     if moved is None:
@@ -260,15 +275,15 @@ async def move(
         log.info("refused %s: user %s, senior %s", reason, caller.user.id, senior.id)
         raise refuse(409, reason)
     await session.commit()
-    await session.refresh(senior, ["enrollment_state"])
+    await session.refresh(senior, ["enrollment_state", *extra])
 
 
 def enrollments_query() -> Select:
-    """GET /enrollments: waiting for DAS, oldest registration first (04 §1)."""
+    """GET /enrollments: waiting for DAS, by submit time (04 §1)."""
     return (
         select(Senior)
         .where(Senior.enrollment_state == EnrollmentState.submitted)
-        .order_by(Senior.created_at, Senior.id)
+        .order_by(Senior.submitted_at.asc().nulls_last(), Senior.created_at, Senior.id)
     )
 
 
@@ -440,7 +455,12 @@ async def submit(
             )
             raise refuse(422, "incomplete", missing=missing)
     await move(
-        session, caller, senior, EnrollmentState.draft, EnrollmentState.submitted
+        session,
+        caller,
+        senior,
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+        values={"submitted_at": func.now()},
     )
     return SeniorSummary.model_validate(senior, from_attributes=True)
 
@@ -458,7 +478,12 @@ async def accept(
     if then is not None:
         await then(session, senior.id)
     await move(
-        session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
+        session,
+        caller,
+        senior,
+        EnrollmentState.submitted,
+        EnrollmentState.accepted,
+        values={"accepted_at": func.now(), "accepted_by": caller.user.id},
     )
     return SeniorSummary.model_validate(senior, from_attributes=True)
 

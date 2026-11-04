@@ -64,6 +64,9 @@ erDiagram
         string landmark
         string call_window "collected, unused in MVP"
         string enrollment_state "draft, submitted, accepted, active, refused, wrong_number, unreachable, withdrawn"
+        datetime submitted_at "the medic's submit; empty for a draft"
+        datetime accepted_at "DAS's accept; empty before it"
+        uuid accepted_by FK "the DAS user who accepted"
     }
     CONSENT {
         uuid id PK

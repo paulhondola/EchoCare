@@ -74,6 +74,10 @@ class Senior(Base):
         server_default=EnrollmentState.draft.name,
     )
     created_at: Mapped[datetime] = timestamp_now()
+    # Stamped by the move to `submitted` and to `accepted` (05 §1).
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
 class Consent(Base):
