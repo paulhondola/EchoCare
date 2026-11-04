@@ -1,7 +1,7 @@
 """Fill the local database with fictitious people and their history, a starting point for
 the dashboard and the apps. The demo uses fictitious people only (05 §5).
 
-Eighteen seniors in Timișoara, one or more in every enrollment state, with their medics
+Twenty seniors in Timișoara, one or more in every enrollment state, with their medics
 and caregivers; a second DAS employee; a cold-weather campaign; wellbeing calls with
 their transcripts, answers and status reports; watch check-ins; and fourteen incidents,
 four open, four in progress and six resolved, so every dashboard screen has something
@@ -40,6 +40,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import sync_senior_grant
+from app.calls.ending import redial_delay
 from app.core.db import Base, Session
 from app.core.phones import is_mobile
 from app.core.settings import db_host, get_settings, is_local_db
@@ -266,6 +267,21 @@ SENIORS = (
         {"street": "Strada Arieș", "street_number": "14", "block": "7",
          "staircase": "B", "floor": "2", "apartment": "8"},
     ),
+    # The welcome call never reached them: a second unanswered attempt, and a wrong number.
+    SeniorSpec(
+        "stefan", "Ștefan Rusu", "domnul Ștefan", "+40700000119",
+        EnrollmentState.unreachable, MEDIC, 6,
+        ((Person("+40700000217", "Camelia Rusu"), "fiică"),),
+        {"street": "Strada Memorandumului", "street_number": "21", "block": "C4",
+         "staircase": "A", "floor": "1", "apartment": "5", "intercom_code": "5"},
+    ),
+    SeniorSpec(
+        "rodica", "Rodica Neagu", "doamna Rodica", "+40700000120",
+        EnrollmentState.wrong_number, MEDIC, 7,
+        ((Person("+40700000218", "Victor Neagu"), "fiu"),),
+        {"street": "Calea Martirilor", "street_number": "40", "block": "11",
+         "staircase": "B", "floor": "4", "apartment": "19", "intercom_code": "19"},
+    ),
 )
 # fmt: on
 
@@ -343,6 +359,11 @@ class History:
         )
 
     def register(self, spec: SeniorSpec) -> None:
+        created = self.ago(spec.registered_days_ago * 24 * 60)
+        # Submitted soon after registering, accepted by the DAS soon after that, for the
+        # states past each (the medic's enrollment timeline).
+        past_draft = spec.state is not EnrollmentState.draft
+        past_submitted = past_draft and spec.state is not EnrollmentState.submitted
         senior = Senior(
             id=seed_id("senior", spec.key),
             medic_id=self.users[spec.medic.phone],
@@ -351,7 +372,10 @@ class History:
             phone_e164=spec.phone,
             phone_is_landline=not is_mobile(spec.phone),
             enrollment_state=spec.state,
-            created_at=self.ago(spec.registered_days_ago * 24 * 60),
+            created_at=created,
+            submitted_at=created + timedelta(hours=2) if past_draft else None,
+            accepted_at=created + timedelta(hours=20) if past_submitted else None,
+            accepted_by=self.users[DAS.phone] if past_submitted else None,
             **spec.address,
         )
         self.seniors[spec.key] = senior
@@ -684,6 +708,55 @@ class History:
                 ),
                 at=call.ended_at,
             )
+        )
+
+    def welcome_unreached(
+        self, senior: str, days_ago: float, *, wrong: bool = False
+    ) -> None:
+        """A welcome call that reached no consent (UC-04): a wrong number on the first
+        attempt, or two unanswered ones, the redial after the delay (03 §9)."""
+        if wrong:
+            call = self.call(
+                senior,
+                "welcome",
+                CallTrigger.welcome,
+                days_ago * 24 * 60,
+                CallState.completed,
+                welcome=WelcomeOutcome.wrong_number,
+                seconds=25,
+            )
+            s = self.seniors[senior]
+            title = s.form_of_address.split()[0]
+            self.say(
+                call,
+                (
+                    AGENT,
+                    (
+                        "Bună ziua. Sunt asistentul automat al DAS Timișoara. Vorbesc "
+                        f"cu {title} {s.full_name}? Dacă ați primit acest apel din "
+                        "greșeală, apăsați 3."
+                    ),
+                ),
+                (SENIOR, "3", KEYS),
+                (AGENT, "Ne cerem scuze pentru deranj. O zi bună!"),
+            )
+            return
+        first = self.call(
+            senior,
+            "welcome",
+            CallTrigger.welcome,
+            days_ago * 24 * 60,
+            CallState.unanswered,
+            welcome=WelcomeOutcome.no_answer,
+        )
+        self.call(
+            senior,
+            "welcome-2",
+            CallTrigger.welcome,
+            days_ago * 24 * 60 - redial_delay().total_seconds() / 60,
+            CallState.unanswered,
+            previous=first,
+            welcome=WelcomeOutcome.no_answer,
         )
 
     def cold_call(
@@ -1277,6 +1350,10 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
 
     # Nicolae Lazăr said no on the welcome call.
     h.welcome("nicolae", 5, refused="Nu, nu vreau să fiu sunat.")
+
+    # Ștefan Rusu never picked up, twice; Rodica Neagu's number was someone else's.
+    h.welcome_unreached("stefan", 5.5)
+    h.welcome_unreached("rodica", 6.5, wrong=True)
     return h
 
 
