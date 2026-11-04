@@ -12,10 +12,35 @@ import ro.echocare.ui.Tone
 class RoutesTest {
     @Test
     fun eachRoleHasItsHome() {
-        assertEquals(SeniorsRoute("medic"), homeFor("medic"))
+        assertEquals(MedicHomeRoute, homeFor("medic"))
         assertEquals(SeniorsRoute("caregiver"), homeFor("caregiver"))
         assertEquals(OwnRoute, homeFor("senior"))
         assertEquals(IncidentsRoute, homeFor("das"))
+    }
+
+    @Test
+    fun theMedicLandsOnTheMedicHome() {
+        // UC-12: the medic's home is the two tiles, not the list
+        assertEquals(MedicHomeRoute, homeFor("medic"))
+    }
+
+    @Test
+    fun theCaregiverStillLandsOnTheirSeniors() {
+        assertEquals(SeniorsRoute("caregiver"), homeFor("caregiver"))
+    }
+
+    @Test
+    fun draftsComeNewestFirstAndOnlyDrafts() {
+        // UC-01: Înregistrare lists the unfinished enrollments, the latest first
+        fun r(id: String, state: String, at: String?) =
+            SeniorRow(id, "N", "d", "+40256123456", true, state, createdAt = at)
+        val rows = listOf(
+            r("a", "draft", "2026-11-01T10:00:00Z"),
+            r("b", "active", "2026-11-04T10:00:00Z"),
+            r("c", "draft", "2026-11-03T10:00:00Z"),
+            r("d", "draft", null)
+        )
+        assertEquals(listOf("c", "a", "d"), draftsNewestFirst(rows).map { it.id })
     }
 
     @Test

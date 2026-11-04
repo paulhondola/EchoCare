@@ -56,15 +56,39 @@ fun HomeNav(
         var sent by rememberSaveable { mutableStateOf(false) }
         CompositionLocalProvider(LocalSignedIn provides home.displayName) {
             NavHost(nav, startDestination = homeFor(home.role)) {
-                composable<SeniorsRoute> {
-                    SeniorsScreen(
-                        title = if (medic) R.string.medic_home else R.string.caregiver_home,
+                composable<MedicHomeRoute> {
+                    MedicHomeScreen(
                         menu = menu,
-                        onOpen = { nav.navigate(openFor(home.role, it)) },
+                        onMonitor = { nav.navigate(MonitorRoute) },
+                        onRegister = { nav.navigate(RegisterRoute) },
                         onSessionEnd = onSessionEnd,
-                        onNew = if (medic) ({ nav.navigate(EnrollRoute()) }) else null,
                         sent = sent,
                         onSentShown = { sent = false }
+                    )
+                }
+                composable<MonitorRoute> {
+                    // Task 9 replaces this with Monitorizare (UC-12)
+                    HomeScaffold(
+                        stringResource(R.string.monitor),
+                        onBack = { nav.popBackStack<MonitorRoute>(inclusive = true) },
+                        menu = menu
+                    ) { Text(stringResource(R.string.monitor)) }
+                }
+                composable<RegisterRoute> {
+                    RegisterScreen(
+                        onBack = { nav.popBackStack<RegisterRoute>(inclusive = true) },
+                        menu = menu,
+                        onNew = { nav.navigate(EnrollRoute()) },
+                        onDraft = { nav.navigate(EnrollRoute(it)) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<SeniorsRoute> {
+                    SeniorsScreen(
+                        title = R.string.caregiver_home,
+                        menu = menu,
+                        onOpen = { nav.navigate(openFor(home.role, it)) },
+                        onSessionEnd = onSessionEnd
                     )
                 }
                 composable<SeniorRoute> { entry ->
@@ -82,7 +106,7 @@ fun HomeNav(
                         onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
                         onSubmitted = {
                             sent = true
-                            nav.popBackStack<SeniorsRoute>(inclusive = false)
+                            nav.popBackStack<MedicHomeRoute>(inclusive = false)
                         },
                         onDone = { nav.toPage(it) },
                         onSessionEnd = onSessionEnd

@@ -235,4 +235,11 @@
     <string name="stage_withdrawn">Retras</string>
     <string name="stage_wrong_number">Număr greșit</string>
     <string name="stage_unreachable">Nu a putut fi contactat</string>
+    <string name="monitor">Monitorizare</string>
+    <string name="register">Înregistrare</string>
+    <string name="count_red">%d roșu</string>
+    <string name="count_yellow">%d galben</string>
+    <string name="count_to_resolve">%d de rezolvat</string>
+    <string name="drafts_left">%d ciorne nefinalizate</string>
+    <string name="drafts">Ciorne</string>
 </resources>

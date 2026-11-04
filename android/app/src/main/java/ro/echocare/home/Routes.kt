@@ -11,6 +11,18 @@ import ro.echocare.ui.Tone
 @Serializable
 data class SeniorsRoute(val role: String)
 
+/** The medic's home: the Monitorizare and Înregistrare tiles (UC-12, UC-01). */
+@Serializable
+data object MedicHomeRoute
+
+/** Monitorizare: the medic's patients by group (UC-12, 03 §7). */
+@Serializable
+data object MonitorRoute
+
+/** Înregistrare: „Pacient nou” and the unfinished drafts (UC-01). */
+@Serializable
+data object RegisterRoute
+
 /** One senior's page. */
 @Serializable
 data class SeniorRoute(val id: String)
@@ -37,7 +49,8 @@ data class EnrollRoute(val id: String? = null)
 
 /** Where [role] lands after sign-in. [role] is one of auth.ROLES. */
 fun homeFor(role: String): Any = when (role) {
-    "medic", "caregiver" -> SeniorsRoute(role)
+    "medic" -> MedicHomeRoute
+    "caregiver" -> SeniorsRoute(role)
     "senior" -> OwnRoute
     else -> IncidentsRoute
 }
