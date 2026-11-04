@@ -272,4 +272,11 @@
     <string name="consent_app">în aplicație</string>
     <string name="consent_medic">de medic</string>
     <string name="consent_das">de DAS</string>
+    <!-- The signature under its consent text (G7, UC-01 step 5); the text matches SIGNATURE_CONSENT_TEXT, v1-semnatura -->
+    <string name="consent_signature_label">Consimțământ (opțional, se confirmă și la apelul de bun venit) · v1-semnatura</string>
+    <string name="consent_signature_text">Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. Semnând mai jos, sunteți de acord.</string>
+    <string name="sign_here">Semnați aici</string>
+    <string name="clear_signature">Șterge</string>
+    <string name="save_signature">Salvează semnătura</string>
+    <string name="signed_on">Semnat · %1$s</string>
 </resources>

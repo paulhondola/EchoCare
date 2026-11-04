@@ -37,6 +37,7 @@ import ro.echocare.home.HomeScaffold
 import ro.echocare.home.Load
 import ro.echocare.home.LoadBody
 import ro.echocare.home.SeniorDetails
+import ro.echocare.home.signable
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SectionLabel
@@ -224,6 +225,9 @@ private fun ReviewStep(vm: EnrollViewModel, onSessionEnd: (Failure) -> Unit) {
                 NoticeLine(Notice.Missing(missing))
             }
             SeniorDetails(senior, callSenior = false, calls = false)
+            if (signable(senior)) {
+                ConsentSection(senior.signedAt, vm.busy) { strokes, w, h -> vm.sign(strokes, w, h) }
+            }
         }
     }
 }

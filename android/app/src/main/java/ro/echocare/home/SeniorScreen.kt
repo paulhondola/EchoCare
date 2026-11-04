@@ -38,6 +38,7 @@ import ro.echocare.IncidentCall
 import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.das.Transcript
+import ro.echocare.enroll.ConsentSection
 import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
 import ro.echocare.ui.Chip
@@ -131,7 +132,11 @@ fun PatientPane(
                                 }
                             }
                         )
-                        if (signing && Action.Sign in actionsFor(senior)) Signing()
+                        if (signing && Action.Sign in actionsFor(senior)) {
+                            ConsentSection(senior.signedAt, vm.busy) { strokes, w, h ->
+                                vm.sign(senior.id, strokes, w, h, onChanged)
+                            }
+                        }
                     }
                 }
             )
@@ -282,15 +287,6 @@ private fun Actions(actions: List<Action>, busy: Boolean, onAction: (Action) -> 
             }
         }
     }
-}
-
-/**
- * The consent text and the signature, opened by „Semnătură” under the actions (G7, UC-01 step 5).
- * The signature step of #54 fills it.
- */
-@Composable
-private fun Signing() {
-    // The pad and its consent text arrive with the signature step; nothing shows until then
 }
 
 /** „Retrageți consimțământul pentru …?”: the withdrawal cannot be undone (04 §2). */

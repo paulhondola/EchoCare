@@ -15,6 +15,9 @@ import ro.echocare.IncidentCall
 import ro.echocare.MockAnswer
 import ro.echocare.MockCall
 import ro.echocare.SeniorPage
+import ro.echocare.enroll.Point
+import ro.echocare.enroll.ensure
+import ro.echocare.enroll.signatureForm
 
 /** One senior's page: GET /seniors/{id} (seniors §3.3). */
 @HiltViewModel
@@ -120,6 +123,18 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     /** „Retrage”, after the dialog: the senior is called no more (04 §2). As [callAgain]. */
     fun withdraw(id: String, onChanged: () -> Unit = {}) =
         runCommand(id, onChanged) { api.withdraw(id) }
+
+    /**
+     * „Salvează semnătura”: posts the thinned strokes (G7, 04 §2). A failure shows its banner and
+     * the pad keeps its drawing; as [callAgain] otherwise.
+     */
+    fun sign(
+        id: String,
+        strokes: List<List<Point>>,
+        width: Float,
+        height: Float,
+        onChanged: () -> Unit = {}
+    ) = runCommand(id, onChanged) { ensure(api.sign(id, signatureForm(strokes, width, height))) }
 
     /** „Transcriere”: reads the call's transcript once; a failed read is tried again on a tap. */
     fun openTranscript(callId: String) {
