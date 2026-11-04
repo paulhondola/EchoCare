@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
 from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
-from app.core.settings import check_environment, get_settings
+from app.core.settings import check_environment, cors_origins, get_settings
 from app.incidents.router import router as incidents_router
 from app.scheduler.loop import run
 from app.seniors.router import router as seniors_router
@@ -47,7 +47,7 @@ app = FastAPI(
 # Browser requests only from the dashboard's own address (01 §4, channel 3).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.allowed_origin],
+    allow_origins=cors_origins(settings),
     allow_methods=["*"],
     allow_headers=["*"],
 )

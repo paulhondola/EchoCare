@@ -10,6 +10,9 @@ from app.core.phones import normalize
 
 # Hosts a laptop may migrate or run a scheduler against: the host's Postgres and Compose's db.
 LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "db"}
+# Vite's dev server under both its names. Real-SMS sign-in works only on 127.0.0.1, while
+# test numbers work on either (dashboard/README.md).
+LOCAL_DASHBOARD_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 
 
 class AppEnv(StrEnum):
@@ -75,6 +78,15 @@ def db_host(url: str) -> str:
 
 def is_local_db(url: str) -> bool:
     return db_host(url) in LOCAL_DB_HOSTS
+
+
+def cors_origins(settings: Settings) -> list[str]:
+    """The browser origins the API answers: ALLOWED_ORIGIN, the dashboard's own address
+    (01 §4, channel 3). A local API also answers the dev server under both its names."""
+    origins = [settings.allowed_origin]
+    if settings.app_env is AppEnv.local:
+        origins += [o for o in LOCAL_DASHBOARD_ORIGINS if o not in origins]
+    return origins
 
 
 def on_railway() -> bool:
