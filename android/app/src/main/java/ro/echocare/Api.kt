@@ -65,7 +65,10 @@ data class SeniorPage(
     val caregivers: List<Caregiver> = emptyList(),
     // One of her calls is ringing or live: the "call in progress" badge (UC-12). Null from an
     // older API, which reads as no.
-    @SerialName("call_in_progress") val callInProgress: Boolean? = null
+    @SerialName("call_in_progress") val callInProgress: Boolean? = null,
+    // The watch's state, for her caregivers and her medic (UC-12); null for anyone else, or from an
+    // older API. A string: the server may add a state (ADR-001 §2.3)
+    @SerialName("watch_state") val watchState: String? = null
 )
 
 // One row of GET /seniors/{id}/calls (04 §1), newest first. What a caregiver may see: no turns,

@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import ro.echocare.CallRow
+import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.ui.Tone
 
@@ -38,6 +39,17 @@ private val callTimeFormat = DateTimeFormatter.ofPattern("dd.MM HH:mm")
 fun callTime(call: CallRow, zone: ZoneId): String = callTimeFormat.format(
     Instant.parse(call.endedAt ?: call.startedAt ?: call.dueAt).atZone(zone)
 )
+
+/**
+ * The watch's chip (UC-12): a device warning when it is not watching over them (UC-13). None when
+ * the page has no state to show, or one this build does not know (ADR-001 §2.3).
+ */
+fun watchChip(state: String?): Pair<Int, Tone>? = when (state) {
+    "ok" -> R.string.watch_ok to Tone.Muted
+    "not_worn" -> R.string.watch_not_worn to Tone.Galben
+    "offline" -> R.string.watch_offline to Tone.Galben
+    else -> null
+}
 
 /** The "call in progress" badge (UC-12); an older API that does not say shows none. */
 fun showsCallBadge(senior: SeniorPage): Boolean = senior.callInProgress == true

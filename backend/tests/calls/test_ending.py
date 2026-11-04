@@ -16,6 +16,7 @@ from app.calls.ending import (
     redial_delay,
     settle,
 )
+from app.core.changes import Change, ChangeKind, take_notes
 from app.models import (
     Call,
     CallTrigger,
@@ -217,6 +218,29 @@ async def test_a_red_with_an_open_incident_is_not_lowered(db, campaign_call):
     await db.commit()
     status = await db.get(SeniorStatus, call.senior_id, populate_existing=True)
     assert status.code is Severity.red
+
+
+async def test_a_red_joining_a_yellow_incident_is_noted_for_das(db, campaign_call):
+    """G16 opens none, but 04 §6 still tells every DAS phone."""
+    call = await campaign_call()
+    incident = Incident(senior_id=call.senior_id, reason="r")
+    db.add_all(
+        [
+            SeniorStatus(
+                senior_id=call.senior_id,
+                code=Severity.yellow,
+                reason="r",
+                since=datetime.now(UTC),
+            ),
+            incident,
+        ]
+    )
+    await db.flush()
+    take_notes(db)
+    assert await conclude(db, call, answers("unwell", "joi", "no")) is Severity.red
+    assert Change(
+        ChangeKind.incident_raised, call.senior_id, incident.id
+    ) in take_notes(db)
 
 
 async def test_a_first_no_answer_queues_a_redial(db, campaign_call, monkeypatch):

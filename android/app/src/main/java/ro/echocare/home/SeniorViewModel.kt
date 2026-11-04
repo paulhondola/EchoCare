@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import ro.echocare.CallRow
 import ro.echocare.EchoCareApi
@@ -36,6 +37,8 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var callMe by mutableStateOf(CallMe.Idle)
         private set
 
+    private var reading: Job? = null
+
     /**
      * „Sunați-mă”. No retry: a failed tap shows [CallMe.NotSent] and the senior taps again, with a
      * new id. A signed-out session ends on the next reread.
@@ -48,7 +51,9 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
 
     /** [id] is null on the senior's own home: the one senior their grant names. */
     fun reread(id: String?) {
-        viewModelScope.launch {
+        // A read still under way is out of date; left running, it could land after this one
+        reading?.cancel()
+        reading = viewModelScope.launch {
             page = page.after(read(id))
             // A failed read keeps the last list, as the page keeps its last answer
             if (id != null) (answer { api.calls(id) } as? Answer.Ok)?.let { calls = it.value }

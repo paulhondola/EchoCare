@@ -259,3 +259,13 @@ async def test_the_page_says_whether_a_call_is_live(client, db, people, state, b
     for who in (CAREGIVER, MEDIC, DAS):
         r = await client.get(f"/api/seniors/{people.maria.id}", headers=signed_in(who))
         assert r.json()["call_in_progress"] is badge
+
+
+async def test_a_scripted_test_call_lights_no_badge(client, db, people):
+    """05 §1: the history leaves it out, so the badge would point at nothing."""
+    db.add(call(people.maria, state="ringing", trigger="test"))
+    await db.commit()
+    r = await client.get(
+        f"/api/seniors/{people.maria.id}", headers=signed_in(CAREGIVER)
+    )
+    assert r.json()["call_in_progress"] is False

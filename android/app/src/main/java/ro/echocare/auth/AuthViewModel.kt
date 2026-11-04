@@ -65,7 +65,10 @@ class AuthViewModel @Inject constructor(
     private var resendTimer: Job? = null
 
     init {
-        if (auth.currentUser != null) loadMe()
+        // Signed out with no network, the token outlives the sign-out: deleted once one is back.
+        // ponytail: until then, a closed app still shows the tray's alert, which names nobody (P18).
+        // A WorkManager job if a device can stay offline and signed out for long.
+        if (auth.currentUser != null) loadMe() else messaging.deleteToken()
     }
 
     fun sending(phone: String) {
@@ -139,7 +142,8 @@ class AuthViewModel @Inject constructor(
 
     /**
      * *Ieșire*. The API forgets this device's token first, while the caller is still signed in to
-     * say whose it is (Q19); offline, the token is deleted on the device anyway, in [show].
+     * say whose it is (Q19). Offline, neither that nor the delete in [show] gets through: the next
+     * start tries the delete again.
      */
     fun signOut() {
         screen = Screen.Loading
@@ -148,7 +152,7 @@ class AuthViewModel @Inject constructor(
                 try {
                     api.dropPushToken(messaging.token.await())
                 } catch (e: Exception) {
-                    // IOException, an HTTP refusal or no token: the device's own delete still holds
+                    // IOException, an HTTP refusal or no token: the delete in [show] still follows
                     if (e is CancellationException) throw e
                 }
             }
@@ -181,7 +185,7 @@ class AuthViewModel @Inject constructor(
             is Screen.Phone, Screen.NotRegistered -> {
                 auth.signOut()
                 prefs.edit { remove(SAVED_ROLE) }
-                // No pushes reach a signed-out device; the next sign-in saves a new token
+                // Firebase forgets the token, so pushes stop; the next sign-in saves a new one
                 messaging.deleteToken()
             }
             // A saved role that is no longer among the grants is dropped (auth-layer §8.2).

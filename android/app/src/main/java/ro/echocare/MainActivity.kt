@@ -57,6 +57,9 @@ import ro.echocare.ui.SnTextField
 import ro.echocare.ui.theme.EchoCareTheme
 import ro.echocare.ui.theme.Palette
 
+/** Saved across a rotation: no alert is waiting to open. */
+private const val ALERT_OPENED = "alert_opened"
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var auth: FirebaseAuth
@@ -66,8 +69,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Not again after a rotation: the page the alert opened is on the back stack already
-        if (savedInstanceState == null) opening = alertIn(intent)
+        // Not again after a rotation, once opened: its page is on the back stack already
+        if (savedInstanceState?.getBoolean(ALERT_OPENED) != true) opening = alertIn(intent)
         // One dark theme (spec 07 §2.1): light status and navigation icons whatever the system uses
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -106,7 +109,16 @@ class MainActivity : ComponentActivity() {
     /** A tap on an alert while the app is open: singleTop brings it here (04 §6). */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        alertIn(intent)?.let { opening = it }
+        alertIn(intent)?.let {
+            opening = it
+            // So a rotation before it opens, while the sign-in loads, still finds it
+            setIntent(intent)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(ALERT_OPENED, opening == null)
     }
 
     /** The alert a notification tap carries, from the tray or from [ro.echocare.push.showAlert]. */

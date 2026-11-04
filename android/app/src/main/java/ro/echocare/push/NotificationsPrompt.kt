@@ -1,6 +1,7 @@
 package ro.echocare.push
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,28 +17,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import ro.echocare.R
 import ro.echocare.ui.Kind
 import ro.echocare.ui.SnButton
 import ro.echocare.ui.Tone
 
+private const val ASKED = "asked"
+
 /**
  * Asks for notifications on the home of a role that gets alerts (04 §6), in Romanian, before the
- * system's own dialog: the first tap opens that dialog, a later one, after a refusal, the app's
- * notification settings, since Android stops asking. Gone once they are allowed.
+ * system's own dialog: the first tap ever opens that dialog, a later one, after a refusal, the app's
+ * notification settings, since Android stops asking and does not say so. Remembered across starts,
+ * or a first tap after a refusal would do nothing. Gone once they are allowed.
  */
 @Composable
 fun NotificationsPrompt() {
     val context = LocalContext.current
     var allowed by remember { mutableStateOf(notificationsAllowed(context)) }
-    var asked by rememberSaveable { mutableStateOf(false) }
+    val prefs = remember { context.getSharedPreferences("notifications", Context.MODE_PRIVATE) }
+    var asked by remember { mutableStateOf(prefs.getBoolean(ASKED, false)) }
     // Back from the settings, or from the system dialog
     LifecycleResumeEffect(Unit) {
         allowed = notificationsAllowed(context)
@@ -46,6 +51,7 @@ fun NotificationsPrompt() {
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         allowed = it
         asked = true
+        prefs.edit { putBoolean(ASKED, true) }
     }
     if (allowed) return
     Column(

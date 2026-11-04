@@ -21,6 +21,7 @@ import firebase_admin
 import google.auth
 import google.auth.credentials
 from firebase_admin import credentials, messaging
+from firebase_admin.exceptions import InvalidArgumentError
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as OrmSession
@@ -28,7 +29,7 @@ from sqlalchemy.orm import SessionTransaction
 
 from app.auth.models import Grant, PushToken, Role
 from app.auth.service import FIREBASE_PROJECT_ID, drop_dead_tokens
-from app.core.changes import Change, ChangeKind, take_notes
+from app.core.changes import Change, ChangeKind, drop_since, mark_savepoint, take_notes
 from app.core.db import Session
 from app.seniors.models import Senior
 
@@ -41,6 +42,8 @@ ALERT_TEXT = "O persoană pe care o urmăriți are nevoie de atenție."
 ALERT_CHANNEL = "alerts"
 # Firebase sends at most this many messages in one call.
 BATCH = 500
+# How many deliveries run at once: each holds a database connection, then send threads.
+DELIVERIES = 4
 SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
 
 
@@ -96,6 +99,8 @@ def pushes_for(change: Change) -> list[tuple[Audience, Push]]:
     Only a code that moves into yellow or red alerts; the same code again, from a
     later call, is a refresh, since P5 has no follow-up. Every incident that opens
     alerts DAS, a yellow hand-over's included (UC-07): each one waits for a dispatcher.
+    So does a red joining an incident that was not red: no new one opens (G16), but its
+    urgency changed.
     """
     senior = change.senior_id
     refresh = senior_refresh(senior)
@@ -115,9 +120,11 @@ def pushes_for(change: Change) -> list[tuple[Audience, Push]]:
         case ChangeKind.code if change.after == "red":
             alert = code_alert(senior)
             return [(Audience.caregivers, alert), (Audience.medic, alert)]
-        case ChangeKind.code | ChangeKind.call_moved:
+        case ChangeKind.code | ChangeKind.call_moved | ChangeKind.watch:
             return everyone
-        case ChangeKind.incident_opened if change.incident_id is not None:
+        case ChangeKind.incident_opened | ChangeKind.incident_raised if (
+            change.incident_id is not None
+        ):
             return [(Audience.das, incident_alert(senior, change.incident_id))]
         case ChangeKind.incident_moved if change.incident_id is not None:
             return [(Audience.das, incidents_refresh(change.incident_id))]
@@ -186,7 +193,9 @@ async def address(
 
 def message(token: str, push: Push) -> messaging.Message:
     """An alert shows the notification, on the alerts channel, also when the app is
-    closed; a refresh is data only and wakes nobody (04 §6)."""
+    closed. A refresh is data only, and a device out of reach never gets it: nothing is
+    left to do by the time it returns, and past 100 messages waiting for a device
+    Firebase discards them all, alerts included (04 §6)."""
     if push.alert:
         return messaging.Message(
             token=token,
@@ -200,7 +209,7 @@ def message(token: str, push: Push) -> messaging.Message:
     return messaging.Message(
         token=token,
         data=dict(push.data),
-        android=messaging.AndroidConfig(priority="normal"),
+        android=messaging.AndroidConfig(priority="normal", ttl=0),
     )
 
 
@@ -221,6 +230,17 @@ class _Credential(credentials.Base):
         return self._google
 
 
+def _token_is_dead(error: Exception | None) -> bool:
+    """Whether Firebase's answer means the token will never reach a device. A malformed
+    token shares its error with a malformed message, so its words tell them apart: a
+    fault in the message must not cost every device its token."""
+    if isinstance(error, InvalidArgumentError):
+        return "registration token" in str(error)
+    return isinstance(
+        error, messaging.UnregisteredError | messaging.SenderIdMismatchError
+    )
+
+
 class FirebaseSender:
     """Firebase Cloud Messaging through the Admin SDK, as its own app: the sign-in app
     holds no credential (AL11)."""
@@ -237,10 +257,7 @@ class FirebaseSender:
             for (token, _), answer in zip(chunk, sent.responses, strict=True):
                 if answer.success:
                     continue
-                if isinstance(
-                    answer.exception,
-                    messaging.UnregisteredError | messaging.SenderIdMismatchError,
-                ):
+                if _token_is_dead(answer.exception):
                     dead.append(token)
                 else:
                     log.warning("push failed: %s", type(answer.exception).__name__)
@@ -276,14 +293,32 @@ async def deliver(changes: list[Change], sender: Sender) -> None:
 _sender: Sender | None = None
 # Running deliveries, kept so a task is not collected before it ends.
 _tasks: set[asyncio.Task[None]] = set()
+# ponytail: tasks waiting here are not bounded, and die with the process; the screens'
+# timed re-read (06 §1) covers that. A durable queue if pushes must survive a restart.
+_in_turn = asyncio.Semaphore(DELIVERIES)
+
+
+async def _deliver_in_turn(changes: list[Change], sender: Sender) -> None:
+    async with _in_turn:
+        await deliver(changes, sender)
+
+
+def _after_savepoint(session: OrmSession, transaction: SessionTransaction) -> None:
+    if transaction.nested:
+        mark_savepoint(session, transaction)
 
 
 def _after_commit(session: OrmSession) -> None:
+    # Also fires when a savepoint is released: nothing is kept until the outer commit.
+    if session.in_nested_transaction():
+        return
     changes = take_notes(session)
     if not changes or _sender is None:
         return
     try:
-        task = asyncio.get_running_loop().create_task(deliver(changes, _sender))
+        task = asyncio.get_running_loop().create_task(
+            _deliver_in_turn(changes, _sender)
+        )
     except RuntimeError:
         log.warning("no event loop: %d changes not pushed", len(changes))
         return
@@ -294,7 +329,9 @@ def _after_commit(session: OrmSession) -> None:
 def _after_rollback(session: OrmSession, previous: SessionTransaction) -> None:
     # Every rollback() call, even with nothing sent to the database yet; a savepoint's
     # rollback leaves the outer transaction's notes.
-    if not previous.nested:
+    if previous.nested:
+        drop_since(session, previous)
+    elif not session.in_transaction():
         take_notes(session)
 
 
@@ -303,6 +340,7 @@ def install(sender: Sender | None) -> None:
     global _sender
     _sender = sender
     for name, listener in (
+        ("after_transaction_create", _after_savepoint),
         ("after_commit", _after_commit),
         ("after_soft_rollback", _after_rollback),
     ):

@@ -116,7 +116,7 @@ fun HomeNav(
         // A tapped alert opens its senior, or for DAS its incident, over the home (04 §6)
         LaunchedEffect(opening) {
             val alert = opening ?: return@LaunchedEffect
-            alertRoute(alert.seniorId, alert.incidentId, home.role)?.let(nav::openAlert)
+            nav.openAlert(alertRoute(alert.seniorId, alert.incidentId, home.role))
             onOpened()
         }
     }

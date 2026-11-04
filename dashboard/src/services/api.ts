@@ -238,6 +238,7 @@ export type SeniorView = IncidentDetail["senior"] & {
   since?: string | null;
   // True while one of her calls rings or is live (UC-12); only GET /seniors/{id} sets it
   call_in_progress?: boolean | null;
+  watch_state?: string | null;
   medic: { display_name: string; practice: string | null };
   caregivers: {
     user_id: string;

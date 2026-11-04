@@ -61,6 +61,25 @@ class CallsTest {
     }
 
     @Test
+    fun aWatchThatIsNotWatchingIsAWarning() {
+        // UC-13: a device warning beside the senior, not a code
+        assertEquals(R.string.watch_not_worn to Tone.Galben, watchChip("not_worn"))
+        assertEquals(R.string.watch_offline to Tone.Galben, watchChip("offline"))
+    }
+
+    @Test
+    fun aWatchThatWorksIsNoWarning() {
+        assertEquals(R.string.watch_ok to Tone.Muted, watchChip("ok"))
+    }
+
+    @Test
+    fun noWatchOrAnUnknownStateShowsNoChip() {
+        // Null for DAS and the senior, and before the first check-in (04 §1)
+        assertNull(watchChip(null))
+        assertNull(watchChip("charging"))
+    }
+
+    @Test
     fun anEndedCallShowsItsCode() {
         for (code in listOf("green", "yellow", "red")) {
             assertEquals(Outcome.Code(code), outcome(call(severity = code)))

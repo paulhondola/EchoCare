@@ -108,6 +108,9 @@ fun SeniorDetails(
                 StateLabel(senior.state)
                 CodeLabel(senior.code, senior.reason)
                 if (showsCallBadge(senior)) Chip(stringResource(R.string.call_live), Tone.Galben)
+                watchChip(senior.watchState)?.let { (label, tone) ->
+                    Chip(stringResource(label), tone)
+                }
             }
             action?.invoke()
         }

@@ -12,7 +12,7 @@ from app.auth.service import refuse
 from app.codes.models import StatusReport
 from app.core.changes import Change, ChangeKind, note
 from app.core.db import engine
-from app.incidents.models import Event, Incident, IncidentStatus
+from app.incidents.models import UNRESOLVED, Event, Incident, IncidentStatus
 from app.incidents.schemas import (
     CallDetail,
     EventForm,
@@ -114,6 +114,25 @@ def open_incident(
         )
     )
     note(session, Change(ChangeKind.incident_opened, senior_id, incident_id))
+
+
+async def note_red_added(
+    session: AsyncSession,
+    senior_id: uuid.UUID,
+    severity: Severity,
+    before: Severity | None,
+) -> None:
+    """A red added to the unresolved incident (G16) that was not red before: DAS hears of
+    it (04 §6). Red again adds nothing to say (P5). Doesn't commit (ADR-005)."""
+    if severity is not Severity.red or before is Severity.red:
+        return
+    incident_id = await session.scalar(
+        select(Incident.id).where(
+            Incident.senior_id == senior_id, Incident.status.in_(UNRESOLVED)
+        )
+    )
+    if incident_id is not None:
+        note(session, Change(ChangeKind.incident_raised, senior_id, incident_id))
 
 
 def take_refusal(

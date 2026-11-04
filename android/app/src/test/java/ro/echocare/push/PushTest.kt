@@ -4,6 +4,8 @@ import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -94,14 +96,30 @@ class PushTest {
     }
 
     @Test
-    fun aCodeAlertOpensNothingForDas() {
-        // DAS's app has incidents, not senior pages (UC-12)
-        assertNull(alertRoute("s1", null, "das"))
+    fun aCodeAlertOpensTheSeniorInTheDasRole() {
+        // Someone who is also a caregiver: the alert is about their senior, and a tap must open it
+        assertEquals(SeniorRoute("s1"), alertRoute("s1", null, "das"))
     }
 
     @Test
-    fun theSeniorIsOnTheirOwnPageAlready() {
-        assertNull(alertRoute("s1", null, "senior"))
+    fun anAlertOpensTheSeniorInTheSeniorRole() {
+        // A senior who also cares for someone: their own home is not the page the alert is about
+        assertEquals(SeniorRoute("s2"), alertRoute("s2", null, "senior"))
+    }
+
+    @Test
+    fun aBurstOfRefreshesIsOneRead() = runBlocking {
+        // One commit can push several refreshes, and each read asks for a whole page and its calls
+        var reads = 0
+        val reader = launch { Refreshes.events.collect { reads++ } }
+        delay(100)
+        repeat(3) {
+            Refreshes.signal()
+            delay(50)
+        }
+        delay(1.seconds)
+        reader.cancel()
+        assertEquals(1, reads)
     }
 
     @Test

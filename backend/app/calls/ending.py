@@ -21,7 +21,7 @@ from app.codes.service import add_report, set_code
 from app.core.db import Session
 from app.core.settings import get_settings
 from app.incidents.models import UNRESOLVED, Incident
-from app.incidents.service import open_incident, opens_incident
+from app.incidents.service import note_red_added, open_incident, opens_incident
 from app.seniors.models import ConsentMethod, EnrollmentState
 from app.seniors.service import confirm_welcome, end_welcome
 from app.status.engine import (
@@ -132,6 +132,8 @@ async def conclude(
         await set_code(session, call.senior_id, call.id, result, reason, now)
     if opens_incident(result, unresolved):
         open_incident(session, call.senior_id, call.id, reason)
+    else:
+        await note_red_added(session, call.senior_id, result, current)
     return result
 
 
@@ -261,6 +263,8 @@ async def begin_handover(call_id: uuid.UUID, source: ReportSource, reason: str) 
         )
         if not unresolved:
             open_incident(session, call.senior_id, call.id, reason)
+        else:
+            await note_red_added(session, call.senior_id, severity, current)
         finish(call, CallState.handed_over, now, final_severity=severity, reason=reason)
         await session.commit()
     return True

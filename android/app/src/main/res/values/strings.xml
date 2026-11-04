@@ -150,6 +150,9 @@
     <string name="handover_yes">Transferat la DAS</string>
     <string name="handover_no">Nepreluat</string>
     <string name="call_live">Apel în curs</string>
+    <string name="watch_ok">Ceasul funcționează</string>
+    <string name="watch_not_worn">Ceasul nu este purtat</string>
+    <string name="watch_offline">Ceasul nu transmite</string>
     <string name="section_access">Adresă și acces</string>
     <string name="open_in_maps">Deschide în Hărți</string>
     <string name="section_event">Eveniment</string>

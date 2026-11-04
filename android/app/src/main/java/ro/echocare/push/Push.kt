@@ -2,10 +2,13 @@ package ro.echocare.push
 
 import java.io.IOException
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -60,13 +63,18 @@ fun saveBeforeReturning(limit: Duration = 15.seconds, save: suspend () -> Unit) 
     }
 }
 
-/** Refresh signals from pushes; a screen re-reads on each while it is in front (04 §6). */
+/**
+ * Refresh signals from pushes; a screen re-reads once a burst ends, while it is in front (04 §6).
+ * One commit can send several, and each read asks for a whole page.
+ */
 object Refreshes {
     private val signals = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val events: SharedFlow<Unit> = signals
+
+    @OptIn(FlowPreview::class)
+    val events: Flow<Unit> = signals.debounce(500.milliseconds)
 
     fun signal() {
         signals.tryEmit(Unit)

@@ -8,8 +8,8 @@ import javax.inject.Inject
 import ro.echocare.EchoCareApi
 
 /**
- * Firebase push (04 §6). With the app closed, Firebase shows an alert in the tray itself and drops a
- * refresh, which has no screen to update. With it open, both arrive here.
+ * Firebase push (04 §6). With the app closed, Firebase shows an alert in the tray itself, and a
+ * refresh arrives here with no screen to update. With it open, both arrive here.
  */
 @AndroidEntryPoint
 class MessagingService : FirebaseMessagingService() {
@@ -27,6 +27,8 @@ class MessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // A token still alive after an offline sign-out, until the next start deletes it
+        if (auth.currentUser == null) return
         val push = pushFrom(message.data) ?: return
         if (push is Push.Alert) showAlert(this, message.data)
         // An alert changed something too: the open screen re-reads either way
