@@ -101,6 +101,7 @@ async def test_from_draft_to_accepted(client, staff):
         "code": None,  # no code until active (Q17)
         "reason": None,
         "since": None,
+        "watch_state": None,  # only the list joins it (04 §1)
     }
     assert [s["id"] for s in (await enrollments(client)).json()] == [maria]
     r = await client.get(f"/api/seniors/{maria}", headers=signed_in(DAS))

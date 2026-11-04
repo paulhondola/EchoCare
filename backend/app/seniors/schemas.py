@@ -178,6 +178,9 @@ class SeniorSummary(BaseModel):
     created_at: datetime | None = None
     submitted_at: datetime | None = None
     accepted_at: datetime | None = None
+    # For her medic and caregivers only, null for anyone else and before the first
+    # check-in (UC-12, 04 §1). Answers that build a row without the join leave it null.
+    watch_state: WatchCondition | None = None
 
 
 class CaregiverView(CaregiverSummary):

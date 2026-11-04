@@ -95,7 +95,13 @@ async def senior_summaries(
     the senior is `active`: a withdrawn senior's old code must not read as watched."""
     query = (
         seniors_query(caller, role)
-        .add_columns(SeniorStatus.code, SeniorStatus.reason, SeniorStatus.since)
+        .add_columns(
+            SeniorStatus.code,
+            SeniorStatus.reason,
+            SeniorStatus.since,
+            WatchState.state,
+        )
+        .outerjoin(WatchState, WatchState.senior_id == Senior.id)
         .outerjoin(
             SeniorStatus,
             and_(
@@ -104,15 +110,23 @@ async def senior_summaries(
             ),
         )
     )
-    fields = SeniorSummary.model_fields.keys() - {"code", "reason", "since"}
+    fields = SeniorSummary.model_fields.keys() - {
+        "code",
+        "reason",
+        "since",
+        "watch_state",
+    }
     return [
         SeniorSummary(
             **{name: getattr(senior, name) for name in fields},
             code=code,
             reason=reason,
             since=since,
+            watch_state=watch
+            if sees_watch(caller, senior.id, senior.medic_id)
+            else None,
         )
-        for senior, code, reason, since in await session.execute(query)
+        for senior, code, reason, since, watch in await session.execute(query)
     ]
 
 
@@ -651,16 +665,22 @@ async def record_check_in(
     await session.commit()
 
 
+def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> bool:
+    """Whether the caller looks after this senior, as her registering medic or as a
+    caregiver (UC-12): the rule for the watch state on her page and on the list."""
+    registered = Role.medic in caller.roles and medic_id == caller.user.id
+    caring = any(
+        g.role == Role.caregiver and g.senior_id == senior_id for g in caller.grants
+    )
+    return registered or caring
+
+
 async def watch_state(
     session: AsyncSession, caller: Caller, senior: Senior
 ) -> WatchCondition | None:
     """The watch's state, for who looks after this senior (UC-12): not for DAS or the
     senior herself, whatever else the caller holds elsewhere."""
-    registered = Role.medic in caller.roles and senior.medic_id == caller.user.id
-    caring = any(
-        g.role == Role.caregiver and g.senior_id == senior.id for g in caller.grants
-    )
-    if not registered and not caring:
+    if not sees_watch(caller, senior.id, senior.medic_id):
         return None
     return await session.scalar(
         select(WatchState.state).where(WatchState.senior_id == senior.id)
