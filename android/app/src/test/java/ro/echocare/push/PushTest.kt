@@ -1,7 +1,13 @@
 package ro.echocare.push
 
+import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.echocare.home.IncidentRoute
 import ro.echocare.home.SeniorRoute
@@ -47,6 +53,33 @@ class PushTest {
     @Test
     fun aLauncherTapIsNoPush() {
         assertNull(pushFrom(mapOf("type" to null, "senior_id" to null)))
+    }
+
+    @Test
+    fun aTokenIsSavedBeforeTheServiceMayStop() {
+        // The service stops once onNewToken returns, so the save has to end first
+        var saved = false
+        saveBeforeReturning {
+            delay(50)
+            saved = true
+        }
+        assertTrue(saved)
+    }
+
+    @Test
+    fun aSaveThatFailsOfflineIsLeftForTheNextStart() {
+        saveBeforeReturning { throw IOException("offline") }
+    }
+
+    @Test
+    fun aSaveThatHangsLetsTheNextMessageThrough() {
+        // Messages wait on the same thread as onNewToken: an alert must not wait for ever
+        var finished = false
+        saveBeforeReturning(limit = 50.milliseconds) {
+            delay(10.seconds)
+            finished = true
+        }
+        assertFalse(finished)
     }
 
     @Test

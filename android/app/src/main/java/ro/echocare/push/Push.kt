@@ -1,8 +1,13 @@
 package ro.echocare.push
 
+import java.io.IOException
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 // What a push says, read the same way from a message and from the extras of a tapped
 // notification (04 §6). Pure Kotlin, tested on the JVM.
@@ -34,6 +39,24 @@ fun pushFrom(data: Map<String, String?>): Push? {
             Push.Alert(senior, data["incident_id"].takeIf { type == "incident" })
 
         else -> Push.Refresh
+    }
+}
+
+/**
+ * Runs [save] to its end on the calling thread: Firebase stops the service, and may end the process,
+ * once `onNewToken` returns. Messages wait on that thread, tray alerts included, so [limit] keeps a
+ * hung save from holding them back. A save that fails offline is left for the next app start.
+ */
+// ponytail: no retry while the app stays closed; WorkManager if tokens go stale in practice.
+fun saveBeforeReturning(limit: Duration = 15.seconds, save: suspend () -> Unit) {
+    runBlocking {
+        withTimeoutOrNull(limit) {
+            try {
+                save()
+            } catch (e: IOException) {
+                // Saved again at the next sign-in or start (AuthViewModel.loadMe)
+            }
+        }
     }
 }
 

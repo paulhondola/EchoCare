@@ -116,12 +116,21 @@ fun HomeNav(
         // A tapped alert opens its senior, or for DAS its incident, over the home (04 §6)
         LaunchedEffect(opening) {
             val alert = opening ?: return@LaunchedEffect
-            alertRoute(alert.seniorId, alert.incidentId, home.role)?.let {
-                nav.navigate(it) { launchSingleTop = true }
-            }
+            alertRoute(alert.seniorId, alert.incidentId, home.role)?.let(nav::openAlert)
             onOpened()
         }
     }
+}
+
+/**
+ * A tapped alert's page, unless it is the one in front. Not `launchSingleTop`: that reuses the entry
+ * for any route of the same type, and with it the ViewModel, which goes on reading the old id.
+ */
+internal fun NavController.openAlert(route: Any) {
+    val top = currentBackStackEntry
+    val inFront = top?.destination?.hasRoute(route::class) == true &&
+        top.toRoute<Any>(route::class) == route
+    if (!inFront) navigate(route)
 }
 
 /** „Gata”: back to the senior's page, the one „Editează” opened the form from, or a new one. */
