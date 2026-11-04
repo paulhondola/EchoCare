@@ -219,4 +219,20 @@
     <string name="section_recent_calls">Apeluri recente</string>
     <string name="no_recent_calls">Niciun apel încă.</string>
     <string name="recent_call_line">%1$s · %2$s</string>
+
+    <!-- The medic's panel: its groups and a patient's enrollment stages (UC-12, 03 §7) -->
+    <string name="group_urgent">Roșu și galben</string>
+    <string name="group_to_resolve">De rezolvat</string>
+    <string name="group_in_progress">În progres</string>
+    <string name="group_green">Verde</string>
+    <string name="group_at_das">La DAS</string>
+    <string name="group_inactive">Inactivi</string>
+    <string name="stage_draft">Ciornă</string>
+    <string name="stage_submitted">Trimis</string>
+    <string name="stage_accepted">Acceptat</string>
+    <string name="stage_active">Activ</string>
+    <string name="stage_refused">Refuzat</string>
+    <string name="stage_withdrawn">Retras</string>
+    <string name="stage_wrong_number">Număr greșit</string>
+    <string name="stage_unreachable">Nu a putut fi contactat</string>
 </resources>
