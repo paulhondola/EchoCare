@@ -38,6 +38,7 @@
     <string name="state_refused">Refuzat</string>
     <string name="state_wrong_number">Număr greșit</string>
     <string name="state_unreachable">De negăsit</string>
+    <string name="state_withdrawn">Retras</string>
     <string name="code_green">Cod verde</string>
     <string name="code_yellow">Cod galben</string>
     <string name="code_red">Cod roșu</string>

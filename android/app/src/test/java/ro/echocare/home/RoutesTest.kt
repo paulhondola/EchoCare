@@ -1,9 +1,7 @@
 package ro.echocare.home
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.echocare.R
 import ro.echocare.SeniorRow
@@ -36,7 +34,8 @@ class RoutesTest {
             "active",
             "refused",
             "wrong_number",
-            "unreachable"
+            "unreachable",
+            "withdrawn"
         )
         assertEquals(states, STATE_LABELS.keys.toList())
         assertEquals(R.string.state_draft, STATE_LABELS["draft"])
@@ -85,13 +84,10 @@ class RoutesTest {
     }
 
     @Test
-    fun editingStopsWhereTheServerStopsIt() {
-        // 04 §2: PUT is refused past `submitted` with wrong_state.
-        assertTrue(editable("draft"))
-        assertTrue(editable("submitted"))
-        for (state in listOf("accepted", "active", "refused", "wrong_number", "unreachable", "x")) {
-            assertFalse(state, editable(state))
-        }
+    fun withdrawnHasALabel() {
+        // 05 §1: a withdrawn consent is a state of its own.
+        assertEquals(R.string.state_withdrawn, STATE_LABELS["withdrawn"])
+        assertEquals(Tone.Muted, STATE_TONES["withdrawn"])
     }
 
     @Test

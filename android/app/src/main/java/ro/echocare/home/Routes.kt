@@ -56,9 +56,6 @@ fun openFor(role: String, senior: SeniorRow): Any = when {
 fun alertRoute(seniorId: String, incidentId: String?, role: String): Any =
     incidentId?.takeIf { role == "das" }?.let(::IncidentRoute) ?: SeniorRoute(seniorId)
 
-/** „Editează” shows while the medic may still edit: PUT refuses past `submitted` (04 §2). */
-fun editable(state: String) = state == "draft" || state == "submitted"
-
 /**
  * The label of each enrollment state (05 §1). A state this build does not know has none and
  * shows no label: the server may add one later (ADR-001 §2.3).
@@ -70,7 +67,8 @@ val STATE_LABELS = mapOf(
     "active" to R.string.state_active,
     "refused" to R.string.state_refused,
     "wrong_number" to R.string.state_wrong_number,
-    "unreachable" to R.string.state_unreachable
+    "unreachable" to R.string.state_unreachable,
+    "withdrawn" to R.string.state_withdrawn
 )
 
 /** The colour of each state's chip, the same as on the dashboard (dashboard/src/utils/labels.ts). */
@@ -81,7 +79,8 @@ val STATE_TONES = mapOf(
     "active" to Tone.Verde,
     "refused" to Tone.Galben,
     "wrong_number" to Tone.Galben,
-    "unreachable" to Tone.Galben
+    "unreachable" to Tone.Galben,
+    "withdrawn" to Tone.Muted
 )
 
 /**

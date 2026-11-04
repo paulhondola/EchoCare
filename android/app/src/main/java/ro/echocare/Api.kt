@@ -35,7 +35,14 @@ data class SeniorRow(
     @SerialName("enrollment_state") val state: String,
     val code: String? = null,
     val reason: String? = null,
-    val since: String? = null
+    val since: String? = null,
+    // When the registration was made, sent to DAS and accepted (04 §1); null while it has not
+    // happened, or from an older API. [watchState] is ok, not_worn or offline, a string for a
+    // later server's value (UC-12, ADR-001 §2.3).
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("submitted_at") val submittedAt: String? = null,
+    @SerialName("accepted_at") val acceptedAt: String? = null,
+    @SerialName("watch_state") val watchState: String? = null
 )
 
 // GET /seniors/{id} (seniors §3.3): the row, the address with its access details (G13), the
@@ -68,7 +75,27 @@ data class SeniorPage(
     @SerialName("call_in_progress") val callInProgress: Boolean? = null,
     // The watch's state, for her caregivers and her medic (UC-12); null for anyone else, or from an
     // older API. A string: the server may add a state (ADR-001 §2.3)
-    @SerialName("watch_state") val watchState: String? = null
+    @SerialName("watch_state") val watchState: String? = null,
+    // The timeline of the registration and of her consent (04 §1, G7); all null from an older API.
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("submitted_at") val submittedAt: String? = null,
+    @SerialName("accepted_at") val acceptedAt: String? = null,
+    val consent: ConsentState? = null,
+    @SerialName("consent_given_at") val consentGivenAt: String? = null,
+    @SerialName("signed_at") val signedAt: String? = null
+)
+
+// Her latest consent decision (04 §1). Decision and method stay strings: a later server may add
+// one (ADR-001 §2.3). [at] is ISO-8601.
+@Serializable
+data class ConsentState(val decision: String, val method: String, val at: String)
+
+// POST /seniors/{id}/signature's body (04 §2): the consent text's version and the strokes of the
+// signature, each a list of [x, y] points.
+@Serializable
+data class SignatureForm(
+    @SerialName("text_version") val textVersion: String,
+    val strokes: List<List<List<Float>>>
 )
 
 // One row of GET /seniors/{id}/calls (04 §1), newest first. What a caregiver may see: no turns,
@@ -285,7 +312,7 @@ interface EchoCareApi {
     @POST("seniors")
     suspend fun createSenior(@Body body: SeniorForm): SeniorPage
 
-    /** The whole registration again, while `draft` or `submitted` (04 §2). */
+    /** The whole registration again, in any state (04 §2, SE9). */
     @PUT("seniors/{id}")
     suspend fun updateSenior(@Path("id") id: String, @Body body: SeniorForm): SeniorPage
 
@@ -302,6 +329,18 @@ interface EchoCareApi {
     /** `draft` → `submitted`: DAS sees the senior from now on (04 §2). Answers one row. */
     @POST("seniors/{id}/submit")
     suspend fun submit(@Path("id") id: String): SeniorRow
+
+    /** Queues the welcome call again; answers the senior's row (04 §2, UC-04). */
+    @POST("seniors/{id}/welcome-call")
+    suspend fun callAgain(@Path("id") id: String): SeniorRow
+
+    /** Records that the senior withdrew her consent by phone; answers her row (04 §2). */
+    @POST("seniors/{id}/consent-withdrawn")
+    suspend fun withdraw(@Path("id") id: String): SeniorRow
+
+    /** Stores the signed consent, 204 (04 §2). A Response, because a 204 has no body. */
+    @POST("seniors/{id}/signature")
+    suspend fun sign(@Path("id") id: String, @Body body: SignatureForm): Response<Unit>
 
     /** 200 with the due call, 204 with none, 404 on production (design §4.2). A 204 has no body. */
     @GET("profile/mock-call")
@@ -329,6 +368,10 @@ interface EchoCareApi {
 
     @GET("incidents/{id}")
     suspend fun incident(@Path("id") id: String): IncidentPage
+
+    /** One call's turns (04 §1): the incident page's call; its `answers` are ignored. */
+    @GET("calls/{id}/transcript")
+    suspend fun transcript(@Path("id") id: String): IncidentCall
 
     /** `open` → `in_progress` (UC-11). 409 `already_done` names who has it in `taken_by_name`. */
     @POST("incidents/{id}/take")

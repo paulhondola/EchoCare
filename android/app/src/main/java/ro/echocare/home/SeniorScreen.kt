@@ -67,8 +67,8 @@ fun SeniorScreen(
                 if (id == null) CallMeButton(vm.callMe, vm::requestCall)
                 // The senior's home only: a call to answer here instead of on the phone (design §6.2)
                 vm.mock?.let { MockCallCard(it, vm::answer) }
-                // „Editează” for the medic, while the server still takes an edit (seniors §9.1)
-                val edit = onEdit?.takeIf { editable(senior.state) }
+                // „Editează” for the medic, in every state (04 §2, SE9)
+                val edit = onEdit
                 SeniorDetails(
                     senior,
                     callSenior = id != null,

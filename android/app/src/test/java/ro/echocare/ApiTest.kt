@@ -137,4 +137,60 @@ class ApiTest {
         )
         assertEquals("fiică", incident.caregivers.single().relation)
     }
+
+    @Test
+    fun aRowAndAPageFromAnOlderApiDecode() {
+        // 04 §1: none of the medic panel's fields; they all read as null.
+        val row = json.decodeFromString<SeniorRow>(
+            """
+            {"id": "s1", "full_name": "Maria Popescu", "form_of_address": "doamna Maria",
+             "phone_e164": "+40256123456", "phone_is_landline": true,
+             "enrollment_state": "draft"}
+            """
+        )
+        assertNull(row.createdAt)
+        assertNull(row.submittedAt)
+        assertNull(row.acceptedAt)
+        assertNull(row.watchState)
+        val page = json.decodeFromString<SeniorPage>(
+            """
+            {"id": "s1", "full_name": "Maria Popescu", "form_of_address": "doamna Maria",
+             "phone_e164": "+40256123456", "phone_is_landline": true,
+             "enrollment_state": "draft", "medic": {"display_name": "Dr. Ionescu"}}
+            """
+        )
+        assertNull(page.createdAt)
+        assertNull(page.submittedAt)
+        assertNull(page.acceptedAt)
+        assertNull(page.consent)
+        assertNull(page.consentGivenAt)
+        assertNull(page.signedAt)
+    }
+
+    @Test
+    fun aPageWithConsentDecodes() {
+        // 04 §2: decision and method stay strings, so a value added later still decodes.
+        fun consent(decision: String, method: String) =
+            """{"decision": "$decision", "method": "$method", "at": "2026-10-06T08:00:00Z"}"""
+
+        fun page(consent: String) = json.decodeFromString<SeniorPage>(
+            """
+            {"id": "s1", "full_name": "Maria Popescu", "form_of_address": "doamna Maria",
+             "phone_e164": "+40256123456", "phone_is_landline": true,
+             "enrollment_state": "withdrawn", "medic": {"display_name": "Dr. Ionescu"},
+             "created_at": "2026-10-01T08:00:00Z", "submitted_at": "2026-10-02T08:00:00Z",
+             "accepted_at": "2026-10-03T08:00:00Z", "consent_given_at": "2026-10-04T08:00:00Z",
+             "signed_at": "2026-10-05T08:00:00Z", "consent": $consent}
+            """
+        )
+        val withdrawn = page(consent("withdrawn", "medic"))
+        assertEquals(ConsentState("withdrawn", "medic", "2026-10-06T08:00:00Z"), withdrawn.consent)
+        assertEquals("2026-10-01T08:00:00Z", withdrawn.createdAt)
+        assertEquals("2026-10-02T08:00:00Z", withdrawn.submittedAt)
+        assertEquals("2026-10-03T08:00:00Z", withdrawn.acceptedAt)
+        assertEquals("2026-10-04T08:00:00Z", withdrawn.consentGivenAt)
+        assertEquals("2026-10-05T08:00:00Z", withdrawn.signedAt)
+        val robot = page(consent("given", "robot"))
+        assertEquals("robot", robot.consent?.method)
+    }
 }
