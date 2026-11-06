@@ -5,6 +5,33 @@ export const time = new Intl.DateTimeFormat("ro-RO", { dateStyle: "short", timeS
 /** "14:32:15", for transcript lines */
 export const clock = new Intl.DateTimeFormat("ro-RO", { timeStyle: "medium" });
 
+// Why a call rang and where it got to, as stored (05 §1); an unknown value shows as it is
+export const TRIGGERS: Record<string, string> = {
+  campaign: "Campanie",
+  watch: "Ceas",
+  manual: "Cerere „Sunați-mă”",
+  welcome: "Apel de bun venit",
+};
+
+export const CALL_STATES: Record<string, string> = {
+  queued: "în așteptare",
+  ringing: "sună",
+  in_progress: "în curs",
+  unanswered: "nepreluat",
+  failed: "eșuat",
+  completed: "încheiat",
+  handed_over: "transferat la DAS",
+  dropped: "întrerupt",
+  canceled: "anulat",
+};
+
+/** "2m 5s" between pick-up and end; null until both are known */
+export function callLength(start: string | null, end: string | null): string | null {
+  if (!start || !end) return null;
+  const s = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
 // The five outcomes of 04 §2, in the order a dispatcher thinks of them
 export const OUTCOMES: { value: IncidentOutcome; label: string }[] = [
   { value: "senior_ok", label: "Senior OK" },

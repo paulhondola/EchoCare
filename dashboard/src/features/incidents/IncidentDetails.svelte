@@ -13,8 +13,17 @@
   import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
   import { shortId, since, type DossierTab } from "../../utils/incidents";
-  import { address, clock, OUTCOMES, time } from "../../utils/labels";
+  import {
+    address,
+    CALL_STATES,
+    callLength,
+    clock,
+    OUTCOMES,
+    time,
+    TRIGGERS,
+  } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
+  import CallTranscript from "../calls/CallTranscript.svelte";
   import { refusalMessage } from "./commands";
 
   let {
@@ -41,34 +50,12 @@
   ];
 
   // Romanian labels for the stored values (05 §1); an unknown value shows as it is
-  const TRIGGERS: Record<string, string> = {
-    campaign: "Campanie",
-    watch: "Ceas",
-    manual: "Cerere „Sunați-mă”",
-    welcome: "Apel de bun venit",
-  };
   const EVENTS: Record<string, string> = {
     high_pulse_at_rest: "Puls ridicat în repaus",
     inactivity: "Inactivitate",
     sos_button: "Buton SOS",
     manual_request: "„Sunați-mă”",
     fall: "Cădere detectată",
-  };
-  const STATES: Record<string, string> = {
-    queued: "în așteptare",
-    ringing: "sună",
-    in_progress: "în curs",
-    unanswered: "nepreluat",
-    failed: "eșuat",
-    completed: "încheiat",
-    handed_over: "transferat la DAS",
-    dropped: "întrerupt",
-    canceled: "anulat",
-  };
-  const SEVERITY: Record<string, { label: string; text: string }> = {
-    red: { label: "Cod Roșu", text: "text-rosu-fg" },
-    yellow: { label: "Cod Galben", text: "text-galben-fg" },
-    green: { label: "Cod Verde", text: "text-verde-fg" },
   };
 
   type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
@@ -149,12 +136,6 @@
 
   const at = (iso: string | null) => (iso ? time.format(Date.parse(iso)) : "—");
   const tel = (e164: string) => `tel:${e164}`;
-
-  function duration(start: string | null, end: string | null): string | null {
-    if (!start || !end) return null;
-    const s = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
-    return `${Math.floor(s / 60)}m ${s % 60}s`;
-  }
 
   const STATUS = $derived(
     incident.status === "open"
@@ -369,7 +350,7 @@
           {/if}
           <div class="flex flex-col gap-8">
             {#each d.calls as c (c.id)}
-              {@const length = duration(c.started_at, c.ended_at)}
+              {@const length = callLength(c.started_at, c.ended_at)}
               <section class="flex flex-col gap-3.5">
                 <div
                   class="flex flex-wrap gap-x-[18px] gap-y-1.5 border-b-2 border-line pb-3 text-xs text-fg-muted"
@@ -384,73 +365,10 @@
                   {#if length}
                     <span>durată <span class="font-mono text-fg">{length}</span></span>
                   {/if}
-                  <span>{STATES[c.state] ?? c.state}</span>
+                  <span>{CALL_STATES[c.state] ?? c.state}</span>
                 </div>
 
-                {#if c.summary}
-                  <p class="text-fg-soft">{c.summary}</p>
-                {/if}
-
-                {#each c.turns as t, n (n)}
-                  <div class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1">
-                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-muted">
-                      {clock.format(Date.parse(t.at))}
-                    </span>
-                    <div class="flex flex-col gap-0.5">
-                      <span
-                        class={["sn-label", t.speaker === "senior" ? "text-fg-muted" : "text-link"]}
-                      >
-                        {t.speaker === "senior"
-                          ? "Senior"
-                          : t.speaker === "agent"
-                            ? "Sistem AI"
-                            : "Sistem"}
-                      </span>
-                      <span>{t.kind === "keys" ? `tasta ${t.content}` : `„${t.content}”`}</span>
-                    </div>
-                  </div>
-                {/each}
-
-                {#each c.reports as r, n (n)}
-                  <div
-                    class="-mx-5 grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1 border-y border-line bg-card px-5 py-2.5"
-                  >
-                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-muted">
-                      {clock.format(Date.parse(r.at))}
-                    </span>
-                    <div class="flex flex-col gap-0.5">
-                      <span class={["sn-label", SEVERITY[r.severity]?.text ?? "text-fg-muted"]}>
-                        {SEVERITY[r.severity]?.label ?? r.severity} · semnalat
-                      </span>
-                      {#if r.quote}<span class="text-sm">„{r.quote}”</span>{/if}
-                      <span class="text-fg-soft">{r.reason}</span>
-                    </div>
-                  </div>
-                {/each}
-
-                {#if c.final_severity}
-                  <div
-                    class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-t-2 border-line pt-3.5"
-                  >
-                    <span class="sn-label">Severitate finală</span>
-                    <span class={["font-semibold", SEVERITY[c.final_severity]?.text]}>
-                      {SEVERITY[c.final_severity]?.label ?? c.final_severity}
-                    </span>
-                  </div>
-                {/if}
-                {#if c.handover_answered !== null}
-                  <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3">
-                    <span class="sn-label">Predare audio</span>
-                    {#if c.handover_answered}
-                      <span class="inline-flex items-center gap-1.5 font-semibold text-verde-fg">
-                        <Icon name="check" size={13} stroke={2.4} />
-                        Transferat cu succes la telefonul de serviciu DAS
-                      </span>
-                    {:else}
-                      <span class="font-semibold text-rosu-fg">Transferul nu a fost preluat</span>
-                    {/if}
-                  </div>
-                {/if}
+                <CallTranscript call={c} />
               </section>
             {/each}
           </div>
