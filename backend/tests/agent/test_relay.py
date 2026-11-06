@@ -53,6 +53,8 @@ async def test_a_scripted_session():
         (S.agent, K.speech, greeting("doamna Maria")),
         (S.senior, K.speech, "Mă simt bine."),
         (S.agent, K.speech, "Am auzit: Mă simt bine. Mai spuneți ceva?"),
+        # The hang-up's unfinished prompt is kept, unanswered.
+        (S.senior, K.speech, "Mă"),
         (S.senior, K.keys, "5"),
         (S.agent, K.speech, "Ați apăsat tasta 5."),
         (S.system, K.speech, "interrupted after: Ați apăsat"),

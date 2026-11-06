@@ -1,8 +1,10 @@
+import json
 from xml.sax.saxutils import escape, quoteattr
 
 from fastapi import Response
 
 from app.core.settings import get_settings
+from app.voice.models import Speaker
 
 LANGUAGE = "ro-RO"
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
@@ -110,14 +112,70 @@ def hangup() -> Response:
 
 
 def dial_on_duty(
-    number: str, *, ring: int, result_url: str, answered_url: str
+    number: str, *, ring: int, result_url: str, answered_url: str, transcript_url: str
 ) -> Response:
-    """Rings the on-duty DAS phone from the project's number (04 §4.4 step 4).
-    `answered_url` is fetched when it picks up, before the two are connected."""
+    """Rings the on-duty DAS phone from the project's number (04 §4.4 step 4), with
+    both sides transcribed to `transcript_url` first. `answered_url` is fetched when it
+    picks up, before the two are connected."""
     caller = quoteattr(get_settings().twilio_from_number)
     dial = f"callerId={caller} timeout={quoteattr(str(ring))}"
     dial += f' action={quoteattr(result_url)} method="POST"'
     who = (
         f'<Number url={quoteattr(answered_url)} method="POST">{escape(number)}</Number>'
     )
-    return twiml(f"<Dial {dial}>{who}</Dial>")
+    return twiml(f"{transcribe(transcript_url)}<Dial {dial}>{who}</Dial>")
+
+
+# The hand-over's talk, as text only: Twilio transcribes it live and keeps no audio
+# (04 §4.4, 06 §4). Deepgram's nova-3 lists Romanian; Google's telephony model doesn't.
+# Deepgram knows it only as "ro": Twilio passes "ro-RO" through and gets 32651.
+TRANSCRIPTION = "handover"
+TRANSCRIPTION_ATTRS = {
+    "name": TRANSCRIPTION,
+    "track": "both_tracks",
+    "languageCode": "ro",
+    "transcriptionEngine": "deepgram",
+    "speechModel": "nova-3",
+}
+# The transcription runs on the senior's leg: Twilio hears her on the inbound track
+# and plays her the DAS employee on the outbound one.
+TRACKS = {"inbound_track": Speaker.senior, "outbound_track": Speaker.das}
+
+
+def transcribe(url: str) -> str:
+    attrs = {**TRANSCRIPTION_ATTRS, "statusCallbackUrl": url}
+    tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
+    return f"<Start><Transcription{tag}/></Start>"
+
+
+TRANSCRIPTION_FAILED = "Convorbirea cu DAS nu a putut fi transcrisă"
+
+# Before a sentence of ours, which the outbound track would put down as DAS's.
+STOP_TRANSCRIPTION = f'<Stop><Transcription name="{TRANSCRIPTION}"/></Stop>'
+
+
+def transcribed(params: dict[str, str]) -> tuple[Speaker, str, float | None] | None:
+    """A final sentence from a transcription callback, with who said it and Twilio's
+    confidence; None for any other event, a partial or an empty sentence."""
+    speaker = TRACKS.get(params.get("Track", ""))
+    if (
+        params.get("TranscriptionEvent") != "transcription-content"
+        or params.get("Final") != "true"
+        or speaker is None
+    ):
+        return None
+    try:
+        data = json.loads(params.get("TranscriptionData", ""))
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    words = str(data.get("transcript", "")).strip()
+    confidence = data.get("confidence")
+    if not words:
+        return None
+    return (
+        speaker,
+        words,
+        float(confidence) if isinstance(confidence, int | float) else None,
+    )

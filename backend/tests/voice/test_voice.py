@@ -77,6 +77,11 @@ async def test_answer_connects_to_conversation_relay(client, call):
     assert relay.get("url") == f"wss://echocare.test/api/voice/relay?call={call.id}"
     assert relay.get("language") == "ro-RO"
     assert relay.get("welcomeGreeting").startswith("Bună ziua, doamna Maria.")
+    # Words and keys over the greeting still reach the session.
+    assert relay.get("reportInputDuringAgentSpeech") == "any"
+    # Its own voice on a speakerphone is not the senior; a turn ends after 2 s.
+    assert relay.get("echoPromptFiltering") == "true"
+    assert relay.get("speechTimeout") == "2000"
 
 
 def welcome_greeting(r) -> str:

@@ -6,7 +6,7 @@ press or an exact match, never a guess.
 from typing import Any
 
 from app.status.alarms import normalize
-from app.voice.models import WelcomeOutcome
+from app.voice.models import TurnKind, WelcomeOutcome
 
 IDENTITY = (
     "Bună ziua. Sunt asistentul automat al DAS Timișoara. Vorbesc cu {f}? "
@@ -56,6 +56,16 @@ def consent_answer(digits: str, speech: str) -> bool | None:
         return True
     if digits == "2" or (not digits and words in CONSENT_NO):
         return False
+    return None
+
+
+def heard(params: dict[str, str]) -> tuple[TurnKind, str, float | None] | None:
+    """A `<Gather>` answer as a transcript turn: the key, or the words with Twilio's
+    confidence; None for silence."""
+    if digits := params.get("Digits"):
+        return TurnKind.keys, digits, None
+    if speech := params.get("SpeechResult", "").strip():
+        return TurnKind.speech, speech, float(params.get("Confidence") or 0) or None
     return None
 
 
