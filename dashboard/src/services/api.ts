@@ -245,6 +245,16 @@ export async function grantStaff(grant: {
   if (!r.ok) throw await refused(r);
 }
 
+// PUT /staff/on-duty (04 §2): this DAS employee takes the hand-overs, everyone else stops (P10)
+export async function setOnDuty(userId: string): Promise<void> {
+  const r = await apiFetch("/api/staff/on-duty", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  if (!r.ok) throw await refused(r);
+}
+
 // One row of GET /seniors and GET /enrollments (04 §1). Mirrors SeniorSummary in
 // backend/app/seniors/service.py. The state stays a string: the server adds states later.
 export interface SeniorSummary {
