@@ -11,6 +11,7 @@ erDiagram
     USER ||--o{ GRANT : "holds"
     USER ||--o{ PUSH_TOKEN : "has"
     USER ||--o{ SENIOR : "registers, as medic"
+    USER |o--o{ SENIOR : "accepts, as DAS"
     SENIOR ||--o{ GRANT : "is followed through"
     SENIOR ||--o{ CONSENT : "gives or refuses"
     SENIOR ||--o| WATCH_STATE : "wears"
@@ -64,6 +65,9 @@ erDiagram
         string landmark
         string call_window "collected, unused in MVP"
         string enrollment_state "draft, submitted, accepted, active, refused, wrong_number, unreachable, withdrawn"
+        datetime submitted_at "the medic's submit; empty for a draft"
+        datetime accepted_at "DAS's accept; empty before it"
+        uuid accepted_by FK "the DAS user who accepted"
     }
     CONSENT {
         uuid id PK

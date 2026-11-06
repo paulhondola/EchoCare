@@ -1,30 +1,51 @@
 package ro.echocare.home
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.ZoneId
+import ro.echocare.CallAnswer
 import ro.echocare.CallRow
+import ro.echocare.IncidentCall
 import ro.echocare.R
 import ro.echocare.SeniorPage
+import ro.echocare.das.Transcript
+import ro.echocare.enroll.ConsentSection
 import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
 import ro.echocare.ui.Chip
 import ro.echocare.ui.FieldRow
+import ro.echocare.ui.Kind
 import ro.echocare.ui.PhoneNumber
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SectionLabel
@@ -48,52 +69,291 @@ fun SeniorScreen(
     onEdit: ((String) -> Unit)? = null,
     vm: SeniorViewModel = hiltViewModel()
 ) {
-    RereadWhileShown { vm.reread(id) }
     val title = (vm.page as? Load.Ready)?.value?.formOfAddress ?: stringResource(R.string.app_name)
     HomeScaffold(title, onBack = onBack, menu = menu) {
-        LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
-            // The senior's home only: the warning the campaign's calls are about (Q5)
-            if (id == null && vm.warning) {
-                Banner(stringResource(R.string.warning_active), Tone.Galben)
+        PatientPane(id, onSessionEnd, onEdit, vm = vm)
+    }
+}
+
+/**
+ * One senior's page without its scaffold: the body the page and Monitorizare's right pane share,
+ * so a change to it is made once (UC-12). [id] null is the senior's own page. [onEdit] is given
+ * to the medic only: with it the page adds her patient's stages, consent, every call with its
+ * transcript, and the actions of her panel (UC-04, UC-12). [onChanged] runs after a command the
+ * server answered, so Monitorizare's list beside the pane moves the patient at once.
+ */
+@Composable
+fun PatientPane(
+    id: String?,
+    onSessionEnd: (Failure) -> Unit,
+    onEdit: ((String) -> Unit)? = null,
+    onChanged: () -> Unit = {},
+    vm: SeniorViewModel = hiltViewModel(key = id)
+) {
+    RereadWhileShown { vm.reread(id) }
+    // An alert can open a senior she only cares for: her panel is for her own patients
+    if (id != null && onEdit != null) LaunchedEffect(id) { vm.checkHers(id) }
+    // „Retragere consimțământ” asks first; „Semnătură” opens the consent text under the actions
+    var withdrawing by rememberSaveable { mutableStateOf(false) }
+    var signing by rememberSaveable { mutableStateOf(false) }
+    LoadBody(vm.page, onRetry = { vm.reread(id) }, onSessionEnd = onSessionEnd) { senior ->
+        // The senior's home only: the warning the campaign's calls are about (Q5)
+        if (id == null && vm.warning) {
+            Banner(stringResource(R.string.warning_active), Tone.Galben)
+        }
+        val medic = if (id != null && !vm.notHers) onEdit else null
+        if (medic != null) CommandBanners(vm.notice, vm.numberChanged)
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .widthIn(max = 600.dp)
+        ) {
+            // The senior's home only: asks for a wellbeing call (UC-10)
+            if (id == null) CallMeButton(vm.callMe, vm::requestCall)
+            // The senior's home only: a call to answer here instead of on the phone (design §6.2)
+            vm.mock?.let { MockCallCard(it, vm::answer) }
+            SeniorDetails(
+                senior,
+                callSenior = id != null,
+                below = medic?.let { edit ->
+                    {
+                        Stages(stagesOf(senior))
+                        ConsentLine(senior)
+                        Actions(
+                            actionsFor(senior),
+                            busy = vm.busy,
+                            onAction = { action ->
+                                when (action) {
+                                    PatientAction.CallAgain -> vm.callAgain(senior.id, onChanged)
+                                    PatientAction.Withdraw -> withdrawing = true
+                                    PatientAction.Sign -> signing = !signing
+                                    PatientAction.Edit -> {
+                                        vm.editing()
+                                        edit(senior.id)
+                                    }
+                                }
+                            }
+                        )
+                        // Stays open after the save, showing „Semnat” with the date (G7)
+                        if (signing && showsConsent(senior)) {
+                            ConsentSection(senior.signedAt, vm.busy) { strokes, w, h ->
+                                vm.sign(senior.id, strokes, w, h, onChanged)
+                            }
+                        }
+                    }
+                }
+            )
+            // A senior's page opened from a list: the caregiver's and the medic's (UC-12). The
+            // medic sees every call and what was said; a caregiver a short list (01 §6)
+            vm.calls?.let { calls ->
+                if (medic != null) {
+                    CallList(
+                        R.string.section_calls,
+                        calls,
+                        Transcripts(vm.transcripts, vm::openTranscript)
+                    )
+                } else {
+                    CallList(R.string.section_recent_calls, recentCalls(calls))
+                }
             }
+        }
+        if (withdrawing) {
+            WithdrawDialog(
+                senior.formOfAddress,
+                busy = vm.busy,
+                onConfirm = {
+                    withdrawing = false
+                    vm.withdraw(senior.id, onChanged)
+                },
+                onDismiss = { withdrawing = false }
+            )
+        }
+    }
+}
+
+/** The banners after a command and after a new number (UC-12, 04 §2). */
+@Composable
+private fun CommandBanners(notice: CommandOutcome?, numberChanged: Boolean) {
+    when (notice) {
+        is CommandOutcome.Refused -> Banner(
+            stringResource(
+                when (notice.reason) {
+                    null -> R.string.not_allowed_action
+                    "not_found" -> R.string.not_found
+                    "invalid" -> R.string.not_accepted
+                    else -> R.string.changed_state
+                }
+            ),
+            Tone.Galben
+        )
+
+        CommandOutcome.Offline -> Banner(stringResource(R.string.offline_retry), Tone.Galben)
+
+        CommandOutcome.Done, null -> {}
+    }
+    if (numberChanged) Banner(stringResource(R.string.number_changed), Tone.Link)
+}
+
+/** The enrollment's stages under the name: lit up to where the senior is (03 §7, UC-04). */
+@Composable
+private fun Stages(stages: List<Stage>) {
+    val zone = ZoneId.systemDefault()
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        stages.forEach { stage ->
             Column(
                 Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 20.dp)
-                    .widthIn(max = 600.dp)
-            ) {
-                // The senior's home only: asks for a wellbeing call (UC-10)
-                if (id == null) CallMeButton(vm.callMe, vm::requestCall)
-                // The senior's home only: a call to answer here instead of on the phone (design §6.2)
-                vm.mock?.let { MockCallCard(it, vm::answer) }
-                // „Editează” for the medic, while the server still takes an edit (seniors §9.1)
-                val edit = onEdit?.takeIf { editable(senior.state) }
-                SeniorDetails(
-                    senior,
-                    callSenior = id != null,
-                    action = edit?.let {
-                        { SnButton(stringResource(R.string.edit), { it(senior.id) }) }
+                    .weight(1f)
+                    .drawBehind {
+                        drawRect(
+                            if (stage.reached) Palette.Verde else Palette.Line,
+                            size = Size(size.width, 3.dp.toPx())
+                        )
                     }
+                    .padding(top = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    stringResource(stage.label),
+                    color = if (stage.reached) Palette.Fg else Palette.FgSubtle,
+                    style = MaterialTheme.typography.labelMedium
                 )
-                // A senior's page opened from a list: the caregiver's and the medic's (UC-12)
-                vm.calls?.let { RecentCalls(recentCalls(it)) }
+                stage.at?.let {
+                    Text(
+                        shortDate(it, zone),
+                        color = if (stage.reached) Palette.FgMuted else Palette.FgSubtle,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
         }
     }
+}
+
+/** „Dat · la apel · 4 nov. 2026” and „Semnat pe tabletă · …”; neither, no line (04 §1, G7). */
+@Composable
+private fun ConsentLine(senior: SeniorPage) {
+    val zone = ZoneId.systemDefault()
+    val lines = listOfNotNull(
+        senior.consent?.let {
+            stringResource(
+                R.string.consent_line,
+                CONSENT_DECISIONS[it.decision]?.let { label -> stringResource(label) }
+                    ?: it.decision,
+                CONSENT_METHODS[it.method]?.let { label -> stringResource(label) } ?: it.method,
+                shortDate(it.at, zone, year = true)
+            )
+        },
+        senior.signedAt?.let {
+            stringResource(R.string.signed_on_tablet, shortDate(it, zone, year = true))
+        }
+    )
+    if (lines.isEmpty()) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SectionLabel(stringResource(R.string.consent_label), Modifier.width(112.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        }
+    }
+}
+
+/** The actions of the senior's state, all in sight (UC-12, design "The patient"). */
+@Composable
+private fun Actions(
+    actions: List<PatientAction>,
+    busy: Boolean,
+    onAction: (PatientAction) -> Unit
+) {
+    if (actions.isEmpty()) return
+    FlowRow(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        actions.forEach { action ->
+            when (action) {
+                // At once, no confirmation (UC-04)
+                PatientAction.CallAgain -> SnButton(
+                    stringResource(R.string.call_again),
+                    { onAction(action) },
+                    kind = Kind.Success,
+                    enabled = !busy
+                )
+
+                PatientAction.Withdraw -> SnButton(
+                    stringResource(R.string.withdraw),
+                    { onAction(action) },
+                    kind = Kind.Danger,
+                    enabled = !busy
+                )
+
+                PatientAction.Sign -> SnButton(stringResource(R.string.sign), { onAction(action) })
+
+                PatientAction.Edit -> SnButton(stringResource(R.string.edit_data), {
+                    onAction(action)
+                })
+            }
+        }
+    }
+}
+
+/** „Retrageți consimțământul pentru …?”: the withdrawal cannot be undone (04 §2). */
+@Composable
+private fun WithdrawDialog(
+    formOfAddress: String,
+    busy: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RectangleShape,
+        containerColor = Palette.Subtle,
+        title = {
+            Text(
+                stringResource(R.string.withdraw_title, formOfAddress),
+                style = MaterialTheme.typography.titleMedium
+            )
+        },
+        text = {
+            Text(
+                stringResource(R.string.withdraw_text),
+                color = Palette.FgSoft,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            SnButton(
+                stringResource(R.string.withdraw_confirm),
+                onConfirm,
+                kind = Kind.Danger,
+                enabled = !busy
+            )
+        },
+        dismissButton = { SnButton(stringResource(R.string.cancel), onDismiss) }
+    )
 }
 
 /**
  * One senior, laid out like the dashboard's dossier: labelled rows, 1dp between rows, 2dp under a
  * group. The page and the form's step 4 show it. [callSenior] is false on the senior's own page,
  * since they do not need a button to call themselves; [calls] false hides every call button.
+ * [below] goes under the name, over the rule: the medic's stages, consent and actions.
  */
 @Composable
 fun SeniorDetails(
     senior: SeniorPage,
     callSenior: Boolean,
     calls: Boolean = true,
-    action: (@Composable () -> Unit)? = null
+    below: (@Composable () -> Unit)? = null
 ) {
     Column {
         Row(
@@ -112,9 +372,9 @@ fun SeniorDetails(
                     Chip(stringResource(label), tone)
                 }
             }
-            action?.invoke()
         }
-        Rule()
+        below?.invoke()
+        Rule(Modifier.padding(top = if (below != null) 16.dp else 0.dp))
 
         FieldRow(
             stringResource(R.string.label_phone),
@@ -183,13 +443,20 @@ fun SeniorDetails(
     }
 }
 
-/** „Apeluri recente”: when, what started it, and the code it ended with or its state. */
+/** The medic's „Transcriere” on each call: what was read, and how to read one (04 §1). */
+private class Transcripts(val read: Map<String, Load<IncidentCall>>, val open: (String) -> Unit)
+
+/**
+ * „Apeluri recente” or, for the medic, „Apeluri”: when, what started it, and the code it ended
+ * with or its state. With [transcripts], each row opens what was said under it.
+ */
 @Composable
-private fun RecentCalls(calls: List<CallRow>) {
-    SectionLabel(
-        stringResource(R.string.section_recent_calls),
-        Modifier.padding(top = 20.dp, bottom = 4.dp)
-    )
+private fun CallList(
+    @StringRes title: Int,
+    calls: List<CallRow>,
+    transcripts: Transcripts? = null
+) {
+    SectionLabel(stringResource(title), Modifier.padding(top = 20.dp, bottom = 4.dp))
     if (calls.isEmpty()) {
         Text(
             stringResource(R.string.no_recent_calls),
@@ -197,6 +464,8 @@ private fun RecentCalls(calls: List<CallRow>) {
             color = Palette.FgMuted
         )
     }
+    // The rows the medic unfolded; „Ascunde” folds one, and the transcript stays read
+    var shown by remember { mutableStateOf(emptySet<String>()) }
     val zone = ZoneId.systemDefault()
     calls.forEachIndexed { i, call ->
         Column {
@@ -237,8 +506,83 @@ private fun RecentCalls(calls: List<CallRow>) {
                     )
                 }
             }
+            transcripts?.let {
+                val open = call.id in shown
+                SnButton(
+                    stringResource(if (open) R.string.hide else R.string.transcript),
+                    {
+                        shown = if (open) shown - call.id else shown + call.id
+                        if (!open) it.open(call.id)
+                    },
+                    Modifier.padding(bottom = 12.dp),
+                    kind = Kind.Link
+                )
+                if (open) it.read[call.id]?.let { read -> TranscriptOf(read) }
+            }
             Rule(strong = i == calls.lastIndex)
         }
+    }
+}
+
+/** One call's transcript under its row, as on the DAS incident page (UC-12). */
+@Composable
+private fun TranscriptOf(read: Load<IncidentCall>) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .background(Palette.Subtle)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        when (read) {
+            Load.Loading -> CircularProgressIndicator(Modifier.size(20.dp), color = Palette.FgMuted)
+
+            is Load.Ready -> if (
+                read.value.turns.isEmpty() &&
+                read.value.reports.isEmpty() &&
+                read.value.answers.isEmpty()
+            ) {
+                Text(stringResource(R.string.no_transcript), color = Palette.FgMuted)
+            } else {
+                Transcript(read.value)
+                Answers(read.value.answers)
+            }
+
+            // „Transcriere” again reads it again
+            is Load.Failed -> Text(
+                stringResource(
+                    when (read.failure) {
+                        Failure.NotFound -> R.string.not_found
+                        Failure.NotAllowed -> R.string.not_allowed
+                        else -> R.string.no_connection
+                    }
+                ),
+                color = Palette.FgMuted
+            )
+        }
+    }
+}
+
+/**
+ * What the call heard, under its transcript, one line per answer (04 §1):
+ * Stare: rău · neclar · „Rău”.
+ */
+@Composable
+private fun Answers(answers: List<CallAnswer>) {
+    if (answers.isEmpty()) return
+    SectionLabel(stringResource(R.string.answers), Modifier.padding(top = 4.dp))
+    answers.forEach { answer ->
+        val field = ANSWER_FIELDS[answer.field]?.let { stringResource(it) } ?: answer.field
+        val value = ANSWER_VALUES[answer.value]?.let { stringResource(it) } ?: answer.value
+        val parts = listOfNotNull(
+            "$field: $value",
+            if (answer.clear) null else stringResource(R.string.answer_unclear),
+            answer.quote.takeIf { it.isNotBlank() }?.let {
+                stringResource(R.string.answer_quote, it)
+            }
+        )
+        Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
     }
 }
 

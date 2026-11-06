@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
@@ -15,6 +15,7 @@ from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
 from app.seniors.models import Senior
 from app.seniors.service import reach, reach_senior
+from app.voice.calls import CallState
 from app.voice.dialogue import wellbeing_greeting
 from app.voice.models import Answer, Call, CallTrigger, CallTurn
 from app.voice.service import cancel_queued, queue_calls
@@ -91,6 +92,25 @@ async def queue_welcome_call(session: AsyncSession, senior_id: uuid.UUID) -> Non
         Senior.id == senior_id,
         trigger=CallTrigger.welcome,
         due_at=datetime.now(UTC),
+    )
+
+
+async def welcome_call_pending(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """The senior has a welcome call still to be answered: queued, ringing or in
+    progress (UC-04, 04 §2)."""
+    return (
+        await session.scalar(
+            select(
+                exists().where(
+                    Call.senior_id == senior_id,
+                    Call.trigger == CallTrigger.welcome,
+                    Call.state.in_(
+                        (CallState.queued, CallState.ringing, CallState.in_progress)
+                    ),
+                )
+            )
+        )
+        is True
     )
 
 

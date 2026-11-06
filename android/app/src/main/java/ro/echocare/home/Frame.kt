@@ -2,8 +2,10 @@ package ro.echocare.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -43,6 +46,7 @@ import ro.echocare.ui.SectionLabel
 import ro.echocare.ui.SnButton
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.Tone
+import ro.echocare.ui.initials
 import ro.echocare.ui.theme.Palette
 
 // What every signed-in screen is built from (seniors §8.2).
@@ -64,52 +68,59 @@ fun HomeScaffold(
     }
 }
 
+/** The signed-in person's name, for the top bar on every screen (UC-12, 04 §1 `/profile`). */
+val LocalSignedIn = staticCompositionLocalOf<String?> { null }
+
 /** The dashboard's header on a phone: brand over the title, square buttons, a 2dp rule. */
 @Composable
 private fun TopBar(title: String, onBack: (() -> Unit)?, menu: @Composable () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(Palette.Subtle)
-            .statusBarsPadding()
-    ) {
-        Row(
+    BoxWithConstraints {
+        val wide = maxWidth >= 600.dp
+        Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(Palette.Subtle)
+                .statusBarsPadding()
         ) {
-            if (onBack != null) {
-                SquareIconButton(
-                    painterResource(R.drawable.ic_arrow_back),
-                    stringResource(R.string.back),
-                    onBack
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painterResource(R.drawable.ic_brand),
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onBack != null) {
+                    SquareIconButton(
+                        painterResource(R.drawable.ic_arrow_back),
+                        stringResource(R.string.back),
+                        onBack
                     )
-                    SectionLabel(stringResource(R.string.app_name))
                 }
-                Text(
-                    title,
-                    Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(Modifier.weight(1f)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painterResource(R.drawable.ic_brand),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        SectionLabel(stringResource(R.string.app_name))
+                    }
+                    Text(
+                        title,
+                        Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                LocalSignedIn.current?.takeIf { it.isNotBlank() }?.let { SignedIn(it, wide) }
+                menu()
             }
-            menu()
+            Rule()
         }
-        Rule()
     }
 }
 
@@ -179,5 +190,36 @@ fun Message(text: String, action: @Composable () -> Unit = {}) {
     ) {
         Text(text, color = Palette.FgMuted, style = MaterialTheme.typography.bodyLarge)
         action()
+    }
+}
+
+/** Read-only: initials in a square, and the name too when the bar is [wide] (tablet). */
+@Composable
+private fun SignedIn(name: String, wide: Boolean) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // A name of titles only, such as "Dr.", has no letters: no empty square
+        val letters = initials(name)
+        if (letters.isNotEmpty()) {
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .background(Palette.Card)
+                    .border(1.dp, Palette.LineStrong),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(letters, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        if (wide) {
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

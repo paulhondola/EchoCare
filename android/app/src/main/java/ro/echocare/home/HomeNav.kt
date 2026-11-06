@@ -7,6 +7,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -53,64 +54,91 @@ fun HomeNav(
         // Only the medic registers seniors (04 §2): the form's entry points are theirs (seniors §9.1)
         val medic = home.role == "medic"
         var sent by rememberSaveable { mutableStateOf(false) }
-        NavHost(nav, startDestination = homeFor(home.role)) {
-            composable<SeniorsRoute> {
-                SeniorsScreen(
-                    title = if (medic) R.string.medic_home else R.string.caregiver_home,
-                    menu = menu,
-                    onOpen = { nav.navigate(openFor(home.role, it)) },
-                    onSessionEnd = onSessionEnd,
-                    onNew = if (medic) ({ nav.navigate(EnrollRoute()) }) else null,
-                    sent = sent,
-                    onSentShown = { sent = false }
-                )
-            }
-            composable<SeniorRoute> { entry ->
-                SeniorScreen(
-                    id = entry.toRoute<SeniorRoute>().id,
-                    onBack = { nav.popBackStack() },
-                    menu = {},
-                    onSessionEnd = onSessionEnd,
-                    onEdit = if (medic) ({ nav.navigate(EnrollRoute(it)) }) else null
-                )
-            }
-            composable<EnrollRoute> {
-                EnrollScreen(
-                    // Popping by route makes a second tap a no-op, never the home popped too
-                    onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
-                    onSubmitted = {
-                        sent = true
-                        nav.popBackStack<SeniorsRoute>(inclusive = false)
-                    },
-                    onDone = { nav.toPage(it) },
-                    onSessionEnd = onSessionEnd
-                )
-            }
-            composable<OwnRoute> {
-                SeniorScreen(id = null, onBack = null, menu = menu, onSessionEnd = onSessionEnd)
-            }
-            composable<IncidentsRoute> {
-                IncidentsScreen(
-                    menu = menu,
-                    onOpen = { nav.navigate(IncidentRoute(it)) },
-                    onSessionEnd = onSessionEnd
-                )
-            }
-            composable<IncidentRoute> {
-                IncidentScreen(
-                    // By route, as EnrollRoute: a second tap never pops the home
-                    onBack = { nav.popBackStack<IncidentRoute>(inclusive = true) },
-                    onResolve = { nav.navigate(ResolveRoute(it)) },
-                    onSessionEnd = onSessionEnd
-                )
-            }
-            composable<ResolveRoute> {
-                ResolveScreen(
-                    onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
-                    // Resolved incidents leave the list: back to it, past the incident's page
-                    onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
-                    onSessionEnd = onSessionEnd
-                )
+        CompositionLocalProvider(LocalSignedIn provides home.displayName) {
+            NavHost(nav, startDestination = homeFor(home.role)) {
+                composable<MedicHomeRoute> {
+                    MedicHomeScreen(
+                        menu = menu,
+                        onMonitor = { nav.navigate(MonitorRoute) },
+                        onRegister = { nav.navigate(RegisterRoute) },
+                        onSessionEnd = onSessionEnd,
+                        sent = sent,
+                        onSentShown = { sent = false }
+                    )
+                }
+                composable<MonitorRoute> {
+                    MonitorScreen(
+                        onBack = { nav.popBackStack<MonitorRoute>(inclusive = true) },
+                        menu = menu,
+                        onOpen = { nav.navigate(SeniorRoute(it)) },
+                        onRegister = { nav.navigate(RegisterRoute) },
+                        onEdit = { nav.navigate(EnrollRoute(it)) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<RegisterRoute> {
+                    RegisterScreen(
+                        onBack = { nav.popBackStack<RegisterRoute>(inclusive = true) },
+                        menu = menu,
+                        onNew = { nav.navigate(EnrollRoute()) },
+                        onDraft = { nav.navigate(EnrollRoute(it)) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<SeniorsRoute> {
+                    SeniorsScreen(
+                        menu = menu,
+                        onOpen = { nav.navigate(SeniorRoute(it.id)) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<SeniorRoute> { entry ->
+                    SeniorScreen(
+                        id = entry.toRoute<SeniorRoute>().id,
+                        onBack = { nav.popBackStack() },
+                        menu = {},
+                        onSessionEnd = onSessionEnd,
+                        onEdit = if (medic) ({ nav.navigate(EnrollRoute(it)) }) else null
+                    )
+                }
+                composable<EnrollRoute> {
+                    EnrollScreen(
+                        // Popping by route makes a second tap a no-op, never the home popped too
+                        onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
+                        onSubmitted = {
+                            sent = true
+                            nav.popBackStack<MedicHomeRoute>(inclusive = false)
+                        },
+                        onDone = { nav.toPage(it) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<OwnRoute> {
+                    SeniorScreen(id = null, onBack = null, menu = menu, onSessionEnd = onSessionEnd)
+                }
+                composable<IncidentsRoute> {
+                    IncidentsScreen(
+                        menu = menu,
+                        onOpen = { nav.navigate(IncidentRoute(it)) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<IncidentRoute> {
+                    IncidentScreen(
+                        // By route, as EnrollRoute: a second tap never pops the home
+                        onBack = { nav.popBackStack<IncidentRoute>(inclusive = true) },
+                        onResolve = { nav.navigate(ResolveRoute(it)) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
+                composable<ResolveRoute> {
+                    ResolveScreen(
+                        onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
+                        // Resolved incidents leave the list: back to it, past the incident's page
+                        onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
+                        onSessionEnd = onSessionEnd
+                    )
+                }
             }
         }
         // A tapped alert opens its senior, or for DAS its incident, over the home (04 §6)
@@ -133,9 +161,13 @@ internal fun NavController.openAlert(route: Any) {
     if (!inFront) navigate(route)
 }
 
-/** „Gata”: back to the senior's page, the one „Editează” opened the form from, or a new one. */
+/**
+ * „Gata”: back to where „Editează datele” opened the form, the senior's page or Monitorizare with
+ * the patient still selected (UC-12), or a new page.
+ */
 private fun NavController.toPage(id: String) {
-    if (previousBackStackEntry?.destination?.hasRoute<SeniorRoute>() == true) {
+    val from = previousBackStackEntry?.destination
+    if (from?.hasRoute<SeniorRoute>() == true || from?.hasRoute<MonitorRoute>() == true) {
         popBackStack()
     } else {
         navigate(SeniorRoute(id)) { popUpTo<EnrollRoute> { inclusive = true } }

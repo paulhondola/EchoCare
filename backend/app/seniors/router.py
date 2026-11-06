@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, current_caller, require_roles
-from app.calls.service import cancel_queued_calls, queue_welcome_call
+from app.calls.service import (
+    cancel_queued_calls,
+    queue_welcome_call,
+    welcome_call_pending,
+)
 from app.core.db import get_session
 from app.seniors.schemas import (
     CaregiverEditForm,
@@ -21,6 +25,7 @@ from app.seniors.schemas import (
 )
 from app.seniors.service import (
     accept,
+    call_again,
     delete_draft,
     edit,
     edit_caregiver,
@@ -167,6 +172,24 @@ async def accept_senior(
     """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is queued now, in
     the same transaction (04 §2); the senior answers it from the app's card."""
     return await accept(session, caller, senior_id, then=queue_welcome_call)
+
+
+@router.post("/seniors/{senior_id}/welcome-call")
+async def welcome_call_again(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorSummary:
+    """Sună din nou: `wrong_number` or `unreachable` -> `accepted`, and a new welcome
+    call queued in the same transaction (UC-04, 04 §2). A repeat answers the same and
+    queues nothing; any other state is `wrong_state`."""
+    return await call_again(
+        session,
+        caller,
+        senior_id,
+        then=queue_welcome_call,
+        pending=welcome_call_pending,
+    )
 
 
 @router.post("/seniors/{senior_id}/consent-withdrawn")

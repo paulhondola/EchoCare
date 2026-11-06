@@ -1,9 +1,7 @@
 package ro.echocare.home
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.echocare.R
 import ro.echocare.SeniorRow
@@ -14,10 +12,35 @@ import ro.echocare.ui.Tone
 class RoutesTest {
     @Test
     fun eachRoleHasItsHome() {
-        assertEquals(SeniorsRoute("medic"), homeFor("medic"))
+        assertEquals(MedicHomeRoute, homeFor("medic"))
         assertEquals(SeniorsRoute("caregiver"), homeFor("caregiver"))
         assertEquals(OwnRoute, homeFor("senior"))
         assertEquals(IncidentsRoute, homeFor("das"))
+    }
+
+    @Test
+    fun theMedicLandsOnTheMedicHome() {
+        // UC-12: the medic's home is the two tiles, not the list
+        assertEquals(MedicHomeRoute, homeFor("medic"))
+    }
+
+    @Test
+    fun theCaregiverStillLandsOnTheirSeniors() {
+        assertEquals(SeniorsRoute("caregiver"), homeFor("caregiver"))
+    }
+
+    @Test
+    fun draftsComeNewestFirstAndOnlyDrafts() {
+        // UC-01: Înregistrare lists the unfinished enrollments, the latest first
+        fun r(id: String, state: String, at: String?) =
+            SeniorRow(id, "N", "d", "+40256123456", true, state, createdAt = at)
+        val rows = listOf(
+            r("a", "draft", "2026-11-01T10:00:00Z"),
+            r("b", "active", "2026-11-04T10:00:00Z"),
+            r("c", "draft", "2026-11-03T10:00:00Z"),
+            r("d", "draft", null)
+        )
+        assertEquals(listOf("c", "a", "d"), draftsNewestFirst(rows).map { it.id })
     }
 
     @Test
@@ -36,7 +59,8 @@ class RoutesTest {
             "active",
             "refused",
             "wrong_number",
-            "unreachable"
+            "unreachable",
+            "withdrawn"
         )
         assertEquals(states, STATE_LABELS.keys.toList())
         assertEquals(R.string.state_draft, STATE_LABELS["draft"])
@@ -73,25 +97,11 @@ class RoutesTest {
         assertEquals(Tone.Galben, STATE_TONES["unreachable"])
     }
 
-    private fun row(state: String) =
-        SeniorRow("s1", "Maria Popescu", "doamna Maria", "+40256123456", true, state)
-
     @Test
-    fun aMedicsDraftOpensTheFormAndAnythingElseThePage() {
-        // seniors §9.1: the form, at step 1, filled from GET seniors/{id}.
-        assertEquals(EnrollRoute("s1"), openFor("medic", row("draft")))
-        assertEquals(SeniorRoute("s1"), openFor("medic", row("submitted")))
-        assertEquals(SeniorRoute("s1"), openFor("caregiver", row("draft")))
-    }
-
-    @Test
-    fun editingStopsWhereTheServerStopsIt() {
-        // 04 §2: PUT is refused past `submitted` with wrong_state.
-        assertTrue(editable("draft"))
-        assertTrue(editable("submitted"))
-        for (state in listOf("accepted", "active", "refused", "wrong_number", "unreachable", "x")) {
-            assertFalse(state, editable(state))
-        }
+    fun withdrawnHasALabel() {
+        // 05 §1: a withdrawn consent is a state of its own.
+        assertEquals(R.string.state_withdrawn, STATE_LABELS["withdrawn"])
+        assertEquals(Tone.Muted, STATE_TONES["withdrawn"])
     }
 
     @Test

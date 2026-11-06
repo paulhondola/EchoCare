@@ -145,6 +145,17 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         command(Action.Submit, { api.submit(id) }) { submitted = true }
     }
 
+    /**
+     * „Salvează semnătura” on step 4 (G7, UC-01 step 5). The summary is read again on success, so
+     * the pad gives way to the date; a refusal shows its line and the pad keeps the drawing.
+     */
+    fun sign(strokes: List<List<Point>>, width: Float, height: Float) {
+        val id = id ?: return
+        command(Action.Sign, { ensure(api.sign(id, signatureForm(strokes, width, height))) }) {
+            reread()
+        }
+    }
+
     /** Step 4's summary: GET seniors/{id}, which also refreshes the other steps. */
     fun reread() {
         val id = id ?: return

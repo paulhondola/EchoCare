@@ -161,3 +161,35 @@ async def test_only_who_looks_after_her_sees_the_watch(client, watched, token, s
 async def test_no_watch_yet_is_no_state(client, watched):
     r = await client.get(f"/api/seniors/{watched.other.id}", headers=signed_in(MEDIC))
     assert r.json()["watch_state"] is None
+
+
+async def rows(client, token, role=None):
+    r = await client.get(
+        "/api/seniors",
+        params={"role": role} if role else None,
+        headers=signed_in(token),
+    )
+    assert r.status_code == 200
+    return {row["id"]: row for row in r.json()}
+
+
+@pytest.mark.parametrize(
+    ("token", "role"), [(MEDIC, "medic"), (CAREGIVER, "caregiver")]
+)
+async def test_the_rows_carry_the_watch_state_for_her_medic_and_caregiver(
+    client, watched, token, role
+):
+    """UC-12: the same rule as her page, on the list."""
+    await check_in(client, worn=False)
+    found = await rows(client, token, role)
+    assert found[str(watched.maria.id)]["watch_state"] == "not_worn"
+
+
+async def test_das_rows_carry_no_watch_state(client, watched):
+    found = await rows(client, DAS)
+    assert found[str(watched.maria.id)]["watch_state"] is None
+
+
+async def test_no_check_in_yet_is_null_on_the_row(client, watched):
+    found = await rows(client, MEDIC, "medic")
+    assert found[str(watched.other.id)]["watch_state"] is None

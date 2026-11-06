@@ -104,7 +104,7 @@ fun ensure(response: Response<*>) {
 }
 
 /** The form's commands. */
-enum class Action { Save, Add, Remove, Submit }
+enum class Action { Save, Add, Remove, Submit, Sign }
 
 /** One line over the form's buttons. */
 sealed interface Notice {
@@ -163,7 +163,7 @@ private fun marks(action: Action, keys: List<String>): Then {
     val sent = when (action) {
         Action.Save -> REGISTRATION
         Action.Add -> Step.Caregivers.fields
-        Action.Remove, Action.Submit -> emptyList()
+        Action.Remove, Action.Submit, Action.Sign -> emptyList()
     }
     val errors = keys.mapNotNull { key -> sent.find { it.key == key } }.associateWith {
         when (it) {

@@ -1,6 +1,7 @@
 package ro.echocare.auth
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthProvider
@@ -32,6 +34,16 @@ import ro.echocare.R
 import ro.echocare.home.Failure
 
 private const val SAVED_ROLE = "role"
+private const val TAG = "EchoCareAuth"
+
+/**
+ * Firebase's own reason for a failed sign-in step, for `adb logcat -s EchoCareAuth`. The screen
+ * shows only a short Romanian text (auth-layer §3.2), which hides codes such as `Error code:39`.
+ */
+private fun logFailure(step: String, e: FirebaseException) {
+    val code = (e as? FirebaseAuthException)?.errorCode
+    Log.w(TAG, "$step failed: ${e.javaClass.simpleName} ${code.orEmpty()} ${e.message}", e)
+}
 
 /**
  * Phone sign-in, then GET /me (auth-layer §8.2, UC-02). The Activity starts phone verification,
@@ -89,6 +101,7 @@ class AuthViewModel @Inject constructor(
     }
 
     fun verificationFailed(e: FirebaseException) {
+        logFailure("Sending the code", e)
         screen = Screen.Phone(
             when (e) {
                 is FirebaseAuthInvalidCredentialsException -> R.string.invalid_phone
@@ -107,6 +120,7 @@ class AuthViewModel @Inject constructor(
             try {
                 auth.signInWithCredential(credential).await()
             } catch (e: FirebaseException) {
+                logFailure("Signing in with the code", e)
                 val wrong = e is FirebaseAuthInvalidCredentialsException
                 screen = Screen.Code(if (wrong) R.string.wrong_code else R.string.unavailable)
                 return@launch

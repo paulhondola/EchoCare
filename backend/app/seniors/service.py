@@ -4,7 +4,17 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, and_, delete, false, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    and_,
+    delete,
+    false,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,7 +95,13 @@ async def senior_summaries(
     the senior is `active`: a withdrawn senior's old code must not read as watched."""
     query = (
         seniors_query(caller, role)
-        .add_columns(SeniorStatus.code, SeniorStatus.reason, SeniorStatus.since)
+        .add_columns(
+            SeniorStatus.code,
+            SeniorStatus.reason,
+            SeniorStatus.since,
+            WatchState.state,
+        )
+        .outerjoin(WatchState, WatchState.senior_id == Senior.id)
         .outerjoin(
             SeniorStatus,
             and_(
@@ -94,15 +110,23 @@ async def senior_summaries(
             ),
         )
     )
-    fields = SeniorSummary.model_fields.keys() - {"code", "reason", "since"}
+    fields = SeniorSummary.model_fields.keys() - {
+        "code",
+        "reason",
+        "since",
+        "watch_state",
+    }
     return [
         SeniorSummary(
             **{name: getattr(senior, name) for name in fields},
             code=code,
             reason=reason,
             since=since,
+            watch_state=watch
+            if sees_watch(caller, senior.id, senior.medic_id)
+            else None,
         )
-        for senior, code, reason, since in await session.execute(query)
+        for senior, code, reason, since, watch in await session.execute(query)
     ]
 
 
@@ -177,6 +201,36 @@ def caregivers_query(senior_id: uuid.UUID) -> Select:
     )
 
 
+async def consent_fields(session: AsyncSession, senior_id: uuid.UUID) -> dict[str, Any]:
+    """`consent`, `consent_given_at` and `signed_at` for GET /seniors/{id} (04 §1, G7).
+    One read of her few consent rows, newest first, without the signature strokes."""
+    rows = (
+        await session.execute(
+            select(Consent.decision, Consent.method, Consent.at)
+            .where(Consent.senior_id == senior_id)
+            .order_by(Consent.at.desc(), Consent.id.desc())
+        )
+    ).all()
+    signature = ConsentMethod.signature
+    decided = next((r for r in rows if r.method != signature), None)
+    given = next(
+        (
+            r
+            for r in rows
+            if r.decision == ConsentDecision.given
+            and r.method in (ConsentMethod.call, ConsentMethod.app)
+        ),
+        None,
+    )
+    signed = next((r for r in rows if r.method == signature), None)
+    return {
+        "consent": decided
+        and {"decision": decided.decision, "method": decided.method, "at": decided.at},
+        "consent_given_at": given and given.at,
+        "signed_at": signed and signed.at,
+    }
+
+
 async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
     medic = await session.get(User, senior.medic_id)
     caregivers = (await session.execute(caregivers_query(senior.id))).mappings()
@@ -193,9 +247,13 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "since",
         "call_in_progress",
         "watch_state",
+        "consent",
+        "consent_given_at",
+        "signed_at",
     }
     return SeniorView(
         **{name: getattr(senior, name) for name in fields},
+        **await consent_fields(session, senior.id),
         **status,
         medic=MedicView.model_validate(medic, from_attributes=True),
         caregivers=[CaregiverView.model_validate(dict(c)) for c in caregivers],
@@ -242,16 +300,21 @@ async def move(
     session: AsyncSession,
     caller: Caller,
     senior: Senior,
-    before: EnrollmentState,
+    before: EnrollmentState | tuple[EnrollmentState, ...],
     after: EnrollmentState,
+    *,
+    values: dict[str, Any] | None = None,
 ) -> None:
-    """`before` -> `after`, only where the senior is still `before`, so of two at once
-    one wins (05 §3's pattern). Already `after` is `already_done`, anything else
+    """`before` (any of them, if a tuple) -> `after`, only where the senior is still
+    there, so of two at once one wins (05 §3's pattern). `values` are more columns set
+    in the same statement. Already `after` is `already_done`, anything else
     `wrong_state`; either way nothing changes (04 §0)."""
+    states = before if isinstance(before, tuple) else (before,)
+    extra = values or {}
     moved = await session.scalar(
         update(Senior)
-        .where(Senior.id == senior.id, Senior.enrollment_state == before)
-        .values(enrollment_state=after)
+        .where(Senior.id == senior.id, Senior.enrollment_state.in_(states))
+        .values(enrollment_state=after, **extra)
         .returning(Senior.id)
     )
     if moved is None:
@@ -260,15 +323,15 @@ async def move(
         log.info("refused %s: user %s, senior %s", reason, caller.user.id, senior.id)
         raise refuse(409, reason)
     await session.commit()
-    await session.refresh(senior, ["enrollment_state"])
+    await session.refresh(senior, ["enrollment_state", *extra])
 
 
 def enrollments_query() -> Select:
-    """GET /enrollments: waiting for DAS, oldest registration first (04 §1)."""
+    """GET /enrollments: waiting for DAS, by submit time (04 §1)."""
     return (
         select(Senior)
         .where(Senior.enrollment_state == EnrollmentState.submitted)
-        .order_by(Senior.created_at, Senior.id)
+        .order_by(Senior.submitted_at.asc().nulls_first(), Senior.created_at, Senior.id)
     )
 
 
@@ -440,7 +503,12 @@ async def submit(
             )
             raise refuse(422, "incomplete", missing=missing)
     await move(
-        session, caller, senior, EnrollmentState.draft, EnrollmentState.submitted
+        session,
+        caller,
+        senior,
+        EnrollmentState.draft,
+        EnrollmentState.submitted,
+        values={"submitted_at": func.now()},
     )
     return SeniorSummary.model_validate(senior, from_attributes=True)
 
@@ -458,7 +526,56 @@ async def accept(
     if then is not None:
         await then(session, senior.id)
     await move(
-        session, caller, senior, EnrollmentState.submitted, EnrollmentState.accepted
+        session,
+        caller,
+        senior,
+        EnrollmentState.submitted,
+        EnrollmentState.accepted,
+        values={"accepted_at": func.now(), "accepted_by": caller.user.id},
+    )
+    return SeniorSummary.model_validate(senior, from_attributes=True)
+
+
+async def call_again(
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    then: Hook,
+    pending: Callable[[AsyncSession, uuid.UUID], Awaitable[bool]],
+) -> SeniorSummary:
+    """Sună din nou: `wrong_number` or `unreachable` -> `accepted`, with a new welcome
+    call queued in the same transaction, by the registering medic (UC-04, 04 §2). The
+    number is not checked: a correct one can come back as `wrong_number`.
+
+    A repeat, `accepted` with a welcome call already queued or live, answers the same
+    and queues nothing (04 §0). `accepted` without one, or any other state, is
+    `wrong_state`. `accepted_at` and `accepted_by` stay: they record DAS's acceptance.
+    """
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state == EnrollmentState.accepted and await pending(
+        session, senior.id
+    ):
+        return SeniorSummary.model_validate(senior, from_attributes=True)
+    if senior.enrollment_state not in (
+        EnrollmentState.wrong_number,
+        EnrollmentState.unreachable,
+    ):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(409, "wrong_state")
+    await then(session, senior.id)
+    # Another live call keeps the welcome call out (`uq_calls_live_senior`, 05 §3):
+    # moved without one, she would wait in `accepted` for a call that never comes
+    if not await pending(session, senior.id):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "wrong_state")
+    await move(
+        session,
+        caller,
+        senior,
+        (EnrollmentState.wrong_number, EnrollmentState.unreachable),
+        EnrollmentState.accepted,
     )
     return SeniorSummary.model_validate(senior, from_attributes=True)
 
@@ -626,16 +743,22 @@ async def record_check_in(
     await session.commit()
 
 
+def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> bool:
+    """Whether the caller looks after this senior, as her registering medic or as a
+    caregiver (UC-12): the rule for the watch state on her page and on the list."""
+    registered = Role.medic in caller.roles and medic_id == caller.user.id
+    caring = any(
+        g.role == Role.caregiver and g.senior_id == senior_id for g in caller.grants
+    )
+    return registered or caring
+
+
 async def watch_state(
     session: AsyncSession, caller: Caller, senior: Senior
 ) -> WatchCondition | None:
     """The watch's state, for who looks after this senior (UC-12): not for DAS or the
     senior herself, whatever else the caller holds elsewhere."""
-    registered = Role.medic in caller.roles and senior.medic_id == caller.user.id
-    caring = any(
-        g.role == Role.caregiver and g.senior_id == senior.id for g in caller.grants
-    )
-    if not registered and not caring:
+    if not sees_watch(caller, senior.id, senior.medic_id):
         return None
     return await session.scalar(
         select(WatchState.state).where(WatchState.senior_id == senior.id)

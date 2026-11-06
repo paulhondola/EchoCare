@@ -106,7 +106,9 @@ async def test_by_name(client, seniors):
 
 async def test_one_row(client, seniors):
     r = await client.get("/api/seniors", headers=signed_in(SENIOR_DRAFT))
-    assert r.json() == [
+    [row] = r.json()
+    assert row.pop("created_at")  # 04 §1; a draft has neither of the other two
+    assert [row] == [
         {
             "id": str(seniors["draft"]),
             "full_name": "draft",
@@ -117,6 +119,9 @@ async def test_one_row(client, seniors):
             "code": None,  # no code until active (Q17)
             "reason": None,
             "since": None,
+            "submitted_at": None,
+            "accepted_at": None,
+            "watch_state": None,
         }
     ]
 

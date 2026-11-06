@@ -2,7 +2,6 @@ package ro.echocare.home
 
 import kotlinx.serialization.Serializable
 import ro.echocare.R
-import ro.echocare.SeniorRow
 import ro.echocare.ui.Tone
 
 // The destinations of the signed-in app (seniors §8.2), as type-safe routes.
@@ -10,6 +9,18 @@ import ro.echocare.ui.Tone
 /** The seniors the caller reaches as [role]: the medic's and the caregiver's home. */
 @Serializable
 data class SeniorsRoute(val role: String)
+
+/** The medic's home: the Monitorizare and Înregistrare tiles (UC-12, UC-01). */
+@Serializable
+data object MedicHomeRoute
+
+/** Monitorizare: the medic's patients by group (UC-12, 03 §7). */
+@Serializable
+data object MonitorRoute
+
+/** Înregistrare: „Pacient nou” and the unfinished drafts (UC-01). */
+@Serializable
+data object RegisterRoute
 
 /** One senior's page. */
 @Serializable
@@ -37,15 +48,10 @@ data class EnrollRoute(val id: String? = null)
 
 /** Where [role] lands after sign-in. [role] is one of auth.ROLES. */
 fun homeFor(role: String): Any = when (role) {
-    "medic", "caregiver" -> SeniorsRoute(role)
+    "medic" -> MedicHomeRoute
+    "caregiver" -> SeniorsRoute(role)
     "senior" -> OwnRoute
     else -> IncidentsRoute
-}
-
-/** A card opens the senior's page, except a medic's draft, which opens the form (seniors §9.1). */
-fun openFor(role: String, senior: SeniorRow): Any = when {
-    role == "medic" && senior.state == "draft" -> EnrollRoute(senior.id)
-    else -> SeniorRoute(senior.id)
 }
 
 /**
@@ -55,9 +61,6 @@ fun openFor(role: String, senior: SeniorRow): Any = when {
  */
 fun alertRoute(seniorId: String, incidentId: String?, role: String): Any =
     incidentId?.takeIf { role == "das" }?.let(::IncidentRoute) ?: SeniorRoute(seniorId)
-
-/** „Editează” shows while the medic may still edit: PUT refuses past `submitted` (04 §2). */
-fun editable(state: String) = state == "draft" || state == "submitted"
 
 /**
  * The label of each enrollment state (05 §1). A state this build does not know has none and
@@ -70,7 +73,8 @@ val STATE_LABELS = mapOf(
     "active" to R.string.state_active,
     "refused" to R.string.state_refused,
     "wrong_number" to R.string.state_wrong_number,
-    "unreachable" to R.string.state_unreachable
+    "unreachable" to R.string.state_unreachable,
+    "withdrawn" to R.string.state_withdrawn
 )
 
 /** The colour of each state's chip, the same as on the dashboard (dashboard/src/utils/labels.ts). */
@@ -81,7 +85,8 @@ val STATE_TONES = mapOf(
     "active" to Tone.Verde,
     "refused" to Tone.Galben,
     "wrong_number" to Tone.Galben,
-    "unreachable" to Tone.Galben
+    "unreachable" to Tone.Galben,
+    "withdrawn" to Tone.Muted
 )
 
 /**
@@ -99,6 +104,27 @@ val CODE_TONES = mapOf(
     "green" to Tone.Verde,
     "yellow" to Tone.Galben,
     "red" to Tone.Rosu
+)
+
+/** A transcript answer's question (05 §2) under the medic's transcript. Unknown: shown raw. */
+val ANSWER_FIELDS = mapOf(
+    "feeling" to R.string.answer_feeling,
+    "orientation" to R.string.answer_orientation,
+    "shelter" to R.string.answer_shelter,
+    "identity" to R.string.answer_identity,
+    "consent" to R.string.consent_label
+)
+
+/**
+ * A transcript answer's value (03 §3): the codes in Romanian. The days are Romanian already;
+ * a value this build does not know shows raw.
+ */
+val ANSWER_VALUES = mapOf(
+    "ok" to R.string.answer_ok,
+    "unwell" to R.string.answer_unwell,
+    "yes" to R.string.answer_yes,
+    "no" to R.string.answer_no,
+    "unknown" to R.string.answer_unknown
 )
 
 /** What started each call (05 §1), as the dashboard names it. Unknown: shown as it is. */

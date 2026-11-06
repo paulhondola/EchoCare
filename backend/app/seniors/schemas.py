@@ -141,6 +141,16 @@ class CaregiverEditForm(BaseModel):
 
 MAX_SIGNATURE_POINTS = 5000
 
+# The text signed on the medic's tablet: the welcome card's wording, closing on the
+# signature instead of the question (G7, 04 §2). The app carries a copy; a change to
+# either is a new version, which the server must learn before it accepts it.
+SIGNATURE_CONSENT_VERSION = "v1-semnatura"
+SIGNATURE_CONSENT_TEXT = (
+    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Semnând mai jos, sunteți de acord."
+)
+
 # A point on the signature pad, as a share of its width and height.
 Coordinate = Annotated[float, Field(ge=0, le=1)]
 
@@ -153,6 +163,13 @@ class SignatureForm(BaseModel):
         list[Annotated[list[tuple[Coordinate, Coordinate]], Field(min_length=1)]],
         Field(min_length=1),
     ]
+
+    @field_validator("text_version")
+    @classmethod
+    def known_version(cls, version: str) -> str:
+        if version != SIGNATURE_CONSENT_VERSION:
+            raise ValueError(f"unknown consent text version {version!r}")
+        return version
 
     @model_validator(mode="after")
     def not_too_many_points(self) -> Self:
@@ -175,6 +192,12 @@ class SeniorSummary(BaseModel):
     code: Code | None = None
     reason: str | None = None
     since: datetime | None = None
+    created_at: datetime | None = None
+    submitted_at: datetime | None = None
+    accepted_at: datetime | None = None
+    # For her medic and caregivers only, null for anyone else and before the first
+    # check-in (UC-12, 04 §1). Answers that build a row without the join leave it null.
+    watch_state: WatchCondition | None = None
 
 
 class CaregiverView(CaregiverSummary):
@@ -188,6 +211,14 @@ class MedicView(BaseModel):
     practice: str | None
 
 
+class ConsentView(BaseModel):
+    """The latest consent decision off the signature (04 §1, G7)."""
+
+    decision: State
+    method: State
+    at: datetime
+
+
 class SeniorView(SeniorDetail):
     """GET /seniors/{id} (04 §1): registration, address, medic and caregivers. One
     shape for every role (seniors SE7)."""
@@ -197,6 +228,15 @@ class SeniorView(SeniorDetail):
     code: Code | None = None
     reason: str | None = None
     since: datetime | None = None
+    created_at: datetime | None = None
+    submitted_at: datetime | None = None
+    accepted_at: datetime | None = None
+    # Set on every answer `senior_view` builds: GET, POST and PUT /seniors (04 §1).
+    # A signature is not a decision: it only sets `signed_at`, so `consent` stays
+    # null until the welcome call (G7).
+    consent: ConsentView | None = None
+    consent_given_at: datetime | None = None
+    signed_at: datetime | None = None
     # True while one of her calls rings or is live, for the badge (UC-12). Set by
     # GET /seniors/{id} only; null on the other answers that carry the senior.
     call_in_progress: bool | None = None

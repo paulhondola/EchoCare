@@ -252,10 +252,12 @@ There are no pairing codes typed by the medic and no device tokens, as for the w
 |---|---|
 | Identity 1, consent 1 | Consent given, senior `active`, code green |
 | Identity 1, consent 2 | Consent refused, senior `refused`; the medic sees it |
-| Identity 1, consent unclear twice | One more welcome call later; if still unclear, `unreachable` and the medic follows up in person |
-| Identity 2 (not available now) | One more welcome call after the redial delay; if the second ends the same way, `unreachable` |
-| Identity 3 (wrong number) | Senior `wrong_number`; the medic corrects the number and presses "Sună din nou" |
-| Not answered, or silent twice, or hung up partway through | One redial; if still unanswered, `unreachable` |
+| Identity 1, consent unclear twice | One more welcome call later; if still unclear, `unreachable`: the medic follows up in person, or presses „Sună din nou” |
+| Identity 2 (not available now) | One more welcome call after the redial delay; if the second ends the same way, `unreachable`, as above |
+| Identity 3 (wrong number) | Senior `wrong_number`; the medic checks the number, corrects it if needed, and presses „Sună din nou” |
+| Not answered, or silent twice, or hung up partway through | One redial; if still unanswered, `unreachable`, as above |
+
+„Sună din nou” ([04-interfaces.md](04-interfaces.md) section 2) works from `wrong_number` and `unreachable`: the senior goes back to `accepted`, a new welcome call is queued and the retries start over. The number is not checked, so a correct number can come back `wrong_number` again.
 
 The call is a fixed script whose answers are keys or short spoken words (G7). If a dedicated agent runs it instead, the server still records consent only on key 1 or an exact „da” / „sunt de acord” in the transcript.
 
