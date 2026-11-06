@@ -270,6 +270,12 @@
     <string name="answer_shelter">Adăpost</string>
     <string name="answer_identity">Identitate</string>
     <string name="answer_unclear">neclar</string>
+    <string name="answer_ok">bine</string>
+    <string name="answer_unwell">rău</string>
+    <string name="answer_yes">da</string>
+    <string name="answer_no">nu</string>
+    <string name="answer_unknown">nu știe</string>
+    <string name="not_accepted">Serverul nu a acceptat datele. Citiți pagina din nou și reîncercați.</string>
     <string name="answer_quote">„%1$s”</string>
     <string name="signed_on_tablet">Semnat pe tabletă · %1$s</string>
     <string name="consent_label">Consimțământ</string>

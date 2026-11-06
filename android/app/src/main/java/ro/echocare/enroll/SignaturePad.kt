@@ -17,6 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,8 +42,8 @@ import ro.echocare.ui.theme.Palette
 
 /**
  * The consent text and a pad to sign it on (G7, UC-01 step 5). Once [signedAt] is set, the date
- * stands in for the pad. The drawing stays until „Șterge", so a save that failed can be pressed
- * again; [onSave] gets the strokes and the pad's size in pixels.
+ * stands in for the pad. The drawing stays until „Șterge", a rotation included, so a save that
+ * failed can be pressed again; [onSave] gets the strokes and the size they are measured in.
  */
 @Composable
 fun ConsentSection(
@@ -77,7 +79,10 @@ fun ConsentSection(
 
 @Composable
 private fun Pad(busy: Boolean, onSave: (List<List<Point>>, Float, Float) -> Unit) {
-    var strokes by remember { mutableStateOf(emptyList<List<Point>>()) }
+    // As shares of the pad, so a rotation that resizes it keeps the drawing in its saved state
+    var strokes by rememberSaveable(stateSaver = StrokesSaver) {
+        mutableStateOf(emptyList<List<Point>>())
+    }
     var size by remember { mutableStateOf(Offset(1f, 1f)) }
     val dashed = PathEffect.dashPathEffect(floatArrayOf(16f, 10f))
     Box(
@@ -90,11 +95,11 @@ private fun Pad(busy: Boolean, onSave: (List<List<Point>>, Float, Float) -> Unit
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     // The first point is kept even when the finger never moves: a tap is a dot
-                    var stroke = listOf(Point(down.position.x, down.position.y))
+                    var stroke = listOf(share(down.position, size))
                     strokes = strokes + listOf(stroke)
                     down.consume()
                     drag(down.id) { change ->
-                        stroke = stroke + Point(change.position.x, change.position.y)
+                        stroke = stroke + share(change.position, size)
                         strokes = strokes.dropLast(1) + listOf(stroke)
                         change.consume()
                     }
@@ -108,12 +113,13 @@ private fun Pad(busy: Boolean, onSave: (List<List<Point>>, Float, Float) -> Unit
                 style = Stroke(width = 2.dp.toPx(), pathEffect = dashed)
             )
             strokes.forEach { stroke ->
+                val first = Offset(stroke[0].x * size.x, stroke[0].y * size.y)
                 if (stroke.size == 1) {
-                    drawCircle(Palette.Fg, 1.5.dp.toPx(), Offset(stroke[0].x, stroke[0].y))
+                    drawCircle(Palette.Fg, 1.5.dp.toPx(), first)
                 } else {
                     val path = Path().apply {
-                        moveTo(stroke[0].x, stroke[0].y)
-                        stroke.drop(1).forEach { lineTo(it.x, it.y) }
+                        moveTo(first.x, first.y)
+                        stroke.drop(1).forEach { lineTo(it.x * size.x, it.y * size.y) }
                     }
                     drawPath(
                         path,
@@ -143,9 +149,22 @@ private fun Pad(busy: Boolean, onSave: (List<List<Point>>, Float, Float) -> Unit
         )
         SnButton(
             stringResource(R.string.save_signature),
-            { onSave(strokes, size.x, size.y) },
+            // Already shares: a pad of 1 by 1
+            { onSave(strokes, 1f, 1f) },
             kind = Kind.Success,
             enabled = strokes.isNotEmpty() && !busy
         )
     }
 }
+
+private fun share(at: Offset, size: Offset) = Point(at.x / size.x, at.y / size.y)
+
+/** Saved as one FloatArray per stroke, x and y in turn. */
+private val StrokesSaver = listSaver<List<List<Point>>, FloatArray>(
+    save = { strokes ->
+        strokes.map { stroke -> stroke.flatMap { listOf(it.x, it.y) }.toFloatArray() }
+    },
+    restore = { saved ->
+        saved.map { xy -> List(xy.size / 2) { i -> Point(xy[2 * i], xy[2 * i + 1]) } }
+    }
+)

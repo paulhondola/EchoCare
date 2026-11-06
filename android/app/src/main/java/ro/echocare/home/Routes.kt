@@ -2,7 +2,6 @@ package ro.echocare.home
 
 import kotlinx.serialization.Serializable
 import ro.echocare.R
-import ro.echocare.SeniorRow
 import ro.echocare.ui.Tone
 
 // The destinations of the signed-in app (seniors §8.2), as type-safe routes.
@@ -53,12 +52,6 @@ fun homeFor(role: String): Any = when (role) {
     "caregiver" -> SeniorsRoute(role)
     "senior" -> OwnRoute
     else -> IncidentsRoute
-}
-
-/** A card opens the senior's page, except a medic's draft, which opens the form (seniors §9.1). */
-fun openFor(role: String, senior: SeniorRow): Any = when {
-    role == "medic" && senior.state == "draft" -> EnrollRoute(senior.id)
-    else -> SeniorRoute(senior.id)
 }
 
 /**
@@ -113,7 +106,6 @@ val CODE_TONES = mapOf(
     "red" to Tone.Rosu
 )
 
-/** What started each call (05 §1), as the dashboard names it. Unknown: shown as it is. */
 /** A transcript answer's question (05 §2) under the medic's transcript. Unknown: shown raw. */
 val ANSWER_FIELDS = mapOf(
     "feeling" to R.string.answer_feeling,
@@ -123,6 +115,19 @@ val ANSWER_FIELDS = mapOf(
     "consent" to R.string.consent_label
 )
 
+/**
+ * A transcript answer's value (03 §3): the codes in Romanian. The days are Romanian already;
+ * a value this build does not know shows raw.
+ */
+val ANSWER_VALUES = mapOf(
+    "ok" to R.string.answer_ok,
+    "unwell" to R.string.answer_unwell,
+    "yes" to R.string.answer_yes,
+    "no" to R.string.answer_no,
+    "unknown" to R.string.answer_unknown
+)
+
+/** What started each call (05 §1), as the dashboard names it. Unknown: shown as it is. */
 val TRIGGER_LABELS = mapOf(
     "campaign" to R.string.trigger_campaign,
     "watch" to R.string.trigger_watch,

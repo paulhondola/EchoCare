@@ -57,6 +57,13 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     var transcripts by mutableStateOf<Map<String, Load<IncidentCall>>>(emptyMap())
         private set
 
+    /**
+     * The medic's list read and this senior is not on it: someone she reaches by another grant,
+     * such as a caregiver's, opened from an alert. Her page then shows no medic panel (UC-12).
+     */
+    var notHers by mutableStateOf(false)
+        private set
+
     private var reading: Job? = null
 
     /** The number on the page when „Editează datele” was pressed, until a reread shows another. */
@@ -106,6 +113,15 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
             if (answerSettled(sent?.code())) {
                 mock = null
                 reread(null)
+            }
+        }
+    }
+
+    /** Sets [notHers] once the medic's list says [id] is not one of her patients. */
+    fun checkHers(id: String) {
+        viewModelScope.launch {
+            (answer { api.seniors("medic") } as? Answer.Ok)?.let { rows ->
+                notHers = rows.value.none { it.id == id }
             }
         }
     }
@@ -165,6 +181,9 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
                 numberChanged = false
                 reread(id)
                 onChanged()
+                // Busy until the page shows the answer: a second tap on the old page would
+                // post a second signature or withdraw again
+                reading?.join()
             }
             busy = false
         }
@@ -174,7 +193,7 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     private fun noteNumber(senior: SeniorPage) {
         phoneBeforeEdit?.let { before ->
             if (senior.phone != before) {
-                numberChanged = ro.echocare.home.numberChanged(before, senior)
+                numberChanged = isNewNumberToCall(before, senior)
                 phoneBeforeEdit = null
             }
         }

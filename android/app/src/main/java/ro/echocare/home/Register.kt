@@ -22,7 +22,7 @@ import ro.echocare.ui.SnButton
 /** The unfinished enrollments, the newest first; one with no readable `createdAt` goes last (UC-01). */
 fun draftsNewestFirst(rows: List<SeniorRow>): List<SeniorRow> =
     rows.filter { it.state == "draft" }.sortedByDescending {
-        it.createdAt?.let { t -> runCatching { Instant.parse(t) }.getOrNull() } ?: Instant.MIN
+        instantOf(it.createdAt) ?: Instant.MIN
     }
 
 /**

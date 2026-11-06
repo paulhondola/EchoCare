@@ -19,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -90,6 +91,8 @@ fun PatientPane(
     vm: SeniorViewModel = hiltViewModel(key = id)
 ) {
     RereadWhileShown { vm.reread(id) }
+    // An alert can open a senior she only cares for: her panel is for her own patients
+    if (id != null && onEdit != null) LaunchedEffect(id) { vm.checkHers(id) }
     // „Retragere consimțământ” asks first; „Semnătură” opens the consent text under the actions
     var withdrawing by rememberSaveable { mutableStateOf(false) }
     var signing by rememberSaveable { mutableStateOf(false) }
@@ -98,7 +101,7 @@ fun PatientPane(
         if (id == null && vm.warning) {
             Banner(stringResource(R.string.warning_active), Tone.Galben)
         }
-        val medic = if (id != null) onEdit else null
+        val medic = if (id != null && !vm.notHers) onEdit else null
         if (medic != null) CommandBanners(vm.notice, vm.numberChanged)
         Column(
             Modifier
@@ -123,10 +126,10 @@ fun PatientPane(
                             busy = vm.busy,
                             onAction = { action ->
                                 when (action) {
-                                    Action.CallAgain -> vm.callAgain(senior.id, onChanged)
-                                    Action.Withdraw -> withdrawing = true
-                                    Action.Sign -> signing = !signing
-                                    Action.Edit -> {
+                                    PatientAction.CallAgain -> vm.callAgain(senior.id, onChanged)
+                                    PatientAction.Withdraw -> withdrawing = true
+                                    PatientAction.Sign -> signing = !signing
+                                    PatientAction.Edit -> {
                                         vm.editing()
                                         edit(senior.id)
                                     }
@@ -176,7 +179,12 @@ private fun CommandBanners(notice: CommandOutcome?, numberChanged: Boolean) {
     when (notice) {
         is CommandOutcome.Refused -> Banner(
             stringResource(
-                if (notice.reason == null) R.string.not_allowed_action else R.string.changed_state
+                when (notice.reason) {
+                    null -> R.string.not_allowed_action
+                    "not_found" -> R.string.not_found
+                    "invalid" -> R.string.not_accepted
+                    else -> R.string.changed_state
+                }
             ),
             Tone.Galben
         )
@@ -257,7 +265,11 @@ private fun ConsentLine(senior: SeniorPage) {
 
 /** The actions of the senior's state, all in sight (UC-12, design "The patient"). */
 @Composable
-private fun Actions(actions: List<Action>, busy: Boolean, onAction: (Action) -> Unit) {
+private fun Actions(
+    actions: List<PatientAction>,
+    busy: Boolean,
+    onAction: (PatientAction) -> Unit
+) {
     if (actions.isEmpty()) return
     FlowRow(
         Modifier
@@ -269,23 +281,25 @@ private fun Actions(actions: List<Action>, busy: Boolean, onAction: (Action) -> 
         actions.forEach { action ->
             when (action) {
                 // At once, no confirmation (UC-04)
-                Action.CallAgain -> SnButton(
+                PatientAction.CallAgain -> SnButton(
                     stringResource(R.string.call_again),
                     { onAction(action) },
                     kind = Kind.Success,
                     enabled = !busy
                 )
 
-                Action.Withdraw -> SnButton(
+                PatientAction.Withdraw -> SnButton(
                     stringResource(R.string.withdraw),
                     { onAction(action) },
                     kind = Kind.Danger,
                     enabled = !busy
                 )
 
-                Action.Sign -> SnButton(stringResource(R.string.sign), { onAction(action) })
+                PatientAction.Sign -> SnButton(stringResource(R.string.sign), { onAction(action) })
 
-                Action.Edit -> SnButton(stringResource(R.string.edit_data), { onAction(action) })
+                PatientAction.Edit -> SnButton(stringResource(R.string.edit_data), {
+                    onAction(action)
+                })
             }
         }
     }
@@ -552,7 +566,7 @@ private fun TranscriptOf(read: Load<IncidentCall>) {
 
 /**
  * What the call heard, under its transcript, one line per answer (04 §1):
- * Stare: unwell · neclar · „Rău”.
+ * Stare: rău · neclar · „Rău”.
  */
 @Composable
 private fun Answers(answers: List<CallAnswer>) {
@@ -560,8 +574,9 @@ private fun Answers(answers: List<CallAnswer>) {
     SectionLabel(stringResource(R.string.answers), Modifier.padding(top = 4.dp))
     answers.forEach { answer ->
         val field = ANSWER_FIELDS[answer.field]?.let { stringResource(it) } ?: answer.field
+        val value = ANSWER_VALUES[answer.value]?.let { stringResource(it) } ?: answer.value
         val parts = listOfNotNull(
-            "$field: ${answer.value}",
+            "$field: $value",
             if (answer.clear) null else stringResource(R.string.answer_unclear),
             answer.quote.takeIf { it.isNotBlank() }?.let {
                 stringResource(R.string.answer_quote, it)

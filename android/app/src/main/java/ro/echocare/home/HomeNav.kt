@@ -87,9 +87,8 @@ fun HomeNav(
                 }
                 composable<SeniorsRoute> {
                     SeniorsScreen(
-                        title = R.string.caregiver_home,
                         menu = menu,
-                        onOpen = { nav.navigate(openFor(home.role, it)) },
+                        onOpen = { nav.navigate(SeniorRoute(it.id)) },
                         onSessionEnd = onSessionEnd
                     )
                 }

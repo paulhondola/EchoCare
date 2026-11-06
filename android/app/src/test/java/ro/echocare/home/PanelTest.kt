@@ -117,14 +117,14 @@ class PanelTest {
     @Test
     fun `actions by state`() {
         val table = mapOf(
-            "wrong_number" to listOf(Action.CallAgain, Action.Edit),
-            "unreachable" to listOf(Action.CallAgain, Action.Edit),
-            "active" to listOf(Action.Withdraw, Action.Edit),
-            "submitted" to listOf(Action.Sign, Action.Edit),
-            "accepted" to listOf(Action.Sign, Action.Edit),
-            "refused" to listOf(Action.Edit),
-            "withdrawn" to listOf(Action.Edit),
-            "paused" to listOf(Action.Edit),
+            "wrong_number" to listOf(PatientAction.CallAgain, PatientAction.Edit),
+            "unreachable" to listOf(PatientAction.CallAgain, PatientAction.Edit),
+            "active" to listOf(PatientAction.Withdraw, PatientAction.Edit),
+            "submitted" to listOf(PatientAction.Sign, PatientAction.Edit),
+            "accepted" to listOf(PatientAction.Sign, PatientAction.Edit),
+            "refused" to listOf(PatientAction.Edit),
+            "withdrawn" to listOf(PatientAction.Edit),
+            "paused" to listOf(PatientAction.Edit),
             "draft" to emptyList()
         )
         for ((state, expected) in table) assertEquals(state, expected, actionsFor(page(state)))
@@ -134,7 +134,7 @@ class PanelTest {
     fun `sign is gone once signed`() {
         val signed = page("accepted", signedAt = "2026-11-04T09:00:00Z")
         assertFalse(signable(signed))
-        assertEquals(listOf(Action.Edit), actionsFor(signed))
+        assertEquals(listOf(PatientAction.Edit), actionsFor(signed))
         assertTrue(signable(page("draft")))
         assertFalse(signable(page("active")))
     }

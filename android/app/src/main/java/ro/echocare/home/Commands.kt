@@ -1,11 +1,10 @@
 package ro.echocare.home
 
-import java.io.IOException
-import kotlinx.serialization.SerializationException
-import retrofit2.HttpException
 import ro.echocare.SeniorPage
 import ro.echocare.enroll.Refusal
+import ro.echocare.enroll.Sent
 import ro.echocare.enroll.refusalOf
+import ro.echocare.enroll.send
 
 // The medic's commands on her patient, „Sună din nou” and the withdrawal (UC-04, UC-12, 04 §2),
 // and what each answer means for the page. Pure, tested on the JVM.
@@ -17,7 +16,10 @@ import ro.echocare.enroll.refusalOf
 sealed interface CommandOutcome {
     data object Done : CommandOutcome
 
-    /** The server said no; [reason] is a 409's reason, null for a 403, 404 or 422. */
+    /**
+     * The server said no; [reason] is a 409's reason, "not_found" for a 404, "invalid" for a 422,
+     * null for a 403 or anything else.
+     */
     data class Refused(val reason: String?) : CommandOutcome
 
     /** No answer, or a 5xx: nothing is known to have changed (seniors §8.2). */
@@ -25,33 +27,35 @@ sealed interface CommandOutcome {
 }
 
 /** The outcome of HTTP [status] with [body]; a null status is no answer at all. */
-fun commandOutcome(status: Int?, body: String?): CommandOutcome {
-    if (status != null && status in 200..299) return CommandOutcome.Done
-    return when (val refusal = refusalOf(status, body)) {
-        // refusalOf reads wrong_state and a 409 reason this build does not know alike
-        Refusal.WrongState -> CommandOutcome.Refused("wrong_state")
-        is Refusal.AlreadyDone -> CommandOutcome.Refused("already_done")
-        Refusal.PhoneTaken -> CommandOutcome.Refused("phone_taken")
-        is Refusal.Failed -> if (refusal.failure == Failure.NoConnection) {
-            CommandOutcome.Offline
-        } else {
-            CommandOutcome.Refused(null)
-        }
-        is Refusal.Invalid, is Refusal.Incomplete -> CommandOutcome.Refused(null)
-    }
+fun commandOutcome(status: Int?, body: String?): CommandOutcome = if (status != null &&
+    status in 200..299
+) {
+    CommandOutcome.Done
+} else {
+    outcomeOf(refusalOf(status, body))
 }
 
-/** Runs [call]: a refusal's status and body, or a lost connection, become their outcome. */
-suspend fun command(call: suspend () -> Unit): CommandOutcome = try {
-    call()
-    CommandOutcome.Done
-} catch (e: HttpException) {
-    commandOutcome(e.code(), e.response()?.errorBody()?.string())
-} catch (e: IOException) {
-    commandOutcome(null, null)
-} catch (e: SerializationException) {
-    // The command went through; only its answer did not read. The reread shows where it stands.
-    CommandOutcome.Done
+/** What [refusal] means for the page, as [send] reads it for the form (seniors §9.3). */
+private fun outcomeOf(refusal: Refusal): CommandOutcome = when (refusal) {
+    // refusalOf reads wrong_state and a 409 reason this build does not know alike
+    Refusal.WrongState -> CommandOutcome.Refused("wrong_state")
+    is Refusal.AlreadyDone -> CommandOutcome.Refused("already_done")
+    Refusal.PhoneTaken -> CommandOutcome.Refused("phone_taken")
+    is Refusal.Failed -> when (refusal.failure) {
+        Failure.NoConnection -> CommandOutcome.Offline
+        Failure.NotFound -> CommandOutcome.Refused("not_found")
+        else -> CommandOutcome.Refused(null)
+    }
+    is Refusal.Invalid, is Refusal.Incomplete -> CommandOutcome.Refused("invalid")
+}
+
+/**
+ * Runs [call] through the form's [send], so both read an answer alike: an unreadable body is
+ * no connection, and the timed reread shows where the senior stands.
+ */
+suspend fun command(call: suspend () -> Unit): CommandOutcome = when (val sent = send(call)) {
+    is Sent.Ok -> CommandOutcome.Done
+    is Sent.No -> outcomeOf(sent.refusal)
 }
 
 /**
@@ -66,7 +70,7 @@ fun noticeAfterRead(notice: CommandOutcome?): CommandOutcome? =
  * (04 §2), so the page says to press „Sună din nou”. [before] is the number the page showed
  * when „Editează datele” was pressed.
  */
-fun numberChanged(before: String, now: SeniorPage): Boolean =
+fun isNewNumberToCall(before: String, now: SeniorPage): Boolean =
     now.phone != before && now.state in TO_RESOLVE
 
 private val TO_RESOLVE = setOf("wrong_number", "unreachable")

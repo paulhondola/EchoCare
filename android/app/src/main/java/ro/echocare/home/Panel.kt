@@ -10,8 +10,8 @@ import ro.echocare.SeniorPage
 import ro.echocare.SeniorRow
 
 // The medic's panel: the groups of her patients, the actions on one, and the enrollment stages
-// (UC-12, 03 §7, UC-04). Plain Kotlin, tested on the JVM. Group and Action are built here from
-// the API's strings, never decoded: a state or code this build does not know must not crash.
+// (UC-12, 03 §7, UC-04). Plain Kotlin, tested on the JVM. Group and PatientAction are built here
+// from the API's strings, never decoded: a state or code this build does not know must not crash.
 
 enum class Group(@StringRes val title: Int) {
     Urgent(R.string.group_urgent),
@@ -32,7 +32,7 @@ fun groupOf(row: SeniorRow): Group? = when (row.state) {
     else -> Group.Inactive
 }
 
-private fun instantOf(text: String?): Instant? =
+internal fun instantOf(text: String?): Instant? =
     text?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
 // Red before yellow, then the longest-waiting first; no `since` last.
@@ -69,7 +69,7 @@ fun countsOf(rows: List<SeniorRow>): Counts = Counts(
     drafts = rows.count { it.state == "draft" }
 )
 
-enum class Action { CallAgain, Withdraw, Sign, Edit }
+enum class PatientAction { CallAgain, Withdraw, Sign, Edit }
 
 // The consent text and its signature belong before the welcome call: until acceptance, signed
 // or not, so a saved signature shows „Semnat” in its place (G7, UC-01 step 5, UC-04).
@@ -86,19 +86,19 @@ fun says(state: String): Int? = when (state) {
 }
 
 // The actions on the medic's own patient.
-fun actionsFor(page: SeniorPage): List<Action> = when (page.state) {
+fun actionsFor(page: SeniorPage): List<PatientAction> = when (page.state) {
     "draft" -> emptyList()
-    "wrong_number", "unreachable" -> listOf(Action.CallAgain, Action.Edit)
-    "active" -> listOf(Action.Withdraw, Action.Edit)
+    "wrong_number", "unreachable" -> listOf(PatientAction.CallAgain, PatientAction.Edit)
+    "active" -> listOf(PatientAction.Withdraw, PatientAction.Edit)
     "submitted", "accepted" -> if (signable(
             page
         )
     ) {
-        listOf(Action.Sign, Action.Edit)
+        listOf(PatientAction.Sign, PatientAction.Edit)
     } else {
-        listOf(Action.Edit)
+        listOf(PatientAction.Edit)
     }
-    else -> listOf(Action.Edit)
+    else -> listOf(PatientAction.Edit)
 }
 
 data class Stage(@StringRes val label: Int, val at: String?, val reached: Boolean)

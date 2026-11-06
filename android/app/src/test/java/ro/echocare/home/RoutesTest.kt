@@ -97,17 +97,6 @@ class RoutesTest {
         assertEquals(Tone.Galben, STATE_TONES["unreachable"])
     }
 
-    private fun row(state: String) =
-        SeniorRow("s1", "Maria Popescu", "doamna Maria", "+40256123456", true, state)
-
-    @Test
-    fun aMedicsDraftOpensTheFormAndAnythingElseThePage() {
-        // seniors §9.1: the form, at step 1, filled from GET seniors/{id}.
-        assertEquals(EnrollRoute("s1"), openFor("medic", row("draft")))
-        assertEquals(SeniorRoute("s1"), openFor("medic", row("submitted")))
-        assertEquals(SeniorRoute("s1"), openFor("caregiver", row("draft")))
-    }
-
     @Test
     fun withdrawnHasALabel() {
         // 05 §1: a withdrawn consent is a state of its own.

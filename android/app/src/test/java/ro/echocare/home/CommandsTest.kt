@@ -41,11 +41,15 @@ class CommandsTest {
     }
 
     @Test
-    fun `403 and 404 are refused without a reason`() {
+    fun `403 is refused without a reason, 404 and 422 with their own`() {
         assertEquals(CommandOutcome.Refused(null), commandOutcome(403, null))
         assertEquals(
-            CommandOutcome.Refused(null),
+            CommandOutcome.Refused("not_found"),
             commandOutcome(404, """{"detail":{"reason":"not_found"}}""")
+        )
+        assertEquals(
+            CommandOutcome.Refused("invalid"),
+            commandOutcome(422, """{"detail":[{"loc":["body","text_version"]}]}""")
         )
     }
 
@@ -71,13 +75,13 @@ class CommandsTest {
 
     @Test
     fun `a new number on a senior to resolve is a changed number`() {
-        assertTrue(numberChanged("+40700000001", page("wrong_number", "+40700000002")))
-        assertTrue(numberChanged("+40700000001", page("unreachable", "+40700000002")))
+        assertTrue(isNewNumberToCall("+40700000001", page("wrong_number", "+40700000002")))
+        assertTrue(isNewNumberToCall("+40700000001", page("unreachable", "+40700000002")))
     }
 
     @Test
     fun `the same number, or a senior not to resolve, is not`() {
-        assertFalse(numberChanged("+40700000001", page("unreachable", "+40700000001")))
-        assertFalse(numberChanged("+40700000001", page("active", "+40700000002")))
+        assertFalse(isNewNumberToCall("+40700000001", page("unreachable", "+40700000001")))
+        assertFalse(isNewNumberToCall("+40700000001", page("active", "+40700000002")))
     }
 }

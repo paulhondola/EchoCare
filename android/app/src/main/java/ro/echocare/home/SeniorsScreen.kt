@@ -1,6 +1,5 @@
 package ro.echocare.home
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,19 +36,18 @@ import ro.echocare.ui.Tone
 import ro.echocare.ui.theme.Palette
 
 /**
- * The medic's and the caregiver's home: their seniors as cards (seniors §8.2, SE20). The medic
+ * The caregiver's home: their seniors as cards (seniors §8.2, SE20). The medic
  * has their own home now (MedicHome.kt, UC-12).
  */
 @Composable
 fun SeniorsScreen(
-    @StringRes title: Int,
     menu: @Composable () -> Unit,
     onOpen: (SeniorRow) -> Unit,
     onSessionEnd: (Failure) -> Unit,
     vm: SeniorsViewModel = hiltViewModel()
 ) {
     RereadWhileShown(vm::reread)
-    HomeScaffold(stringResource(title), onBack = null, menu = menu) {
+    HomeScaffold(stringResource(R.string.caregiver_home), onBack = null, menu = menu) {
         LoadBody(vm.seniors, onRetry = vm::reread, onSessionEnd = onSessionEnd) { seniors ->
             // The caregiver's alerts (04 §6), asked for where they land
             NotificationsPrompt()
