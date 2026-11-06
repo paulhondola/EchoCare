@@ -253,11 +253,9 @@ async def test_submit_and_accept_stamp_their_times(client, db, staff):  # 05 §1
     before = datetime.now(UTC)
     row = (await submit(client, maria)).json()
     assert row["accepted_at"] is None
-    assert (
-        timedelta(0)
-        <= datetime.fromisoformat(row["submitted_at"]) - before
-        < timedelta(seconds=5)
-    )
+    # Postgres's clock, not ours: a Docker VM may run a little behind the host
+    stamped = datetime.fromisoformat(row["submitted_at"])
+    assert abs(stamped - before) < timedelta(seconds=5)
     row = (await accept(client, maria)).json()
     senior = await db.get(Senior, uuid.UUID(maria))
     await db.refresh(senior)

@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy import func, select, update
 
 from app.models import Call, CallTrigger, Consent, EnrollmentState, Role, Senior
+from app.seniors.schemas import SIGNATURE_CONSENT_TEXT, SIGNATURE_CONSENT_VERSION
 from app.status.engine import Severity
 from app.voice.calls import CallState
-from app.voice.dialogue import SIGNATURE_CONSENT_TEXT, SIGNATURE_CONSENT_VERSION
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -68,7 +68,9 @@ def withdraw(client, senior_id, token=MEDIC):
 def sign(client, senior_id, body=None, token=MEDIC, headers=None):
     return client.post(
         f"/api/seniors/{senior_id}/signature",
-        json={"text_version": "v1", "strokes": STROKES} if body is None else body,
+        json={"text_version": SIGNATURE_CONSENT_VERSION, "strokes": STROKES}
+        if body is None
+        else body,
         headers=signed_in(token) if headers is None else headers,
     )
 
@@ -212,7 +214,18 @@ async def test_no_signature_once_active(client, db, staff):
 )
 async def test_invalid_signatures(client, db, staff, strokes):
     maria = await register(client)
-    r = await sign(client, maria["id"], {"text_version": "v1", "strokes": strokes})
+    r = await sign(
+        client,
+        maria["id"],
+        {"text_version": SIGNATURE_CONSENT_VERSION, "strokes": strokes},
+    )
+    assert r.status_code == 422
+    assert await consents(db, maria["id"]) == 0
+
+
+async def test_an_unknown_text_version_is_refused(client, db, staff):  # 04 §2
+    maria = await register(client)
+    r = await sign(client, maria["id"], {"text_version": "v1", "strokes": STROKES})
     assert r.status_code == 422
     assert await consents(db, maria["id"]) == 0
 

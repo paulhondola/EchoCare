@@ -202,24 +202,27 @@ def caregivers_query(senior_id: uuid.UUID) -> Select:
 
 
 async def consent_fields(session: AsyncSession, senior_id: uuid.UUID) -> dict[str, Any]:
-    """`consent`, `consent_given_at` and `signed_at` for GET /seniors/{id} (04 §1, G7)."""
-
-    def latest(*where: ColumnElement[bool]) -> Select[tuple[Consent]]:
-        return (
-            select(Consent)
-            .where(Consent.senior_id == senior_id, *where)
+    """`consent`, `consent_given_at` and `signed_at` for GET /seniors/{id} (04 §1, G7).
+    One read of her few consent rows, newest first, without the signature strokes."""
+    rows = (
+        await session.execute(
+            select(Consent.decision, Consent.method, Consent.at)
+            .where(Consent.senior_id == senior_id)
             .order_by(Consent.at.desc(), Consent.id.desc())
-            .limit(1)
         )
-
-    decided = await session.scalar(latest(Consent.method != ConsentMethod.signature))
-    given = await session.scalar(
-        latest(
-            Consent.decision == ConsentDecision.given,
-            Consent.method.in_((ConsentMethod.call, ConsentMethod.app)),
-        )
+    ).all()
+    signature = ConsentMethod.signature
+    decided = next((r for r in rows if r.method != signature), None)
+    given = next(
+        (
+            r
+            for r in rows
+            if r.decision == ConsentDecision.given
+            and r.method in (ConsentMethod.call, ConsentMethod.app)
+        ),
+        None,
     )
-    signed = await session.scalar(latest(Consent.method == ConsentMethod.signature))
+    signed = next((r for r in rows if r.method == signature), None)
     return {
         "consent": decided
         and {"decision": decided.decision, "method": decided.method, "at": decided.at},
@@ -561,6 +564,12 @@ async def call_again(
         log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(409, "wrong_state")
     await then(session, senior.id)
+    # Another live call keeps the welcome call out (`uq_calls_live_senior`, 05 §3):
+    # moved without one, she would wait in `accepted` for a call that never comes
+    if not await pending(session, senior.id):
+        log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
+        await session.rollback()  # expires every row, so log first
+        raise refuse(409, "wrong_state")
     await move(
         session,
         caller,

@@ -15,6 +15,7 @@ from app.models import (
     Senior,
     WelcomeOutcome,
 )
+from app.status.engine import Severity
 from app.voice.calls import CallState
 from tests.seniors.test_enrollments import (
     CAREGIVER,
@@ -119,6 +120,24 @@ async def test_other_states_are_wrong_state(client, db, senior_in, state):
     senior = await senior_in(state)
     assert refusal(await call_again(client, senior.id)) == WRONG_STATE
     assert await welcome_calls(db) == []
+
+
+async def test_another_live_call_keeps_her_where_she_is(client, db, senior_in):
+    """A live call leaves no room for the welcome call (05 §3): no move without one."""
+    senior = await senior_in(EnrollmentState.unreachable)
+    db.add(
+        Call(
+            senior_id=senior.id,
+            trigger=CallTrigger.test,
+            starting_severity=Severity.green,
+            due_at=datetime.now(UTC),
+        )
+    )
+    await db.commit()
+    assert refusal(await call_again(client, senior.id)) == WRONG_STATE
+    assert await welcome_calls(db) == []
+    await db.refresh(senior)
+    assert senior.enrollment_state == EnrollmentState.unreachable
 
 
 async def test_only_her_medic(client, db, add_user, senior_in):

@@ -141,6 +141,16 @@ class CaregiverEditForm(BaseModel):
 
 MAX_SIGNATURE_POINTS = 5000
 
+# The text signed on the medic's tablet: the welcome card's wording, closing on the
+# signature instead of the question (G7, 04 §2). The app carries a copy; a change to
+# either is a new version, which the server must learn before it accepts it.
+SIGNATURE_CONSENT_VERSION = "v1-semnatura"
+SIGNATURE_CONSENT_TEXT = (
+    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Semnând mai jos, sunteți de acord."
+)
+
 # A point on the signature pad, as a share of its width and height.
 Coordinate = Annotated[float, Field(ge=0, le=1)]
 
@@ -153,6 +163,13 @@ class SignatureForm(BaseModel):
         list[Annotated[list[tuple[Coordinate, Coordinate]], Field(min_length=1)]],
         Field(min_length=1),
     ]
+
+    @field_validator("text_version")
+    @classmethod
+    def known_version(cls, version: str) -> str:
+        if version != SIGNATURE_CONSENT_VERSION:
+            raise ValueError(f"unknown consent text version {version!r}")
+        return version
 
     @model_validator(mode="after")
     def not_too_many_points(self) -> Self:
