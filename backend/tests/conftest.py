@@ -17,6 +17,9 @@ os.environ["TWILIO_AUTH_TOKEN"] = "test-auth-token"
 os.environ["PUBLIC_BASE_URL"] = "https://echocare.test"
 # No scheduler loop in tests: a tick would dial and settle behind their backs.
 os.environ["SCHEDULER_ENABLED"] = "false"
+# No real push sender: a credential in backend/.env would make one at import, whose
+# Firebase app "push" clashes with the sender tests' own (AL11).
+os.environ["FIREBASE_PUSH_CREDENTIALS"] = ""
 
 import pytest
 from fastapi import Depends
