@@ -7,6 +7,11 @@
     <!-- Pulse and steps for the watch signals (G14); on Wear OS 6 the pulse needs the health permission, not BODY_SENSORS -->
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Background monitoring with the screen off (S5): a health foreground service and its notification -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -37,6 +42,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".monitoring.MonitoringService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
     </application>
 
 </manifest>

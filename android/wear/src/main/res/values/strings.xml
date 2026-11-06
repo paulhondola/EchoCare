@@ -14,5 +14,9 @@
     <string name="free_fall">cădere liberă: %1$d ms</string>
     <string name="still_after_peak">nemișcat după impact: %1$.1f s</string>
     <string name="falls_detected">căderi detectate: %1$d</string>
+    <string name="start_monitoring">Pornește monitorizarea</string>
+    <string name="stop_monitoring">Oprește monitorizarea</string>
+    <string name="monitoring_running">Sentinela monitorizează</string>
+    <string name="monitoring_channel">Monitorizare</string>
     <string name="next_trial">Următoarea</string>
 </resources>

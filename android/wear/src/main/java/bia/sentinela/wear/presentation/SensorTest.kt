@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +38,8 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import bia.sentinela.shared.FallDetector
 import bia.sentinela.wear.R
+import bia.sentinela.wear.monitoring.ACCELEROMETER_PERIOD_US
+import bia.sentinela.wear.monitoring.MonitoringService
 import java.util.Locale
 import kotlin.math.abs
 import kotlinx.coroutines.delay
@@ -47,8 +50,8 @@ import kotlinx.coroutines.delay
 private val PERMISSIONS =
     arrayOf(HealthPermissions.READ_HEART_RATE, Manifest.permission.ACTIVITY_RECOGNITION)
 
-// 50 readings a second, the rate fall detection needs (P19)
-private const val ACCELEROMETER_PERIOD_US = 20_000
+// Notifications only show the monitoring service; the sensors work without them
+private val REQUESTED_PERMISSIONS = PERMISSIONS + Manifest.permission.POST_NOTIFICATIONS
 
 // Per-trial measurements for tuning fall detection (P19). The detector's own thresholds go to :shared.
 private const val FREE_FALL_G = 0.4f
@@ -245,9 +248,10 @@ fun SensorTestScreen() {
             granted = context.hasPermissions()
         }
     LaunchedEffect(Unit) {
-        if (!granted) request.launch(PERMISSIONS)
+        if (!granted) request.launch(REQUESTED_PERMISSIONS)
     }
     val readings = rememberReadings(granted)
+    val monitoring by MonitoringService.running.collectAsState()
     // Ticks every second, so the age of the last pulse keeps counting between readings
     val nowMs by produceState(SystemClock.elapsedRealtime()) {
         while (true) {
@@ -269,11 +273,32 @@ fun SensorTestScreen() {
             item {
                 ListHeader { Text(stringResource(R.string.trial_title, readings.trial)) }
             }
+            item {
+                Button(
+                    onClick = {
+                        if (monitoring) {
+                            MonitoringService.stop(
+                                context
+                            )
+                        } else {
+                            MonitoringService.start(context)
+                        }
+                    },
+                    enabled = granted,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        stringResource(
+                            if (monitoring) R.string.stop_monitoring else R.string.start_monitoring
+                        )
+                    )
+                }
+            }
             if (!granted) {
                 item { Line(stringResource(R.string.permission_needed)) }
                 item {
                     Button(onClick = {
-                        request.launch(PERMISSIONS)
+                        request.launch(REQUESTED_PERMISSIONS)
                     }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.grant_permission))
                     }
