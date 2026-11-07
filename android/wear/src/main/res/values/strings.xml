@@ -18,9 +18,14 @@
     <string name="stop_monitoring">Oprește monitorizarea</string>
     <string name="monitoring_running">EchoCare monitorizează</string>
     <string name="monitoring_channel">Monitorizare</string>
+    <string name="fall_channel">Cădere</string>
     <string name="next_trial">Următoarea</string>
     <string name="are_you_ok_title">Sunteți bine?</string>
     <string name="are_you_ok_countdown">%1$d s</string>
     <string name="are_you_ok_yes">Da, sunt bine</string>
     <string name="are_you_ok_no">Nu, ajutor!</string>
+    <string name="monitor_active">Monitorizare activă</string>
+    <string name="monitor_off">Monitorizare oprită</string>
+    <string name="call_me">Sunați-mă</string>
+    <string name="call_me_sending">Se trimite…</string>
 </resources>

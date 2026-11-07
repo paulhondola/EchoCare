@@ -137,6 +137,9 @@ class MonitoringService :
                 .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
             // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
             fallPrompt.value = FallPrompt(fallId, Instant.now().toString())
+            // Full-screen intent wakes the watch and brings the activity up with the screen off (UC-09)
+            getSystemService(NotificationManager::class.java)
+                .notify(FALL_NOTIFICATION_ID, fallNotification())
         }
     }
 
@@ -216,10 +219,36 @@ class MonitoringService :
             .build()
     }
 
+    private fun fallNotification(): Notification {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(
+                FALL_CHANNEL_ID,
+                getString(R.string.fall_channel),
+                NotificationManager.IMPORTANCE_HIGH
+            )
+        )
+        val open = PendingIntent.getActivity(
+            this,
+            1,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return Notification.Builder(this, FALL_CHANNEL_ID)
+            .setContentTitle(getString(R.string.are_you_ok_title))
+            .setContentText(getString(R.string.app_name))
+            .setSmallIcon(R.drawable.splash_icon)
+            .setCategory(Notification.CATEGORY_ALARM)
+            .setFullScreenIntent(open, true)
+            .setAutoCancel(true)
+            .build()
+    }
+
     companion object {
         private const val TAG = "SentinelaMonitor"
         private const val CHANNEL_ID = "monitoring"
+        private const val FALL_CHANNEL_ID = "fall"
         private const val NOTIFICATION_ID = 1
+        private const val FALL_NOTIFICATION_ID = 2
         private const val MINUTE_MS = 60_000L
         private const val LOG_FILE = "monitor.log"
 
@@ -239,6 +268,12 @@ class MonitoringService :
 
         fun stop(context: Context) {
             context.stopService(Intent(context, MonitoringService::class.java))
+        }
+
+        /** Dismiss the fall notification; the activity calls this when the user answers the prompt. */
+        fun dismissFallNotification(context: Context) {
+            context.getSystemService(NotificationManager::class.java)
+                .cancel(FALL_NOTIFICATION_ID)
         }
     }
 }

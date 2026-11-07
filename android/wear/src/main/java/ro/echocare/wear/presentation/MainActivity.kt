@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The sensor test (S5, S13) is watched for minutes at a time
+        // UC-09 §1: monitoring runs the whole time the app is open; the screen stays on for the demo
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             EchoCareTheme {
@@ -25,10 +25,13 @@ class MainActivity : ComponentActivity() {
                         AreYouOkScreen(
                             fallId = f.id,
                             measuredAt = f.measuredAt,
-                            onDone = { MonitoringService.fallPrompt.value = null }
+                            onDone = {
+                                MonitoringService.fallPrompt.value = null
+                                MonitoringService.dismissFallNotification(this@MainActivity)
+                            }
                         )
                     } else {
-                        SensorTestScreen()
+                        SeniorHomeScreen()
                     }
                 }
             }
