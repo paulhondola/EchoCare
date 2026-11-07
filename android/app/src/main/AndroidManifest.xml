@@ -30,6 +30,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Watch → phone Data Layer relay (04 §3, UC-09, UC-13) -->
+        <service
+            android:name=".push.WearListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/echocare/"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+
         <!-- Firebase push (04 §6) -->
         <service
             android:name=".push.MessagingService"

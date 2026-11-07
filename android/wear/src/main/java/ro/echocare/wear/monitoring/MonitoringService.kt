@@ -20,12 +20,18 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
+import com.google.android.gms.wearable.Wearable
+import ro.echocare.shared.CheckInMessage
+import ro.echocare.shared.DataLayer
+import ro.echocare.shared.EventMessage
 import ro.echocare.shared.FallDetector
 import ro.echocare.wear.R
 import ro.echocare.wear.presentation.MainActivity
 import java.io.File
+import java.time.Instant
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 
 // 50 readings a second, the rate fall detection needs (P19)
@@ -125,10 +131,17 @@ class MonitoringService :
             )
         ) {
             falls++
-            log("fall detected in minute=${minute + 1}")
-            // Tells the wearer, with the screen off, that the fall was caught. The „Sunteți bine?" prompt comes later
+            val fallId = UUID.randomUUID().toString()
+            log("fall detected in minute=${minute + 1} id=$fallId")
             getSystemService(VibratorManager::class.java).defaultVibrator
                 .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
+            // Bring the „Sunteți bine?" prompt to the front; the user confirms or denies before the event is sent
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_FALL_ID, fallId)
+                    .putExtra(MainActivity.EXTRA_FALL_AT, Instant.now().toString())
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            )
         }
     }
 
@@ -139,12 +152,28 @@ class MonitoringService :
             "minute=$minute accel=$accelReadings maxGapMs=${maxAccelGapNs / 1_000_000} " +
                 "heartRates=$heartRateReadings lastHeartRate=$lastHeartRate steps=$steps falls=$falls battery=${battery()}%"
         )
+        sendCheckIn()
         accelReadings = 0
         maxAccelGapNs = 0L
         heartRateReadings = 0
         stepsAtMinuteStart = lastStepCount
         falls = 0
         handler.postDelayed(::logMinute, MINUTE_MS)
+    }
+
+    private fun sendCheckIn() {
+        val msg = CheckInMessage(
+            measuredAt = Instant.now().toString(),
+            battery = battery(),
+            worn = true,
+            lastPulse = if (lastHeartRate > 0) lastHeartRate else null
+        )
+        Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
+            val nodeId = nodes.firstOrNull()?.id ?: return@addOnSuccessListener
+            Wearable.getMessageClient(this)
+                .sendMessage(nodeId, DataLayer.CHECK_IN, msg.toBytes())
+                .addOnCompleteListener { log("check-in sent: ${it.isSuccessful}") }
+        }
     }
 
     // Logcat rolls over within an hour or two, and reading it live would keep Wi-Fi on and skew the battery.

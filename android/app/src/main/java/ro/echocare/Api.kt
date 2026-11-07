@@ -174,6 +174,16 @@ data class MockAnswer(
     val consent: Boolean? = null
 )
 
+// POST /me/check-ins' body (04 §3, UC-13). The watch sends this every minute; the server keeps only
+// the latest check-in per senior. 204, no body.
+@Serializable
+data class CheckInForm(
+    @SerialName("measured_at") val measuredAt: String,
+    val battery: Int? = null,
+    val worn: Boolean? = null,
+    @SerialName("last_pulse") val lastPulse: Int? = null
+)
+
 // POST /me/events' body (04 §3). [type] is "manual_request" so far; [measuredAt] is ISO-8601 with
 // an offset, and [id] is the phone's, so a resend is a duplicate.
 @Serializable
@@ -361,6 +371,10 @@ interface EchoCareApi {
     /** 204; a 409 means the call is no longer due (design §4.2). */
     @POST("calls/{id}/mock-answer")
     suspend fun mockAnswer(@Path("id") id: String, @Body body: MockAnswer): Response<Unit>
+
+    /** Senior only. 204, also on a repeat (04 §3). A Response, because a 204 has no body. */
+    @POST("me/check-ins")
+    suspend fun checkIn(@Body body: CheckInForm): Response<Unit>
 
     /** Senior only. 200 also for a duplicate; [EventResult.callId] is null when no call was queued (04 §3). */
     @POST("me/events")
