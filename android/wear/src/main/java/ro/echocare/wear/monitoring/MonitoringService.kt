@@ -135,13 +135,8 @@ class MonitoringService :
             log("fall detected in minute=${minute + 1} id=$fallId")
             getSystemService(VibratorManager::class.java).defaultVibrator
                 .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
-            // Bring the „Sunteți bine?" prompt to the front; the user confirms or denies before the event is sent
-            startActivity(
-                Intent(this, MainActivity::class.java)
-                    .putExtra(MainActivity.EXTRA_FALL_ID, fallId)
-                    .putExtra(MainActivity.EXTRA_FALL_AT, Instant.now().toString())
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            )
+            // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
+            fallPrompt.value = FallPrompt(fallId, Instant.now().toString())
         }
     }
 
@@ -168,12 +163,20 @@ class MonitoringService :
             worn = true,
             lastPulse = if (lastHeartRate > 0) lastHeartRate else null
         )
-        Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
-            val nodeId = nodes.firstOrNull()?.id ?: return@addOnSuccessListener
-            Wearable.getMessageClient(this)
-                .sendMessage(nodeId, DataLayer.CHECK_IN, msg.toBytes())
-                .addOnCompleteListener { log("check-in sent: ${it.isSuccessful}") }
-        }
+        Wearable.getNodeClient(this).connectedNodes
+            .addOnSuccessListener { nodes ->
+                if (nodes.isEmpty()) {
+                    log("check-in skipped: no connected nodes")
+                    return@addOnSuccessListener
+                }
+                nodes.forEach { node ->
+                    Wearable.getMessageClient(this)
+                        .sendMessage(node.id, DataLayer.CHECK_IN, msg.toBytes())
+                        .addOnSuccessListener { log("check-in sent to ${node.displayName}") }
+                        .addOnFailureListener { log("check-in failed to ${node.displayName}: ${it.message}") }
+                }
+            }
+            .addOnFailureListener { log("check-in node lookup failed: ${it.message}") }
     }
 
     // Logcat rolls over within an hour or two, and reading it live would keep Wi-Fi on and skew the battery.
@@ -224,6 +227,11 @@ class MonitoringService :
         private const val MAX_WAKE_MS = 4 * 60 * 60_000L
 
         val running = MutableStateFlow(false)
+
+        // MainActivity observes this; non-null brings up the „Sunteți bine?" screen
+        val fallPrompt = MutableStateFlow<FallPrompt?>(null)
+
+        data class FallPrompt(val id: String, val measuredAt: String)
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, MonitoringService::class.java))

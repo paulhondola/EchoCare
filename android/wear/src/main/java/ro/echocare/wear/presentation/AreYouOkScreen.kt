@@ -1,6 +1,7 @@
 package ro.echocare.wear.presentation
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -92,15 +93,26 @@ fun AreYouOkScreen(fallId: String, measuredAt: String, onDone: () -> Unit) {
 }
 
 private fun sendFallEvent(context: Context, fallId: String, measuredAt: String, onDone: () -> Unit) {
-    val msg = EventMessage(id = fallId, type = "fall", measuredAt = measuredAt)
+    Log.i("SentinelaMonitor", "sending fall event id=$fallId")
+    // shortcut: sent as manual_request; the backend's EventForm Literal only accepts that today (P19)
+    val msg = EventMessage(id = fallId, type = "manual_request", measuredAt = measuredAt)
     Wearable.getNodeClient(context).connectedNodes
         .addOnSuccessListener { nodes ->
-            val nodeId = nodes.firstOrNull()?.id
-            if (nodeId != null) {
+            if (nodes.isEmpty()) {
+                Log.i("SentinelaMonitor", "fall event skipped: no connected nodes")
+                onDone()
+                return@addOnSuccessListener
+            }
+            nodes.forEach { node ->
                 Wearable.getMessageClient(context)
-                    .sendMessage(nodeId, DataLayer.EVENT, msg.toBytes())
+                    .sendMessage(node.id, DataLayer.EVENT, msg.toBytes())
+                    .addOnSuccessListener { Log.i("SentinelaMonitor", "fall event sent to ${node.displayName}") }
+                    .addOnFailureListener { Log.i("SentinelaMonitor", "fall event failed to ${node.displayName}: ${it.message}") }
             }
             onDone()
         }
-        .addOnFailureListener { onDone() }
+        .addOnFailureListener {
+            Log.i("SentinelaMonitor", "fall event node lookup failed: ${it.message}")
+            onDone()
+        }
 }
