@@ -38,11 +38,12 @@ class ResolutionForm(BaseModel):
 
 
 class EventForm(BaseModel):
-    """POST /me/events' body (04 §3). Only „Sunați-mă” so far; the id is the phone's, so
-    a resend is a duplicate. `measured_at` carries an offset: a naive time is 422."""
+    """POST /me/events' body (04 §3). „Sunați-mă” and watch-detected falls (P19) today; the id
+    is the device's, so a resend is a duplicate. `measured_at` carries an offset: a naive time
+    is 422."""
 
     id: uuid.UUID
-    type: Literal[EventType.manual_request]
+    type: Literal[EventType.manual_request, EventType.fall]
     measured_at: AwareDatetime
 
 

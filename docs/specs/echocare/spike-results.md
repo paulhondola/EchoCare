@@ -119,3 +119,51 @@ The detector behaves as the 45 trials predicted. One fall fell just short of the
 - One wearer, one device, 22 minutes. Battery behaviour may differ on a charged battery and over longer sessions.
 - ADB was connected over Wi-Fi during the test; Wi-Fi radio adds a small drain not present in normal use.
 - The monitoring window length and any battery optimisation (reducing accelerometer rate outside fall-risk hours) are out of scope for this spike.
+
+## S6 · Watch events reach FastAPI through the phone
+
+**Date:** 2026-11-07 · **Watch:** Galaxy Watch5 44 mm (SM-R910), Wear OS 6 · **Phone:** Samsung S23 (`Daria S23`), Android 16 (SDK 36), paired through Galaxy Wearable · **App:** `wear/sensor-test` branch on both; FastAPI from `docker compose up db api`, reached from the phone at `http://192.168.3.109:8000` via `echocare.apiUrl` in `local.properties` · **Senior:** `+40700000005` (Maria Popescu), signed in on the phone
+
+### What the pipeline delivers
+
+| Step | Result |
+|---|---|
+| Check-in every minute | `Wearable MessageClient` → `WearListenerService` → `POST /api/me/check-ins` 204 → `watch_states` updated with the real battery and last pulse |
+| Fall event after „Sunteți bine?" | On „Nu, ajutor!" or the 15 s timeout: `POST /api/me/events` 200 → `events` row, joined onto the senior's existing queued call per the UC-09 cooldown |
+| Latency, button press to DB row | ~4 s end-to-end (watch → phone → API → commit) |
+| First queued call for a fresh senior | `trigger=manual`, `state=queued`, `starting_severity=yellow` (UC-09 §2) |
+
+### Method
+
+`MonitoringService` on the watch sends the check-in in `logMinute()` and the fall event from `AreYouOkScreen` when the senior denies or lets the countdown run out. Both go over the Wearable Data Layer on the paths in `ro.echocare.shared.DataLayer`. The phone's `WearListenerService` (`@AndroidEntryPoint`) decodes the JSON payloads from `ro.echocare.shared.WearMessage` and forwards each one with Retrofit, authenticated by the signed-in senior's Firebase token.
+
+Raw log (watch side, the fall event path):
+
+```
+21:24:27 started battery=26%
+21:24:47 fall detected in minute=1 id=6569b60e-fdf8-4dfe-916d-025f5e573186
+21:24:59 sending fall event id=6569b60e-fdf8-4dfe-916d-025f5e573186
+21:25:01 fall event sent to Daria S23
+21:25:27 minute=1 accel=2998 maxGapMs=20 heartRates=47 lastHeartRate=86 steps=0 falls=1 battery=26%
+21:25:27 check-in sent to Daria S23
+```
+
+DB after a clean run (old queued call and its events deleted first):
+
+```
+events:  manual_request  received_at=2026-11-07 19:28:51.814+00
+calls:   trigger=manual  state=queued  starting_severity=yellow  due_at=2026-11-07 19:28:51.815+00
+```
+
+### Findings
+
+- **The Data Layer is reliable when the two apps match.** Same `applicationId` (`ro.echocare`), same signing keystore, same version in both APKs, and the phone paired through Galaxy Wearable: `connectedNodes` returned the phone, every send succeeded. A `connectedNodes` listener that silently drops the empty case explains the first „nothing arrived" pass — the `addOnFailureListener` and the per-node `addOnSuccessListener` now in `MonitoringService` and `AreYouOkScreen` make that visible.
+- **Fall events send `type=fall` end to end.** The first pass hit a 422 because `EventForm.type` was `Literal[EventType.manual_request]`; the schema now accepts `Literal[manual_request, fall]`. The service layer treats both the same way for now (one queued yellow call per senior cooldown); differentiated intake belongs to the P19 work.
+- **A foreground service cannot launch an activity on API 36.** The first version used an intent; the prompt never appeared. The fix is a `MutableStateFlow<FallPrompt?>` on `MonitoringService` that `MainActivity` collects — the activity shows the prompt the instant the service writes to the flow. The intent path remains unavailable; see the limits below for the screen-off case.
+- **Event dedup through the existing queued call works.** A second „Nu" within cooldown attached its `manual_request` row to the same `call_id` as the earlier event, no second call queued (UC-09 §2).
+
+### Limits
+
+- One wearer, one phone, one session. The senior is the seeded Maria Popescu, so her enrollment state is `active` and the intake rules fire; a `draft` or `offline` senior would record the event and start no call.
+- The local backend has no Twilio: the queued call stays queued and never rings, so the voice side of UC-09 is unverified locally. Staging has Twilio; the next pass should run the same test there with a number on `DIAL_ALLOWLIST`.
+- The prompt relies on `MainActivity` being in the foreground. With the watch asleep (screen off, app in the background) the service writes to `fallPrompt` but nothing shows. A full-screen intent notification would cover that case; it is out of scope for S6.

@@ -94,8 +94,7 @@ fun AreYouOkScreen(fallId: String, measuredAt: String, onDone: () -> Unit) {
 
 private fun sendFallEvent(context: Context, fallId: String, measuredAt: String, onDone: () -> Unit) {
     Log.i("SentinelaMonitor", "sending fall event id=$fallId")
-    // shortcut: sent as manual_request; the backend's EventForm Literal only accepts that today (P19)
-    val msg = EventMessage(id = fallId, type = "manual_request", measuredAt = measuredAt)
+    val msg = EventMessage(id = fallId, type = "fall", measuredAt = measuredAt)
     Wearable.getNodeClient(context).connectedNodes
         .addOnSuccessListener { nodes ->
             if (nodes.isEmpty()) {
