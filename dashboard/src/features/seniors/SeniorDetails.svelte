@@ -36,7 +36,9 @@
 
   let load = $state<Load<SeniorView>>({ kind: "loading" });
   let tab = $state<(typeof TABS)[number]["key"]>("file");
-  // Read when the tab is first opened, and each transcript when its call is
+  // Read again each time the tab is opened, and each transcript each time its call is,
+  // so a live call or hand-over is current; the last good read shows meanwhile
+  // ponytail: re-read on open, not a timer; poll() the expanded call if DAS needs it live
   let calls = $state<Load<CallSummary[]> | null>(null);
   let transcripts = $state<Record<string, Load<IncidentCall>>>({});
   let expanded = $state<string | null>(null);
@@ -49,8 +51,8 @@
 
   function showCalls() {
     tab = "calls";
-    if (calls) return;
-    calls = { kind: "loading" };
+    if (calls?.kind === "loading") return;
+    if (calls?.kind !== "ok") calls = { kind: "loading" };
     fetchCalls(summary.id, reads.signal)
       .then((data) => {
         calls = { kind: "ok", data };
@@ -62,8 +64,8 @@
 
   function toggle(id: string) {
     expanded = expanded === id ? null : id;
-    if (expanded === null || transcripts[id]?.kind === "ok") return;
-    transcripts[id] = { kind: "loading" };
+    if (expanded === null || transcripts[id]?.kind === "loading") return;
+    if (transcripts[id]?.kind !== "ok") transcripts[id] = { kind: "loading" };
     fetchTranscript(id, reads.signal)
       .then((data) => {
         transcripts[id] = { kind: "ok", data };

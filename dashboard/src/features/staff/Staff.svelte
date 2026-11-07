@@ -32,11 +32,17 @@
   let switching = $state<string | null>(null);
   let dutyError = $state<string | null>(null);
 
-  function putOnDuty(id: string) {
+  function putOnDuty(id: string, name: string) {
+    // The hand-overs move to this phone and away from whoever has them now, so say who
+    const current = staff.load.kind === "ok" ? staff.load.data.find((s) => s.on_duty) : undefined;
+    const question = current
+      ? `Apelurile de urgență vor suna la ${name}, nu la ${current.display_name}. Continuați?`
+      : `Apelurile de urgență vor suna la ${name}. Continuați?`;
+    if (!confirm(question)) return;
     switching = id;
     dutyError = null;
     setOnDuty(id)
-      .then(() => staff.reload())
+      .then(() => staff.update((list) => list.map((s) => ({ ...s, on_duty: s.id === id }))))
       .catch((e: unknown) => {
         dutyError =
           e instanceof ApiError && e.reason === "not_allowed"
@@ -161,7 +167,7 @@
                     class="sn-btn sn-btn-link px-2.5 py-[5px] text-xs"
                     disabled={switching !== null}
                     aria-label={`Pune de serviciu pe ${s.display_name}`}
-                    onclick={() => putOnDuty(s.id)}
+                    onclick={() => putOnDuty(s.id, s.display_name)}
                   >
                     {switching === s.id ? "Se schimbă…" : "Pune de serviciu"}
                   </button>

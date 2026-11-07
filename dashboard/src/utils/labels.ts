@@ -78,6 +78,14 @@ export const TONE_CHIP: Record<Tone, string> = {
   muted: "bg-line text-fg-soft",
 };
 
+export const TONE_TEXT: Record<Tone, string> = {
+  verde: "text-verde-fg",
+  galben: "text-galben-fg",
+  rosu: "text-rosu-fg",
+  link: "text-link",
+  muted: "text-fg-muted",
+};
+
 export const TONE_DOT: Record<Tone, string> = {
   verde: "bg-verde",
   galben: "bg-galben",
