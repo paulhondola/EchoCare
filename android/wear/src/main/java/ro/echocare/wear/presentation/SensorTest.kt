@@ -36,13 +36,13 @@ import androidx.wear.compose.material3.EdgeButton
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import java.util.Locale
+import kotlin.math.abs
+import kotlinx.coroutines.delay
 import ro.echocare.shared.FallDetector
 import ro.echocare.wear.R
 import ro.echocare.wear.monitoring.ACCELEROMETER_PERIOD_US
 import ro.echocare.wear.monitoring.MonitoringService
-import java.util.Locale
-import kotlin.math.abs
-import kotlinx.coroutines.delay
 
 // Spikes S5 and S13 (06 §6): what the watch's sensors deliver, and how often, while this screen is open.
 // Background delivery is a separate test.

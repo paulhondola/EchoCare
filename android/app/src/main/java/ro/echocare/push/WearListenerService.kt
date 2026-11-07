@@ -22,6 +22,7 @@ import ro.echocare.shared.EventMessage
 @AndroidEntryPoint
 class WearListenerService : WearableListenerService() {
     @Inject lateinit var auth: FirebaseAuth
+
     @Inject lateinit var api: EchoCareApi
 
     override fun onMessageReceived(event: MessageEvent) {
@@ -44,7 +45,9 @@ class WearListenerService : WearableListenerService() {
                 DataLayer.EVENT -> {
                     val msg = EventMessage.fromBytes(event.data)
                     runCatching {
-                        api.sendEvent(EventForm(id = msg.id, type = msg.type, measuredAt = msg.measuredAt))
+                        api.sendEvent(
+                            EventForm(id = msg.id, type = msg.type, measuredAt = msg.measuredAt)
+                        )
                     }
                 }
             }

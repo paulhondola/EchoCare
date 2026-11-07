@@ -29,11 +29,7 @@ data class CheckInMessage(
     }
 }
 
-data class EventMessage(
-    val id: String,
-    val type: String,
-    val measuredAt: String
-) {
+data class EventMessage(val id: String, val type: String, val measuredAt: String) {
     fun toBytes(): ByteArray =
         """{"id":"$id","type":"$type","measured_at":"$measuredAt"}""".encodeToByteArray()
 

@@ -60,8 +60,11 @@ fun SeniorHomeScreen() {
         if (granted && !MonitoringService.running.value) MonitoringService.start(context)
     }
     LaunchedEffect(Unit) {
-        if (!granted) request.launch(REQUESTED_PERMISSIONS)
-        else if (!MonitoringService.running.value) MonitoringService.start(context)
+        if (!granted) {
+            request.launch(REQUESTED_PERMISSIONS)
+        } else if (!MonitoringService.running.value) {
+            MonitoringService.start(context)
+        }
     }
 
     val monitoring by MonitoringService.running.collectAsState()

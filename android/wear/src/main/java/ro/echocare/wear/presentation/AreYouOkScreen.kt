@@ -71,7 +71,12 @@ fun AreYouOkScreen(fallId: String, measuredAt: String, onDone: () -> Unit) {
             }
             item {
                 Button(
-                    onClick = { if (!done) { done = true; onDone() } },
+                    onClick = {
+                        if (!done) {
+                            done = true
+                            onDone()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.are_you_ok_yes))
@@ -92,7 +97,12 @@ fun AreYouOkScreen(fallId: String, measuredAt: String, onDone: () -> Unit) {
     }
 }
 
-private fun sendFallEvent(context: Context, fallId: String, measuredAt: String, onDone: () -> Unit) {
+private fun sendFallEvent(
+    context: Context,
+    fallId: String,
+    measuredAt: String,
+    onDone: () -> Unit
+) {
     Log.i("SentinelaMonitor", "sending fall event id=$fallId")
     val msg = EventMessage(id = fallId, type = "fall", measuredAt = measuredAt)
     Wearable.getNodeClient(context).connectedNodes
@@ -105,8 +115,15 @@ private fun sendFallEvent(context: Context, fallId: String, measuredAt: String, 
             nodes.forEach { node ->
                 Wearable.getMessageClient(context)
                     .sendMessage(node.id, DataLayer.EVENT, msg.toBytes())
-                    .addOnSuccessListener { Log.i("SentinelaMonitor", "fall event sent to ${node.displayName}") }
-                    .addOnFailureListener { Log.i("SentinelaMonitor", "fall event failed to ${node.displayName}: ${it.message}") }
+                    .addOnSuccessListener {
+                        Log.i("SentinelaMonitor", "fall event sent to ${node.displayName}")
+                    }
+                    .addOnFailureListener {
+                        Log.i(
+                            "SentinelaMonitor",
+                            "fall event failed to ${node.displayName}: ${it.message}"
+                        )
+                    }
             }
             onDone()
         }

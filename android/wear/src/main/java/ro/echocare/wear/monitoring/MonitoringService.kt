@@ -21,18 +21,17 @@ import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
 import com.google.android.gms.wearable.Wearable
-import ro.echocare.shared.CheckInMessage
-import ro.echocare.shared.DataLayer
-import ro.echocare.shared.EventMessage
-import ro.echocare.shared.FallDetector
-import ro.echocare.wear.R
-import ro.echocare.wear.presentation.MainActivity
 import java.io.File
 import java.time.Instant
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
+import ro.echocare.shared.CheckInMessage
+import ro.echocare.shared.DataLayer
+import ro.echocare.shared.FallDetector
+import ro.echocare.wear.R
+import ro.echocare.wear.presentation.MainActivity
 
 // 50 readings a second, the rate fall detection needs (P19)
 internal const val ACCELEROMETER_PERIOD_US = 20_000
@@ -189,7 +188,9 @@ class MonitoringService :
                     Wearable.getMessageClient(this)
                         .sendMessage(node.id, DataLayer.CHECK_IN, msg.toBytes())
                         .addOnSuccessListener { log("check-in sent to ${node.displayName}") }
-                        .addOnFailureListener { log("check-in failed to ${node.displayName}: ${it.message}") }
+                        .addOnFailureListener {
+                            log("check-in failed to ${node.displayName}: ${it.message}")
+                        }
                 }
             }
             .addOnFailureListener { log("check-in node lookup failed: ${it.message}") }
