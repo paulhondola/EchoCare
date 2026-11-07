@@ -16,6 +16,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // UC-09 §1: monitoring runs the whole time the app is open; the screen stays on for the demo
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Fall full-screen intent needs to wake the watch and show over the lock screen
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
         setContent {
             EchoCareTheme {
                 AppScaffold {

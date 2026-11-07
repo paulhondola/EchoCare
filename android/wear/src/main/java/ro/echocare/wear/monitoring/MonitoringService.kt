@@ -137,9 +137,22 @@ class MonitoringService :
                 .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
             // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
             fallPrompt.value = FallPrompt(fallId, Instant.now().toString())
-            // Full-screen intent wakes the watch and brings the activity up with the screen off (UC-09)
-            getSystemService(NotificationManager::class.java)
-                .notify(FALL_NOTIFICATION_ID, fallNotification())
+            // A bright wake lock turns the screen on; the full-screen intent brings up MainActivity
+            @Suppress("DEPRECATION")
+            getSystemService(PowerManager::class.java)
+                .newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "EchoCare:fall"
+                ).acquire(10_000L)
+            val nm = getSystemService(NotificationManager::class.java)
+            log("canUseFullScreenIntent=${nm.canUseFullScreenIntent()}")
+            nm.notify(FALL_NOTIFICATION_ID, fallNotification())
+            // Foreground service with FOREGROUND_SERVICE_HEALTH is allowed to start the activity;
+            // the full-screen intent alone doesn't launch it on Wear OS once the screen is off
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            )
         }
     }
 
