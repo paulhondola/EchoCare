@@ -387,9 +387,6 @@ class LiveCall:
 
     twilio_call_id: str | None
     form_of_address: str
-    # Where the transcript goes on: 0 for a new call, after the last turn when Twilio
-    # reconnects the same call.
-    next_position: int
 
 
 async def open_line(call_id: uuid.UUID) -> LiveCall | None:
@@ -405,21 +402,17 @@ async def open_line(call_id: uuid.UUID) -> LiveCall | None:
         ).first()
         if row is None:
             return None
-        position = await session.scalar(
-            select(func.coalesce(func.max(CallTurn.position) + 1, 0)).where(
-                CallTurn.call_id == call_id
-            )
-        )
-        return LiveCall(row.twilio_call_id, row.form_of_address, position)
+        return LiveCall(row.twilio_call_id, row.form_of_address)
 
 
 async def save_turn(
-    call_id: uuid.UUID, position: int, speaker: Speaker, kind: TurnKind, content: str
+    call_id: uuid.UUID, speaker: Speaker, kind: TurnKind, content: str
 ) -> None:
     """One transcript row, committed as it comes, so a lost line keeps what was said
-    (06 §1)."""
+    (06 §1). Positioned by `append_turn`, like the hand-over's callbacks, so a relay
+    turn and a callback's never take one position."""
     async with Session() as session:
-        add_turn(session, call_id, position, speaker, kind, content)
+        await append_turn(session, call_id, speaker, kind, content)
         await session.commit()
 
 

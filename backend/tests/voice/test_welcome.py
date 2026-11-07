@@ -33,9 +33,21 @@ from app.voice.welcome import (
     SILENT,
     UNCLEAR,
     WRONG_NUMBER,
+    heard,
     identity,
 )
 from tests.voice.test_voice import FIXTURES, callback, stored
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [("0.0", 0.0), ("0.91", 0.91), ("x", None), (None, None)]
+)
+def test_heard_keeps_a_zero_confidence_and_survives_a_bad_one(value, expected):
+    params = {"SpeechResult": " Da. "}
+    if value is not None:
+        params["Confidence"] = value
+    assert heard(params) == (TurnKind.speech, "Da.", expected)
+
 
 BASE = "https://echocare.test/api/voice"
 

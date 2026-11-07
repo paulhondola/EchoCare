@@ -95,27 +95,43 @@ Params = Annotated[dict[str, str], Depends(twilio_params)]
 Db = Annotated[AsyncSession, Depends(get_session)]
 
 
+async def agent_turn(session: AsyncSession, call: uuid.UUID, text: str) -> None:
+    """What the call says next, as the agent's transcript turn (05 §1). Doesn't
+    commit."""
+    await append_turn(session, call, Speaker.agent, TurnKind.speech, text)
+
+
 async def exchange(
-    session: AsyncSession, call: uuid.UUID, params: dict[str, str] | None, said: str
+    session: AsyncSession, call: uuid.UUID, params: dict[str, str], text: str
 ) -> None:
     """The senior's `<Gather>` answer, if any, then what the call says next, as
     transcript turns (05 §1). Doesn't commit."""
-    if params is not None and (answer := heard(params)):
+    if answer := heard(params):
         kind, content, confidence = answer
         await append_turn(
             session, call, Speaker.senior, kind, content, confidence=confidence
         )
-    await append_turn(session, call, Speaker.agent, TurnKind.speech, said)
+    await agent_turn(session, call, text)
 
 
-async def call_back(session: AsyncSession, call: uuid.UUID) -> Response:
+def hung_up(params: dict[str, str]) -> bool:
+    """The senior's leg has ended: Twilio still calls a `<Connect>` or `<Dial>` action,
+    but nobody hears what it answers, so nothing is stored as said."""
+    return params.get("CallStatus") == "completed"
+
+
+async def call_back(
+    session: AsyncSession, call: uuid.UUID, params: dict[str, str]
+) -> Response:
     """„Someone will call you back”, then hang up; the sentence is stored as the
-    agent's, and still said if the database cannot take it (UC-07)."""
-    try:
-        await exchange(session, call, None, CALL_BACK)
-        await session.commit()
-    except SQLAlchemyError, OSError:
-        log.exception("hand-over for call %s: database unavailable", call)
+    agent's unless the senior has hung up, and still said if the database cannot take
+    it (UC-07)."""
+    if not hung_up(params):
+        try:
+            await agent_turn(session, call, CALL_BACK)
+            await session.commit()
+        except SQLAlchemyError, OSError:
+            log.exception("hand-over for call %s: database unavailable", call)
     return say_and_hang_up(CALL_BACK)
 
 
@@ -166,7 +182,7 @@ async def welcome(call: uuid.UUID, params: Params, session: Db) -> Response:
             return sorry()
         await move_call(session, call, params.get("CallSid"), CallState.in_progress)
         question = identity(addressed)
-        await exchange(session, call, None, question)
+        await agent_turn(session, call, question)
         await session.commit()
     except SQLAlchemyError, OSError:
         log.exception("welcome for call %s: database unavailable", call)
@@ -309,7 +325,7 @@ async def handoff(call: uuid.UUID, params: Params, session: Db) -> Response:
         return say_and_hang_up(CALL_BACK)
     if duty is None:
         log.warning("hand-over for call %s: nobody on duty", call)
-        return await call_back(session, call)
+        return await call_back(session, call, params)
     user, phone = duty
     # The allowlist guards every number we ring, staff included (design §5).
     if not dial_allowed(phone):
@@ -318,7 +334,7 @@ async def handoff(call: uuid.UUID, params: Params, session: Db) -> Response:
             call,
             mask(phone),
         )
-        return await call_back(session, call)
+        return await call_back(session, call, params)
     log.info("hand-over for call %s: ringing %s", call, mask(phone))
     return dial_on_duty(
         phone,
@@ -358,7 +374,8 @@ async def handoff_result(call: uuid.UUID, params: Params, session: Db) -> Respon
         return hangup()
     try:
         await answer_handover(session, call, False)
-        await exchange(session, call, None, CALL_BACK)
+        if not hung_up(params):
+            await agent_turn(session, call, CALL_BACK)
         await session.commit()
     except SQLAlchemyError, OSError:
         log.exception("hand-over result for call %s: database unavailable", call)

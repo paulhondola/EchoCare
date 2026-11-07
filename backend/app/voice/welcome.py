@@ -65,8 +65,17 @@ def heard(params: dict[str, str]) -> tuple[TurnKind, str, float | None] | None:
     if digits := params.get("Digits"):
         return TurnKind.keys, digits, None
     if speech := params.get("SpeechResult", "").strip():
-        return TurnKind.speech, speech, float(params.get("Confidence") or 0) or None
+        return TurnKind.speech, speech, confidence(params)
     return None
+
+
+def confidence(params: dict[str, str]) -> float | None:
+    """Twilio's `Confidence` in the words; None when missing or not a number, so a bad
+    value never fails the callback (06 §1). A reported 0.0 stays 0.0."""
+    try:
+        return float(params["Confidence"])
+    except KeyError, ValueError:
+        return None
 
 
 def evidence(params: dict[str, str]) -> dict[str, Any]:
@@ -76,5 +85,5 @@ def evidence(params: dict[str, str]) -> dict[str, Any]:
         return {"digits": digits}
     return {
         "speech": params.get("SpeechResult", ""),
-        "confidence": float(params.get("Confidence") or 0),
+        "confidence": confidence(params) or 0.0,
     }

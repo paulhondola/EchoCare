@@ -975,7 +975,8 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         summary="Doamna Elena a căzut în baie și nu se poate ridica. Transferată "
         "către DAS.",
         handover_answered=True,
-        seconds=75,
+        # Ends at the hand-over, as a real one does; the talk with DAS comes after.
+        seconds=40,
     )
     h.event(
         "elena",

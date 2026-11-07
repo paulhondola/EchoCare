@@ -23,6 +23,7 @@ from app.status.engine import Severity
 from app.voice.calls import CallState
 from app.voice.dialogue import CALL_BACK, TRANSCRIPTION_FAILED
 from app.voice.models import Speaker, TurnKind
+from app.voice.service import save_turn
 from app.voice.twilio import handover_ring_seconds
 from tests.voice.test_voice import FIXTURES, callback, stored
 
@@ -128,6 +129,32 @@ async def test_nobody_on_duty_hears_the_call_back_line(client, db, handed_over):
     assert says_call_back(root)
     assert root.find("Dial") is None
     assert await turns_of(db, handed_over) == [(0, Speaker.agent, CALL_BACK)]
+
+
+async def test_relay_and_callback_turns_never_share_a_position(client, db, handed_over):
+    # The relay's last turns and the hand-over's call-back line share one allocator.
+    await save_turn(handed_over.id, Speaker.agent, TurnKind.speech, "Vă conectez.")
+    await save_turn(handed_over.id, Speaker.senior, TurnKind.speech, "Ajutor")
+    await callback(client, "handoff", handed_over.id, handoff(handed_over))
+    assert await turns_of(db, handed_over) == [
+        (0, Speaker.agent, "Vă conectez."),
+        (1, Speaker.senior, "Ajutor"),
+        (2, Speaker.agent, CALL_BACK),
+    ]
+
+
+async def test_a_hung_up_senior_hears_no_call_back_line_in_the_transcript(
+    client, db, handed_over
+):
+    r = await callback(
+        client,
+        "handoff-result",
+        handed_over.id,
+        {**dialed("no-answer"), "CallStatus": "completed"},
+    )
+    assert says_call_back(twiml(r))
+    assert (await stored(db, handed_over)).handover_answered is False
+    assert await turns_of(db, handed_over) == []
 
 
 async def test_the_on_duty_phone_is_dialed(
