@@ -1,50 +1,97 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchSenior, type SeniorSummary, type SeniorView } from "../../services/api";
+  import {
+    fetchCalls,
+    fetchSenior,
+    fetchTranscript,
+    type CallSummary,
+    type IncidentCall,
+    type SeniorSummary,
+    type SeniorView,
+  } from "../../services/api";
+  import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
-  import { address, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
+  import {
+    address,
+    CALL_STATES,
+    callLength,
+    code,
+    enrollment,
+    time,
+    TONE_CHIP,
+    TONE_DOT,
+    TRIGGERS,
+  } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
+  import CallTranscript from "../calls/CallTranscript.svelte";
 
   let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
 
-  type Load =
-    | { kind: "loading" }
-    | { kind: "ok"; data: SeniorView }
-    | { kind: "error"; message: string };
+  type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
 
-  let load = $state<Load>({ kind: "loading" });
+  const TABS = [
+    { key: "file", label: "Dosar" },
+    { key: "calls", label: "Apeluri" },
+  ] as const;
+
+  let load = $state<Load<SeniorView>>({ kind: "loading" });
+  let tab = $state<(typeof TABS)[number]["key"]>("file");
+  // Read again each time the tab is opened, and each transcript each time its call is,
+  // so a live call or hand-over is current; the last good read shows meanwhile
+  // ponytail: re-read on open, not a timer; poll() the expanded call if DAS needs it live
+  let calls = $state<Load<CallSummary[]> | null>(null);
+  let transcripts = $state<Record<string, Load<IncidentCall>>>({});
+  let expanded = $state<string | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
-  let copied = $state(false);
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  // Every read stops when the slide-over closes
+  const reads = new AbortController();
+
+  const failed = (what: string, e: unknown) =>
+    `Nu am putut citi ${what} (${e instanceof Error ? e.message : String(e)}).`;
+
+  function showCalls() {
+    tab = "calls";
+    if (calls?.kind === "loading") return;
+    if (calls?.kind !== "ok") calls = { kind: "loading" };
+    fetchCalls(summary.id, reads.signal)
+      .then((data) => {
+        calls = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!reads.signal.aborted) calls = { kind: "error", message: failed("apelurile", e) };
+      });
+  }
+
+  function toggle(id: string) {
+    expanded = expanded === id ? null : id;
+    if (expanded === null || transcripts[id]?.kind === "loading") return;
+    if (transcripts[id]?.kind !== "ok") transcripts[id] = { kind: "loading" };
+    fetchTranscript(id, reads.signal)
+      .then((data) => {
+        transcripts[id] = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!reads.signal.aborted)
+          transcripts[id] = { kind: "error", message: failed("transcrierea", e) };
+      });
+  }
 
   const stage = $derived(enrollment(summary.enrollment_state));
+  // The dossier's read is newer than the list's, so its code wins once it has arrived
+  const current = $derived(load.kind === "ok" ? load.data : summary);
+  const codeChip = $derived(code(current.code));
 
   onMount(() => {
     if (dialogEl && !dialogEl.open) dialogEl.showModal();
-    const ctrl = new AbortController();
-    fetchSenior(summary.id, ctrl.signal)
+    fetchSenior(summary.id, reads.signal)
       .then((data) => {
         load = { kind: "ok", data };
       })
       .catch((e: unknown) => {
-        if (ctrl.signal.aborted) return;
-        load = {
-          kind: "error",
-          message: `Nu am putut citi dosarul (${e instanceof Error ? e.message : String(e)}).`,
-        };
+        if (!reads.signal.aborted) load = { kind: "error", message: failed("dosarul", e) };
       });
-    return () => {
-      ctrl.abort();
-      clearTimeout(copyTimer);
-    };
+    return () => reads.abort();
   });
-
-  function copy(text: string) {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    copied = true;
-    clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => (copied = false), 1400);
-  }
 </script>
 
 {#snippet row(label: string, value: string | null)}
@@ -73,6 +120,19 @@
         >
           <span class={["size-1.5", TONE_DOT[stage.tone]]}></span>{stage.label}
         </span>
+        {#if codeChip}
+          <span
+            class={[
+              "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-semibold",
+              TONE_CHIP[codeChip.tone],
+            ]}
+          >
+            <span class={["size-1.5", TONE_DOT[codeChip.tone]]}></span>{codeChip.label}
+          </span>
+          {#if current.reason}
+            <span class="text-[13px] text-fg-muted">{current.reason}</span>
+          {/if}
+        {/if}
         <button
           type="button"
           title="Închide"
@@ -94,20 +154,109 @@
           <Icon name="phone" size={13} />Apelează senior
         </a>
         {#if load.kind === "ok"}
-          {@const line = address(load.data)}
-          <button
-            type="button"
-            class="sn-btn h-[34px] px-3.5 font-semibold text-fg-soft hover:border-link hover:text-fg"
-            onclick={() => copy(line)}
-          >
-            <Icon name="copy" size={13} />{copied ? "Copiat" : "Copiază adresa"}
-          </button>
+          <CopyButton
+            class="h-[34px] px-3.5"
+            icon="copy"
+            label="Copiază adresa"
+            text={address(load.data)}
+          />
         {/if}
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-auto px-5 pt-[18px] pb-6">
-      {#if load.kind === "loading"}
+    <div class="flex border-b-2 border-line px-3" role="tablist" aria-label="Senior">
+      {#each TABS as t (t.key)}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === t.key}
+          class={[
+            "-mb-0.5 flex cursor-pointer items-center gap-1.5 border-b-2 px-2.5 py-[11px] text-[12.5px] font-semibold",
+            tab === t.key
+              ? "border-link text-fg"
+              : "border-transparent text-fg-muted hover:text-fg",
+          ]}
+          onclick={() => (t.key === "calls" ? showCalls() : (tab = t.key))}
+        >
+          {t.label}
+        </button>
+      {/each}
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-auto px-5 pt-[18px] pb-6" role="tabpanel">
+      {#if tab === "calls"}
+        {#if !calls || calls.kind === "loading"}
+          <div role="status" class="loading-delay flex items-center gap-2 text-fg-muted">
+            <span class="loading loading-sm loading-spinner"></span>Se încarcă apelurile…
+          </div>
+        {:else if calls.kind === "error"}
+          <p role="alert" class="text-rosu-fg">{calls.message}</p>
+        {:else}
+          <ul class="flex flex-col">
+            {#each calls.data as c (c.id)}
+              {@const codeOf = code(c.final_severity)}
+              {@const length = callLength(c.started_at, c.ended_at)}
+              {@const shown = transcripts[c.id]}
+              <li class="border-b border-line">
+                <button
+                  type="button"
+                  aria-expanded={expanded === c.id}
+                  class="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-3 text-left hover:text-fg"
+                  onclick={() => toggle(c.id)}
+                >
+                  <span class="flex min-w-0 flex-col gap-0.5">
+                    <span class="font-mono text-[13px] font-medium">
+                      {time.format(Date.parse(c.started_at ?? c.due_at))}
+                    </span>
+                    <span class="text-xs text-fg-muted">
+                      {TRIGGERS[c.trigger] ?? c.trigger} · {CALL_STATES[c.state] ?? c.state}
+                      {#if length}· <span class="font-mono">{length}</span>{/if}
+                    </span>
+                    {#if c.reason}
+                      <span class="truncate text-xs text-fg-soft">{c.reason}</span>
+                    {/if}
+                  </span>
+                  {#if codeOf}
+                    <span
+                      class={[
+                        "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-semibold",
+                        TONE_CHIP[codeOf.tone],
+                      ]}
+                    >
+                      <span class={["size-1.5", TONE_DOT[codeOf.tone]]}></span>{codeOf.label}
+                    </span>
+                  {:else}
+                    <span></span>
+                  {/if}
+                  <Icon
+                    name="arrow-right"
+                    size={14}
+                    class={expanded === c.id
+                      ? "rotate-90 text-fg-muted transition-transform"
+                      : "text-fg-muted transition-transform"}
+                  />
+                </button>
+                {#if expanded === c.id}
+                  <div class="flex flex-col gap-3.5 pb-5">
+                    {#if !shown || shown.kind === "loading"}
+                      <div role="status" class="flex items-center gap-2 text-fg-muted">
+                        <span class="loading loading-sm loading-spinner"></span>Se încarcă
+                        transcrierea…
+                      </div>
+                    {:else if shown.kind === "error"}
+                      <p role="alert" class="text-rosu-fg">{shown.message}</p>
+                    {:else}
+                      <CallTranscript call={shown.data} />
+                    {/if}
+                  </div>
+                {/if}
+              </li>
+            {:else}
+              <li class="text-fg-muted">Niciun apel pentru acest senior.</li>
+            {/each}
+          </ul>
+        {/if}
+      {:else if load.kind === "loading"}
         <div role="status" class="loading-delay flex items-center gap-2 text-fg-muted">
           <span class="loading loading-sm loading-spinner"></span>Se încarcă dosarul…
         </div>

@@ -1,66 +1,74 @@
+import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from app.auth.router import router as auth_router
-from app.core.db import engine
-from app.core.settings import check_environment, get_settings
-from app.incidents.router import (
-    incidents_query,
-    parse_statuses,
-)
-from app.incidents.router import (
-    router as incidents_router,
-)
+from app.calls.router import router as calls_router
+from app.campaigns.router import router as campaigns_router
+from app.core.settings import check_environment, cors_origins, get_settings
+from app.incidents.router import router as incidents_router
+from app.notify.service import drain, install, sender_from
+from app.scheduler.loop import run
 from app.seniors.router import router as seniors_router
-from app.staff.router import router as staff_router
 from app.system.router import router as system_router
 from app.voice.router import router as voice_router
 
 # Our own loggers at INFO, for refusals (auth-layer AL15); uvicorn sets up only its own.
 logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
-logging.getLogger("sentinela").setLevel(logging.INFO)
-logging.getLogger("sentinela.incidents").setLevel(logging.INFO)
+logging.getLogger("echocare").setLevel(logging.INFO)
+logging.getLogger("echocare.incidents").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
+# Pushes after every commit (04 §6), when a credential is set.
+install(sender_from(settings.firebase_push_credentials))
+
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """The scheduler loop (06 §1) lives as long as the app does; pushes under way
+    finish before it ends."""
+    task = asyncio.create_task(run()) if settings.scheduler_enabled else None
+    yield
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+    await drain()  # the pushes already under way
+
 
 # Everything under /api, docs included, so the API and the dashboard can share one domain.
 app = FastAPI(
-    title="Sentinela",
+    title="EchoCare",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 # Browser requests only from the dashboard's own address (01 §4, channel 3).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.allowed_origin],
+    allow_origins=cors_origins(settings),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 api = APIRouter(prefix="/api")
 
 
-@api.get("/health")
-async def health() -> dict[str, str]:
-    # Fails when the database is unreachable, so Railway holds back a broken deploy (06 §1).
-    async with engine.connect() as conn:
-        await conn.execute(text("SELECT 1"))
-    return {"status": "ok", "env": settings.app_env}
-
-
 # Assemble domain routers onto /api
 api.include_router(auth_router)
-api.include_router(staff_router)
 api.include_router(seniors_router)
 api.include_router(incidents_router)
+api.include_router(campaigns_router)
+api.include_router(calls_router)
 api.include_router(voice_router)
 api.include_router(system_router)
 
 # after every route is declared: include_router copies the routes it has at this point
 app.include_router(api)
 
-__all__ = ["app", "incidents_query", "parse_statuses"]
+__all__ = ["app"]

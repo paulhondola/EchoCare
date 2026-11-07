@@ -8,13 +8,18 @@ from pathlib import Path
 from typing import Annotated, Any
 
 # Before anything imports app: app.db builds its engine from DATABASE_URL at import, and
-# an environment variable beats backend/.env. Tests never use `sentinela` (AGENTS.md).
+# an environment variable beats backend/.env. Tests never use `echocare` (AGENTS.md).
 os.environ["DATABASE_URL"] = (
-    "postgresql://sentinela:sentinela@localhost:5432/sentinela_test"
+    "postgresql://echocare:echocare@localhost:5432/echocare_test"
 )
 # Twilio's callbacks are signed with this token for the address Twilio would call (#15).
 os.environ["TWILIO_AUTH_TOKEN"] = "test-auth-token"
-os.environ["PUBLIC_BASE_URL"] = "https://sentinela.test"
+os.environ["PUBLIC_BASE_URL"] = "https://echocare.test"
+# No scheduler loop in tests: a tick would dial and settle behind their backs.
+os.environ["SCHEDULER_ENABLED"] = "false"
+# No real push sender: a credential in backend/.env would make one at import, whose
+# Firebase app "push" clashes with the sender tests' own (AL11).
+os.environ["FIREBASE_PUSH_CREDENTIALS"] = ""
 
 import pytest
 from fastapi import Depends
@@ -23,10 +28,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import bearer, refuse, verify_token
+from app.auth.service import bearer, refuse, verify_token
 from app.core.db import Session, engine
 from app.main import app
-from app.models import Grant, Role, Senior, User
+from app.models import EnrollmentState, Grant, Role, Senior, User
 
 BACKEND = Path(__file__).parent.parent
 
@@ -84,11 +89,44 @@ def add_senior(
             full_name=name,
             form_of_address="doamna Maria",
             phone_e164=phone,
-            phone_is_landline=False,
-            **columns,
+            **{"phone_is_landline": False, **columns},
         )
         db.add(senior)
         await db.commit()
+        return senior
+
+    return add
+
+
+@pytest.fixture
+def add_active_senior(
+    db: AsyncSession,
+    add_user: Callable[..., Awaitable[User]],
+    add_senior: Callable[..., Awaitable[Senior]],
+) -> Callable[..., Awaitable[Senior]]:
+    """add_active_senior("+40700000101"): an `active` senior with the `senior` grant a
+    mobile number carries (UC-01 step 3); `landline=True` leaves the grant out."""
+
+    async def add(
+        phone: str, *, landline: bool = False, medic: User | None = None
+    ) -> Senior:
+        senior = await add_senior(
+            phone,
+            medic=medic,
+            enrollment_state=EnrollmentState.active,
+            phone_is_landline=landline,
+        )
+        if not landline:
+            user = await add_user(phone, name=senior.full_name)
+            db.add(
+                Grant(
+                    user_id=user.id,
+                    role=Role.senior,
+                    senior_id=senior.id,
+                    granted_by=senior.medic_id,
+                )
+            )
+            await db.commit()
         return senior
 
     return add

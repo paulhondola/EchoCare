@@ -18,11 +18,15 @@ class CallState(StrEnum):
     completed = "completed"
     handed_over = "handed_over"
     dropped = "dropped"
+    canceled = "canceled"
 
 
 TRANSITIONS: dict[CallState, frozenset[CallState]] = {
     # failed: Twilio refused to place it, so it frees the senior's live slot (05 §3).
-    CallState.queued: frozenset({CallState.ringing, CallState.failed}),
+    # canceled: a campaign ended before the call went out (03 §9).
+    CallState.queued: frozenset(
+        {CallState.ringing, CallState.failed, CallState.canceled}
+    ),
     CallState.ringing: frozenset(
         {CallState.in_progress, CallState.unanswered, CallState.failed}
     ),
@@ -40,11 +44,21 @@ TRANSITIONS: dict[CallState, frozenset[CallState]] = {
     CallState.completed: frozenset(),
     CallState.handed_over: frozenset(),
     CallState.dropped: frozenset(),
+    CallState.canceled: frozenset(),
 }
 
 # Live calls: at most one per senior, enforced by a partial unique index (05 §3).
 LIVE = frozenset({CallState.queued, CallState.ringing, CallState.in_progress})
 ENDED = frozenset(state for state, nexts in TRANSITIONS.items() if not nexts)
+# On the way to an ended call these states mean someone picked up (03 §9).
+ANSWERED = frozenset(
+    {
+        CallState.in_progress,
+        CallState.completed,
+        CallState.handed_over,
+        CallState.dropped,
+    }
+)
 
 
 class InvalidTransition(ValueError):

@@ -12,5 +12,8 @@ const app = initializeApp({
 export const auth = getAuth(app);
 
 // Dev server only, like Android debug builds (auth-layer §8.2): Firebase test numbers sign in
-// without a reCAPTCHA challenge. Real numbers still fail without one; the production bundle never sets it.
-if (import.meta.env.DEV) auth.settings.appVerificationDisabledForTesting = true;
+// without a reCAPTCHA challenge. Real numbers fail without one (captcha-check-failed, MALFORMED), so
+// VITE_REAL_SMS=true in dashboard/.env keeps it on; the production bundle never sets it.
+if (import.meta.env.DEV && import.meta.env.VITE_REAL_SMS !== "true") {
+  auth.settings.appVerificationDisabledForTesting = true;
+}

@@ -281,7 +281,7 @@ Scor de risc ────┘                                                    
 | Componentă | Tehnologie |
 |---|---|
 | Telefonie | Twilio Voice (taste + voce ro-RO), Twilio SMS |
-| Backend | FastAPI, Postgres, APScheduler pentru campanii; webhook-urile Twilio sunt expuse prin ngrok sau un deploy rapid |
+| Backend | FastAPI, Postgres, APScheduler pentru campanii; webhook-urile Twilio sunt expuse printr-un deploy rapid |
 | AI | LLM mic și rapid pentru parsarea răspunsurilor și rezumate; Whisper ca plan B pentru transcriere |
 | Date geo | Străzile și reperele din OpenStreetMap, geocodare prin Nominatim, potrivire aproximativă cu rapidfuzz, JSON cu adăposturile |
 | Frontend | React și Leaflet, cu actualizare live prin SSE |

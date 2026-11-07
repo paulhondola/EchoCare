@@ -1,6 +1,6 @@
 # .railway: Railway infrastructure as code
 
-[railway.ts](railway.ts) declares the whole Railway project, `Sentinela`, for both environments: the `api` and `dashboard` services, the `Postgres` database, the S3-compatible `storage` bucket, and every setting and variable. That covers the GitHub source and branch, root directory, watch paths, Dockerfile builder, Wait for CI, migrations before deploy, health check, draining and variables.
+[railway.ts](railway.ts) declares the whole Railway project, `EchoCare`, for both environments: the `api` and `dashboard` services, the `Postgres` database, the S3-compatible `storage` bucket, and every setting and variable. That covers the GitHub source and branch, root directory, watch paths, Dockerfile builder, Wait for CI, migrations before deploy, health check, draining and variables.
 
 | Environment | Deploys from | Used by |
 |---|---|---|
@@ -15,7 +15,7 @@
 railway login
 ```
 
-From `.railway/`, link the folder to the project. Pick the workspace, `Sentinela` and an environment when asked:
+From `.railway/`, link the folder to the project. Pick the workspace, `EchoCare` and an environment when asked:
 
 ```bash
 railway link
@@ -74,6 +74,8 @@ railway domain -s dashboard -e staging
 ```
 
 Then add the dashboard's domain to Firebase → Authentication → Settings → Authorized domains.
+
+The file cannot create or rename these domains, so it writes each environment's hosts out in `HOSTS` in `railway.ts`. After generating or renaming a domain, update `HOSTS` to match, plan and apply: the `api` and `dashboard` variables change, and both services redeploy. The Android release build's `API_URL` in `android/app/build.gradle.kts` must match the production API host too.
 
 **Creating environments.** Create one with the command below. Its branch also needs an entry in `BRANCH` in `railway.ts`; the file refuses environments it does not know.
 

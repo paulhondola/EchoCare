@@ -30,7 +30,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Sentinela"
+rootProject.name = "EchoCare"
 include(":app")
 include(":wear")
 include(":shared")

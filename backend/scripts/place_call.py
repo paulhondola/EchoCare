@@ -2,9 +2,8 @@
 
 A script, not an endpoint: an endpoint would stay in the API for old clients. The
 senior must exist (POST /api/seniors); the call is a `test` one on their record.
-Twilio must reach PUBLIC_BASE_URL, so run it inside the api container: locally with
-the tunnel profile (`docker compose exec api`), on staging through
-`railway ssh -s api -e staging`:
+Twilio must reach PUBLIC_BASE_URL, so run it on staging through
+`railway ssh -s api -e staging` (or in the api container with a public address):
 
     python scripts/place_call.py 0722123456
 """
@@ -22,11 +21,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.db import Session
 from app.core.phones import normalize
-from app.core.settings import get_settings
 from app.models import Call, CallTrigger, Senior
-from app.status import Severity
+from app.status.engine import Severity
 from app.voice.calls import CallState
-from app.voice.twilio import dial
+from app.voice.twilio import configured, dial, dial_allowed, refused
 
 
 async def place_call(phone: str) -> tuple[bool, str]:
@@ -35,9 +33,10 @@ async def place_call(phone: str) -> tuple[bool, str]:
         e164 = normalize(phone)
     except ValueError:
         return False, "invalid number"
-    s = get_settings()
-    if not (s.twilio_account_sid and s.twilio_auth_token and s.twilio_from_number):
+    if not configured():
         return False, "set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER"
+    if not dial_allowed(e164):
+        return False, f"{e164} is not on DIAL_ALLOWLIST: add it, or set it to *"
     async with Session() as session:
         senior = await session.scalar(
             select(Senior).where(Senior.phone_e164 == e164).order_by(Senior.created_at)
@@ -52,6 +51,8 @@ async def place_call(phone: str) -> tuple[bool, str]:
             trigger=CallTrigger.test,
             starting_severity=Severity.yellow,  # like a request for a call (UC-10)
             due_at=func.now(),
+            # In the same insert, so the scheduler can never pick this call up (06 §1).
+            dialed_at=func.now(),
         )
         session.add(call)
         try:
@@ -61,6 +62,8 @@ async def place_call(phone: str) -> tuple[bool, str]:
         try:
             sid = await dial(e164, call.id)
         except httpx.HTTPError as e:
+            if not refused(e):  # Twilio may have placed it; its callback settles it
+                return False, f"outcome unknown, the call stays queued: {e!r}"
             call.state = CallState.failed
             call.ended_at = func.now()
             await session.commit()

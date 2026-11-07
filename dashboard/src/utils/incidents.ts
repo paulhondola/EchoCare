@@ -1,6 +1,9 @@
 import type { Incident, IncidentStatus } from "../services/api";
 import { time } from "./labels";
 
+/** The four tabs of the incident dossier */
+export type DossierTab = "access" | "transcript" | "event" | "resolve";
+
 /** The first block of a uuid, for a card's corner: "#3f37c1bb" */
 export function shortId(id: string): string {
   return id.split("-")[0];
@@ -34,9 +37,9 @@ export function fold(text: string): string {
     .toLowerCase();
 }
 
-/** Whether an incident matches the board's filter text */
+/** Whether an incident matches the board's filter text; "#3f37c1bb" finds the id as cards show it */
 export function matchesIncident(i: Incident, query: string): boolean {
-  const q = fold(query.trim());
+  const q = fold(query.trim().replace(/^#/, ""));
   if (!q) return true;
   return fold(
     [i.id, i.senior_full_name, i.senior_form_of_address, i.reason, i.taken_by_name ?? ""].join(" "),

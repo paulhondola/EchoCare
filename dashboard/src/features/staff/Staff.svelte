@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ApiError, grantStaff, type StaffRole } from "../../services/api";
+  import { ApiError, grantStaff, setOnDuty, type StaffRole } from "../../services/api";
   import Icon from "../../ui/Icon.svelte";
   import { initials } from "../../utils/incidents";
   import { formatPhone, toE164 } from "../../utils/phone";
@@ -27,6 +27,32 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
   let added = $state<string | null>(null);
+
+  // Whose switch is on its way, and why the last one failed
+  let switching = $state<string | null>(null);
+  let dutyError = $state<string | null>(null);
+
+  function putOnDuty(id: string, name: string) {
+    // The hand-overs move to this phone and away from whoever has them now, so say who
+    const current = staff.load.kind === "ok" ? staff.load.data.find((s) => s.on_duty) : undefined;
+    const question = current
+      ? `Apelurile de urgență vor suna la ${name}, nu la ${current.display_name}. Continuați?`
+      : `Apelurile de urgență vor suna la ${name}. Continuați?`;
+    if (!confirm(question)) return;
+    switching = id;
+    dutyError = null;
+    setOnDuty(id)
+      .then(() => staff.update((list) => list.map((s) => ({ ...s, on_duty: s.id === id }))))
+      .catch((e: unknown) => {
+        dutyError =
+          e instanceof ApiError && e.reason === "not_allowed"
+            ? "Doar un dispecer DAS poate fi de serviciu."
+            : `Nu am putut schimba dispecerul de serviciu (${e instanceof Error ? e.message : String(e)}).`;
+      })
+      .finally(() => {
+        switching = null;
+      });
+  }
 
   const canAdd = $derived(
     name.trim() !== "" && phone.trim() !== "" && (role === "das" || practice.trim() !== ""),
@@ -98,6 +124,11 @@
             {staff.load.error}
           </p>
         {/if}
+        {#if dutyError}
+          <p role="alert" class="m-4 border border-rosu bg-rosu/15 px-4 py-2 text-rosu-fg">
+            {dutyError}
+          </p>
+        {/if}
         {#each staff.load.data as s (s.id)}
           <div
             class="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-5 py-3"
@@ -120,15 +151,27 @@
               </span>
             </span>
             {#if s.roles.includes("das")}
-              <!-- Read only: setting who is on duty (P10) has no endpoint yet -->
-              <span
-                class={[
-                  "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold tracking-[0.06em] uppercase",
-                  s.on_duty ? "bg-verde/15 text-verde-fg" : "text-fg-muted",
-                ]}
-              >
-                <span class={["size-1.5", s.on_duty ? "bg-verde" : "bg-off"]}></span>
-                {s.on_duty ? "De serviciu" : "Liber"}
+              <span class="flex items-center gap-2.5">
+                <span
+                  class={[
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold tracking-[0.06em] uppercase",
+                    s.on_duty ? "bg-verde/15 text-verde-fg" : "text-fg-muted",
+                  ]}
+                >
+                  <span class={["size-1.5", s.on_duty ? "bg-verde" : "bg-off"]}></span>
+                  {s.on_duty ? "De serviciu" : "Liber"}
+                </span>
+                {#if !s.on_duty}
+                  <button
+                    type="button"
+                    class="sn-btn sn-btn-link px-2.5 py-[5px] text-xs"
+                    disabled={switching !== null}
+                    aria-label={`Pune de serviciu pe ${s.display_name}`}
+                    onclick={() => putOnDuty(s.id, s.display_name)}
+                  >
+                    {switching === s.id ? "Se schimbă…" : "Pune de serviciu"}
+                  </button>
+                {/if}
               </span>
             {/if}
           </div>

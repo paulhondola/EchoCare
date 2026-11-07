@@ -19,20 +19,20 @@ android {
     // One key for debug and release, phone and watch (ADR-001 §2.1). Same block in wear/build.gradle.kts.
     signingConfigs {
         create("shared") {
-            storeFile = localProps.getProperty("sentinela.keystore")?.let(::file)
-            storePassword = localProps.getProperty("sentinela.keystore.password")
+            storeFile = localProps.getProperty("echocare.keystore")?.let(::file)
+            storePassword = localProps.getProperty("echocare.keystore.password")
             keyAlias = "key0" // Android Studio's default alias in the shared keystore
-            keyPassword = localProps.getProperty("sentinela.key.password")
+            keyPassword = localProps.getProperty("echocare.key.password")
         }
     }
 
-    namespace = "bia.sentinela"
+    namespace = "ro.echocare"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "bia.sentinela"
+        applicationId = "ro.echocare"
         minSdk = 37
         targetSdk = 37
         versionCode = 1
@@ -42,21 +42,29 @@ android {
     }
 
     buildTypes {
-        // debug → staging, release → production (ADR-001 §2.2). sentinela.apiUrl in local.properties
+        // debug → staging, release → production (ADR-001 §2.2). echocare.apiUrl in local.properties
         // points a debug build elsewhere, e.g. http://10.0.2.2:8000 for Compose from the emulator.
         debug {
             signingConfig = signingConfigs.getByName("shared")
-            val apiUrl = localProps.getProperty("sentinela.apiUrl")
-                ?: "https://api-staging-11c9.up.railway.app"
+            val apiUrl = localProps.getProperty("echocare.apiUrl")
+                ?: "https://echocare-api-staging.up.railway.app"
             buildConfigField("String", "API_URL", "\"$apiUrl\"")
-            // How often an open screen re-reads (06 §3). sentinela.rereadSeconds=10 for a demo.
-            val reread = localProps.getProperty("sentinela.rereadSeconds") ?: "30"
+            // How often an open screen re-reads (06 §3). echocare.rereadSeconds=10 for a demo.
+            val reread = localProps.getProperty("echocare.rereadSeconds") ?: "30"
             buildConfigField("int", "REREAD_SECONDS", reread)
+            // echocare.realSms=true keeps Firebase's app verification on, for real numbers (auth-layer §9).
+            val realSms = localProps.getProperty("echocare.realSms") == "true"
+            buildConfigField("boolean", "REAL_SMS", "$realSms")
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
-            buildConfigField("String", "API_URL", "\"https://api-production-ac97.up.railway.app\"")
+            buildConfigField(
+                "String",
+                "API_URL",
+                "\"https://echocare-api-prod.up.railway.app\""
+            )
             buildConfigField("int", "REREAD_SECONDS", "30")
+            buildConfigField("boolean", "REAL_SMS", "true")
             optimization {
                 enable = true
             }
@@ -87,6 +95,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

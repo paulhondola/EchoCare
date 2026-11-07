@@ -35,10 +35,10 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sentinela.jks"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/echocare.jks"
           {
-            echo "sentinela.keystore=$RUNNER_TEMP/sentinela.jks"
-            echo "sentinela.keystore.password=$KEYSTORE_PASSWORD"
-            echo "sentinela.key.password=$KEYSTORE_PASSWORD"
+            echo "echocare.keystore=$RUNNER_TEMP/echocare.jks"
+            echo "echocare.keystore.password=$KEYSTORE_PASSWORD"
+            echo "echocare.key.password=$KEYSTORE_PASSWORD"
           } > local.properties
       - run: ./gradlew ktlintCheck lint testDebugUnitTest :shared:test assembleDebug

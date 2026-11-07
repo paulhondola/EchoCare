@@ -16,6 +16,7 @@ pre-commit:
             stage_fixed: true
           - run: uv run ruff format {staged_files}
             stage_fixed: true
+          - run: uv run lint-imports
           - run: uv run pytest -q
 
     - name: dashboard

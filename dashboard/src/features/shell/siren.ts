@@ -10,6 +10,8 @@ export function armSiren(): void {
 /** A short two-tone siren, about a second and a half */
 export function playSiren(): void {
   if (!ctx) return;
+  // Safari suspends or interrupts a context when another app takes the audio or the Mac sleeps
+  void ctx.resume();
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();

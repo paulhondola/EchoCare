@@ -19,7 +19,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   return res;
 }
 
-/** GET /api/me (auth-layer §3.3). */
+/** GET /api/profile (auth-layer §3.3). */
 export type Me = {
   display_name: string;
   phone_e164: string;
@@ -28,7 +28,7 @@ export type Me = {
 
 /** The body on a 200, otherwise the refusal's reason (auth-layer §3.2). */
 export async function getMe(): Promise<Me | string> {
-  const res = await apiFetch("/api/me");
+  const res = await apiFetch("/api/profile");
   if (res.ok) return (await res.json()) as Me;
   const body = (await res.json().catch(() => null)) as { detail?: { reason?: string } } | null;
   return body?.detail?.reason ?? `http_${res.status}`;
@@ -169,6 +169,37 @@ export interface IncidentDetail {
   }[];
 }
 
+/** One call as the incident page and the transcript show it */
+export type IncidentCall = IncidentDetail["calls"][number];
+
+// GET /seniors/{id}/calls (04 §1): newest first, queued ones included.
+// Mirrors CallSummary in backend/app/calls/schemas.py.
+export interface CallSummary {
+  id: string;
+  trigger: string;
+  state: string;
+  due_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  final_severity: string | null;
+  final_certainty: string | null;
+  reason: string | null;
+  summary: string | null;
+}
+
+export async function fetchCalls(seniorId: string, signal?: AbortSignal): Promise<CallSummary[]> {
+  const r = await apiFetch(`/api/seniors/${seniorId}/calls`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as CallSummary[];
+}
+
+// GET /calls/{id}/transcript (04 §1): the call as on the incident page, every turn in order
+export async function fetchTranscript(id: string, signal?: AbortSignal): Promise<IncidentCall> {
+  const r = await apiFetch(`/api/calls/${id}/transcript`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as IncidentCall;
+}
+
 /** The address fields every senior view carries (G13) */
 export type SeniorAddress = Pick<
   IncidentDetail["senior"],
@@ -214,6 +245,16 @@ export async function grantStaff(grant: {
   if (!r.ok) throw await refused(r);
 }
 
+// PUT /staff/on-duty (04 §2): this DAS employee takes the hand-overs, everyone else stops (P10)
+export async function setOnDuty(userId: string): Promise<void> {
+  const r = await apiFetch("/api/staff/on-duty", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  if (!r.ok) throw await refused(r);
+}
+
 // One row of GET /seniors and GET /enrollments (04 §1). Mirrors SeniorSummary in
 // backend/app/seniors/service.py. The state stays a string: the server adds states later.
 export interface SeniorSummary {
@@ -223,12 +264,22 @@ export interface SeniorSummary {
   phone_e164: string;
   phone_is_landline: boolean;
   enrollment_state: string;
+  // The senior's current code (04 §1); optional so an older API still type-checks
+  code?: "green" | "yellow" | "red" | null;
+  reason?: string | null;
+  since?: string | null;
 }
 
 // GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors/service.py.
 export type SeniorView = IncidentDetail["senior"] & {
   call_window: string | null;
   enrollment_state: string;
+  code?: "green" | "yellow" | "red" | null;
+  reason?: string | null;
+  since?: string | null;
+  // True while one of her calls rings or is live (UC-12); only GET /seniors/{id} sets it
+  call_in_progress?: boolean | null;
+  watch_state?: string | null;
   medic: { display_name: string; practice: string | null };
   caregivers: {
     user_id: string;
@@ -282,4 +333,56 @@ export async function fetchSystemHealth(signal?: AbortSignal): Promise<SystemHea
   const r = await apiFetch("/api/system/health", { signal });
   if (!r.ok) throw await refused(r);
   return (await r.json()) as SystemHealth;
+}
+
+export type CampaignKind = "heat" | "cold";
+export type WarningLevel = "yellow" | "red";
+
+// One row of GET /campaigns (04 §1), DAS only. Mirrors CampaignSummary in the backend.
+// `total` counts every queued call, so it can exceed the buckets: a call that is ringing or in
+// progress is only in `total`.
+export interface Campaign {
+  id: string;
+  kind: CampaignKind;
+  level: WarningLevel;
+  started_by_name: string;
+  started_at: string;
+  warning_until: string;
+  active: boolean;
+  progress: {
+    total: number;
+    waiting: number;
+    green: number;
+    yellow: number;
+    red: number;
+    canceled: number;
+  };
+}
+
+/** Newest first (04 §1). */
+export async function fetchCampaigns(signal?: AbortSignal): Promise<Campaign[]> {
+  const r = await apiFetch("/api/campaigns", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as Campaign[];
+}
+
+/** POST /campaigns (04 §2): 201 for a new campaign, 200 for the one already running. */
+export async function startCampaign(
+  kind: CampaignKind,
+  level: WarningLevel,
+): Promise<{ campaign: Campaign; created: boolean }> {
+  const r = await apiFetch("/api/campaigns", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, level }),
+  });
+  if (!r.ok) throw await refused(r);
+  return { campaign: (await r.json()) as Campaign, created: r.status === 201 };
+}
+
+/** Încheie: ends the warning and cancels the calls nobody answered (04 §2). */
+export async function endCampaign(id: string): Promise<Campaign> {
+  const r = await apiFetch(`/api/campaigns/${id}/end`, { method: "POST" });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as Campaign;
 }

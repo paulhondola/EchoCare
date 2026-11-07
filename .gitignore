@@ -3,6 +3,8 @@ Icon?
 
 # local environment
 .env
+# the demo cast: real people's names and numbers (#48); cast.example.json is the shape
+backend/cast.json
 .venv/
 __pycache__/
 .pytest_cache/
@@ -13,6 +15,10 @@ dist/
 # Claude Code: personal settings and the remember plugin's session notes
 .claude/settings.local.json
 .remember/
+.superpowers/
+
+# Impeccable: personal settings; design.json and config.json are shared
+.impeccable/config.local.json
 
 # lefthook: personal overrides, such as rc: for a Git GUI's PATH (ADR-002)
 lefthook-local.yml

@@ -47,6 +47,8 @@ test("the filter ignores case and diacritics", () => {
   expect(matchesIncident(i, "repaus")).toBe(true);
   expect(matchesIncident(i, "popescu")).toBe(true);
   expect(matchesIncident(i, "3f37")).toBe(true);
+  // the id as cards show it, with its #
+  expect(matchesIncident(i, "#3f37c1bb")).toBe(true);
   expect(matchesIncident(i, "Gheorghe")).toBe(false);
 });
 

@@ -3,7 +3,7 @@
      Release builds talk to Railway over HTTPS and need neither. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Android 17 blocks private addresses such as 10.0.2.2 without it. A runtime permission:
-         grant it once per install with `adb shell pm grant bia.sentinela android.permission.ACCESS_LOCAL_NETWORK`. -->
+         grant it once per install with `adb shell pm grant ro.echocare android.permission.ACCESS_LOCAL_NETWORK`. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <application android:usesCleartextTraffic="true" />
 </manifest>

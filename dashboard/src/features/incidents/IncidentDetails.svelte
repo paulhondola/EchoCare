@@ -1,7 +1,3 @@
-<script lang="ts" module>
-  export type DossierTab = "access" | "transcript" | "event" | "resolve";
-</script>
-
 <script lang="ts">
   import { onMount } from "svelte";
   import {
@@ -14,10 +10,20 @@
     type IncidentOutcome,
     type SeniorView,
   } from "../../services/api";
+  import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
-  import { shortId, since } from "../../utils/incidents";
-  import { address, clock, OUTCOMES, time } from "../../utils/labels";
+  import { shortId, since, type DossierTab } from "../../utils/incidents";
+  import {
+    address,
+    CALL_STATES,
+    callLength,
+    clock,
+    OUTCOMES,
+    time,
+    TRIGGERS,
+  } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
+  import CallTranscript from "../calls/CallTranscript.svelte";
   import { refusalMessage } from "./commands";
 
   let {
@@ -44,33 +50,12 @@
   ];
 
   // Romanian labels for the stored values (05 §1); an unknown value shows as it is
-  const TRIGGERS: Record<string, string> = {
-    campaign: "Campanie",
-    watch: "Ceas",
-    manual: "Cerere „Sunați-mă”",
-    welcome: "Apel de bun venit",
-  };
   const EVENTS: Record<string, string> = {
     high_pulse_at_rest: "Puls ridicat în repaus",
     inactivity: "Inactivitate",
     sos_button: "Buton SOS",
     manual_request: "„Sunați-mă”",
     fall: "Cădere detectată",
-  };
-  const STATES: Record<string, string> = {
-    queued: "în așteptare",
-    ringing: "sună",
-    in_progress: "în curs",
-    unanswered: "nepreluat",
-    failed: "eșuat",
-    completed: "încheiat",
-    handed_over: "transferat la DAS",
-    dropped: "întrerupt",
-  };
-  const SEVERITY: Record<string, { label: string; text: string }> = {
-    red: { label: "Cod Roșu", text: "text-rosu-fg" },
-    yellow: { label: "Cod Galben", text: "text-galben-fg" },
-    green: { label: "Cod Verde", text: "text-verde-fg" },
   };
 
   type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
@@ -80,8 +65,6 @@
   let load = $state<Load<IncidentDetail>>({ kind: "loading" });
   let senior = $state<SeniorView | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
-  let copied = $state<string | null>(null);
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let outcome = $state<IncidentOutcome | "">("");
   let note = $state("");
   let busy = $state(false);
@@ -89,7 +72,6 @@
 
   onMount(() => {
     if (dialogEl && !dialogEl.open) dialogEl.showModal();
-    return () => clearTimeout(copyTimer);
   });
 
   // Read again whenever the board sees the incident change hands or state
@@ -125,13 +107,6 @@
     return () => ctrl.abort();
   });
 
-  function copy(key: string, text: string) {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    copied = key;
-    clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => (copied = null), 1400);
-  }
-
   function send(action: "take" | "resolve", command: () => Promise<Incident>) {
     busy = true;
     error = null;
@@ -161,12 +136,6 @@
 
   const at = (iso: string | null) => (iso ? time.format(Date.parse(iso)) : "—");
   const tel = (e164: string) => `tel:${e164}`;
-
-  function duration(start: string | null, end: string | null): string | null {
-    if (!start || !end) return null;
-    const s = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
-    return `${Math.floor(s / 60)}m ${s % 60}s`;
-  }
 
   const STATUS = $derived(
     incident.status === "open"
@@ -248,37 +217,25 @@
         {@const line = address(s)}
         <div class="text-sm">{line}</div>
         <div class="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
-            onclick={() => copy("addr", line)}
-          >
-            <Icon name="copy" size={13} />{copied === "addr" ? "Copiat" : "Copiază adresa"}
-          </button>
+          <CopyButton class="h-7 px-2.5 text-xs" icon="copy" label="Copiază adresa" text={line} />
           {#if s.intercom_code}
-            <button
-              type="button"
-              class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
-              onclick={() => copy("ic", s.intercom_code ?? "")}
-            >
-              <Icon name="key" size={13} />
-              <span class="font-mono font-medium">
-                {copied === "ic" ? "Copiat" : `Interfon: ${s.intercom_code}`}
-              </span>
-            </button>
+            <CopyButton
+              class="h-7 px-2.5 text-xs"
+              icon="key"
+              mono
+              label={`Interfon: ${s.intercom_code}`}
+              text={s.intercom_code}
+            />
           {/if}
           {#if e && e.latitude !== null && e.longitude !== null}
             {@const gps = `${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)}`}
-            <button
-              type="button"
-              class="sn-btn h-7 px-2.5 text-xs font-semibold text-fg-soft hover:border-link hover:text-fg"
-              onclick={() => copy("gps", gps)}
-            >
-              <Icon name="navigation" size={13} />
-              <span class="font-mono font-medium"
-                >{copied === "gps" ? "Copiat" : `GPS: ${gps}`}</span
-              >
-            </button>
+            <CopyButton
+              class="h-7 px-2.5 text-xs"
+              icon="navigation"
+              mono
+              label={`GPS: ${gps}`}
+              text={gps}
+            />
           {/if}
         </div>
         {#if incident.status === "open"}
@@ -316,7 +273,7 @@
           ]}
           onclick={() => (tab = t.key)}
         >
-          <span class="font-mono text-[11px] font-medium text-fg-subtle">{t.n}</span>{t.label}
+          <span class="font-mono text-[11px] font-medium text-fg-muted">{t.n}</span>{t.label}
         </button>
       {/each}
     </div>
@@ -393,7 +350,7 @@
           {/if}
           <div class="flex flex-col gap-8">
             {#each d.calls as c (c.id)}
-              {@const length = duration(c.started_at, c.ended_at)}
+              {@const length = callLength(c.started_at, c.ended_at)}
               <section class="flex flex-col gap-3.5">
                 <div
                   class="flex flex-wrap gap-x-[18px] gap-y-1.5 border-b-2 border-line pb-3 text-xs text-fg-muted"
@@ -408,73 +365,10 @@
                   {#if length}
                     <span>durată <span class="font-mono text-fg">{length}</span></span>
                   {/if}
-                  <span>{STATES[c.state] ?? c.state}</span>
+                  <span>{CALL_STATES[c.state] ?? c.state}</span>
                 </div>
 
-                {#if c.summary}
-                  <p class="text-fg-soft">{c.summary}</p>
-                {/if}
-
-                {#each c.turns as t, n (n)}
-                  <div class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1">
-                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-subtle">
-                      {clock.format(Date.parse(t.at))}
-                    </span>
-                    <div class="flex flex-col gap-0.5">
-                      <span
-                        class={["sn-label", t.speaker === "senior" ? "text-fg-muted" : "text-link"]}
-                      >
-                        {t.speaker === "senior"
-                          ? "Senior"
-                          : t.speaker === "agent"
-                            ? "Sistem AI"
-                            : "Sistem"}
-                      </span>
-                      <span>{t.kind === "keys" ? `tasta ${t.content}` : `„${t.content}”`}</span>
-                    </div>
-                  </div>
-                {/each}
-
-                {#each c.reports as r, n (n)}
-                  <div
-                    class="-mx-5 grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1 border-y border-line bg-card px-5 py-2.5"
-                  >
-                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-subtle">
-                      {clock.format(Date.parse(r.at))}
-                    </span>
-                    <div class="flex flex-col gap-0.5">
-                      <span class={["sn-label", SEVERITY[r.severity]?.text ?? "text-fg-muted"]}>
-                        {SEVERITY[r.severity]?.label ?? r.severity} · semnalat
-                      </span>
-                      {#if r.quote}<span class="text-sm">„{r.quote}”</span>{/if}
-                      <span class="text-fg-soft">{r.reason}</span>
-                    </div>
-                  </div>
-                {/each}
-
-                {#if c.final_severity}
-                  <div
-                    class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-t-2 border-line pt-3.5"
-                  >
-                    <span class="sn-label">Severitate finală</span>
-                    <span class={["font-semibold", SEVERITY[c.final_severity]?.text]}>
-                      {SEVERITY[c.final_severity]?.label ?? c.final_severity}
-                    </span>
-                  </div>
-                {/if}
-                {#if c.handover_answered !== null}
-                  <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3">
-                    <span class="sn-label">Predare audio</span>
-                    {#if c.handover_answered}
-                      <span class="inline-flex items-center gap-1.5 font-semibold text-verde-fg">
-                        <Icon name="check" size={13} stroke={2.4} />
-                        Transferat cu succes la telefonul de serviciu DAS
-                      </span>
-                    {:else}
-                      <span class="font-semibold text-rosu-fg">Transferul nu a fost preluat</span>
-                    {/if}
-                  </div>
-                {/if}
+                <CallTranscript call={c} />
               </section>
             {/each}
           </div>
@@ -554,7 +448,7 @@
                       ]}
                     ></span>
                     {o.label}
-                    <span class="ml-auto font-mono text-[11px] text-fg-subtle">{o.value}</span>
+                    <span class="ml-auto font-mono text-[11px] text-fg-muted">{o.value}</span>
                   </label>
                 {/each}
               </div>

@@ -174,7 +174,7 @@ The incident board's `now`, which ages the "acum N min" labels, is the time of t
 |---|---|
 | `dashboard/AGENTS.md`, `dashboard/README.md` | Svelte and SvelteKit in place of React; the layout; `svelte-check` in the commands; the Caddy cache path; the class-name rule |
 | Root `AGENTS.md`, root `README.md` | The dashboard rows |
-| `docs/specs/sentinela/01-architecture.md` | The diagram's „DAS desk, React” and the parts table |
+| `docs/specs/echocare/01-architecture.md` | The diagram's „DAS desk, React” and the parts table |
 | `docs/adr/ADR-002-git-hooks.md` | One line under the header: amended by ADR-003 for `dashboard/` |
 
 The decision log (README G15, the v3 comparison), ADR-001 and auth-layer §7 record what was true when they were written, and stay as they are.

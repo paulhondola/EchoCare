@@ -2,10 +2,10 @@
 
 **Status:** approved design · 2026-10-12 · branch `auth-layer`
 **Issues:** #16 (parent), #17, #18, #19, #21.
-**Implements:** UC-01 (register a senior), UC-04 step 1 (accept, without the welcome call), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](sentinela/04-interfaces.md).
-**Read with:** the system spec in [sentinela/](sentinela/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
+**Implements:** UC-01 (register a senior), UC-04 step 1 (accept; the welcome call it queues came later, with [the campaigns and mock calls design](../superpowers/specs/2026-10-17-campaigns-and-mock-calls-design.md)), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](echocare/04-interfaces.md).
+**Read with:** the system spec in [echocare/](echocare/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
 
-**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](sentinela/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE9 (only the medic who registered a senior edits them, in `draft` or `submitted`), SE10 (a second senior on one mobile gets no grant, as AL7 says; there is no `phone_taken`), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
+**Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](echocare/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). SE9 and SE10 are in force again (CRUD completion, 2026-10-16): the registering medic and DAS edit a registration and its caregivers in any state, and a second senior on one mobile is refused with `phone_taken`. `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
 
 Sections 1 to 5 are shared reference that every slice reads. Sections 6 to 9 are self-contained briefs, one per pull request, each ending on a completion criterion. Section 10 is the rollout.
 
@@ -15,7 +15,7 @@ A medic registers a senior with caregivers, DAS accepts the senior, and each num
 
 1. DAS, `+40700000001`, opens „Personal” on the dashboard and adds `+40700000002` as a medic.
 2. The medic signs in on Android, opens „Pacient nou”, registers „doamna Maria” with the caregiver `+40700000004`, and submits.
-3. The caregiver signs in on a second emulator and sees doamna Maria. Their `GET /me` names her.
+3. The caregiver signs in on a second emulator and sees doamna Maria. Their `GET /profile` names her.
 4. Another medic gets 404 for her.
 5. DAS could not see her as a draft, sees her once she is submitted, and accepts her. A second accept is refused.
 6. The medic removes the caregiver. The caregiver's next request answers `not_registered` and the app signs them out.
@@ -24,7 +24,7 @@ A medic registers a senior with caregivers, DAS accepts the senior, and each num
 
 | ID | Decision | Note |
 |---|---|---|
-| SE1 | In scope: the reach rule; the senior, caregiver and enrollment endpoints; `GET /staff`; the `/me` additions; the dashboard's „Personal” screen; Android navigation with a home per role; the medic's „Pacient nou” form | Out of scope: §11 |
+| SE1 | In scope: the reach rule; the senior, caregiver and enrollment endpoints; `GET /staff`; the `/profile` additions; the dashboard's „Personal” screen; Android navigation with a home per role; the medic's „Pacient nou” form | Out of scope: §11 |
 | SE2 | No migration. The `seniors` table, the foreign key on `grants.senior_id` and the one-senior-grant index shipped in `741f75a7dbe1`, and `tests/test_models.py` already tests both constraints | #16's first task is done; its note about #15 is stale, because the head is `b3e9c1d47a52` |
 | SE3 | A draft needs a full name, a form of address and a valid phone number | The table's NOT NULL columns |
 | SE4 | Submitting also needs a street and a street number. Caregivers are optional | DAS must be able to find the door (G13); a senior with no family can still be enrolled |
@@ -128,6 +128,8 @@ Existing reasons, as these endpoints use them:
 ]
 ```
 
+Since the campaigns and mock calls work ([04 §1](echocare/04-interfaces.md)), each row and the senior's page also carry `code`, `reason` and `since`: null until the senior's first result, and for any senior who is not `active`.
+
 **`GET /seniors/{id}`.** Any caller who reaches the senior. The row above, plus:
 
 ```json
@@ -172,7 +174,7 @@ Caregivers are sorted by name. This object is called **the senior's page** below
 ]
 ```
 
-**`GET /me`.** Each grant gains two fields, `null` where they do not apply (auth-layer §3.3, optional additions):
+**`GET /profile`.** Each grant gains two fields, `null` where they do not apply (auth-layer §3.3, optional additions):
 
 ```json
 { "role": "caregiver", "senior_id": "0199b6f0-7c1e-7a55-b8d2-5d0c8c3a7f21", "senior_form_of_address": "doamna Maria", "relation": "fiică" }
@@ -187,7 +189,7 @@ Caregivers are sorted by name. This object is called **the senior's page** below
 | `POST /seniors/{id}/caregivers` | Medic or DAS, in reach | Makes the caregiver grant | 201, the caregiver as in the page | 409 `already_done` |
 | `DELETE /seniors/{id}/caregivers/{user_id}` | Medic or DAS, in reach | Deletes that caregiver grant | 204 | 404 `not_found` |
 | `POST /seniors/{id}/submit` | Medic, in reach | `draft` → `submitted` | 200, the page | 409 `wrong_state`, 422 `missing_fields` |
-| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`. Queues nothing yet | 200, the page | 409 `wrong_state` |
+| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`, and queues the welcome call in the same step ([04 §2](echocare/04-interfaces.md)); the scheduler dials it if the number is on `DIAL_ALLOWLIST`, otherwise a mobile senior's app answers it as a mock card and a landline's call stays queued | 200, the page | 409 `wrong_state` |
 
 A refused command changes nothing: its transaction rolls back.
 
@@ -241,7 +243,7 @@ A later change of the senior's name does not rename their user row.
 
 ## 4. Data
 
-No table changes (SE2). Each field of §3.3 is the `seniors` column of the same name ([05](sentinela/05-data-model.md)). `medic` comes from `users` through `seniors.medic_id`, and `caregivers` from `grants` with role `caregiver`.
+No table changes (SE2). Each field of §3.3 is the `seniors` column of the same name ([05](echocare/05-data-model.md)). `medic` comes from `users` through `seniors.medic_id`, and `caregivers` from `grants` with role `caregiver`.
 
 ## 5. Test numbers
 
@@ -252,7 +254,7 @@ Auth-layer §5 listed four before this work, which adds two, configured by a per
 | `+40700000004` | `444444` | A caregiver |
 | `+40700000005` | `555555` | A senior |
 
-A test number is enough for a senior here, because nothing dials it yet. When calls arrive, a senior with a test number must not be dialled (auth-layer §5).
+A test number is enough for a senior here, because the scheduler dials only numbers on `DIAL_ALLOWLIST`, which is empty by default. A senior with a test number must not be dialled (auth-layer §5): keep such a number off the list, and never set it to `*` while one is active.
 
 ## 6. Slice 1: Backend
 
@@ -266,10 +268,10 @@ A test number is enough for a senior here, because nothing dials it yet. When ca
 | `app/staff.py` | `grant_staff()` calls `user_for_number()`. Gains `list_staff(session)` for `GET /staff` |
 | `app/reach.py` | `reaches(caller, *roles)` and `reachable_senior(session, caller, senior_id, *roles) -> Senior`, which raises 404 `not_found` (§3.1). With `lock=True` it holds the row until the transaction ends, for a command that reads the state and then writes |
 | `app/seniors.py` | An `APIRouter` with the reads and commands of §3.3 and §3.4 for seniors, caregivers and enrollment; their request and response models; the grant rules of §3.5 |
-| `app/main.py` | `GET /staff`; the `/me` additions; `api.include_router(seniors.router)` |
+| `app/main.py` | `GET /staff`; the `/profile` additions; `api.include_router(seniors.router)` |
 | `tests/conftest.py` | `add_senior` accepts the medic who registers the senior |
 | `tests/test_grants.py`, `test_reach.py`, `test_seniors.py`, `test_caregivers.py`, `test_enrollment.py` | §6.4 |
-| `tests/test_staff.py`, `tests/test_me.py` | The `GET /staff` and `/me` cases of §6.4 |
+| `tests/test_staff.py`, `tests/test_profile.py` | The `GET /staff` and `/profile` cases of §6.4 |
 
 ### 6.2 Facts that are hard to find by looking
 
@@ -295,7 +297,7 @@ Each step is done when its criterion holds.
 4. **`POST /seniors` and `PUT /seniors/{id}`**, with the senior's grant. *Done:* the senior cases pass.
 5. **Caregivers.** *Done:* the caregiver cases pass.
 6. **Submit, accept and `GET /enrollments`.** *Done:* the enrollment cases pass.
-7. **`/me` additions.** *Done:* the `/me` cases pass. Existing assertions that compare a whole grant, in `tests/test_me.py` and `tests/test_staff.py`, gain the two new fields.
+7. **`/profile` additions.** *Done:* the `/profile` cases pass. Existing assertions that compare a whole grant, in `tests/test_profile.py` and `tests/test_staff.py`, gain the two new fields.
 8. **`GET /staff`.** *Done:* the staff cases pass.
 9. **Docs.** *Done:* every row of §6.6 is changed.
 10. **Real-token check.** On Compose, with tokens from `dev_token.py`, run the story of §1 steps 2 to 6 with curl. *Done:* each step's answer is reported. If `+40700000004` is not yet a test number in the console, stop and report it.
@@ -329,7 +331,7 @@ The stand-in verifier and the fixtures are those of auth-layer §6.4.
 
 **Seniors**
 - A medic creates a draft with only the three required fields; the page comes back with `null` for the rest.
-- A landline sets `phone_is_landline` and makes no user and no grant. A mobile makes the user and the senior grant, and that number's `/me` names the senior.
+- A landline sets `phone_is_landline` and makes no user and no grant. A mobile makes the user and the senior grant, and that number's `/profile` names the senior.
 - A full name of 150 characters makes a user named with its first 120.
 - A blank name, a blank form of address, an unparseable number and an over-long field are each a 422.
 - A mobile that is another senior's is 409 `phone_taken`, and no senior is created.
@@ -355,7 +357,7 @@ The stand-in verifier and the fixtures are those of auth-layer §6.4.
 - A medic calling accept, and DAS calling submit, each get 403 `not_allowed`.
 - Two accepts at once give one 200 and one 409.
 
-**`/me`**
+**`/profile`**
 - A caregiver grant carries the senior's form of address and the relation. A `das` grant carries `null` for both.
 
 **`GET /staff`**
@@ -378,12 +380,12 @@ Open the PR only when the person who dispatched you asks for it.
 
 | File | Change |
 |---|---|
-| `docs/specs/sentinela/04-interfaces.md` §0 | The reasons `missing_fields` and `phone_taken`; `POST /seniors` as the exception to repeat-safe |
+| `docs/specs/echocare/04-interfaces.md` §0 | The reasons `missing_fields` and `phone_taken`; `POST /seniors` as the exception to repeat-safe |
 | same file, §1 | The seniors rows match §3.3 and say which fields arrive later; `GET /enrollments`; `GET /staff` returns roles, with on duty to come |
-| same file, §2 | The senior, caregiver, submit and accept rows match §3.4 and SE9; the notice SMS and the welcome call are marked as not built |
-| `docs/specs/sentinela/01-architecture.md` §6 | DAS may add and remove caregivers and edit a registration (SE9); one mobile, one senior (SE10) |
-| `docs/specs/sentinela/02-use-cases.md` UC-01 | Step 6 names what a submit needs (SE4) |
-| `docs/specs/sentinela/05-data-model.md` §3 | The one-senior-grant row matches SE10 |
+| same file, §2 | The senior, caregiver, submit and accept rows match §3.4 and SE9; the notice SMS and the welcome call are marked as not built (the welcome call has since been built, see 04 §2) |
+| `docs/specs/echocare/01-architecture.md` §6 | DAS may add and remove caregivers and edit a registration (SE9); one mobile, one senior (SE10) |
+| `docs/specs/echocare/02-use-cases.md` UC-01 | Step 6 names what a submit needs (SE4) |
+| `docs/specs/echocare/05-data-model.md` §3 | The one-senior-grant row matches SE10 |
 | `docs/specs/auth-layer.md` | AL7 and §3.6 match SE10 and SE9; §3.3 shows the two new grant fields; §5 lists the two new numbers; §10 marks the seniors row and `GET /staff` as built here |
 | `backend/AGENTS.md` | The layout gains `grants.py`, `reach.py` and `seniors.py`; the route rule allows a router included into `api` |
 
@@ -456,7 +458,7 @@ Slice 2 is done when all of these hold:
   - Adding the same number and role again shows the `already_done` text.
   - A landline shows the phone text.
   - A reload on `/personal` stays on „Personal”.
-- That medic's number gets a 200 from `GET /api/me` with a `medic` grant, using a token from `dev_token.py`.
+- That medic's number gets a 200 from `GET /api/profile` with a `medic` grant, using a token from `dev_token.py`.
 
 Report each of these observations. Open the PR only when the person who dispatched you asks for it.
 
@@ -464,7 +466,7 @@ Report each of these observations. Open the PR only when the person who dispatch
 
 **Branch:** `android-homes`, in its own worktree, cut from `main` after slice 1 has merged. **Closes:** #21. **Read first:** [android/AGENTS.md](../../android/AGENTS.md), [android/app/AGENTS.md](../../android/app/AGENTS.md), then §1 to §5 of this file.
 
-**Preconditions:** the shared keystore and `sentinela.apiUrl=http://10.0.2.2:8000` in `local.properties`; the test numbers granted on the local stack, with one senior and one caregiver registered through the API.
+**Preconditions:** the shared keystore and `echocare.apiUrl=http://10.0.2.2:8000` in `local.properties`; the test numbers granted on the local stack, with one senior and one caregiver registered through the API.
 
 ### 8.1 Build
 
@@ -473,7 +475,7 @@ Through `gradle/libs.versions.toml`, on `:app` only.
 | Addition | Note |
 |---|---|
 | `androidx.navigation:navigation-compose`, the current stable release | Type-safe routes use the serialization plugin the app already has |
-| `BuildConfig.REREAD_SECONDS` | 30. A debug build reads `sentinela.rereadSeconds` from `local.properties`, so a demo can use 10 (06 §3) |
+| `BuildConfig.REREAD_SECONDS` | 30. A debug build reads `echocare.rereadSeconds` from `local.properties`, so a demo can use 10 (06 §3) |
 
 If Navigation cannot build under AGP 9.4.1 and Kotlin 2.2.10, stop and report the build error.
 
@@ -519,7 +521,7 @@ The last row is how a grant revoked mid-session ends the session. The reason is 
 | Caregiver home | „Seniorii mei” |
 | DAS home | „Nu sunt incidente.” |
 | Empty list | „Nu aveți niciun senior.” |
-| States | `draft` „Ciornă”, `submitted` „Trimis la DAS”, `accepted` „Acceptat”, `active` „Activ”, `refused` „Refuzat”, `wrong_number` „Număr greșit”, `unreachable` „De negăsit”. An unknown state shows no label |
+| States | `draft` „Ciornă”, `submitted` „Trimis la DAS”, `accepted` „Acceptat”, `active` „Activ”, `refused` „Refuzat”, `wrong_number` „Număr greșit”, `unreachable` „De negăsit”. `withdrawn` has no label yet. An unknown state shows no label |
 | Landline mark | „fix” |
 | Page sections | „Adresă și acces”, „Interval pentru apel”, „Medic”, „Aparținători” |
 | No caregivers | „Niciun aparținător.” |
@@ -555,7 +557,7 @@ All on the medic's screens, and all open one destination, the form:
 |---|---|
 | „Pacient nou”, a button on the medic's home | An empty form |
 | Tapping a draft's card on the medic's home | The form filled from `GET seniors/{id}`, at step 1 |
-| „Editează”, on the page of a senior the medic opened from their home | The same, for a senior in any state (SE9) |
+| „Editează”, on the page of a senior the medic opened from their home | The same, for a senior in `draft` or `submitted`. The API edits in any state (SE9), but the button shows only in those two states until the app is updated |
 
 ### 9.2 The four steps
 
@@ -564,7 +566,7 @@ All on the medic's screens, and all open one destination, the form:
 | 1 · „Senior” | Full name, form of address, phone number, call window | Enabled when the first three are valid. Creates the senior with `POST seniors` the first time, and saves with `PUT seniors/{id}` after that |
 | 2 · „Adresă și acces” | Street, number, block, staircase, floor, apartment, intercom code, key holder, landmark | Saves with `PUT`. A draft may leave the street and number empty; past `draft` they are required |
 | 3 · „Aparținători” | The caregivers so far, each with a remove button, and a row to add one: name, relation, phone number | Sends nothing. „Adaugă” and remove each call the API at once |
-| 4 · „Verificare” | A read-only summary from `GET seniors/{id}`, and what is still missing | A draft: „Trimite la DAS”, enabled when the street and number are filled; it submits and returns to the home. Past `draft`: „Gata” returns to the page |
+| 4 · „Verificare” | A read-only summary from `GET seniors/{id}`, and what is still missing | A draft: „Trimite la DAS”, enabled when the street, the number and at least one caregiver are there (04 §2); it submits and returns to the home. Past `draft`: „Gata” returns to the page |
 
 - **`PUT` sends the whole registration** (§3.5), so the form keeps the fields of steps 1 and 2 together and sends both at each save.
 - **Back** goes to the previous step, and from step 1 leaves the form. What „Continuă” saved stays saved; what was typed since is dropped.
@@ -581,11 +583,13 @@ All on the medic's screens, and all open one destination, the form:
 | Answer | Shown |
 |---|---|
 | 422 on the senior's `phone` | Under the field: „Număr de telefon invalid.” |
-| 409 `phone_taken` | Under the field: „Acest număr este deja al altui senior.” |
 | 422 on a caregiver's `phone` | Under the field: „Număr invalid. Aparținătorul are nevoie de un număr de mobil.” |
-| 409 `already_done` | „Este deja aparținător pentru acest senior.” |
-| 422 `missing_fields` | On step 4, the missing fields by their labels |
-| 409 `wrong_state` | The senior is read again, and step 4 shows the state it is in |
+| 422 on another field | Under the field: „Valoare invalidă.” |
+| 409 `already_done` on adding a caregiver | „Este deja aparținător pentru acest senior.” |
+| 422 `incomplete` with `missing`, on submit or on an edit of a submitted senior | „Lipsesc: …”, the missing fields by their labels |
+| 422 `incomplete` on removing the last caregiver past `draft` | „Un senior trimis la DAS are nevoie de cel puțin un aparținător.” |
+| 409 `wrong_state`, or `already_done` on submit | The senior is read again, and step 4 shows the state it is in |
+| 409 `phone_taken` on saving the senior | Under the phone field: „Acest număr este deja al altui senior.” |
 | 404, 403 `not_allowed`, no connection, 401, 403 `not_registered` | As in slice 3's table. The form keeps what was typed when there is no connection |
 
 ### 9.4 Layout
@@ -640,10 +644,11 @@ Each slice is one folder, so a red Android build never holds back an API deploy 
 | Item | Belongs to |
 |---|---|
 | The notice SMS to a new caregiver | Spike S10 |
-| The code, reason, calls, consent, watch and home node fields on the senior reads | Their features; each is an optional addition |
-| The welcome call on accept, and every state after `accepted` | UC-04 |
+| `code`, `reason` and `since` on `GET /seniors` and `GET /seniors/{id}` | Built by [the campaigns and mock calls design](../superpowers/specs/2026-10-17-campaigns-and-mock-calls-design.md): null until the first result and for any senior who is not `active` |
+| The calls, consent, watch and home node fields on the senior reads | Their features; each is an optional addition |
+| The Twilio welcome call, its retries, and the states `wrong_number` and `unreachable` | UC-04. Accept already queues the welcome call, and the mock card in the senior's app answers it until then, making the senior `active` or `refused` |
 | „Cereri de înrolare” and the senior screens on the dashboard, where DAS would use its edit right | The dashboard work |
-| On duty: `PUT /staff/on-duty`, the flag in `GET /staff` | The hand-over work (P10) |
+| On duty: `PUT /staff/on-duty`, the flag in `GET /staff` | Built by [the CRUD completion](../superpowers/specs/2026-10-16-crud-completion-design.md) |
 | A refresh push when a caregiver is added or removed | The push work (G4) |
 | The signature on the tablet | Optional (G7) |
 | Red incidents in the Android DAS role | UC-11 |

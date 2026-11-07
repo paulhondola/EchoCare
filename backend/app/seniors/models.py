@@ -14,7 +14,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, enum_type, timestamp_now, uuid_pk
-from app.status.engine import Severity
 
 
 class EnrollmentState(StrEnum):
@@ -25,6 +24,7 @@ class EnrollmentState(StrEnum):
     refused = "refused"
     wrong_number = "wrong_number"
     unreachable = "unreachable"
+    withdrawn = "withdrawn"
 
 
 class ConsentDecision(StrEnum):
@@ -37,6 +37,8 @@ class ConsentMethod(StrEnum):
     call = "call"
     signature = "signature"
     medic = "medic"
+    das = "das"
+    app = "app"  # given or refused on the mock card in the senior's app (design §4.4)
 
 
 class WatchCondition(StrEnum):
@@ -72,6 +74,10 @@ class Senior(Base):
         server_default=EnrollmentState.draft.name,
     )
     created_at: Mapped[datetime] = timestamp_now()
+    # Stamped by the move to `submitted` and to `accepted` (05 §1).
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
 class Consent(Base):
@@ -105,17 +111,3 @@ class WatchState(Base):
     battery: Mapped[int | None] = mapped_column(Integer)
     worn: Mapped[bool | None] = mapped_column(Boolean)
     last_pulse: Mapped[int | None] = mapped_column(Integer)
-
-
-class SeniorStatus(Base):
-    """The current code, one row per active senior; the most frequent read (05 §4)."""
-
-    __tablename__ = "senior_statuses"
-
-    senior_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("seniors.id"), primary_key=True
-    )
-    code: Mapped[Severity] = mapped_column(enum_type(Severity))
-    reason: Mapped[str] = mapped_column(String(200))
-    since: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    source_call_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("calls.id"))
