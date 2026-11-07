@@ -161,7 +161,7 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 | S2 | How does Twilio transcribe each alarm phrase, said by three different people? | Not a yes-or-no spike: the transcripts become the test fixtures and the source of the final patterns |
 | S3 | Does `<Gather>` with speech in `ro-RO` reliably hear „da” and „nu” on the welcome call? | Keys only on the welcome call |
 | S4 | Which model gives natural Romanian with the shortest wait before the first word, and how much do an EU and a US region add? | Use more fixed sentences for routine turns; consider a US region for the demo |
-| S5 | On the team's watch, how often does background sampling deliver heart rate and step counts, and what does it cost in battery? | Demo with the monitoring screen open; treat the background case as best-effort |
+| S5 | On the team's watch, how often does background sampling deliver heart rate and step counts, and what does it cost in battery? | **Done** (2026-11-07): background delivery works, no readings lost; battery ~24 %/hour rules out all-day use — limit to a fixed monitoring window |
 | S6 | Does a watch event reach the phone app and FastAPI while the phone app is in the background, and can the app read its location then? | Keep the phone app in the foreground on the demo phone; send events without location |
 | S7 | Does a push reach the demo phones and tablets when the app is closed, including after idle, and how fast does a refresh arrive when the app is open? | Exempt the app from battery saving on the demo devices; shorten the backstop re-read |
 | S8 | Does Railway hold a WebSocket for a full call, stay running between calls, and keep the scheduler single during a deploy? | Host on a small EU virtual machine |

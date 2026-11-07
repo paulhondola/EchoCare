@@ -64,3 +64,58 @@ The detector behaves as the 45 trials predicted. One fall fell just short of the
 - Falls were onto a bed. On a floor the impact is higher, so a 2 g threshold errs on the safe side.
 - Five trials per movement, one wearer. Enough for a first rule; the course report needs 20 to 30 per movement (06 §5).
 - Screen on only. Whether the accelerometer keeps 50 readings a second in the background is still open (S13, S5).
+
+## S5 · Background monitoring — sensors with the screen off
+
+**Date:** 2026-11-07 · **Device:** Galaxy Watch5 44 mm (SM-R910), One UI 8 Watch (Wear OS 6, API 36) · **App:** `MonitoringService` foreground service (health type, PARTIAL_WAKE_LOCK) on branch `wear/sensor-test` · **Wearer:** one team member, watch on the left wrist, screen off for the full session
+
+### What the watch delivers
+
+| Sensor | Result |
+|---|---|
+| Accelerometer | 2 997 – 2 999 readings per minute (ideal: 3 000). `maxGapMs` = 20 ms every minute — exactly the sampling period, **no reading lost** |
+| Heart rate | 49 – 60 readings per minute (target: one per second). One low minute at start while acquiring; stable at ~60 afterwards |
+| Step counter | Counted correctly on the minutes when the wearer moved |
+| Battery drain | 9 % in 22 minutes (59 % → 50 %) = **~24 % per hour** |
+
+### Method
+
+`MonitoringService` started from the sensor test screen. Screen left off for 22 continuous minutes. Log extracted with `adb shell run-as bia.sentinela cat files/monitor.log`. Raw log (session 2):
+
+```
+19:49:47 started battery=59%
+19:50:47 minute=1  accel=2997 maxGapMs=20 heartRates=49 lastHeartRate=90  steps=0  falls=0 battery=58%
+19:51:47 minute=2  accel=2999 maxGapMs=20 heartRates=60 lastHeartRate=93  steps=0  falls=0 battery=58%
+19:52:47 minute=3  accel=2999 maxGapMs=20 heartRates=60 lastHeartRate=88  steps=0  falls=0 battery=57%
+19:53:47 minute=4  accel=2998 maxGapMs=20 heartRates=58 lastHeartRate=89  steps=0  falls=0 battery=57%
+19:54:47 minute=5  accel=2999 maxGapMs=20 heartRates=60 lastHeartRate=88  steps=0  falls=0 battery=57%
+19:55:47 minute=6  accel=2996 maxGapMs=20 heartRates=59 lastHeartRate=92  steps=0  falls=0 battery=56%
+19:56:47 minute=7  accel=2997 maxGapMs=20 heartRates=59 lastHeartRate=79  steps=0  falls=0 battery=56%
+19:57:47 minute=8  accel=2997 maxGapMs=20 heartRates=60 lastHeartRate=93  steps=0  falls=0 battery=56%
+19:58:47 minute=9  accel=2998 maxGapMs=20 heartRates=60 lastHeartRate=89  steps=0  falls=0 battery=55%
+19:59:47 minute=10 accel=2997 maxGapMs=20 heartRates=60 lastHeartRate=100 steps=0  falls=0 battery=55%
+20:00:47 minute=11 accel=2997 maxGapMs=20 heartRates=60 lastHeartRate=93  steps=0  falls=0 battery=55%
+20:01:47 minute=12 accel=2997 maxGapMs=20 heartRates=60 lastHeartRate=89  steps=0  falls=0 battery=54%
+20:02:47 minute=13 accel=2998 maxGapMs=20 heartRates=59 lastHeartRate=100 steps=0  falls=0 battery=54%
+20:03:47 minute=14 accel=2997 maxGapMs=20 heartRates=60 lastHeartRate=112 steps=18 falls=0 battery=53%
+20:04:47 minute=15 accel=2997 maxGapMs=20 heartRates=58 lastHeartRate=94  steps=0  falls=0 battery=53%
+20:05:47 minute=16 accel=2998 maxGapMs=20 heartRates=60 lastHeartRate=106 steps=22 falls=0 battery=53%
+20:06:47 minute=17 accel=2998 maxGapMs=20 heartRates=59 lastHeartRate=87  steps=0  falls=0 battery=52%
+20:07:47 minute=18 accel=2999 maxGapMs=20 heartRates=60 lastHeartRate=89  steps=0  falls=0 battery=52%
+20:08:47 minute=19 accel=2997 maxGapMs=20 heartRates=60 lastHeartRate=83  steps=0  falls=0 battery=51%
+20:09:47 minute=20 accel=2998 maxGapMs=20 heartRates=60 lastHeartRate=89  steps=0  falls=0 battery=51%
+20:10:47 minute=21 accel=2998 maxGapMs=20 heartRates=59 lastHeartRate=96  steps=0  falls=0 battery=51%
+20:11:47 minute=22 accel=2998 maxGapMs=20 heartRates=60 lastHeartRate=86  steps=0  falls=0 battery=50%
+```
+
+### Findings
+
+- **Background delivery works.** The PARTIAL_WAKE_LOCK keeps the CPU awake: `maxGapMs` never exceeds 20 ms, so no accelerometer reading is lost even with the screen off. The fall detector runs continuously without gaps.
+- **Heart rate is reliable after the first minute.** One low minute (49 readings) while the sensor acquires; from minute 2 onward a steady ~60 readings per minute.
+- **Battery cost is high.** ~24 %/hour under continuous monitoring. On a Galaxy Watch5 (276 mAh) a full charge lasts roughly 4 hours under this load. This rules out all-day background monitoring; the service suits a fixed monitoring window (e.g. night-time, 06 §6).
+
+### Limits
+
+- One wearer, one device, 22 minutes. Battery behaviour may differ on a charged battery and over longer sessions.
+- ADB was connected over Wi-Fi during the test; Wi-Fi radio adds a small drain not present in normal use.
+- The monitoring window length and any battery optimisation (reducing accelerometer rate outside fall-risk hours) are out of scope for this spike.
