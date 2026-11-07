@@ -132,7 +132,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 |---|---|
 | Consent | The senior's own, given on the welcome call by key or voice, against a versioned text; a signature is optional when present. A withdrawal is recorded by the medic or DAS in the MVP |
 | Minimum per role | The caregiver sees the code, a reason and the address, not the transcript ([01-architecture.md](01-architecture.md) section 6) |
-| No audio stored | Speech stays inside Twilio; FastAPI handles text only |
+| No audio stored | Speech stays inside Twilio; FastAPI handles text only. The hand-over's conversation with DAS reaches it as Twilio's live transcription, never as a recording |
 | Minimal watch data | Only the latest check-in is kept; there is no pulse history |
 | Minimal home data | Only the latest room reading is kept; there is no history of temperature or motion. The node has no camera and no microphone |
 | Location only with events | The phone attaches its last known location when it sends an event; there is no tracking |

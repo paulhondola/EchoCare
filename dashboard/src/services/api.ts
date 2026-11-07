@@ -169,6 +169,37 @@ export interface IncidentDetail {
   }[];
 }
 
+/** One call as the incident page and the transcript show it */
+export type IncidentCall = IncidentDetail["calls"][number];
+
+// GET /seniors/{id}/calls (04 §1): newest first, queued ones included.
+// Mirrors CallSummary in backend/app/calls/schemas.py.
+export interface CallSummary {
+  id: string;
+  trigger: string;
+  state: string;
+  due_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  final_severity: string | null;
+  final_certainty: string | null;
+  reason: string | null;
+  summary: string | null;
+}
+
+export async function fetchCalls(seniorId: string, signal?: AbortSignal): Promise<CallSummary[]> {
+  const r = await apiFetch(`/api/seniors/${seniorId}/calls`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as CallSummary[];
+}
+
+// GET /calls/{id}/transcript (04 §1): the call as on the incident page, every turn in order
+export async function fetchTranscript(id: string, signal?: AbortSignal): Promise<IncidentCall> {
+  const r = await apiFetch(`/api/calls/${id}/transcript`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as IncidentCall;
+}
+
 /** The address fields every senior view carries (G13) */
 export type SeniorAddress = Pick<
   IncidentDetail["senior"],
@@ -210,6 +241,16 @@ export async function grantStaff(grant: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(grant),
+  });
+  if (!r.ok) throw await refused(r);
+}
+
+// PUT /staff/on-duty (04 §2): this DAS employee takes the hand-overs, everyone else stops (P10)
+export async function setOnDuty(userId: string): Promise<void> {
+  const r = await apiFetch("/api/staff/on-duty", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
   });
   if (!r.ok) throw await refused(r);
 }

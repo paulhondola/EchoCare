@@ -67,7 +67,7 @@ flowchart TB
 | Web dashboard | DAS at the desk | Svelte 5 and SvelteKit 3 (ADR-003), built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
 | Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
-| Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over, sends the caregiver notice SMS |
+| Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over and transcribes it live, sends the caregiver notice SMS |
 | Model provider | The language model behind the agent | Not yet chosen; see [04-interfaces.md](04-interfaces.md) section 5 |
 
 ## 4. Channels

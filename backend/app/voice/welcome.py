@@ -6,7 +6,7 @@ press or an exact match, never a guess.
 from typing import Any
 
 from app.status.alarms import normalize
-from app.voice.models import WelcomeOutcome
+from app.voice.models import TurnKind, WelcomeOutcome
 
 IDENTITY = (
     "Bună ziua. Sunt asistentul automat al DAS Timișoara. Vorbesc cu {f}? "
@@ -59,6 +59,25 @@ def consent_answer(digits: str, speech: str) -> bool | None:
     return None
 
 
+def heard(params: dict[str, str]) -> tuple[TurnKind, str, float | None] | None:
+    """A `<Gather>` answer as a transcript turn: the key, or the words with Twilio's
+    confidence; None for silence."""
+    if digits := params.get("Digits"):
+        return TurnKind.keys, digits, None
+    if speech := params.get("SpeechResult", "").strip():
+        return TurnKind.speech, speech, confidence(params)
+    return None
+
+
+def confidence(params: dict[str, str]) -> float | None:
+    """Twilio's `Confidence` in the words; None when missing or not a number, so a bad
+    value never fails the callback (06 §1). A reported 0.0 stays 0.0."""
+    try:
+        return float(params["Confidence"])
+    except KeyError, ValueError:
+        return None
+
+
 def evidence(params: dict[str, str]) -> dict[str, Any]:
     """What the consent was decided on, kept with it (05 §1): the key, or the words and
     Twilio's confidence in them."""
@@ -66,5 +85,5 @@ def evidence(params: dict[str, str]) -> dict[str, Any]:
         return {"digits": digits}
     return {
         "speech": params.get("SpeechResult", ""),
-        "confidence": float(params.get("Confidence") or 0),
+        "confidence": confidence(params) or 0.0,
     }

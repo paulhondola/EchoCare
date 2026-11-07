@@ -13,6 +13,7 @@ from app.main import app
 from app.models import (
     Call,
     CallTrigger,
+    CallTurn,
     Consent,
     ConsentMethod,
     EnrollmentState,
@@ -23,6 +24,7 @@ from app.models import (
 from app.status.engine import Severity
 from app.voice.calls import CallState
 from app.voice.dialogue import CONSENT_TEXT, SORRY
+from app.voice.models import Speaker, TurnKind
 from app.voice.welcome import (
     GIVEN,
     NOT_AVAILABLE,
@@ -31,9 +33,21 @@ from app.voice.welcome import (
     SILENT,
     UNCLEAR,
     WRONG_NUMBER,
+    heard,
     identity,
 )
 from tests.voice.test_voice import FIXTURES, callback, stored
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [("0.0", 0.0), ("0.91", 0.91), ("x", None), (None, None)]
+)
+def test_heard_keeps_a_zero_confidence_and_survives_a_bad_one(value, expected):
+    params = {"SpeechResult": " Da. "}
+    if value is not None:
+        params["Confidence"] = value
+    assert heard(params) == (TurnKind.speech, "Da.", expected)
+
 
 BASE = "https://echocare.test/api/voice"
 
@@ -193,6 +207,29 @@ async def test_consent_given(client, db, welcome_call, params, evidence):
         CallState.completed,
         WelcomeOutcome.confirmed,
     )
+
+
+async def test_the_whole_welcome_call_is_stored_in_order(client, db, welcome_call):
+    await picked_up(client, welcome_call)
+    await answer(client, welcome_call, "identity", {"Digits": ""})
+    await answer(client, welcome_call, "identity", {"Digits": "1"}, ask=2)
+    await answer(
+        client, welcome_call, "consent", {"SpeechResult": "Da.", "Confidence": "0.91"}
+    )
+    rows = await db.scalars(
+        select(CallTurn)
+        .where(CallTurn.call_id == welcome_call.id)
+        .order_by(CallTurn.position)
+    )
+    question = identity("doamna Maria")
+    assert [(t.position, t.speaker, t.kind, t.content, t.confidence) for t in rows] == [
+        (0, Speaker.agent, TurnKind.speech, question, None),
+        (1, Speaker.agent, TurnKind.speech, f"{NOT_HEARD} {question}", None),
+        (2, Speaker.senior, TurnKind.keys, "1", None),
+        (3, Speaker.agent, TurnKind.speech, CONSENT_TEXT, None),
+        (4, Speaker.senior, TurnKind.speech, "Da.", pytest.approx(0.91)),
+        (5, Speaker.agent, TurnKind.speech, GIVEN, None),
+    ]
 
 
 @pytest.mark.parametrize("params", [{"Digits": "2"}, {"SpeechResult": "Nu."}])

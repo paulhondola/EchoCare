@@ -370,6 +370,7 @@ internal fun Transcript(call: IncidentCall) {
                     val (who, color) = when (line.turn.speaker) {
                         "senior" -> R.string.speaker_senior to Palette.FgMuted
                         "agent" -> R.string.speaker_agent to Palette.Link
+                        "das" -> R.string.speaker_das to Palette.Fg
                         else -> R.string.speaker_system to Palette.FgMuted
                     }
                     Text(

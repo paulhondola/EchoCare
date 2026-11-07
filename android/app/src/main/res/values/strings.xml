@@ -167,6 +167,7 @@
     <string name="speaker_senior">Senior</string>
     <string name="speaker_agent">Sistem AI</string>
     <string name="speaker_system">Sistem</string>
+    <string name="speaker_das">Operator DAS</string>
     <string name="flagged">%1$s · semnalat — %2$s</string>
     <string name="handover_call_yes">Transferat la telefonul de serviciu DAS</string>
     <string name="handover_call_no">Transferul nu a fost preluat</string>

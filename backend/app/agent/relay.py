@@ -78,9 +78,14 @@ class Relay:
                 await self.store(Speaker.agent, TurnKind.speech, self.greeting)
                 return []
             case "prompt":
-                if message.get("last") is False:  # a partial, if ever turned on
-                    return []
                 words = str(message.get("voicePrompt", "")).strip()
+                if message.get("last") is False:
+                    # With partial prompts off, only the hang-up sends one: what the
+                    # senior was still saying, kept, with nobody left to answer.
+                    log.info("unfinished prompt at hang-up, %d chars", len(words))
+                    if words:
+                        await self.store(Speaker.senior, TurnKind.speech, words)
+                    return []
                 log.info("heard: %s", words)
                 await self.store(Speaker.senior, TurnKind.speech, words)
                 alarm = check(words)

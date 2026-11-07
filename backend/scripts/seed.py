@@ -300,6 +300,7 @@ def people() -> list[Person]:
 
 
 AGENT, SENIOR, SYSTEM = Speaker.agent, Speaker.senior, Speaker.system
+DISPATCHER = Speaker.das
 KEYS = TurnKind.keys
 # The weekdays as a senior says them, Monday first; the engine compares them without
 # diacritics (03 §3).
@@ -974,6 +975,7 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         summary="Doamna Elena a căzut în baie și nu se poate ridica. Transferată "
         "către DAS.",
         handover_answered=True,
+        # Ends at the hand-over, as a real one does; the talk with DAS comes after.
         seconds=40,
     )
     h.event(
@@ -996,6 +998,21 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         (AGENT, f"Doamna Elena, {HAND_OVER}"),
         (SYSTEM, TRANSFERRED),
         (SYSTEM, PICKED_UP),
+        # The hand-over's talk, as Twilio transcribes it (04 §4.4 step 5).
+        (
+            DISPATCHER,
+            "Bună ziua, doamna Elena, sunteți la dispeceratul DAS. Mă auziți?",
+        ),
+        (SENIOR, "Da, vă aud. Sunt jos, în baie."),
+        (
+            DISPATCHER,
+            "Nu încercați să vă ridicați. Trimitem acum un echipaj la dumneavoastră.",
+        ),
+        (SENIOR, "Ușa e încuiată. Cheia o are vecina de la etajul doi."),
+        (
+            DISPATCHER,
+            "Am notat. Echipajul ajunge în zece minute. Rămân la telefon cu dumneavoastră.",
+        ),
     )
     h.report(call, ReportSource.trigger, Severity.yellow, "Butonul SOS al ceasului")
     h.report(

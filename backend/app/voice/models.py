@@ -40,6 +40,8 @@ class Speaker(StrEnum):
     senior = "senior"
     agent = "agent"
     system = "system"
+    # The DAS employee, once a hand-over connects them (04 §4.4).
+    das = "das"
 
 
 class TurnKind(StrEnum):

@@ -146,7 +146,7 @@ erDiagram
         uuid id PK
         uuid call_id FK
         int position
-        string speaker "senior, agent, system"
+        string speaker "senior, agent, system, das"
         string kind "speech or keys"
         text content
         float confidence "from Twilio, when given"
@@ -213,7 +213,7 @@ erDiagram
 | Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
 | Campaign | One press of the weather-warning button, and the active-warning period it opens: 24 hours from the press, cut short when DAS ends the campaign |
 | Call | One attempt to reach a senior, with its outcome. Also the scheduler's queue: a queued call with a due time is a pending timer |
-| CallTurn | The transcript, one row per utterance or key press |
+| CallTurn | The transcript, one row per utterance or key press, in the order said: the senior, the agent, the system, and after a hand-over the DAS employee |
 | Answer | What the model extracted for one of the three questions |
 | StatusReport | Every severity reached during a call, with its source and the senior's words. The audit trail behind a code |
 | SeniorStatus | The current code, one row per active senior |

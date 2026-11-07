@@ -45,12 +45,9 @@ async def serve(
         log.warning("relay connect for unknown or ended call %s", call)
         await ws.close(code=1008)
         return
-    position = line.next_position
 
     async def store(speaker: Speaker, kind: TurnKind, content: str) -> None:
-        nonlocal position
-        await save_turn(call, position, speaker, kind, content)
-        position += 1
+        await save_turn(call, speaker, kind, content)
 
     session_relay = Relay(greeting, store, hand_over, call=str(call))
     await ws.accept()

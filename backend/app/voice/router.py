@@ -33,16 +33,21 @@ from app.voice.dialogue import (
     CONSENT_VERSION,
     LANGUAGE,
     SORRY,
+    STOP_TRANSCRIPTION,
+    TRANSCRIPTION_FAILED,
     dial_on_duty,
     gather,
     hangup,
+    say,
     say_and_hang_up,
     sorry,
+    transcribed,
     twiml,
 )
-from app.voice.models import CallTrigger, WelcomeOutcome
+from app.voice.models import CallTrigger, Speaker, TurnKind, WelcomeOutcome
 from app.voice.service import (
     answer_handover,
+    append_turn,
     form_of_address,
     live_call_for_update,
     move_call,
@@ -66,6 +71,7 @@ from app.voice.welcome import (
     WRONG_NUMBER,
     consent_answer,
     evidence,
+    heard,
     identity,
     identity_answer,
 )
@@ -87,6 +93,46 @@ async def twilio_params(request: Request) -> dict[str, str]:
 
 Params = Annotated[dict[str, str], Depends(twilio_params)]
 Db = Annotated[AsyncSession, Depends(get_session)]
+
+
+async def agent_turn(session: AsyncSession, call: uuid.UUID, text: str) -> None:
+    """What the call says next, as the agent's transcript turn (05 §1). Doesn't
+    commit."""
+    await append_turn(session, call, Speaker.agent, TurnKind.speech, text)
+
+
+async def exchange(
+    session: AsyncSession, call: uuid.UUID, params: dict[str, str], text: str
+) -> None:
+    """The senior's `<Gather>` answer, if any, then what the call says next, as
+    transcript turns (05 §1). Doesn't commit."""
+    if answer := heard(params):
+        kind, content, confidence = answer
+        await append_turn(
+            session, call, Speaker.senior, kind, content, confidence=confidence
+        )
+    await agent_turn(session, call, text)
+
+
+def hung_up(params: dict[str, str]) -> bool:
+    """The senior's leg has ended: Twilio still calls a `<Connect>` or `<Dial>` action,
+    but nobody hears what it answers, so nothing is stored as said."""
+    return params.get("CallStatus") == "completed"
+
+
+async def call_back(
+    session: AsyncSession, call: uuid.UUID, params: dict[str, str]
+) -> Response:
+    """„Someone will call you back”, then hang up; the sentence is stored as the
+    agent's unless the senior has hung up, and still said if the database cannot take
+    it (UC-07)."""
+    if not hung_up(params):
+        try:
+            await agent_turn(session, call, CALL_BACK)
+            await session.commit()
+        except SQLAlchemyError, OSError:
+            log.exception("hand-over for call %s: database unavailable", call)
+    return say_and_hang_up(CALL_BACK)
 
 
 @router.post("/voice/answer")
@@ -112,6 +158,14 @@ async def answer(call: uuid.UUID, params: Params, session: Db) -> Response:
         "voice": s.twilio_voice,
         "welcomeGreeting": context.greeting,
         "dtmfDetection": "true",
+        # A senior who answers over the greeting, or presses 9 during it, must be heard:
+        # Twilio's default since May 2025, `none`, drops both (04 §4.3).
+        "reportInputDuringAgentSpeech": "any",
+        # On a speakerphone the agent hears itself; this drops its own words.
+        "echoPromptFiltering": "true",
+        # A turn ends 2 s after the senior stops, not when the provider decides: on a
+        # noisy line `auto` sent nothing until the hang-up.
+        "speechTimeout": "2000",
     }
     relay_tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
     action = quoteattr(voice_url("handoff", call))
@@ -127,10 +181,13 @@ async def welcome(call: uuid.UUID, params: Params, session: Db) -> Response:
             log.warning("welcome for unknown call %s", call)
             return sorry()
         await move_call(session, call, params.get("CallSid"), CallState.in_progress)
+        question = identity(addressed)
+        await agent_turn(session, call, question)
+        await session.commit()
     except SQLAlchemyError, OSError:
         log.exception("welcome for call %s: database unavailable", call)
         return sorry()
-    return gather(voice_url("welcome/identity", call, ask="1"), identity(addressed))
+    return gather(voice_url("welcome/identity", call, ask="1"), question)
 
 
 Ask = Annotated[int, Query(alias="ask", ge=1, le=2)]
@@ -155,21 +212,22 @@ async def welcome_identity(
             params.get("Digits", ""), params.get("SpeechResult", "")
         )
         if outcome is WelcomeOutcome.confirmed:
+            await exchange(session, call, params, CONSENT_TEXT)
             await session.commit()
             return gather(voice_url("welcome/consent", call, ask="1"), CONSENT_TEXT)
         if outcome is None and ask == 1:
-            addressed = await form_of_address(session, call)
+            again = f"{NOT_HEARD} {identity(await form_of_address(session, call))}"
+            await exchange(session, call, params, again)
             await session.commit()
-            return gather(
-                voice_url("welcome/identity", call, ask="2"),
-                f"{NOT_HEARD} {identity(addressed)}",
-            )
+            return gather(voice_url("welcome/identity", call, ask="2"), again)
+        goodbye = IDENTITY_ENDINGS.get(outcome, SILENT)
         await close_welcome(session, row, outcome or WelcomeOutcome.no_answer)
+        await exchange(session, call, params, goodbye)
         await session.commit()
     except SQLAlchemyError, OSError:
         log.exception("welcome identity for call %s: database unavailable", call)
         return sorry()
-    return say_and_hang_up(IDENTITY_ENDINGS.get(outcome, SILENT))
+    return say_and_hang_up(goodbye)
 
 
 @router.post("/voice/welcome/consent")
@@ -185,12 +243,14 @@ async def welcome_consent(
             log.warning("welcome consent for a call not in progress: %s", call)
             return sorry()
         if digits == "0":
+            await exchange(session, call, params, CONSENT_TEXT)
             await session.commit()
             return gather(
                 voice_url("welcome/consent", call, ask=str(ask)), CONSENT_TEXT
             )
         given = consent_answer(digits, params.get("SpeechResult", ""))
         if given is None and ask == 1:
+            await exchange(session, call, params, CONSENT_TEXT)
             await session.commit()
             return gather(voice_url("welcome/consent", call, ask="2"), CONSENT_TEXT)
         if given is None:
@@ -209,6 +269,7 @@ async def welcome_consent(
             # No longer `accepted` (withdrawn meanwhile): end the call, record nothing.
             await transition(session, call, None, CallState.completed)
             said = SORRY
+        await exchange(session, call, params, said)
         await session.commit()
     except SQLAlchemyError, OSError:
         log.exception("welcome consent for call %s: database unavailable", call)
@@ -264,7 +325,7 @@ async def handoff(call: uuid.UUID, params: Params, session: Db) -> Response:
         return say_and_hang_up(CALL_BACK)
     if duty is None:
         log.warning("hand-over for call %s: nobody on duty", call)
-        return say_and_hang_up(CALL_BACK)
+        return await call_back(session, call, params)
     user, phone = duty
     # The allowlist guards every number we ring, staff included (design §5).
     if not dial_allowed(phone):
@@ -273,13 +334,14 @@ async def handoff(call: uuid.UUID, params: Params, session: Db) -> Response:
             call,
             mask(phone),
         )
-        return say_and_hang_up(CALL_BACK)
+        return await call_back(session, call, params)
     log.info("hand-over for call %s: ringing %s", call, mask(phone))
     return dial_on_duty(
         phone,
         ring=handover_ring_seconds(),
         result_url=voice_url("handoff-result", call),
         answered_url=voice_url("handoff-answered", call, user=str(user)),
+        transcript_url=voice_url("handoff-transcript", call),
     )
 
 
@@ -312,10 +374,41 @@ async def handoff_result(call: uuid.UUID, params: Params, session: Db) -> Respon
         return hangup()
     try:
         await answer_handover(session, call, False)
+        if not hung_up(params):
+            await agent_turn(session, call, CALL_BACK)
         await session.commit()
     except SQLAlchemyError, OSError:
         log.exception("hand-over result for call %s: database unavailable", call)
-    return say_and_hang_up(CALL_BACK)
+    return twiml(f"{STOP_TRANSCRIPTION}{say(CALL_BACK)}<Hangup/>")
+
+
+@router.post("/voice/handoff-transcript", status_code=204)
+async def handoff_transcript(call: uuid.UUID, params: Params, session: Db) -> Response:
+    """The hand-over's talk, one final sentence at a time, stored as the senior's or
+    the DAS employee's turn in the order it arrives (04 §4.4 step 5). A failed
+    transcription is a system turn, so the transcript says why the talk is missing."""
+    line = transcribed(params)
+    if params.get("TranscriptionEvent") == "transcription-error":
+        code = params.get("TranscriptionErrorCode", "")
+        log.warning(
+            "hand-over transcription for call %s failed: %s %s",
+            call,
+            code,
+            params.get("TranscriptionError", ""),
+        )
+        line = (Speaker.system, f"{TRANSCRIPTION_FAILED} (eroare Twilio {code}).", None)
+    if line is None:
+        return Response(status_code=204)
+    speaker, words, confidence = line
+    try:
+        if not await append_turn(
+            session, call, speaker, TurnKind.speech, words, confidence=confidence
+        ):
+            log.warning("hand-over transcript for unknown call %s", call)
+        await session.commit()
+    except SQLAlchemyError, OSError:
+        log.exception("hand-over transcript for call %s: database unavailable", call)
+    return Response(status_code=204)
 
 
 @router.websocket("/voice/relay")
