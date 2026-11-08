@@ -66,6 +66,8 @@ export default defineRailway((ctx) => {
       TWILIO_ACCOUNT_SID: preserve(),
       TWILIO_AUTH_TOKEN: preserve(),
       TWILIO_FROM_NUMBER: preserve(),
+      // DeepInfra, the agent's model (04 §5), set by a person; apply keeps it
+      DEEPINFRA_API_KEY: preserve(),
       // Firebase push (04 §6): a Google credential's JSON, set by a person; unset sends none
       FIREBASE_PUSH_CREDENTIALS: preserve(),
     },

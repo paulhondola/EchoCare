@@ -416,6 +416,27 @@ async def save_turn(
         await session.commit()
 
 
+VALUE_ROOM = 60  # answers.value's length; quote is Text
+
+
+async def save_answer(
+    call_id: uuid.UUID, field: Question, value: str, *, clear: bool, quote: str
+) -> None:
+    """One heard answer, committed as it comes, so a dropped call is still concluded
+    from what was said (03 §3, 03 §9). The overwrite rule applies when they are read."""
+    async with Session() as session:
+        record_answer(
+            session,
+            call_id,
+            field,
+            value[:VALUE_ROOM],  # the model's words can run long
+            clear=clear,
+            quote=quote,
+            at=datetime.now(UTC),
+        )
+        await session.commit()
+
+
 async def end_completed(call_id: uuid.UUID) -> None:
     """Our side closed the call: it ends completed, even if they hang up during the
     goodbye (03 §9)."""

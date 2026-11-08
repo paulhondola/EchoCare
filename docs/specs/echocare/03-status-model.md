@@ -119,18 +119,18 @@ The server looks up the action from the pair (severity, certainty), both now com
 
 | Severity ↓ / Certainty → | High | Medium | Low, or nobody answered |
 |---|---|---|---|
-| **Green** | Close the call. Code green | Retry once. If still not high: code yellow | Retry once. If still not high: code yellow |
-| **Yellow** | Code yellow, alert | Code yellow, alert, retry once | Code yellow, alert, retry once |
+| **Green** | Close the call. Code green | Retry. If still not high: code yellow | Retry. If still not high: code yellow |
+| **Yellow** | Code yellow, alert | Code yellow, alert, retry | Code yellow, alert, retry |
 | **Red** | Code red, alert, hand over to a person | Same | Same |
 
 **What "retry" means (P2, proposed)**
 
 | Situation | Retry is |
 |---|---|
-| The call was answered | The agent re-asks the question whose answer was unclear, once, more slowly. The server names that question in the tool result |
+| The call was answered | The agent re-asks the question whose answer was unclear, up to twice per question (#49), more slowly. The server names that question in the tool result |
 | Nobody answered | One redial after the redial delay |
 
-Each call gets one retry of each kind at most. An uncertain green that survives its retry becomes yellow: unclear never counts as fine.
+Each unclear question gets two re-asks at most, and a call gets one redial. An uncertain green that survives its re-asks becomes yellow: unclear never counts as fine.
 
 **What "alert" means.** A change of code into yellow or red, with the alerts listed in section 7. The red row ignores certainty by design.
 
@@ -144,7 +144,7 @@ The final severity of a call is decided when the call ends or goes unanswered fo
 | Tier 2 phrase confirmed, or its confirmation not answered | red |
 | `raise_concern` during the call | At least the level raised |
 | Answered, final certainty high | The rules' severity for that call **(P3, proposed)**. This is how a clear „sunt bine, am urcat scările” cancels a watch trigger's starting yellow |
-| Answered, final certainty medium or low after the re-ask | The higher of the starting severity and the rules' severity. If that is green, yellow |
+| Answered, final certainty medium or low after the re-asks | The higher of the starting severity and the rules' severity. If that is green, yellow |
 | Never answered, redial used up | The starting severity. If that is green, yellow |
 | Senior hung up early, or the connection dropped | Treated as answered with low certainty |
 | Senior asked for a person, or pressed 9 | Hand over; at least yellow |
@@ -152,6 +152,7 @@ The final severity of a call is decided when the call ends or goes unanswered fo
 Two orderings matter:
 
 - **Red acts immediately.** The moment red is established by any route, the code becomes red, alerts go out and the hand-over starts. Nothing waits for the end of the call.
+- **MVP timing (#49).** A yellow, from the answers or from `raise_concern`, changes the senior's code when the call ends, at most 3 minutes later, not at the moment it is recorded. Red always acts at once.
 - **A trigger's yellow acts on the first unanswered attempt.** A watch or manual trigger whose first call is not answered sets the code to yellow and alerts at once, then redials. A campaign's green waits for the redial before becoming yellow.
 
 ```mermaid
@@ -204,7 +205,7 @@ Alerts go to every device where the account is signed in. Nothing in the flow wa
 ```mermaid
 stateDiagram-v2
     [*] --> Green: consent given on the welcome call
-    Green --> Yellow: call ends yellow, or uncertain after retry
+    Green --> Yellow: call ends yellow, or uncertain after the re-asks
     Green --> Red: red established
     Yellow --> Green: later call ends green with high certainty
     Yellow --> Red: red established
@@ -266,7 +267,7 @@ stateDiagram-v2
 |---|---|---|---|
 | 1 | Campaign | Answers clearly: fine, names today's day, has water and a warm place | Rules green, high. Code green, nobody notified |
 | 2 | Campaign | „Cam amețită”; other answers fine and clear | Rules yellow, high. Code yellow, caregiver alert, medic warning |
-| 3 | Campaign | Vague answers, still vague after the re-ask, nothing worrying said | Rules green, low. Code yellow, reason "unclear answers" |
+| 3 | Campaign | Vague answers, still vague after the re-asks, nothing worrying said | Rules green, low. Code yellow, reason "unclear answers" |
 | 4 | Campaign | Unwell, and says „luni” on a Thursday | Rules red. Code red, alerts, hand-over |
 | 5 | Any | Says „am căzut și nu mă pot ridica” | Tier 1. Red at once, before the model sees the sentence |
 | 6 | Watch | Answers „am urcat scările, sunt bine”, clear on all three questions | Starting yellow, rules green and high. Code stays green, nobody notified |

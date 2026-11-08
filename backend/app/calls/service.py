@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
 from app.calls.schemas import AnswerView, CallSummary, TranscriptDetail
-from app.campaigns.models import Campaign
+from app.campaigns.models import Campaign, CampaignKind
 from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
@@ -129,6 +129,7 @@ class AnswerContext:
     trigger: CallTrigger
     form_of_address: str
     greeting: str
+    heat: bool = False
 
 
 async def answer_context(
@@ -152,4 +153,9 @@ async def answer_context(
         if row.trigger is CallTrigger.welcome
         else wellbeing_greeting(row.form_of_address, row.trigger, row.kind, row.level)
     )
-    return AnswerContext(row.trigger, row.form_of_address, said)
+    return AnswerContext(
+        row.trigger,
+        row.form_of_address,
+        said,
+        heat=row.kind is CampaignKind.heat,
+    )
