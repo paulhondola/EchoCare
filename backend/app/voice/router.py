@@ -439,7 +439,7 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
         return
     # The session holds no database session (ADR-004), so its greeting is read here.
     async with Session() as session:
-        context = await answer_context(session, call)
+        context = await answer_context(session, call, notes=True)
     if context is None:
         log.warning("relay connect for unknown call %s", call)
         await ws.close(code=1008)

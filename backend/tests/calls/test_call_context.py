@@ -68,7 +68,7 @@ async def senior(add_active_senior):
 
 async def test_context_has_the_first_follow_up_only(db, senior):
     await a_summary(db, senior, content(FIRST, SECOND))
-    context = await answer_context(db, (await a_call(db, senior)).id)
+    context = await answer_context(db, (await a_call(db, senior)).id, notes=True)
     assert context.follow_up == FIRST
     assert context.how_to_talk == ("Vorbiți rar",)
     assert SECOND not in repr(context)
@@ -77,7 +77,7 @@ async def test_context_has_the_first_follow_up_only(db, senior):
 async def test_context_never_carries_trends_or_narrative(db, senior):
     await a_summary(db, senior, content(FIRST))
     call = await a_call(db, senior)
-    context = await answer_context(db, call.id)
+    context = await answer_context(db, call.id, notes=True)
     assert NARRATIVE not in repr(context) and TREND not in repr(context)
     agent = agent_for(call.id, context)(AsyncMock())
     assert NARRATIVE not in agent.history[0]["content"]
@@ -87,13 +87,15 @@ async def test_context_never_carries_trends_or_narrative(db, senior):
 
 async def test_unreadable_content_gives_no_notes(db, senior):
     await a_summary(db, senior, {"narrative": 5})
-    context = await answer_context(db, (await a_call(db, senior)).id)
+    context = await answer_context(db, (await a_call(db, senior)).id, notes=True)
     assert (context.follow_up, context.how_to_talk) == (None, ())
 
 
 async def test_a_welcome_call_gets_no_notes(db, senior):
     await a_summary(db, senior, content(FIRST))
-    context = await answer_context(db, (await a_call(db, senior, "welcome")).id)
+    context = await answer_context(
+        db, (await a_call(db, senior, "welcome")).id, notes=True
+    )
     assert (context.follow_up, context.how_to_talk) == (None, ())
 
 
@@ -103,7 +105,16 @@ async def test_a_failed_summary_read_gives_no_notes(db, senior, monkeypatch, cap
     monkeypatch.setattr(
         service, "latest_summary", AsyncMock(side_effect=RuntimeError("secret words"))
     )
-    context = await answer_context(db, call.id)
+    context = await answer_context(db, call.id, notes=True)
     assert context.greeting and (context.follow_up, context.how_to_talk) == (None, ())
     assert f"summary read failed, call {call.id}: RuntimeError" in caplog.text
     assert "secret words" not in caplog.text
+
+
+async def test_the_answer_path_reads_no_summary(db, senior, monkeypatch):
+    await a_summary(db, senior, content(FIRST))
+    read = AsyncMock()
+    monkeypatch.setattr(service, "latest_summary", read)
+    context = await answer_context(db, (await a_call(db, senior)).id)
+    read.assert_not_awaited()
+    assert (context.follow_up, context.how_to_talk) == (None, ())

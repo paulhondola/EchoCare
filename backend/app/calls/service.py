@@ -139,10 +139,11 @@ WELLBEING = (CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual)
 
 
 async def answer_context(
-    session: AsyncSession, call_id: uuid.UUID
+    session: AsyncSession, call_id: uuid.UUID, *, notes: bool = False
 ) -> AnswerContext | None:
     """The call's trigger and its greeting, with the campaign's warning for a campaign
-    call; None for an unknown call."""
+    call; None for an unknown call. `notes` also reads the senior's summary, which only
+    the relay needs: the answer to Twilio must not wait for it (design §5 A)."""
     row = (
         await session.execute(
             select(
@@ -166,17 +167,17 @@ async def answer_context(
         else wellbeing_greeting(row.form_of_address, row.trigger, row.kind, row.level)
     )
     follow_up, how_to_talk = None, ()
-    if row.trigger in WELLBEING:
+    if notes and row.trigger in WELLBEING:
         # The call goes ahead without the notes if they cannot be read (design §5 A).
         try:
             version = await latest_summary(session, row.id)
         except Exception as e:  # noqa: BLE001
             log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
             version = None
-        notes = read_content(version) if version else None
-        if notes:
-            follow_up = notes.follow_ups[0].question if notes.follow_ups else None
-            how_to_talk = tuple(notes.how_to_talk)
+        content = read_content(version) if version else None
+        if content:
+            follow_up = content.follow_ups[0].question if content.follow_ups else None
+            how_to_talk = tuple(content.how_to_talk)
     return AnswerContext(
         row.trigger,
         row.form_of_address,
