@@ -31,6 +31,7 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     Senior,
+    SummaryVersion,
     WatchCondition,
     WatchState,
 )
@@ -74,6 +75,7 @@ __all__ = [
     "Speaker",
     "StatusReport",
     "StoredEnum",
+    "SummaryVersion",
     "TurnKind",
     "User",
     "WarningLevel",

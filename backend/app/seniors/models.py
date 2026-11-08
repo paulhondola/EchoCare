@@ -111,3 +111,20 @@ class WatchState(Base):
     battery: Mapped[int | None] = mapped_column(Integer)
     worn: Mapped[bool | None] = mapped_column(Boolean)
     last_pulse: Mapped[int | None] = mapped_column(Integer)
+
+
+class SummaryVersion(Base):
+    """One version of a senior's summary, one per call; never updated (design §4, 05 §2)."""
+
+    __tablename__ = "senior_summaries"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    senior_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seniors.id"), index=True)
+    # The call this version came from; unique, so a call is summarized once.
+    call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"), unique=True)
+    previous_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("senior_summaries.id")
+    )
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    model: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = timestamp_now()

@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import (
     ColumnElement,
     Select,
@@ -37,6 +38,7 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     Senior,
+    SummaryVersion,
     WatchCondition,
     WatchState,
 )
@@ -50,6 +52,7 @@ from app.seniors.schemas import (
     SeniorSummary,
     SeniorView,
     SignatureForm,
+    SummaryContent,
 )
 
 log = logging.getLogger("echocare.seniors")
@@ -790,3 +793,44 @@ async def silence_watches(session: AsyncSession, now: datetime) -> int:
     if silent:
         log.info("%d watches gone offline", len(silent))
     return len(silent)
+
+
+def add_summary(
+    session: AsyncSession,
+    *,
+    senior_id: uuid.UUID,
+    call_id: uuid.UUID,
+    previous_id: uuid.UUID | None,
+    content: SummaryContent,
+    model: str,
+) -> None:
+    """A new version; the caller commits (design §4)."""
+    session.add(
+        SummaryVersion(
+            senior_id=senior_id,
+            call_id=call_id,
+            previous_id=previous_id,
+            content=content.model_dump(mode="json"),
+            model=model,
+        )
+    )
+
+
+async def latest_summary(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> SummaryVersion | None:
+    return await session.scalar(
+        select(SummaryVersion)
+        .where(SummaryVersion.senior_id == senior_id)
+        .order_by(SummaryVersion.created_at.desc(), SummaryVersion.id)
+        .limit(1)
+    )
+
+
+def read_content(version: SummaryVersion) -> SummaryContent | None:
+    """None when the stored JSON no longer fits the shape; logs the id, never the text."""
+    try:
+        return SummaryContent.model_validate(version.content)
+    except ValidationError:
+        log.warning("summary %s no longer validates", version.id)
+        return None

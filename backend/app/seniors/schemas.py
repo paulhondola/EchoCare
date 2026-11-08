@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AfterValidator,
@@ -255,3 +255,40 @@ class CheckInForm(BaseModel):
     battery: int | None = Field(None, ge=0, le=100)
     worn: bool | None = None
     last_pulse: int | None = Field(None, ge=0, le=300)
+
+
+class Citation(BaseModel):
+    call_id: uuid.UUID
+    quote: Annotated[str, Field(max_length=200)]
+
+
+class FollowUp(BaseModel):
+    topic: Annotated[str, Field(max_length=120)]
+    question: Annotated[str, Field(max_length=200)]
+    call_id: uuid.UUID
+    quote: Annotated[str, Field(max_length=200)]
+
+
+class Trend(BaseModel):
+    note: Annotated[str, Field(max_length=200)]
+    direction: Literal["worse", "better", "steady"]
+    evidence: Annotated[list[Citation], Field(min_length=2)]
+
+
+class SummaryContent(BaseModel):
+    """What the summary agent writes, in Romanian (design §4 "What it holds")."""
+
+    follow_ups: Annotated[list[FollowUp], Field(max_length=3)]
+    how_to_talk: Annotated[
+        list[Annotated[str, Field(max_length=120)]], Field(max_length=3)
+    ]
+    trends: Annotated[list[Trend], Field(max_length=3)]
+    narrative: Annotated[str, Field(max_length=600)]
+
+
+class SummaryVersionView(BaseModel):
+    """GET /seniors/{id}/summary (design §5 B)."""
+
+    content: SummaryContent
+    call_id: uuid.UUID
+    created_at: datetime
