@@ -56,9 +56,12 @@ class Line:
 
 @dataclass(frozen=True)
 class Limits:
-    first_token: float = 10.0  # model failure without a first item (design §4)
+    # Model failure without a first item, or a stream that goes quiet that long (design §4).
+    first_token: float = 10.0
     call_limit: float = 180.0  # from setup (design §5)
-    tier2_wait: float = 8.0  # for the confirmation's reply (03 §4)
+    tier2_wait: float = 8.0  # for the confirmation's reply, once it is spoken (03 §4)
+    # ponytail: an estimate of the voice's pace; Twilio reports no end of speech.
+    seconds_per_word: float = 0.5
     rounds: int = 3  # model calls per turn (design §4)
 
 
@@ -138,24 +141,29 @@ class Agent:
                     log.warning("relay: a second setup, call %s", self.call)
                     return
                 # Twilio speaks the greeting itself, from the TwiML.
-                await self.line.store(Speaker.agent, TurnKind.speech, self.greeting)
+                await self._store(Speaker.agent, TurnKind.speech, self.greeting)
                 self._limit = self._spawn(self._time_up())
             case "prompt":
                 words = str(message.get("voicePrompt", "")).strip()
                 if message.get("last") is False:
                     # Only the hang-up sends one: kept, with nobody left to answer.
                     if words:
-                        await self.line.store(Speaker.senior, TurnKind.speech, words)
+                        await self._store(Speaker.senior, TurnKind.speech, words)
+                        # A tier 1 phrase is still red, said as the line drops (03 §4).
+                        alarm = check(words)
+                        if alarm and alarm.tier is Tier.one:
+                            self.finished = True  # nobody is left to hear a reply
+                            await self._hand_over(Escalation.alarm, words)
                     return
                 # Never the words: senior speech is health data.
                 log.info("heard %d chars, call %s", len(words), self.call)
-                await self.line.store(Speaker.senior, TurnKind.speech, words)
+                await self._store(Speaker.senior, TurnKind.speech, words)
                 if not self._ending:
                     await self._prompt(words)
             case "dtmf":
                 digit = str(message.get("digit", ""))
                 log.info("key: %s", digit)
-                await self.line.store(Speaker.senior, TurnKind.keys, digit)
+                await self._store(Speaker.senior, TurnKind.keys, digit)
                 if not self._ending:
                     await self._key(digit)
             case "interrupt":
@@ -164,13 +172,13 @@ class Agent:
                 if not self._ending and self._pending is None:
                     await self._cancel(self._turn)
                     self._heard(spoken)
-                await self.line.store(
+                await self._store(
                     Speaker.system, TurnKind.speech, f"interrupted after: {spoken}"
                 )
             case "error":
                 description = str(message.get("description", ""))
                 log.warning("relay error: %s", description)
-                await self.line.store(
+                await self._store(
                     Speaker.system, TurnKind.speech, f"error: {description}"
                 )
             case other:
@@ -185,6 +193,9 @@ class Agent:
             await self._hand_over(Escalation.tier_2, self._pending)
         elif self._claim():
             await self._stop_others()
+            # A hang-up during the goodbye: the rules already close it (03 §9).
+            if self.rules.may_close():
+                await self._try(self.line.end(self._summary or DEFAULT_SUMMARY, False))
         tasks = (self._turn, self._limit, self._confirm, *self._writes)
         if live := [t for t in tasks if t]:
             await asyncio.wait(live)
@@ -215,11 +226,15 @@ class Agent:
             await self._alarm(words, alarm.condition)
         elif alarm:
             await self._cancel(self._turn)
+            if self._ending:  # the cancelled turn handed over (03 §6)
+                return
             # Pending before it is said, so a hang-up during the question is red too.
             self._pending = words
-            await self._say(confirmation_question(words))
+            question = confirmation_question(words)
+            await self._say(question)
             if not self._ending:
-                self._confirm = self._spawn(self._confirm_wait())
+                speaking = len(question.split()) * self.limits.seconds_per_word
+                self._confirm = self._spawn(self._confirm_wait(speaking))
         else:
             await self._start_turn([words])
 
@@ -241,11 +256,12 @@ class Agent:
     async def _declined(self, sentence: str, reply: str) -> None:
         """A clear no to the confirmation: both go to the model as ordinary turns,
         and the transcript keeps the match for review (design §5)."""
-        await self.line.store(Speaker.system, TurnKind.speech, "Confirmare nivel 2: nu")
+        await self._store(Speaker.system, TurnKind.speech, "Confirmare nivel 2: nu")
         await self._start_turn([sentence, reply])
 
-    async def _confirm_wait(self) -> None:
-        await asyncio.sleep(self.limits.tier2_wait)
+    async def _confirm_wait(self, speaking: float) -> None:
+        # The wait starts once the question has been heard, not when it is sent.
+        await asyncio.sleep(speaking + self.limits.tier2_wait)
         # Silence is red (03 §4).
         await self._hand_over(Escalation.tier_2, self._pending or "")
 
@@ -305,8 +321,14 @@ class Agent:
             if red:
                 await self._hand_over(red.hand_over, red.reason)
                 return
+            # A goodbye with a refused end_call goes round again, so the model hears
+            # the refusal instead of leaving the line silent.
+            refused_end = any(
+                c.name == "end_call" and o.end is None
+                for c, o in zip(calls, outcomes, strict=True)
+            )
             # A JSON-looking round is probably a tool call written as text: ask again.
-            if text or (not calls and not json_like):
+            if (text and not refused_end) or (not calls and not json_like):
                 break
         else:  # the last round still had no text
             await self._say(STALL)
@@ -322,12 +344,15 @@ class Agent:
         json_like: bool | None = None
         stream = aiter(self.model(list(self.history)))
         async with aclosing(stream):
-            async with asyncio.timeout(self.limits.first_token):
-                item = await anext(stream, None)
-            while item is not None:
+            while True:
+                # Every chunk, tool-call pieces included, comes in time (design §4).
+                async with asyncio.timeout(self.limits.first_token):
+                    item = await anext(stream, None)
+                if item is None:
+                    break
                 if isinstance(item, ToolCall):
                     calls.append(item)
-                else:
+                elif item:
                     pieces.append(item)
                     if json_like is None and (start := "".join(pieces).lstrip()):
                         # Unsafe text guard (design §4).
@@ -337,7 +362,6 @@ class Agent:
                         if held is not None:
                             await self._send(_text(held, last=False))
                         held = item
-                item = await anext(stream, None)
         if held is not None:
             await self._send(_text(held, last=True))
         if json_like:
@@ -351,7 +375,7 @@ class Agent:
 
     async def _keep(self, text: str, outcomes: list[Outcome]) -> None:
         if text:
-            await self._try(self.line.store(Speaker.agent, TurnKind.speech, text))
+            await self._store(Speaker.agent, TurnKind.speech, text)
         for o in outcomes:
             if o.answer:
                 await self._try(self.line.answer(*o.answer))
@@ -374,6 +398,9 @@ class Agent:
         self.rules.time_up = True
         if self._pending is not None:  # an unanswered confirmation is red (03 §4)
             await self._hand_over(Escalation.tier_2, self._pending)
+        elif self.rules.answers.severity(self.rules.today) is Severity.red:
+            # A red round whose write was still landing: it hands over (03 §6).
+            await self._hand_over(Escalation.rules, "")
         else:
             await self._finish(TIME_UP_SUMMARY, said=TIME_UP)
 
@@ -434,7 +461,12 @@ class Agent:
     async def _say(self, text: str) -> None:
         if not self.finished:  # unheard words are not the transcript's
             await self._send(_text(text, last=True))
-            await self.line.store(Speaker.agent, TurnKind.speech, text)
+            await self._store(Speaker.agent, TurnKind.speech, text)
+
+    async def _store(self, speaker: Speaker, kind: TurnKind, text: str) -> None:
+        """A transcript row that may fail: an alarm, a hand-over or an end never waits
+        on the transcript (design §5)."""
+        await self._try(self.line.store(speaker, kind, text))
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task:
         task = asyncio.create_task(coro)

@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from collections.abc import Callable
-from functools import partial
+from functools import cache, partial
 from typing import Annotated
 from urllib.parse import parse_qsl
 from xml.sax.saxutils import quoteattr
@@ -458,6 +458,7 @@ HUMAN_REASON = "A cerut un operator"
 REASON_ROOM = 200  # Call.reason's length
 
 
+@cache  # one client for every call, so a call's first round reuses its connections
 def model_stream() -> ModelStream:
     s = get_settings()
     return deepinfra(s.deepinfra_api_key, s.agent_model)
@@ -467,9 +468,7 @@ def echo_for(call: uuid.UUID, greeting: str) -> Callable[[Send], Handler]:
     """A test call keeps the scripted echo and never hands over (05 §1)."""
 
     def start(send: Send) -> Handler:
-        return Echo(
-            Relay(greeting, partial(save_turn, call), None, call=str(call)), send, call
-        )
+        return Echo(Relay(greeting, partial(save_turn, call)), send, call)
 
     return start
 

@@ -45,6 +45,7 @@ from app.voice.service import (
 )
 
 INCOMPLETE_REASON = "Nu a răspuns la toate întrebările"
+LINE_LOST_SUMMARY = "Convorbirea s-a întrerupt."
 # Sources that hand a call over red; any other hand-over is yellow (03 §6, 04 §4.4).
 RED_SOURCES = frozenset(
     {
@@ -225,6 +226,7 @@ async def settle(
                     session,
                     call,
                     await stored_answers(session, call_id),
+                    summary=LINE_LOST_SUMMARY,
                     concern=await stored_concern(session, call_id),
                     dropped=True,
                 )
@@ -340,10 +342,15 @@ async def begin_handover(
         if call is None:
             return False
         now = datetime.now(UTC)
+        answers = await stored_answers(session, call_id)
+        # A red already heard stays red, whatever started the hand-over (03 §6).
+        severity = max(
+            severity,
+            answers.severity(today_in_bucharest()),
+            await stored_concern(session, call_id) or Severity.green,
+        )
         if reason is None:
-            reason = await call_reason(
-                session, call, await stored_answers(session, call_id)
-            )
+            reason = await call_reason(session, call, answers)
         reason = reason[:200]  # String(200) in reports and the code (05 §2)
         add_report(session, call.id, source, severity, reason)
         current = await session.scalar(

@@ -1,13 +1,11 @@
 """What one relay session says back (04 §4.3). Today the S1 echo test; the agent loop
 that talks to the model is built here (01 §8)."""
 
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Any
 
-from app.status.alarms import SELF_HARM_HANDOVER, Tier, check
 from app.voice.models import Speaker, TurnKind
 
 log = logging.getLogger("echocare.voice.agent")
@@ -59,34 +57,13 @@ class Relay:
     message from Twilio. Kept apart from the WebSocket, so a script of messages
     tests it with no phone and no database (06 §5)."""
 
-    def __init__(
-        self,
-        greeting: str,
-        store: Store,
-        hand_over: HandOver | None = None,
-        *,
-        call: str = "",
-    ) -> None:
+    def __init__(self, greeting: str, store: Store) -> None:
         self.greeting = greeting
         self.store = store
-        # None for a test call, which never hands over (05 §1).
-        self.hand_over = hand_over
-        self.call = call
 
     async def say(self, text: str) -> list[dict[str, Any]]:
         await self.store(Speaker.agent, TurnKind.speech, text)
         return [{"type": "text", "token": text, "last": True}]
-
-    async def escalate(
-        self, escalation: Escalation, words: str, *, self_harm: bool = False
-    ) -> list[dict[str, Any]]:
-        """The hand-over (04 §4.4 steps 1 and 2): written first, so a line lost now
-        keeps the red; then the last sentence and the end with hand-over data."""
-        if not await self.hand_over(escalation, words):
-            return []
-        data = json.dumps({"call": self.call, "reason": handoff_reason(escalation)})
-        said = await self.say(SELF_HARM_HANDOVER if self_harm else CONNECTING)
-        return [*said, {"type": "end", "handoffData": data}]
 
     async def handle(self, message: dict[str, Any]) -> list[dict[str, Any]]:
         match message.get("type"):
@@ -105,14 +82,6 @@ class Relay:
                     return []
                 log.info("heard: %s", words)
                 await self.store(Speaker.senior, TurnKind.speech, words)
-                alarm = check(words)
-                # Tier 1 only: tier 2's confirmation belongs to the agent loop (03 §4).
-                if self.hand_over and alarm and alarm.tier is Tier.one:
-                    return await self.escalate(
-                        Escalation.alarm,
-                        words,
-                        self_harm=alarm.condition == "self_harm",
-                    )
                 return await self.say(heard(words))
             case "dtmf":
                 digit = str(message.get("digit", ""))
@@ -120,8 +89,6 @@ class Relay:
                 await self.store(Speaker.senior, TurnKind.keys, digit)
                 if digit == "0":
                     return [*await self.say(GOODBYE), {"type": "end"}]
-                if digit == "9" and self.hand_over:
-                    return await self.escalate(Escalation.key_9, "")
                 return await self.say(f"Ați apăsat tasta {digit}.")
             case "interrupt":
                 spoken = str(message.get("utteranceUntilInterrupt", ""))

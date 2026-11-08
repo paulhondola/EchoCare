@@ -745,3 +745,21 @@ async def test_a_long_handover_reason_is_cut_to_200(db, live_call):
         select(StatusReport).where(StatusReport.call_id == call.id)
     )
     assert report.reason == "x" * 200
+
+
+async def test_a_dropped_real_call_is_not_called_simulated(db, live_call):
+    call = await live_call(code=Severity.green)
+    await settle(db, call.id, None, CallState.dropped)
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert ended.summary.startswith("Convorbirea s-a întrerupt.")
+
+
+async def test_key_9_after_a_red_answer_hands_over_red(db, live_call):
+    call = await live_call(code=Severity.green)
+    await save_answer(call.id, Question.feeling, "unwell", clear=True, quote="rău")
+    await save_answer(call.id, Question.shelter, "no", clear=True, quote="nu")
+    assert await begin_handover(call.id, ReportSource.request_human, "tasta 9")
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert ended.final_severity is Severity.red

@@ -125,7 +125,7 @@ class CallRules:
             case "raise_concern":
                 return self._concern(args)
             case "request_human":
-                reason = str(args.get("reason", ""))
+                reason = str(args.get("reason") or "")
                 return Outcome("ok", hand_over=Escalation.human, reason=reason)
             case "end_call":
                 return self._end(args)
@@ -145,7 +145,7 @@ class CallRules:
         if question in _VALUES and value not in _VALUES[question]:
             options = " or ".join(sorted(_VALUES[question]))
             return _refused(f"value for {question} must be {options}")
-        answer = Answer(value, clear, str(args.get("words", "")))
+        answer = Answer(value, clear, str(args.get("words") or ""))
         if not self.answers.record(question, answer):
             return _refused("a clear answer is already recorded")
         result = ""
@@ -178,16 +178,17 @@ class CallRules:
         level = args.get("level")
         if level not in ("yellow", "red"):
             return _refused("level must be yellow or red")
-        reason = str(args.get("reason", ""))
+        reason = str(args.get("reason") or "")
         return Outcome(
             "recorded",
             hand_over=Escalation.concern if level == "red" else None,
             reason=reason if level == "red" else "",
-            concern=(Severity[level], reason),
+            # A red one is stored by its hand-over's report, so once (03 §6).
+            concern=(Severity.yellow, reason) if level == "yellow" else None,
         )
 
     def _end(self, args: dict[str, Any]) -> Outcome:
-        summary = str(args.get("summary", ""))
+        summary = str(args.get("summary") or "")
         if not self.time_up:
             if self.missing():
                 return _refused("still to ask: " + ", ".join(self.missing()))

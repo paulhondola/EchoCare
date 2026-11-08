@@ -61,7 +61,7 @@ async def test_tool_call_pieces_are_joined_after_the_text():
             tool_chunk(1, id="c2", name="end_call", args='{"summary": "s"}'),
         ]
     )
-    items = [i async for i in deepinfra("k", "m", client=client)([])]
+    items = [i async for i in deepinfra("k", "m", client=client)([]) if i != ""]
     assert items[0] == "Mulțumesc."
     assert items[1:] == [
         ToolCall(
@@ -85,8 +85,10 @@ async def test_cut_off_tool_arguments_become_empty():
             )
         ]
     )
+    # A tool-call piece yields "", so the loop's timeout sees the stream alive.
     assert [i async for i in deepinfra("k", "m", client=client)([])] == [
-        ToolCall("c1", "record_answer", {})
+        "",
+        ToolCall("c1", "record_answer", {}),
     ]
 
 

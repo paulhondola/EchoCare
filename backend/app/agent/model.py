@@ -22,7 +22,8 @@ class ToolCall:
     arguments: dict[str, Any]
 
 
-# Yields text pieces as they stream, then the round's complete tool calls in index order.
+# Yields text pieces as they stream ("" for a chunk with none), then the round's complete
+# tool calls in index order.
 ModelStream = Callable[[list[dict[str, Any]]], AsyncIterator[str | ToolCall]]
 
 
@@ -49,20 +50,26 @@ def deepinfra(api_key: str, model: str, *, client: Any = None) -> ModelStream:
             extra_body={"reasoning_effort": "none"},
         )
         calls: dict[int, dict[str, str]] = {}
-        async for chunk in response:
-            if not chunk.choices:
-                continue
-            choice = chunk.choices[0]
-            if choice.delta.content:
-                yield choice.delta.content
-            for piece in choice.delta.tool_calls or []:
-                call = calls.setdefault(piece.index, {"id": "", "name": "", "args": ""})
-                call["id"] = piece.id or call["id"]
-                if piece.function:
-                    call["name"] += piece.function.name or ""
-                    call["args"] += piece.function.arguments or ""
-            if choice.finish_reason == "length":
-                log.warning("model round cut off at max_tokens")
+        try:
+            async for chunk in response:
+                if not chunk.choices:
+                    continue
+                choice = chunk.choices[0]
+                # Every chunk yields, "" for a tool-call piece, so the loop's timeout
+                # sees a stream that is still alive (design §4).
+                yield choice.delta.content or ""
+                for piece in choice.delta.tool_calls or []:
+                    call = calls.setdefault(
+                        piece.index, {"id": "", "name": "", "args": ""}
+                    )
+                    call["id"] = piece.id or call["id"]
+                    if piece.function:
+                        call["name"] += piece.function.name or ""
+                        call["args"] += piece.function.arguments or ""
+                if choice.finish_reason == "length":
+                    log.warning("model round cut off at max_tokens")
+        finally:  # an interrupt closes the HTTP stream now, not at GC
+            await response.aclose()
         for index in sorted(calls):
             call = calls[index]
             yield ToolCall(

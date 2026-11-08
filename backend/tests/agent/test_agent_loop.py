@@ -96,7 +96,13 @@ def make(model, *, today=date(2026, 11, 8), **limits):
         model=model,
         today=today,
         limits=Limits(
-            **{"first_token": 0.2, "call_limit": 5, "tier2_wait": 0.05, **limits}
+            **{
+                "first_token": 0.2,
+                "call_limit": 5,
+                "tier2_wait": 0.05,
+                "seconds_per_word": 0,
+                **limits,
+            }
         ),
     )
     _agents.append(agent)
@@ -226,7 +232,8 @@ async def test_a_red_concern_hands_over_and_a_yellow_is_stored():
     assert line.hand_overs == []
     await a.handle(prompt("stau în pat de ieri"))
     await a.idle()
-    assert line.concerns[-1] == (Severity.red, "nu se poate ridica")
+    # Stored once, by the hand-over's own report.
+    assert line.concerns == [(Severity.yellow, "a uitat pastilele")]
     assert line.hand_overs == [(Escalation.concern, "nu se poate ridica")]
 
 
@@ -631,3 +638,64 @@ async def test_a_failed_write_does_not_leave_the_senior_in_silence():
     await a.handle(prompt("bine"))
     await a.idle()
     assert texts(sent) == ["Ce zi e azi?"]
+
+
+# Review fixes (PR #62).
+
+
+async def test_the_tier_2_wait_starts_once_the_question_is_said():
+    a, line, _ = await started(FakeModel([]), tier2_wait=0.05, seconds_per_word=0.01)
+    await a.handle(prompt("am leșinat"))
+    await asyncio.sleep(0.1)  # past tier2_wait, not past the ~25 words of the question
+    assert line.hand_overs == []
+    await asyncio.sleep(0.3)
+    assert line.hand_overs == [(Escalation.tier_2, "am leșinat")]
+
+
+async def test_a_failed_transcript_write_still_ends_the_hand_over():
+    a, line, sent = await started(FakeModel([]))
+
+    async def broken(speaker, kind, content):
+        raise RuntimeError("database down")
+
+    object.__setattr__(a.line, "store", broken)
+    await a.handle(prompt("am căzut"))
+    assert line.hand_overs == [(Escalation.alarm, "am căzut")]
+    assert sent[-1]["type"] == "end" and "handoffData" in sent[-1]
+
+
+async def test_a_hang_up_during_the_goodbye_ends_completed():
+    hang = asyncio.Event()
+    round_ = [
+        rec("feeling", "ok", True),
+        rec("orientation", SUNDAY, True),
+        rec("shelter", "yes", True),
+    ]
+    a, line, _ = await started(FakeModel([round_, ["La revedere.", hang]]))
+    await a.handle(prompt("bine, duminică, da"))
+    await asyncio.sleep(0.02)
+    await a.close()
+    assert line.ends == [(DEFAULT_SUMMARY, False)]
+
+
+async def test_a_tier_1_phrase_at_the_hang_up_hands_over():
+    a, line, sent = await started(FakeModel([]))
+    await a.handle(prompt("ajutor, am căzut", last=False))
+    assert line.hand_overs == [(Escalation.alarm, "ajutor, am căzut")]
+    assert sent == []  # nobody is left to hear it
+
+
+async def test_a_goodbye_with_a_refused_end_call_goes_round_again():
+    end = ToolCall("c9", "end_call", {"summary": "s"})
+    model = FakeModel([["La revedere.", end], ["Mai am o întrebare."]])
+    a, _, sent = await started(model)
+    await a.handle(prompt("bine"))
+    await a.idle()
+    assert len(model.calls) == 2 and texts(sent)[-1] == "Mai am o întrebare."
+
+
+async def test_a_quiet_stream_after_its_first_piece_drops_the_call():
+    a, line, _ = await started(FakeModel([["Vă ", asyncio.Event()]]))
+    await a.handle(prompt("bine"))
+    await a.idle()
+    assert line.ends == [(DROPPED_SUMMARY, True)]
