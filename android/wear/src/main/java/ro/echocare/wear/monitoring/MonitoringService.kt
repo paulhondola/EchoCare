@@ -20,6 +20,8 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import java.io.File
 import java.time.Instant
@@ -48,11 +50,13 @@ internal const val ACCELEROMETER_PERIOD_US = 20_000
  */
 class MonitoringService :
     Service(),
-    SensorEventListener {
+    SensorEventListener,
+    MessageClient.OnMessageReceivedListener {
     private lateinit var sensorManager: SensorManager
     private lateinit var thread: HandlerThread
     private lateinit var handler: Handler
     private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var eventQueue: EventQueue
     private val fallDetector = FallDetector()
     private val restingBaseline = RestingBaseline()
 
@@ -78,26 +82,34 @@ class MonitoringService :
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_FORCE_ANOMALY) {
-            val type = intent.getStringExtra(EXTRA_FORCE_TYPE) ?: "high_pulse_at_rest"
-            // A fabricated snapshot that looks like the real detector saw it
-            raiseAnomaly(
-                type,
-                EventSnapshot(
-                    pulse = if (type ==
-                        "high_pulse_at_rest"
-                    ) {
-                        125
-                    } else {
-                        lastHeartRate.takeIf { it > 0 }
-                    },
-                    restingBaseline = restingBaseline.value(System.currentTimeMillis()),
-                    moving = false,
-                    minutesWithoutSteps = if (type == "inactivity") 240 else 0,
-                    battery = battery()
+        when (intent?.action) {
+            ACTION_FORCE_ANOMALY -> {
+                val type = intent.getStringExtra(EXTRA_FORCE_TYPE) ?: "high_pulse_at_rest"
+                // A fabricated snapshot that looks like the real detector saw it
+                raiseAnomaly(
+                    type,
+                    EventSnapshot(
+                        pulse = if (type ==
+                            "high_pulse_at_rest"
+                        ) {
+                            125
+                        } else {
+                            lastHeartRate.takeIf { it > 0 }
+                        },
+                        restingBaseline = restingBaseline.value(System.currentTimeMillis()),
+                        moving = false,
+                        minutesWithoutSteps = if (type == "inactivity") 240 else 0,
+                        battery = battery()
+                    )
                 )
-            )
-            log("forced anomaly=$type")
+                log("forced anomaly=$type")
+            }
+            ACTION_SEND_EVENT -> {
+                val bytes = intent.getByteArrayExtra(EXTRA_EVENT_BYTES)
+                if (bytes != null) {
+                    enqueueAndSend(ro.echocare.shared.EventMessage.fromBytes(bytes))
+                }
+            }
         }
         return START_STICKY
     }
@@ -121,21 +133,35 @@ class MonitoringService :
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
             }
         handler.postDelayed(::logMinute, MINUTE_MS)
+        eventQueue = EventQueue(File(filesDir, "events"))
+        Wearable.getMessageClient(this).addListener(this)
         startedAtMs = System.currentTimeMillis()
         running.value = true
         // One session per file, so it never grows past a few kilobytes an hour
         File(filesDir, LOG_FILE).delete()
-        log("started battery=${battery()}%")
+        log("started battery=${battery()}% pending=${eventQueue.pending().size}")
+        // Resend anything the phone never acked
+        resendPending()
     }
 
     override fun onDestroy() {
         sensorManager.unregisterListener(this)
+        Wearable.getMessageClient(this).removeListener(this)
         handler.removeCallbacksAndMessages(null)
         thread.quitSafely()
         if (wakeLock.isHeld) wakeLock.release()
         running.value = false
         log("stopped after minute=$minute battery=${battery()}%")
         super.onDestroy()
+    }
+
+    override fun onMessageReceived(event: MessageEvent) {
+        // `/echocare/received/<id>` — the phone acked an event
+        if (event.path.startsWith(DataLayer.RECEIVED)) {
+            val id = event.path.substringAfterLast('/').takeIf { it.isNotEmpty() } ?: return
+            eventQueue.ack(id)
+            log("event acked id=$id")
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -250,12 +276,46 @@ class MonitoringService :
             log("inactivity anomaly")
         }
         sendCheckIn()
+        // The phone may have come back since the last tick; flush anything the queue still holds
+        resendPending()
         accelReadings = 0
         maxAccelGapNs = 0L
         heartRateReadings = 0
         stepsAtMinuteStart = lastStepCount
         falls = 0
         handler.postDelayed(::logMinute, MINUTE_MS)
+    }
+
+    private fun resendPending() {
+        val pending = eventQueue.pending()
+        if (pending.isEmpty()) return
+        log("resending ${pending.size} queued event(s)")
+        pending.forEach(::sendEventToPhone)
+    }
+
+    /** Enqueue an event and try to send it. [onMessageReceived] clears it when the phone acks. */
+    internal fun enqueueAndSend(msg: ro.echocare.shared.EventMessage) {
+        eventQueue.enqueue(msg)
+        sendEventToPhone(msg)
+    }
+
+    private fun sendEventToPhone(msg: ro.echocare.shared.EventMessage) {
+        Wearable.getNodeClient(this).connectedNodes
+            .addOnSuccessListener { nodes ->
+                if (nodes.isEmpty()) {
+                    log("event ${msg.id} skipped: no connected nodes")
+                    return@addOnSuccessListener
+                }
+                nodes.forEach { node ->
+                    Wearable.getMessageClient(this)
+                        .sendMessage(node.id, DataLayer.EVENT, msg.toBytes())
+                        .addOnSuccessListener { log("event ${msg.id} sent to ${node.displayName}") }
+                        .addOnFailureListener {
+                            log("event ${msg.id} failed to ${node.displayName}: ${it.message}")
+                        }
+                }
+            }
+            .addOnFailureListener { log("event ${msg.id} node lookup failed: ${it.message}") }
     }
 
     private fun sendCheckIn() {
@@ -400,5 +460,16 @@ class MonitoringService :
 
         const val ACTION_FORCE_ANOMALY = "ro.echocare.wear.FORCE_ANOMALY"
         const val EXTRA_FORCE_TYPE = "type"
+        const val ACTION_SEND_EVENT = "ro.echocare.wear.SEND_EVENT"
+        const val EXTRA_EVENT_BYTES = "event_bytes"
+
+        /** The UI calls this to enqueue and send an event; the service handles retries. */
+        fun sendEvent(context: Context, msg: ro.echocare.shared.EventMessage) {
+            context.startService(
+                Intent(context, MonitoringService::class.java)
+                    .setAction(ACTION_SEND_EVENT)
+                    .putExtra(EXTRA_EVENT_BYTES, msg.toBytes())
+            )
+        }
     }
 }

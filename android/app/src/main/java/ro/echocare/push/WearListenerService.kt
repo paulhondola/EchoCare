@@ -1,6 +1,7 @@
 package ro.echocare.push
 
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -58,7 +59,7 @@ class WearListenerService : WearableListenerService() {
                 }
                 DataLayer.EVENT -> {
                     val msg = EventMessage.fromBytes(event.data)
-                    runCatching {
+                    val ok = runCatching {
                         api.sendEvent(
                             EventForm(
                                 id = msg.id,
@@ -67,9 +68,16 @@ class WearListenerService : WearableListenerService() {
                                 snapshot = msg.snapshot.toForm()
                             )
                         )
-                    }
+                    }.isSuccess
+                    // Tell the watch to drop this id from its resend queue (04 §3)
+                    if (ok) ackToWatch(event.sourceNodeId, msg.id)
                 }
             }
         }
+    }
+
+    private fun ackToWatch(nodeId: String, eventId: String) {
+        Wearable.getMessageClient(this)
+            .sendMessage(nodeId, "${DataLayer.RECEIVED}/$eventId", ByteArray(0))
     }
 }
