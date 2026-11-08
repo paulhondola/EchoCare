@@ -72,6 +72,31 @@ class MonitoringService :
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_FORCE_ANOMALY) {
+            val type = intent.getStringExtra(EXTRA_FORCE_TYPE) ?: "high_pulse_at_rest"
+            // A fabricated snapshot that looks like the real detector saw it
+            raiseAnomaly(
+                type,
+                EventSnapshot(
+                    pulse = if (type ==
+                        "high_pulse_at_rest"
+                    ) {
+                        125
+                    } else {
+                        lastHeartRate.takeIf { it > 0 }
+                    },
+                    restingBaseline = restingBaseline.value(System.currentTimeMillis()),
+                    moving = false,
+                    minutesWithoutSteps = if (type == "inactivity") 240 else 0,
+                    battery = battery()
+                )
+            )
+            log("forced anomaly=$type")
+        }
+        return START_STICKY
+    }
+
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
@@ -354,5 +379,21 @@ class MonitoringService :
             context.getSystemService(NotificationManager::class.java)
                 .cancel(FALL_NOTIFICATION_ID)
         }
+
+        /**
+         * Hand-raises a synthetic event with a fake snapshot, so the demo can show the whole UC-09
+         * loop without waiting for a real anomaly (debug builds only). The intent fires through
+         * the service so the full-screen prompt wakes the watch just like a real one.
+         */
+        fun forceAnomaly(context: Context, type: String) {
+            context.startService(
+                Intent(context, MonitoringService::class.java)
+                    .setAction(ACTION_FORCE_ANOMALY)
+                    .putExtra(EXTRA_FORCE_TYPE, type)
+            )
+        }
+
+        const val ACTION_FORCE_ANOMALY = "ro.echocare.wear.FORCE_ANOMALY"
+        const val EXTRA_FORCE_TYPE = "type"
     }
 }

@@ -28,4 +28,7 @@
     <string name="monitor_off">Monitorizare oprită</string>
     <string name="call_me">Sunați-mă</string>
     <string name="call_me_sending">Se trimite…</string>
+    <string name="force_high_pulse" translatable="false">Debug: puls mare</string>
+    <string name="force_inactivity" translatable="false">Debug: inactivitate</string>
+    <string name="force_fall" translatable="false">Debug: cădere</string>
 </resources>

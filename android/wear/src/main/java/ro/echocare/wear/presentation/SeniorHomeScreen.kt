@@ -31,6 +31,7 @@ import java.time.Instant
 import java.util.UUID
 import ro.echocare.shared.DataLayer
 import ro.echocare.shared.EventMessage
+import ro.echocare.wear.BuildConfig
 import ro.echocare.wear.R
 import ro.echocare.wear.monitoring.MonitoringService
 
@@ -108,6 +109,28 @@ fun SeniorHomeScreen() {
                                 if (sending) R.string.call_me_sending else R.string.call_me
                             )
                         )
+                    }
+                }
+                if (BuildConfig.DEBUG) {
+                    item {
+                        Button(
+                            onClick = {
+                                MonitoringService.forceAnomaly(context, "high_pulse_at_rest")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.force_high_pulse)) }
+                    }
+                    item {
+                        Button(
+                            onClick = { MonitoringService.forceAnomaly(context, "inactivity") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.force_inactivity)) }
+                    }
+                    item {
+                        Button(
+                            onClick = { MonitoringService.forceAnomaly(context, "fall") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.force_fall)) }
                     }
                 }
             }
