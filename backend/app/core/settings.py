@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     # The model provider for the agent loop (04 §5, channel 8). The key is a secret (06 §4).
     deepinfra_api_key: str = ""
     agent_model: str = "deepseek-ai/DeepSeek-V4-Pro"
+    # The per-senior summary agent's model (design §3).
+    summary_model: str = "deepseek-ai/DeepSeek-V4-Pro"
 
     @field_validator("dial_allowlist")
     @classmethod

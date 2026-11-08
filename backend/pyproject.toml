@@ -11,6 +11,7 @@ dependencies = [
     "httpx>=0.28.1",
     "openai>=3.46.0",
     "phonenumbers>=9.0.41",
+    "pydantic-ai-slim[openai]>=2.66.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.1.4",
     "uvicorn[standard]>=0.54.0",
@@ -30,6 +31,7 @@ dev = [
     "httpx2>=2.13.1",
     "import-linter>=2.15",
     "moto[s3]>=5.2.4",
+    "pydantic-evals>=2.66.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
@@ -78,6 +80,7 @@ forbidden_modules = [
     "openai",
     "phonenumbers",
     "pydantic",
+    "pydantic_ai",
     "pydantic_settings",
     "sqlalchemy",
     "uvicorn",
@@ -99,7 +102,7 @@ type = "layers"
 containers = ["app"]
 layers = [
     "scheduler | notify",
-    "calls | agent | system",
+    "calls | agent | system | memory",
     "campaigns",
     "incidents",
     "voice",
