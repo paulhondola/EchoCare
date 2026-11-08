@@ -44,7 +44,7 @@
   // ponytail: re-read on open, not a timer; poll() the expanded call if DAS needs it live
   let calls = $state<Load<CallSummary[]> | null>(null);
   // null until read; the briefing's citations are dated from `calls`
-  let briefing = $state<SummaryVersion | null>(null);
+  let briefing = $state<Load<SummaryVersion | null>>({ kind: "loading" });
   let transcripts = $state<Record<string, Load<IncidentCall>>>({});
   let expanded = $state<string | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
@@ -95,17 +95,22 @@
       .catch((e: unknown) => {
         if (!reads.signal.aborted) load = { kind: "error", message: failed("dosarul", e) };
       });
-    // A failed read leaves "Niciun rezumat încă."; the briefing is not what the dossier hangs on
     fetchSummary(summary.id, reads.signal)
       .then((data) => {
-        briefing = data;
+        briefing = { kind: "ok", data };
       })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        if (!reads.signal.aborted) briefing = { kind: "error", message: failed("rezumatul", e) };
+      });
+    // Dates the briefing's citations; a failure shows as the Apeluri tab's error
+    calls = { kind: "loading" };
     fetchCalls(summary.id, reads.signal)
       .then((data) => {
-        if (calls?.kind !== "ok") calls = { kind: "ok", data };
+        calls = { kind: "ok", data };
       })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        if (!reads.signal.aborted) calls = { kind: "error", message: failed("apelurile", e) };
+      });
     return () => reads.abort();
   });
 </script>
@@ -303,7 +308,15 @@
           )}
 
           <div class="pt-4">
-            <Briefing summary={briefing} calls={calls?.kind === "ok" ? calls.data : []} />
+            {#if briefing.kind === "loading"}
+              <div role="status" class="loading-delay flex items-center gap-2 text-fg-muted">
+                <span class="loading loading-sm loading-spinner"></span>Se încarcă rezumatul…
+              </div>
+            {:else if briefing.kind === "error"}
+              <p role="alert" class="text-rosu-fg">{briefing.message}</p>
+            {:else}
+              <Briefing summary={briefing.data} calls={calls?.kind === "ok" ? calls.data : []} />
+            {/if}
           </div>
 
           <div class="sn-label pt-4 pb-2">Aparținători înregistrați</div>
