@@ -43,6 +43,8 @@ The model does not choose a severity, a certainty or recipients. During the conv
 
 Each record also carries `clear` (true when the answer was unambiguous) and the senior's exact words.
 
+The summary of past calls (04 §5, design 2026-11-08 §3) never feeds severity or certainty: it is read by the next call's agent and by people, and no rule in this file looks at it.
+
 **The server checks the orientation answer itself.** It compares the named day with today's weekday in `Europe/Bucharest`. A different day, or `unknown`, is a wrong answer. The model is never asked to judge whether the day is correct.
 
 **The server checks the shelter answer against the room (P22, proposed).** When the senior has a home node whose latest reading is fresh (the node is not `offline`), and the temperature is below the cold limit or above the heat limit, a `shelter` answer of `yes` is recorded as worrying, as if it were `no`. The senior's words are kept unchanged, and a status report with source `home_temperature` names the reading, for example „spune că are căldură, senzorul arată 14°C”. This is the same rule as for the model: a sensor can make an answer worrying, never make a worrying answer fine. A `shelter` of `no` stays `no` whatever the room shows.
@@ -287,7 +289,7 @@ stateDiagram-v2
 
 - No blue "task" status and no white "unclear" status (D6). Unclear outcomes become yellow.
 - No timer on yellow and no automated call to the caregiver (P5).
-- No comparison with previous days.
+- The rules compare nothing across days. The summary agent writes observations across calls for people to read (design 2026-11-08 §5 C), and the rules never use them.
 - No risk score; a campaign calls active seniors in a plain order (open question 5 in the README).
 
 ## Appendix: indicative patterns
