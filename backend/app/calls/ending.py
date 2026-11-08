@@ -109,7 +109,7 @@ async def save_concern(call_id: uuid.UUID, severity: Severity, reason: str) -> N
 
 async def call_reason(session: AsyncSession, call: Call, answers: CallAnswers) -> str:
     """What the answers found, in Romanian; INCOMPLETE_REASON when nothing worrying was
-    said but a question is still open."""
+    said and a question is missing or unclear (unclear never counts as fine, 03 §5)."""
     kind = await session.scalar(
         select(Campaign.kind).where(Campaign.id == call.campaign_id)
     )  # a call with no campaign reads as cold
@@ -344,6 +344,7 @@ async def begin_handover(
             reason = await call_reason(
                 session, call, await stored_answers(session, call_id)
             )
+        reason = reason[:200]  # String(200) in reports and the code (05 §2)
         add_report(session, call.id, source, severity, reason)
         current = await session.scalar(
             select(SeniorStatus.code).where(SeniorStatus.senior_id == call.senior_id)

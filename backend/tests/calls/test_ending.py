@@ -726,3 +726,14 @@ async def test_a_red_concern_hands_over_red(db, live_call):
         call.id, ReportSource.raise_concern, "Durere de cap puternică"
     )
     assert (await code_of(db, call)).code is Severity.red
+
+
+async def test_a_long_handover_reason_is_cut_to_200(db, live_call):
+    call = await live_call(code=Severity.green)
+    reason = "x" * 300
+    assert await begin_handover(call.id, ReportSource.raise_concern, reason)
+    assert (await code_of(db, call)).reason == "x" * 200
+    report = await db.scalar(
+        select(StatusReport).where(StatusReport.call_id == call.id)
+    )
+    assert report.reason == "x" * 200
