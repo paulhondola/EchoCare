@@ -107,6 +107,24 @@ export function resolveIncident(
   return incidentCommand(`/api/incidents/${id}/resolve`, { outcome, note });
 }
 
+// GET /seniors/{id}/summary (04 §1, design §5 B). Mirrors backend/app/seniors/schemas.py.
+export interface SummaryContent {
+  follow_ups: { topic: string; question: string; call_id: string; quote: string }[];
+  how_to_talk: string[];
+  trends: {
+    note: string;
+    direction: "worse" | "better" | "steady";
+    evidence: { call_id: string; quote: string }[];
+  }[];
+  narrative: string;
+}
+
+export interface SummaryVersion {
+  content: SummaryContent;
+  call_id: string;
+  created_at: string;
+}
+
 // GET /incidents/{id} (04 §1), DAS only. Mirrors backend/app/incident_view.py.
 export interface IncidentDetail {
   id: string;
@@ -167,6 +185,7 @@ export interface IncidentDetail {
     }[];
     turns: { speaker: string; kind: string; content: string; at: string }[];
   }[];
+  summary?: SummaryVersion | null;
 }
 
 /** One call as the incident page and the transcript show it */
@@ -198,6 +217,17 @@ export async function fetchTranscript(id: string, signal?: AbortSignal): Promise
   const r = await apiFetch(`/api/calls/${id}/transcript`, { signal });
   if (!r.ok) throw await refused(r);
   return (await r.json()) as IncidentCall;
+}
+
+// 204 when the senior has no summary yet
+export async function fetchSummary(
+  seniorId: string,
+  signal?: AbortSignal,
+): Promise<SummaryVersion | null> {
+  const r = await apiFetch(`/api/seniors/${seniorId}/summary`, { signal });
+  if (r.status === 204) return null;
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as SummaryVersion;
 }
 
 /** The address fields every senior view carries (G13) */

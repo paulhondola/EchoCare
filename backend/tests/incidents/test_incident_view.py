@@ -15,7 +15,8 @@ from app.models import (
     Role,
     StatusReport,
 )
-from app.seniors.service import caregivers_query
+from app.seniors.schemas import SummaryContent
+from app.seniors.service import add_summary, caregivers_query
 
 DAS, MEDIC, CAREGIVER = "+40700000001", "+40700000003", "+40700000004"
 
@@ -166,3 +167,46 @@ async def test_same_name_caregivers_come_in_id_order(client, db, add_user, add_s
     r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
     phones = [c["phone_e164"] for c in r.json()["caregivers"]]
     assert phones == [u.phone_e164 for u in sorted(anas, key=lambda u: u.id)]
+
+
+async def open_incident(db, add_user, add_senior):
+    await add_user(DAS, Role.das)
+    senior = await add_senior("+40700000101")
+    call = Call(
+        senior_id=senior.id,
+        trigger="watch",
+        starting_severity="yellow",
+        state="handed_over",
+        due_at=datetime.now(UTC),
+    )
+    db.add(call)
+    await db.flush()
+    incident = Incident(senior_id=senior.id, opened_by_call_id=call.id, reason="x")
+    db.add(incident)
+    await db.commit()
+    return senior, call, incident
+
+
+async def test_incident_carries_the_summary(client, db, add_user, add_senior):
+    senior, call, incident = await open_incident(db, add_user, add_senior)
+    add_summary(
+        db,
+        senior_id=senior.id,
+        call_id=call.id,
+        previous_id=None,
+        content=SummaryContent(
+            follow_ups=[], how_to_talk=[], trends=[], narrative="Povestea."
+        ),
+        model="m",
+    )
+    await db.commit()
+    r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
+    assert r.json()["summary"]["content"]["narrative"] == "Povestea."
+    assert r.json()["summary"]["call_id"] == str(call.id)
+
+
+async def test_incident_without_summary_has_null(client, db, add_user, add_senior):
+    _, _, incident = await open_incident(db, add_user, add_senior)
+    r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
+    assert r.status_code == 200
+    assert r.json()["summary"] is None

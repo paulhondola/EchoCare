@@ -5,9 +5,10 @@ from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import delete, update
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Call, SummaryVersion
+from app.models import Call, EnrollmentState, Grant, Role, Senior, SummaryVersion
 from app.seniors.schemas import Citation, FollowUp, SummaryContent, Trend
 from app.seniors.service import add_summary, latest_summary, read_content
 
@@ -101,3 +102,86 @@ def test_read_content_of_old_json_is_none():
     assert (
         read_content(SummaryVersion(id=uuid.uuid4(), content={"narrative": 5})) is None
     )
+
+
+# GET /seniors/{id}/summary (design §5 B, 04 §1)
+
+DAS, MEDIC, OTHER_MEDIC = "+40700000001", "+40700000002", "+40700000003"
+CAREGIVER = "+40700000004"
+
+
+def signed_in(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def briefed(db, add_user, add_senior):
+    """Maria past draft with a summary; her medic, a caregiver, herself, DAS, another medic."""
+    await add_user(DAS, Role.das)
+    await add_user(OTHER_MEDIC, Role.medic)
+    medic = await add_user(MEDIC, Role.medic)
+    maria = await add_senior(
+        SENIOR, medic=medic, enrollment_state=EnrollmentState.accepted
+    )
+    caregiver, herself = await add_user(CAREGIVER), await add_user(SENIOR)
+    db.add_all(
+        [
+            Grant(user_id=caregiver.id, role=Role.caregiver, senior_id=maria.id),
+            Grant(user_id=herself.id, role=Role.senior, senior_id=maria.id),
+        ]
+    )
+    call_id = await add_call(db, maria)
+    add_summary(
+        db,
+        senior_id=maria.id,
+        call_id=call_id,
+        previous_id=None,
+        content=content("Doamna Maria doarme prost."),
+        model="m",
+    )
+    await db.commit()
+    return maria
+
+
+@pytest.mark.parametrize(
+    ("token", "status"),
+    [
+        (MEDIC, 200),
+        (DAS, 200),
+        (CAREGIVER, 404),
+        (SENIOR, 404),
+        (OTHER_MEDIC, 404),
+    ],
+)
+async def test_summary_reach(client, briefed, token, status):
+    r = await client.get(f"/api/seniors/{briefed.id}/summary", headers=signed_in(token))
+    assert r.status_code == status
+    if status == 200:
+        assert r.json()["content"]["narrative"] == "Doamna Maria doarme prost."
+    else:
+        assert r.json() == {"detail": {"reason": "not_found"}}
+
+
+async def test_das_does_not_see_a_drafts_summary(client, db, briefed):
+    await db.execute(
+        update(Senior)
+        .where(Senior.id == briefed.id)
+        .values(enrollment_state=EnrollmentState.draft)
+    )
+    await db.commit()
+    r = await client.get(f"/api/seniors/{briefed.id}/summary", headers=signed_in(DAS))
+    assert r.status_code == 404
+
+
+async def test_no_summary_is_204(client, db, briefed):
+    await db.execute(delete(SummaryVersion))
+    await db.commit()
+    r = await client.get(f"/api/seniors/{briefed.id}/summary", headers=signed_in(MEDIC))
+    assert r.status_code == 204
+
+
+async def test_unreadable_content_is_no_summary(client, db, briefed):
+    await db.execute(update(SummaryVersion).values(content={"narrative": 1}))
+    await db.commit()
+    r = await client.get(f"/api/seniors/{briefed.id}/summary", headers=signed_in(MEDIC))
+    assert r.status_code == 204
