@@ -35,11 +35,15 @@ android {
     }
 
     buildTypes {
+        // 06 §3 timers in demo mode so the course jury doesn't wait 4 hours for inactivity
         debug {
             signingConfig = signingConfigs.getByName("shared")
+            val demo = localProps.getProperty("echocare.demo") != "false"
+            buildConfigField("boolean", "DEMO", "$demo")
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
+            buildConfigField("boolean", "DEMO", "false")
             optimization {
                 enable = true
             }

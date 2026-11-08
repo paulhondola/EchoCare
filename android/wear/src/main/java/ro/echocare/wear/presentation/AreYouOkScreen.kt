@@ -27,10 +27,11 @@ import kotlinx.coroutines.delay
 import ro.echocare.shared.DataLayer
 import ro.echocare.shared.EventMessage
 import ro.echocare.shared.EventSnapshot
+import ro.echocare.wear.BuildConfig
 import ro.echocare.wear.R
 
-// shortcut: 15 s for the demo; production should use 120_000 ms (UC-09 §2 step 3)
-private const val PROMPT_TIMEOUT_MS = 15_000L
+// 06 §3: 15 s in the demo, 2 min in production (UC-09 §2 step 3)
+private val PROMPT_TIMEOUT_MS: Long = if (BuildConfig.DEMO) 15_000L else 120_000L
 
 /**
  * „Sunteți bine?" — shown when the fall detector or an anomaly rule fires (UC-09). The senior

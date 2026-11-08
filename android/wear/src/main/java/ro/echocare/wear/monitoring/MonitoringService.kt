@@ -34,6 +34,7 @@ import ro.echocare.shared.FallDetector
 import ro.echocare.shared.InactivityDetector
 import ro.echocare.shared.PulseAnomaly
 import ro.echocare.shared.RestingBaseline
+import ro.echocare.wear.BuildConfig
 import ro.echocare.wear.R
 import ro.echocare.wear.presentation.MainActivity
 
@@ -54,8 +55,12 @@ class MonitoringService :
     private lateinit var wakeLock: PowerManager.WakeLock
     private val fallDetector = FallDetector()
     private val restingBaseline = RestingBaseline()
-    private val pulseAnomaly = PulseAnomaly()
-    private val inactivity = InactivityDetector()
+
+    // Demo values from 06 §3; production uses the detector defaults (4 h inactivity)
+    private val pulseAnomaly = PulseAnomaly(holdMs = if (BuildConfig.DEMO) 15_000L else 60_000L)
+    private val inactivity = InactivityDetector(
+        limitMs = if (BuildConfig.DEMO) 60_000L else 4 * 60 * 60_000L
+    )
 
     // Counted on the sensor thread; logged and reset every minute
     private var minute = 0
