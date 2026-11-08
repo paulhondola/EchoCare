@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # Messaging, a service account key or a keyless workload identity configuration.
     # Empty, as locally, sends no pushes. Signing in needs none (auth-layer AL11).
     firebase_push_credentials: str = ""
+    # The model provider for the agent loop (04 §5, channel 8). The key is a secret (06 §4).
+    deepinfra_api_key: str = ""
+    agent_model: str = "deepseek-ai/DeepSeek-V4-Pro"
 
     @field_validator("dial_allowlist")
     @classmethod
