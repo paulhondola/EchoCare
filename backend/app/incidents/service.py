@@ -52,6 +52,9 @@ async def record_event(
             senior_id=senior_id,
             type=form.type,
             measured_at=form.measured_at,
+            snapshot=(
+                form.snapshot.model_dump(exclude_none=True) if form.snapshot else None
+            ),
         )
         .on_conflict_do_nothing()
         .returning(Event.id)

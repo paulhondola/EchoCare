@@ -37,14 +37,32 @@ class ResolutionForm(BaseModel):
     note: Note
 
 
+class EventSnapshotForm(BaseModel):
+    """What the watch saw when the event fired (04 §3). Every field optional: older clients send
+    none; a fall event sets its own fields; a pulse event sets pulse and resting_baseline. The
+    service stores it as-is on the Event row."""
+
+    pulse: int | None = None
+    resting_baseline: int | None = None
+    moving: bool | None = None
+    minutes_without_steps: int | None = None
+    battery: int | None = None
+
+
 class EventForm(BaseModel):
-    """POST /me/events' body (04 §3). „Sunați-mă” and watch-detected falls (P19) today; the id
+    """POST /me/events' body (04 §3). „Sunați-mă”, falls and the watch's own anomalies; the id
     is the device's, so a resend is a duplicate. `measured_at` carries an offset: a naive time
-    is 422."""
+    is 422. `snapshot` is optional for backward compatibility."""
 
     id: uuid.UUID
-    type: Literal[EventType.manual_request, EventType.fall]
+    type: Literal[
+        EventType.manual_request,
+        EventType.fall,
+        EventType.high_pulse_at_rest,
+        EventType.inactivity,
+    ]
     measured_at: AwareDatetime
+    snapshot: EventSnapshotForm | None = None
 
 
 class EventView(BaseModel):

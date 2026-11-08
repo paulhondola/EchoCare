@@ -29,9 +29,40 @@ data class CheckInMessage(
     }
 }
 
-data class EventMessage(val id: String, val type: String, val measuredAt: String) {
-    fun toBytes(): ByteArray =
-        """{"id":"$id","type":"$type","measured_at":"$measuredAt"}""".encodeToByteArray()
+data class EventSnapshot(
+    val pulse: Int?,
+    val restingBaseline: Int?,
+    val moving: Boolean?,
+    val minutesWithoutSteps: Int?,
+    val battery: Int?
+) {
+    companion object {
+        val EMPTY = EventSnapshot(null, null, null, null, null)
+    }
+}
+
+data class EventMessage(
+    val id: String,
+    val type: String,
+    val measuredAt: String,
+    val snapshot: EventSnapshot = EventSnapshot.EMPTY
+) {
+    fun toBytes(): ByteArray = buildString {
+        append("{\"id\":\"$id\",\"type\":\"$type\",\"measured_at\":\"$measuredAt\"")
+        val s = snapshot
+        if (s != EventSnapshot.EMPTY) {
+            append(",\"snapshot\":{")
+            val parts = mutableListOf<String>()
+            s.pulse?.let { parts += "\"pulse\":$it" }
+            s.restingBaseline?.let { parts += "\"resting_baseline\":$it" }
+            s.moving?.let { parts += "\"moving\":$it" }
+            s.minutesWithoutSteps?.let { parts += "\"minutes_without_steps\":$it" }
+            s.battery?.let { parts += "\"battery\":$it" }
+            append(parts.joinToString(","))
+            append("}")
+        }
+        append("}")
+    }.encodeToByteArray()
 
     companion object {
         fun fromBytes(bytes: ByteArray): EventMessage {
@@ -39,7 +70,14 @@ data class EventMessage(val id: String, val type: String, val measuredAt: String
             return EventMessage(
                 id = json.jsonString("id") ?: "",
                 type = json.jsonString("type") ?: "fall",
-                measuredAt = json.jsonString("measured_at") ?: ""
+                measuredAt = json.jsonString("measured_at") ?: "",
+                snapshot = EventSnapshot(
+                    pulse = json.jsonInt("pulse"),
+                    restingBaseline = json.jsonInt("resting_baseline"),
+                    moving = json.jsonBoolean("moving"),
+                    minutesWithoutSteps = json.jsonInt("minutes_without_steps"),
+                    battery = json.jsonInt("battery")
+                )
             )
         }
     }

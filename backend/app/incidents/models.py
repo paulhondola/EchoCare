@@ -24,6 +24,7 @@ class EventType(StrEnum):
     inactivity = "inactivity"
     sos_button = "sos_button"
     manual_request = "manual_request"  # "Sunați-mă" (05 §4)
+    fall = "fall"  # watch-detected fall (P19)
 
 
 class IncidentOutcome(StrEnum):
