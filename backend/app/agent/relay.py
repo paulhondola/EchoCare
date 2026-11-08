@@ -22,6 +22,23 @@ class Escalation(StrEnum):
 
     alarm = "alarm"
     key_9 = "key_9"
+    # From the conversation (04 §5): a confirmed tier 2 phrase, a red concern, a red
+    # from the rules, or the model asking for a person.
+    tier_2 = "tier_2"
+    concern = "concern"
+    rules = "rules"
+    human = "human"
+
+
+def handoff_reason(e: Escalation) -> str:
+    """The reason in the hand-over data (04 §4.4): alarm | key_9 | agent."""
+    match e:
+        case Escalation.alarm | Escalation.tier_2:
+            return "alarm"
+        case Escalation.key_9:
+            return "key_9"
+        case _:
+            return "agent"
 
 
 # Writes the hand-over's report, code and incident, and ends the call `handed_over`;
@@ -67,7 +84,7 @@ class Relay:
         keeps the red; then the last sentence and the end with hand-over data."""
         if not await self.hand_over(escalation, words):
             return []
-        data = json.dumps({"call": self.call, "reason": escalation})
+        data = json.dumps({"call": self.call, "reason": handoff_reason(escalation)})
         said = await self.say(SELF_HARM_HANDOVER if self_harm else CONNECTING)
         return [*said, {"type": "end", "handoffData": data}]
 
