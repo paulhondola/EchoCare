@@ -98,6 +98,8 @@ class Agent:
         greeting: str,
         form_of_address: str,
         heat: bool,
+        follow_up: str | None = None,
+        how_to_talk: tuple[str, ...] = (),
         send: Send,
         line: Line,
         model: ModelStream,
@@ -113,7 +115,10 @@ class Agent:
         self.rules = CallRules(today or today_in_bucharest())
         # The greeting is the conversation's first agent turn (design §4, Call context).
         self.history: list[dict[str, Any]] = [
-            {"role": "system", "content": instructions(form_of_address, heat)},
+            {
+                "role": "system",
+                "content": instructions(form_of_address, heat, follow_up, how_to_talk),
+            },
             {"role": "assistant", "content": greeting},
         ]
         # The history index of the model's last spoken text, which an interrupt cuts

@@ -197,7 +197,7 @@ When a medic adds a caregiver, FastAPI sends one SMS from the project's number: 
 | Part | Content |
 |---|---|
 | Fixed instructions | Who it is (the DAS Timișoara phone assistant), tone (warm, slow, simple Romanian, at most two short sentences), the three questions to cover, how to record answers and when an answer counts as clear, when to raise a concern, and the limits below |
-| Call context | The senior's form of address, the trigger and why the call is happening, the kind of weather warning (heat or cold), and the latest room temperature if a home node reported it recently **(proposed)**. The agent may mention it („senzorul din casă arată 14 grade”); the server, not the model, applies it to the shelter answer (P22) |
+| Call context | The senior's form of address, the trigger and why the call is happening, the kind of weather warning (heat or cold), and the latest room temperature if a home node reported it recently **(proposed)**. The agent may mention it („senzorul din casă arată 14 grade”); the server, not the model, applies it to the shelter answer (P22). On a wellbeing call it also has the notes from past calls: the latest summary's first follow-up question and its how-to-talk notes, as data after the instructions. The model asks at most that one question and records nothing from the notes; trends and narrative never reach it, and a failed read means no notes |
 | Conversation | Everything said so far, including how much of an interrupted reply was heard |
 | Tool results | What the server answered to each tool call |
 
