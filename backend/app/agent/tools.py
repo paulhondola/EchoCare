@@ -125,7 +125,7 @@ class CallRules:
             case "raise_concern":
                 return self._concern(args)
             case "request_human":
-                reason = args.get("reason", "")
+                reason = str(args.get("reason", ""))
                 return Outcome("ok", hand_over=Escalation.human, reason=reason)
             case "end_call":
                 return self._end(args)

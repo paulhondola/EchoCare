@@ -650,6 +650,14 @@ async def test_stored_answers_keep_a_clear_answer(db, live_call):
     ].value == "unwell"
 
 
+async def test_an_answer_longer_than_its_column_is_cut_to_fit(db, live_call):
+    call = await live_call()
+    value = "nu știe, zice că poate e luni sau marți, sau poate chiar miercuri"
+    await save_answer(call.id, Question.orientation, value, clear=False, quote=value)
+    stored_value = (await stored_answers(db, call.id)).answers[Question.orientation]
+    assert stored_value.value == value[:60] and stored_value.words == value
+
+
 async def test_a_hang_up_after_mi_e_rau_ends_yellow_without_a_redial(db, live_call):
     call = await live_call(code=Severity.green)
     await save_answer(call.id, Question.feeling, "unwell", clear=True, quote="mi-e rău")

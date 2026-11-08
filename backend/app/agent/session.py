@@ -104,5 +104,8 @@ async def serve(ws: Socket, call: uuid.UUID, start: Callable[[Send], Handler]) -
             await handler.handle(message)
     except WebSocketDisconnect:
         log.info("relay closed: call %s", call)
-        # Waits for in-flight writes, so Twilio's completed finds them stored.
-        await handler.close()
+    finally:
+        if set_up:
+            # Waits for in-flight writes, so Twilio's completed finds them stored; on
+            # any other error too, so the agent's tasks stop with the socket.
+            await handler.close()

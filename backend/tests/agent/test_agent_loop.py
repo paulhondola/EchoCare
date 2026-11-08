@@ -493,6 +493,34 @@ async def test_a_cancel_during_the_writes_keeps_the_round_whole():
     assert len(line.answers) == 1  # the write was not lost
 
 
+@pytest.mark.parametrize(
+    "cancel",
+    [{"type": "interrupt", "utteranceUntilInterrupt": ""}, prompt("bine")],
+    ids=["interrupt", "prompt"],
+)
+async def test_a_cancel_during_a_red_rounds_writes_still_hands_over(cancel):
+    model = FakeModel([[rec("feeling", "unwell", True), rec("shelter", "no", True)]])
+    a, line, sent = await started(model)
+    slow = slow_answers(a, line)
+    answers_at_hand_over = []
+    hand_over = line.hand_over
+
+    async def noting(escalation, reason):
+        answers_at_hand_over.append(len(line.answers))
+        return await hand_over(escalation, reason)
+
+    object.__setattr__(a.line, "hand_over", noting)
+    await a.handle(prompt("rău, și e frig"))
+    await asyncio.sleep(0.02)
+    await a.handle(cancel)  # cancels the turn mid-write, after the rules went red
+    slow.set()
+    await a.idle()
+    assert line.hand_overs == [(Escalation.rules, "")]
+    assert answers_at_hand_over == [2]  # both answers land first
+    assert json.loads(sent[-1]["handoffData"]) == {"call": CALL, "reason": "agent"}
+    assert len(model.calls) == 1  # the new prompt started no turn
+
+
 async def test_close_waits_for_a_write_in_flight():
     model = FakeModel([[rec("feeling", "ok", True)]])
     a, line, _ = await started(model)
@@ -575,3 +603,31 @@ async def test_no_speech_is_logged(caplog):
         await a.handle(prompt("mă doare capul"))
         await a.idle()
     assert "doare" not in caplog.text and "inima" not in caplog.text
+
+
+async def test_a_failed_write_still_hands_over_the_red(caplog):
+    model = FakeModel([[rec("feeling", "unwell", True), rec("shelter", "no", True)]])
+    a, line, sent = await started(model)
+
+    async def broken(question, answer):
+        raise RuntimeError(f"value too long: {answer.value}")
+
+    object.__setattr__(a.line, "answer", broken)
+    await a.handle(prompt("rău, și e frig"))
+    await a.idle()
+    assert line.hand_overs == [(Escalation.rules, "")]
+    assert sent[-1]["type"] == "end" and "handoffData" in sent[-1]
+    assert "unwell" not in caplog.text  # the error's type only, never the values
+
+
+async def test_a_failed_write_does_not_leave_the_senior_in_silence():
+    model = FakeModel([[rec("feeling", "ok", True)], ["Ce zi e azi?"]])
+    a, _, sent = await started(model)
+
+    async def broken(question, answer):
+        raise RuntimeError("database down")
+
+    object.__setattr__(a.line, "answer", broken)
+    await a.handle(prompt("bine"))
+    await a.idle()
+    assert texts(sent) == ["Ce zi e azi?"]

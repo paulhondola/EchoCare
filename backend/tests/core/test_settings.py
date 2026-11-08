@@ -156,6 +156,7 @@ def test_cloud_cors_allows_only_allowed_origin():  # 01 §4, channel 3
 
 def test_the_agent_model_defaults_to_deepseek_v4_pro(monkeypatch):
     monkeypatch.delenv("AGENT_MODEL", raising=False)
+    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
     s = Settings(database_url="postgresql+asyncpg://x/y", _env_file=None)
     assert s.agent_model == "deepseek-ai/DeepSeek-V4-Pro"
     assert s.deepinfra_api_key == ""

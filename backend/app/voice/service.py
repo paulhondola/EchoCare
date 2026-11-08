@@ -416,6 +416,9 @@ async def save_turn(
         await session.commit()
 
 
+VALUE_ROOM = 60  # answers.value's length; quote is Text
+
+
 async def save_answer(
     call_id: uuid.UUID, field: Question, value: str, *, clear: bool, quote: str
 ) -> None:
@@ -426,7 +429,7 @@ async def save_answer(
             session,
             call_id,
             field,
-            value,
+            value[:VALUE_ROOM],  # the model's words can run long
             clear=clear,
             quote=quote,
             at=datetime.now(UTC),

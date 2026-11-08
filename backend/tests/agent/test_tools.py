@@ -100,8 +100,15 @@ def test_handoff_reasons():
     ]
 
 
-def test_the_instructions_name_the_warning_and_the_new_limits():
+def test_the_instructions_name_the_shelter_and_the_new_limits():
     cold, heat = instructions("doamna Elena", False), instructions("doamna Elena", True)
     assert "doamna Elena" in cold and "warm place" in cold and "cool place" in heat
+    # A watch or manual call has no warning; the greeting says why we call (I4).
+    assert "warning" not in cold and "warning" not in heat
     assert "never say you have notified" in cold.lower()
     assert "never give yourself a name" in cold.lower()
+
+
+def test_a_request_human_reason_is_a_string():
+    outcome = rules().run("request_human", {"reason": 5})
+    assert outcome.reason == "5"

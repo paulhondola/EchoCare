@@ -255,6 +255,8 @@ class Agent:
         if self._ending:  # the call ended during an await before this
             return
         await self._cancel(self._turn)
+        if self._ending:  # the cancelled turn handed over (03 §6)
+            return
         self.history.extend({"role": "user", "content": w} for w in said)
         self._spoken = None
         self._turn = self._spawn(self._run_turn())
@@ -282,13 +284,25 @@ class Agent:
             for o in outcomes:
                 if o.end is not None:
                     self._summary = o.end
+            red = next((o for o in outcomes if o.hand_over), None)
             # Shielded and kept: an interrupt or hang-up must not lose what was said,
             # and nothing ends the call before it lands.
             write = self._spawn(self._keep(text, outcomes))
             self._writes.add(write)
             write.add_done_callback(self._writes.discard)
-            await asyncio.shield(write)
-            if red := next((o for o in outcomes if o.hand_over), None):
+            try:
+                await asyncio.shield(write)
+            except asyncio.CancelledError:
+                # Red acts at once (03 §6): an interrupt or a new prompt must not lose
+                # the round's hand-over. It is claimed now, so nothing else starts; it
+                # becomes the turn, so `idle` and `close` wait for it, and it waits for
+                # the write before `line.hand_over`.
+                if red and self._claim():
+                    self._turn = self._spawn(
+                        self._handing_over(red.hand_over, red.reason)
+                    )
+                raise
+            if red:
                 await self._hand_over(red.hand_over, red.reason)
                 return
             # A JSON-looking round is probably a tool call written as text: ask again.
@@ -337,12 +351,21 @@ class Agent:
 
     async def _keep(self, text: str, outcomes: list[Outcome]) -> None:
         if text:
-            await self.line.store(Speaker.agent, TurnKind.speech, text)
+            await self._try(self.line.store(Speaker.agent, TurnKind.speech, text))
         for o in outcomes:
             if o.answer:
-                await self.line.answer(*o.answer)
+                await self._try(self.line.answer(*o.answer))
             if o.concern:
-                await self.line.concern(*o.concern)
+                await self._try(self.line.concern(*o.concern))
+
+    async def _try(self, write: Awaitable[None]) -> None:
+        """A failed write is logged and the round goes on: its hand-over or close comes
+        from CallRules in memory, and the senior is never left in silence (design §5)."""
+        try:
+            await write
+        except Exception as e:  # noqa: BLE001 - logged below, without the words
+            # Type only: the error can carry the senior's words or the values.
+            log.error("write failed, call %s: %s", self.call, type(e).__name__)
 
     # Ending the call: exactly one path does it.
 
@@ -357,10 +380,14 @@ class Agent:
     async def _hand_over(
         self, escalation: Escalation, reason: str, said: str = CONNECTING
     ) -> None:
-        """Written first, so a line lost now keeps the red; then the last sentence and
-        the end with hand-over data (04 §4.4)."""
-        if not self._claim():
-            return
+        if self._claim():
+            await self._handing_over(escalation, reason, said)
+
+    async def _handing_over(
+        self, escalation: Escalation, reason: str, said: str = CONNECTING
+    ) -> None:
+        """Once claimed. Written first, so a line lost now keeps the red; then the last
+        sentence and the end with hand-over data (04 §4.4)."""
         try:
             await self._stop_others()
             try:

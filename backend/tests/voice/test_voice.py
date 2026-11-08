@@ -21,6 +21,7 @@ from app.agent.relay import GOODBYE
 from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn, Campaign, Incident, StatusReport
+from app.status.engine import WEEKDAYS, today_in_bucharest
 from app.voice import router as voice_router
 from app.voice.dialogue import SORRY, greeting
 from app.voice.router import echo_for
@@ -513,3 +514,55 @@ async def test_a_model_hand_over_sends_reason_agent(client, db, call, monkeypatc
     await voice_router.relay(ws, call.id)
     assert json.loads(ws.sent[-1]["handoffData"])["reason"] == "agent"
     assert (await stored(db, call)).state == "handed_over"
+
+
+async def test_serve_closes_the_handler_on_any_error(client, db, call):
+    """The agent's limit and turn tasks stop with the socket (session.py)."""
+    await answered(client, call)
+
+    class Failing:
+        closed = False
+
+        async def handle(self, message):
+            if message["type"] == "prompt":
+                raise RuntimeError("database down")
+
+        async def close(self):
+            Failing.closed = True
+
+    ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
+    with pytest.raises(RuntimeError):
+        await agent_session.serve(ws, call.id, lambda send: Failing())
+    assert Failing.closed
+
+
+async def test_three_clear_answers_end_the_call_completed(
+    client, db, call, monkeypatch
+):
+    """#49's done when: the model records three clear answers and ends the call."""
+    today = WEEKDAYS[today_in_bucharest().weekday()]
+
+    def record(field, value):
+        args = {"field": field, "value": value, "clear": True, "words": value}
+        return ToolCall(f"c-{field}", "record_answer", args)
+
+    async def stream(messages):
+        yield record("feeling", "ok")
+        yield record("orientation", today)
+        yield record("shelter", "yes")
+        yield ToolCall("c-end", "end_call", {"summary": "Doamna se simte bine."})
+        yield "Vă mulțumesc. La revedere."
+
+    monkeypatch.setattr(voice_router, "model_stream", lambda: stream)
+    await answered(client, call)
+    ws = Socket(
+        call.id,
+        [SETUP, {"type": "prompt", "voicePrompt": "bine, e " + today, "last": True}],
+        drain=0.2,
+    )
+    await voice_router.relay(ws, call.id)
+    assert ws.sent[-1] == {"type": "end"}
+    ended = await stored(db, call)
+    assert ended.state == "completed"
+    assert ended.final_severity is not None
+    assert ended.summary.startswith("Doamna se simte bine.")
