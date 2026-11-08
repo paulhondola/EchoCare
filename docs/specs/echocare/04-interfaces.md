@@ -262,6 +262,15 @@ sequenceDiagram
 | Severity never falls within a call | Clear answers cannot be overwritten; `raise_concern` only raises |
 | Recipients | Chosen by the server from the code; the model has no tool that notifies anyone |
 
+### The summary agent
+
+A second, post-call use of the model provider (design 2026-11-08 §4). It never runs during a call.
+
+- **Input**: the previous summary version (or none), the call just ended (its trigger, campaign kind, Bucharest date, state, final severity and certainty, reason, transcript turns and answers), and the answers of the senior's previous 5 answered wellbeing calls, newest first.
+- **Output**: `SummaryContent`: `follow_ups` (topic, question, citation), `how_to_talk`, `trends` (note, direction, at least two citations from different calls) and `narrative`. Every quote is checked against the senior's own words in the cited call, with up to 2 retries.
+- **When it runs**: a scheduler step (06 §2) starts it after the call has ended; the version is stored in `senior_summaries`, one per call.
+- **Who reads it**: the next call's agent (`follow_ups`, `how_to_talk` only) and DAS and the registering medic (the whole content).
+
 ## 6. FastAPI → Firebase push → Android app (channel 4)
 
 | Field | Alert | Refresh |
