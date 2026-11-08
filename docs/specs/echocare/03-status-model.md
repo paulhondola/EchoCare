@@ -119,18 +119,18 @@ The server looks up the action from the pair (severity, certainty), both now com
 
 | Severity ↓ / Certainty → | High | Medium | Low, or nobody answered |
 |---|---|---|---|
-| **Green** | Close the call. Code green | Retry once. If still not high: code yellow | Retry once. If still not high: code yellow |
-| **Yellow** | Code yellow, alert | Code yellow, alert, retry once | Code yellow, alert, retry once |
+| **Green** | Close the call. Code green | Retry. If still not high: code yellow | Retry. If still not high: code yellow |
+| **Yellow** | Code yellow, alert | Code yellow, alert, retry | Code yellow, alert, retry |
 | **Red** | Code red, alert, hand over to a person | Same | Same |
 
 **What "retry" means (P2, proposed)**
 
 | Situation | Retry is |
 |---|---|
-| The call was answered | The agent re-asks the question whose answer was unclear, once, more slowly. The server names that question in the tool result |
+| The call was answered | The agent re-asks the question whose answer was unclear, up to twice per question (#49), more slowly. The server names that question in the tool result |
 | Nobody answered | One redial after the redial delay |
 
-Each call gets one retry of each kind at most. An uncertain green that survives its retry becomes yellow: unclear never counts as fine.
+Each unclear question gets two re-asks at most, and a call gets one redial. An uncertain green that survives its re-asks becomes yellow: unclear never counts as fine.
 
 **What "alert" means.** A change of code into yellow or red, with the alerts listed in section 7. The red row ignores certainty by design.
 
@@ -152,6 +152,7 @@ The final severity of a call is decided when the call ends or goes unanswered fo
 Two orderings matter:
 
 - **Red acts immediately.** The moment red is established by any route, the code becomes red, alerts go out and the hand-over starts. Nothing waits for the end of the call.
+- **MVP timing (#49).** A yellow, from the answers or from `raise_concern`, changes the senior's code when the call ends, at most 3 minutes later, not at the moment it is recorded. Red always acts at once.
 - **A trigger's yellow acts on the first unanswered attempt.** A watch or manual trigger whose first call is not answered sets the code to yellow and alerts at once, then redials. A campaign's green waits for the redial before becoming yellow.
 
 ```mermaid

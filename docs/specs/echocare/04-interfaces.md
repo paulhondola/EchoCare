@@ -173,12 +173,12 @@ One WebSocket per live wellbeing call. FastAPI never receives or sends audio.
 
 The WebSocket is `/voice/relay?call=<id>`, the one-time call id of 01 §4 channel 7. The answer callback names it in `<Connect action=…><ConversationRelay url=… language="ro-RO" ttsProvider=… voice=… welcomeGreeting=… dtmfDetection="true" reportInputDuringAgentSpeech="any" echoPromptFiltering="true" speechTimeout="2000"/></Connect>`; the voice comes from `TWILIO_TTS_PROVIDER` and `TWILIO_VOICE`, and the action is the hand-over address. `reportInputDuringAgentSpeech="any"` delivers what the senior says or presses while the agent is still speaking: Twilio's default, `none`, drops it, so an answer over the greeting, or key 9 pressed during it, would be lost. `echoPromptFiltering` drops the agent's own words heard back through a speakerphone, which otherwise interrupt it and come back as the senior's. `speechTimeout="2000"` ends a turn 2 seconds after the senior stops speaking; with `auto` the provider decides, and on a noisy line it sent nothing until the hang-up. A `setup` whose `callSid` is not the call's closes the session.
 
-**Built so far (#48).** Key 9 and a tier 1 phrase start the hand-over (§4.4) on every call but a test call. A tier 2 phrase is stored and acts on nothing until the agent loop. Everything else is echoed back, as S1's session does, and key 0 ends the call `completed`.
+**The agent loop (#49).** On a wellbeing call, one `prompt` that passes the alarm-phrase check starts a turn: the model gets the instructions, the call context, the conversation and the tools, and its reply streams to Twilio piece by piece as `text` messages. Tool calls are run through the server rules in §5. A turn makes at most 3 model calls: a reply with text ends the turn, and one with only tool calls goes round again; a third round with no text gets a fixed short sentence. The session keeps reading Twilio's messages while a turn streams, so an `interrupt`, key 9 or a hang-up acts at once. Text that looks like tool-call JSON is never sent. Key 9 and a tier 1 phrase start the hand-over (§4.4) on every call but a test call. A tier 2 phrase sends the confirmation question and waits 8 seconds; 1 or „da”, silence, an unclear reply or a hang-up means red and a hand-over, and 2 or a clear „nu” passes the sentence to the model. If the model fails, or sends nothing within 10 seconds of the request, the agent says one fixed sentence and the call ends `dropped`. The call is closed when the rules allow it (§5) or at the 180 second limit. A test call (`place_call.py`) keeps the echo of S1's session, hands over nothing, and key 0 ends it `completed`.
 
 ### 4.4 Hand-over, step by step
 
 1. FastAPI writes the status report, the code, the incident and the call's `handed_over` in one transaction, then sends a last `text` telling the senior they are being connected. A call no longer in progress starts nothing.
-2. FastAPI sends `end` with hand-over data: JSON naming the call id and the reason, `{"call": "<id>", "reason": "alarm" | "key_9"}`.
+2. FastAPI sends `end` with hand-over data: JSON naming the call id and the reason, `{"call": "<id>", "reason": "alarm" | "key_9" | "agent"}`, where `agent` is any hand-over that comes out of the conversation: a red `raise_concern`, `request_human`, or a red from the rules.
 3. Twilio calls the hand-over callback.
 4. FastAPI looks up the on-duty DAS employee's phone and answers with a dial instruction to that number, after starting a live transcription of the senior's leg.
 5. Twilio rings the number and, on answer, fetches the hand-over answered address, the `<Number url>`, before it connects the two. FastAPI marks the incident `in_progress`, taken by the on-duty employee, and Twilio connects the two parties. Each sentence either of them finishes reaches the hand-over transcript callback and is stored as the senior's or the DAS employee's turn.
@@ -190,7 +190,7 @@ When a medic adds a caregiver, FastAPI sends one SMS from the project's number: 
 
 ## 5. FastAPI ↔ model provider (channel 8)
 
-**The provider is not chosen.** Requirements: output that streams as it is generated, tool calls, natural Romanian, and a short wait before the first word. A sensible starting point is a small, fast model such as Claude Haiku 5.5; judge candidates on a real test call in Romanian for naturalness and time to first word (spike S4).
+**The provider is DeepInfra (#49, spike S4)**, through its OpenAI-compatible API (`https://api.deepinfra.com/v1/openai`, the `openai` package, key in `DEEPINFRA_API_KEY`). The model is the `AGENT_MODEL` setting, `deepseek-ai/DeepSeek-V4-Pro` by default; `google/gemma-4-31B-it-turbo` is the faster alternative (06 §6). Requests stream, with `temperature` 0.3, `max_tokens` 1000 and reasoning off. No agent framework is used (01 §8).
 
 ### What the model is given on every turn
 
@@ -201,16 +201,16 @@ When a medic adds a caregiver, FastAPI sends one SMS from the project's number: 
 | Conversation | Everything said so far, including how much of an interrupted reply was heard |
 | Tool results | What the server answered to each tool call |
 
-**Limits written into the instructions** (from v3 §8.6): no medical advice beyond water, shade or warmth, and rest; no promises; never ask for money, codes or personal data; ask for confirmation when an answer is ambiguous; if the person asks for a human, request a hand-over.
+**Limits written into the instructions** (from v3 §8.6): no medical advice beyond water, shade or warmth, and rest; no promises; never ask for money, codes or personal data; ask for confirmation when an answer is ambiguous; if the person asks for a human, request a hand-over. Also: never say that someone has been notified or called, and never give itself a name.
 
 ### Tools
 
 | Tool | Input | Meaning | Server's rule |
 |---|---|---|---|
-| `record_answer` | Field (`feeling`, `orientation`, `shelter`), value, clear or not, the senior's exact words | "This is what they said about this question" | Stored as an answer. The rules recompute severity and certainty ([03-status-model.md](03-status-model.md) section 3). A clear answer cannot be overwritten. Red acts immediately. If certainty is not high and the re-ask is unused, the tool result names the question to ask again |
-| `raise_concern` | Level (yellow or red), a short reason, the senior's exact words | "Something serious outside the three questions" | Raises the call's severity, never lowers it. Red acts immediately |
-| `request_human` | A short reason | "The senior asked for a person" | Starts a hand-over. The code becomes at least yellow |
-| `end_call` | A one-sentence summary | "The conversation is finished" | Refused until all three fields are recorded, or the call length limit is reached. A refusal names the missing question |
+| `record_answer` | Field (`feeling`, `orientation`, `shelter`), value, clear or not, the senior's exact words | "This is what they said about this question" | Stored as an answer. The rules recompute severity and certainty ([03-status-model.md](03-status-model.md) section 3). A clear answer cannot be overwritten. Red from the rules acts immediately. While an unclear answer has used fewer than 2 re-asks, the tool result names the question to ask again; the third unclear record of a question is final |
+| `raise_concern` | Level (yellow or red), a short reason, the senior's exact words | "Something serious outside the three questions" | Raises the call's severity, never lowers it. Red acts immediately; a yellow takes effect when the call ends (03 §6) |
+| `request_human` | A short reason | "The senior asked for a person, or the agent judges the conversation cannot go on" (she cannot hear, cannot follow, or is distressed) | Starts a hand-over, reason `agent`. The code becomes at least yellow |
+| `end_call` | A one-sentence summary | "The conversation is finished" | Refused until all three fields are recorded and no unclear answer has a re-ask left, or the call length limit is reached. A refusal names the missing question or the one to ask again. The server also closes the call by itself after a turn once the same condition holds |
 
 ### One conversation, as messages
 
@@ -258,7 +258,7 @@ sequenceDiagram
 | Orientation | The server decides whether the named day is correct |
 | Room reading | The server decides whether the room contradicts a "yes" to the shelter question (P22) |
 | Key 9 | Starts a hand-over at any time |
-| Call length limit | At the limit the call is closed and the rules' last result is final |
+| Call length limit | 180 seconds from `setup`. At the limit a fixed goodbye is sent, the call is concluded with the answers so far and closed; the rules' last result is final |
 | Severity never falls within a call | Clear answers cannot be overwritten; `raise_concern` only raises |
 | Recipients | Chosen by the server from the code; the model has no tool that notifies anyone |
 

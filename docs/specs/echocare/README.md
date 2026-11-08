@@ -161,7 +161,7 @@ Each is marked **(proposed)** where it is specified.
 1. **Watch anomaly and two unanswered calls.** The matrix leaves this at yellow. Two independent signals agree, which argues for red. Default: yellow.
 2. **Yellow without a timer (P5).** A caregiver who misses the push is not chased. Acceptable for the MVP?
 3. ~~**Sticky red (P9).**~~ Resolved by G16: a red is cleared by resolving its incident, which also returns the senior to campaigns.
-4. **Model provider.** Not chosen; spike S4 decides on a real Romanian call, including whether an EU or a US region gives acceptable latency.
+4. ~~**Model provider.**~~ Resolved by S4 (2026-11-08): DeepInfra, DeepSeek-V4-Pro.
 5. **Medical depth for the Medical Renaissance track.** Options: (a) six risk checkboxes the medic ticks (cardiovascular disease, medicines that affect temperature regulation, reduced mobility, known cognitive decline, top floor without air conditioning, advanced age), used to call the most vulnerable first and shown to the medic and DAS; (b) keep risk deferred; (c) v3 in full, with document extraction and a weighted score. To be discussed.
 6. **Caregivers on an iPhone** have no channel. An automated call to the caregiver on a red would reuse the welcome-call script.
 7. **Spoken consent.** Whether a recorded spoken "da" counts as explicit consent for health data is for DAS, as data controller, to confirm before a pilot.

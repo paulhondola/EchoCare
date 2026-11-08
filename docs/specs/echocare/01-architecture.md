@@ -245,7 +245,7 @@ flowchart LR
 
 The rules and status engine has no dependencies on purpose: every rule and every cell of the matrix can be tested without a phone, a model or a database.
 
-**The agent loop is written directly against the model provider's library (proposed)**, not inside an agent framework. The server refuses tool calls, matches alarm phrases before the model sees a sentence, and cuts the model's reply short on an interruption; a framework's own loop would be in the way.
+**The agent loop is written directly against the model provider's library**, not inside an agent framework. The server refuses tool calls, matches alarm phrases before the model sees a sentence, and cuts the model's reply short on an interruption; a framework's own loop would be in the way.
 
 **Everything in the request path is asynchronous.** One blocking database call or web request in this process would pause every live conversation.
 
