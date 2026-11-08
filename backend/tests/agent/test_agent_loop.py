@@ -370,6 +370,37 @@ async def test_an_interrupt_after_the_turn_keeps_only_what_was_heard():
     assert (Speaker.agent, TurnKind.speech, "Bine. Ce zi e azi?") in line.turns
 
 
+@pytest.mark.parametrize(
+    "calls,kept",
+    [
+        ([], []),
+        (
+            [rec("feeling", "ok", True)],
+            [("tool-call", "c-feeling"), ("tool-return", "c-feeling")],
+        ),
+    ],
+    ids=["text", "text-and-tools"],
+)
+async def test_an_interrupt_before_any_word_drops_the_text(calls, kept):
+    """Nothing heard: the reply's text leaves the history, its tool calls and their
+    results stay (design §8, 1, 2)."""
+    model = FakeModel([["Bine. Ce zi e azi?", *calls], ["Da."]])
+    a, _, _ = await started(model)
+    await a.handle(prompt("bine"))
+    await a.idle()
+    await a.handle({"type": "interrupt", "utteranceUntilInterrupt": ""})
+    await a.handle(prompt("duminică"))
+    await a.idle()
+    assert parts(model.calls[1][2:]) == [
+        ("user-prompt", "bine"),
+        *kept,
+        ("user-prompt", "duminică"),
+    ]
+    # No empty response is left behind either.
+    responses = [m for m in model.calls[1][2:] if isinstance(m, ModelResponse)]
+    assert len(responses) == len(calls)
+
+
 async def test_an_interrupt_after_the_stall_line_appends():
     model = FakeModel([[rec("feeling", "ok", True)]] * 3 + [["Da."]])
     a, _, _ = await started(model)
