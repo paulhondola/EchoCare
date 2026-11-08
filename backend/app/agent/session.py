@@ -10,13 +10,14 @@ session (ADR-004, ADR-005), so it can later leave the process.
 import json
 import logging
 import uuid
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from fastapi.websockets import WebSocketDisconnect
 
-from app.agent.relay import HandOver, Relay
-from app.voice.models import Speaker, TurnKind
-from app.voice.service import end_completed, open_line, save_turn
+from app.agent.loop import Send
+from app.agent.relay import Relay
+from app.voice.service import end_completed, open_line
 
 # Under echocare.voice, where the relay logged before it moved here (ADR-005).
 log = logging.getLogger("echocare.voice.agent")
@@ -35,22 +36,44 @@ class Socket(Protocol):
     async def close(self, code: int) -> None: ...
 
 
-async def serve(
-    ws: Socket, call: uuid.UUID, greeting: str, hand_over: HandOver | None = None
-) -> None:
+class Handler(Protocol):
+    """What a session drives: every message in, and `close` once the line is gone."""
+
+    async def handle(self, message: dict[str, Any]) -> None: ...
+
+    async def close(self) -> None: ...
+
+
+class Echo:
+    """The scripted echo (04 §4.3), kept for test calls (05 §1)."""
+
+    def __init__(self, relay: Relay, send: Send, call: uuid.UUID) -> None:
+        self.relay, self.send, self.call = relay, send, call
+
+    async def handle(self, message: dict[str, Any]) -> None:
+        replies = await self.relay.handle(message)
+        # We close it, so it ends completed even if they hang up during the
+        # goodbye; a hang-up before this ends dropped (03 §9).
+        if any(r["type"] == "end" and "handoffData" not in r for r in replies):
+            await end_completed(self.call)
+        for reply in replies:
+            await self.send(reply)
+
+    async def close(self) -> None:
+        pass
+
+
+async def serve(ws: Socket, call: uuid.UUID, start: Callable[[Send], Handler]) -> None:
     """Runs the session until Twilio disconnects or the call's own setup is missing.
-    `hand_over` is None for a call that never hands over, a test call (05 §1)."""
+    `start` builds the handler once the socket is accepted."""
     line = await open_line(call)
     if line is None:
         log.warning("relay connect for unknown or ended call %s", call)
         await ws.close(code=1008)
         return
 
-    async def store(speaker: Speaker, kind: TurnKind, content: str) -> None:
-        await save_turn(call, speaker, kind, content)
-
-    session_relay = Relay(greeting, store, hand_over, call=str(call))
     await ws.accept()
+    handler = start(ws.send_json)
     log.info("relay open: call %s", call)
     set_up = False
     try:
@@ -78,13 +101,8 @@ async def serve(
                     await ws.close(code=1008)
                     return
                 set_up = True
-            replies = await session_relay.handle(message)
-            # We close it, so it ends completed even if they hang up during the
-            # goodbye; a hang-up before this ends dropped (03 §9). A hand-over's end
-            # leaves the call as `hand_over` already ended it, `handed_over`.
-            if any(r["type"] == "end" and "handoffData" not in r for r in replies):
-                await end_completed(call)
-            for reply in replies:
-                await ws.send_json(reply)
+            await handler.handle(message)
     except WebSocketDisconnect:
         log.info("relay closed: call %s", call)
+        # Waits for in-flight writes, so Twilio's completed finds them stored.
+        await handler.close()
