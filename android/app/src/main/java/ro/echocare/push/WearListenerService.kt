@@ -11,9 +11,23 @@ import kotlinx.coroutines.launch
 import ro.echocare.CheckInForm
 import ro.echocare.EchoCareApi
 import ro.echocare.EventForm
+import ro.echocare.EventSnapshotForm
 import ro.echocare.shared.CheckInMessage
 import ro.echocare.shared.DataLayer
 import ro.echocare.shared.EventMessage
+import ro.echocare.shared.EventSnapshot
+
+private fun EventSnapshot.toForm(): EventSnapshotForm? = if (this == EventSnapshot.EMPTY) {
+    null
+} else {
+    EventSnapshotForm(
+        pulse = pulse,
+        restingBaseline = restingBaseline,
+        moving = moving,
+        minutesWithoutSteps = minutesWithoutSteps,
+        battery = battery
+    )
+}
 
 /**
  * Receives Data Layer messages from the watch (04 §3, UC-09, UC-13) and forwards them to FastAPI.
@@ -46,7 +60,12 @@ class WearListenerService : WearableListenerService() {
                     val msg = EventMessage.fromBytes(event.data)
                     runCatching {
                         api.sendEvent(
-                            EventForm(id = msg.id, type = msg.type, measuredAt = msg.measuredAt)
+                            EventForm(
+                                id = msg.id,
+                                type = msg.type,
+                                measuredAt = msg.measuredAt,
+                                snapshot = msg.snapshot.toForm()
+                            )
                         )
                     }
                 }

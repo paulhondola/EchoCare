@@ -26,17 +26,24 @@ import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.delay
 import ro.echocare.shared.DataLayer
 import ro.echocare.shared.EventMessage
+import ro.echocare.shared.EventSnapshot
 import ro.echocare.wear.R
 
 // shortcut: 15 s for the demo; production should use 120_000 ms (UC-09 §2 step 3)
 private const val PROMPT_TIMEOUT_MS = 15_000L
 
 /**
- * „Sunteți bine?" — shown when the fall detector fires (UC-09). The senior has [PROMPT_TIMEOUT_MS]
- * to say they are fine; silence or „Nu" sends the event and starts a call.
+ * „Sunteți bine?" — shown when the fall detector or an anomaly rule fires (UC-09). The senior
+ * has [PROMPT_TIMEOUT_MS] to say they are fine; silence or „Nu" sends the event and starts a call.
  */
 @Composable
-fun AreYouOkScreen(fallId: String, measuredAt: String, onDone: () -> Unit) {
+fun AreYouOkScreen(
+    fallId: String,
+    measuredAt: String,
+    type: String,
+    snapshot: EventSnapshot,
+    onDone: () -> Unit
+) {
     val context = LocalContext.current
     var done by remember { mutableStateOf(false) }
     var remainingMs by remember { mutableLongStateOf(PROMPT_TIMEOUT_MS) }
@@ -44,7 +51,7 @@ fun AreYouOkScreen(fallId: String, measuredAt: String, onDone: () -> Unit) {
     fun sendEvent() {
         if (done) return
         done = true
-        sendFallEvent(context, fallId, measuredAt, onDone)
+        sendFallEvent(context, fallId, measuredAt, type, snapshot, onDone)
     }
 
     LaunchedEffect(Unit) {
@@ -101,14 +108,16 @@ private fun sendFallEvent(
     context: Context,
     fallId: String,
     measuredAt: String,
+    type: String,
+    snapshot: EventSnapshot,
     onDone: () -> Unit
 ) {
-    Log.i("SentinelaMonitor", "sending fall event id=$fallId")
-    val msg = EventMessage(id = fallId, type = "fall", measuredAt = measuredAt)
+    Log.i("SentinelaMonitor", "sending $type event id=$fallId")
+    val msg = EventMessage(id = fallId, type = type, measuredAt = measuredAt, snapshot = snapshot)
     Wearable.getNodeClient(context).connectedNodes
         .addOnSuccessListener { nodes ->
             if (nodes.isEmpty()) {
-                Log.i("SentinelaMonitor", "fall event skipped: no connected nodes")
+                Log.i("SentinelaMonitor", "$type event skipped: no connected nodes")
                 onDone()
                 return@addOnSuccessListener
             }
@@ -116,19 +125,19 @@ private fun sendFallEvent(
                 Wearable.getMessageClient(context)
                     .sendMessage(node.id, DataLayer.EVENT, msg.toBytes())
                     .addOnSuccessListener {
-                        Log.i("SentinelaMonitor", "fall event sent to ${node.displayName}")
+                        Log.i("SentinelaMonitor", "$type event sent to ${node.displayName}")
                     }
                     .addOnFailureListener {
                         Log.i(
                             "SentinelaMonitor",
-                            "fall event failed to ${node.displayName}: ${it.message}"
+                            "$type event failed to ${node.displayName}: ${it.message}"
                         )
                     }
             }
             onDone()
         }
         .addOnFailureListener {
-            Log.i("SentinelaMonitor", "fall event node lookup failed: ${it.message}")
+            Log.i("SentinelaMonitor", "$type event node lookup failed: ${it.message}")
             onDone()
         }
 }

@@ -29,7 +29,11 @@ import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import ro.echocare.shared.CheckInMessage
 import ro.echocare.shared.DataLayer
+import ro.echocare.shared.EventSnapshot
 import ro.echocare.shared.FallDetector
+import ro.echocare.shared.InactivityDetector
+import ro.echocare.shared.PulseAnomaly
+import ro.echocare.shared.RestingBaseline
 import ro.echocare.wear.R
 import ro.echocare.wear.presentation.MainActivity
 
@@ -49,6 +53,9 @@ class MonitoringService :
     private lateinit var handler: Handler
     private lateinit var wakeLock: PowerManager.WakeLock
     private val fallDetector = FallDetector()
+    private val restingBaseline = RestingBaseline()
+    private val pulseAnomaly = PulseAnomaly()
+    private val inactivity = InactivityDetector()
 
     // Counted on the sensor thread; logged and reset every minute
     private var minute = 0
@@ -60,6 +67,8 @@ class MonitoringService :
     private var stepsAtMinuteStart = -1f
     private var lastStepCount = -1f
     private var falls = 0
+    private var lastStepAtMs = -1L
+    private var startedAtMs = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -82,6 +91,7 @@ class MonitoringService :
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
             }
         handler.postDelayed(::logMinute, MINUTE_MS)
+        startedAtMs = System.currentTimeMillis()
         running.value = true
         // One session per file, so it never grows past a few kilobytes an hour
         File(filesDir, LOG_FILE).delete()
@@ -107,10 +117,16 @@ class MonitoringService :
                 if (bpm > 0) {
                     heartRateReadings++
                     lastHeartRate = bpm
+                    onHeartRate(bpm)
                 }
             }
             Sensor.TYPE_STEP_COUNTER -> {
                 if (stepsAtMinuteStart < 0) stepsAtMinuteStart = event.values[0]
+                // Only treat it as a step if the counter actually advanced (not the first reading)
+                if (lastStepCount >= 0 && event.values[0] > lastStepCount) {
+                    lastStepAtMs = System.currentTimeMillis()
+                    inactivity.onStep(lastStepAtMs)
+                }
                 lastStepCount = event.values[0]
             }
         }
@@ -130,29 +146,66 @@ class MonitoringService :
             )
         ) {
             falls++
-            val fallId = UUID.randomUUID().toString()
-            log("fall detected in minute=${minute + 1} id=$fallId")
-            getSystemService(VibratorManager::class.java).defaultVibrator
-                .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
-            // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
-            fallPrompt.value = FallPrompt(fallId, Instant.now().toString())
-            // A bright wake lock turns the screen on; the full-screen intent brings up MainActivity
-            @Suppress("DEPRECATION")
-            getSystemService(PowerManager::class.java)
-                .newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                    "EchoCare:fall"
-                ).acquire(10_000L)
-            val nm = getSystemService(NotificationManager::class.java)
-            log("canUseFullScreenIntent=${nm.canUseFullScreenIntent()}")
-            nm.notify(FALL_NOTIFICATION_ID, fallNotification())
-            // Foreground service with FOREGROUND_SERVICE_HEALTH is allowed to start the activity;
-            // the full-screen intent alone doesn't launch it on Wear OS once the screen is off
-            startActivity(
-                Intent(this, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            )
+            raiseAnomaly("fall", snapshot())
+            log("fall detected in minute=${minute + 1}")
         }
+    }
+
+    /** Called for every valid heart-rate reading. Tracks the resting baseline and the pulse-at-rest rule. */
+    private fun onHeartRate(bpm: Int) {
+        val nowMs = System.currentTimeMillis()
+        val moving = isMoving(nowMs)
+        val baseline = restingBaseline.value(nowMs)
+        restingBaseline.onReading(nowMs, bpm, moving)
+        if (pulseAnomaly.onReading(nowMs, bpm, baseline, moving)) {
+            pulseAnomaly.reset()
+            raiseAnomaly("high_pulse_at_rest", snapshot())
+            log("pulse anomaly bpm=$bpm baseline=$baseline")
+        }
+    }
+
+    private fun isMoving(nowMs: Long): Boolean {
+        // shortcut: steps are the only movement signal the service tracks; non-walking motion that
+        // doesn't add a step reads as not-moving. Good enough for UC-09's "high pulse during a walk"
+        return lastStepAtMs > 0 && nowMs - lastStepAtMs < MOVING_WINDOW_MS
+    }
+
+    private fun snapshot(): EventSnapshot {
+        val nowMs = System.currentTimeMillis()
+        val minutesIdle = if (lastStepAtMs < 0) {
+            ((nowMs - startedAtMs) / 60_000L).toInt()
+        } else {
+            ((nowMs - lastStepAtMs) / 60_000L).toInt()
+        }
+        return EventSnapshot(
+            pulse = if (lastHeartRate > 0) lastHeartRate else null,
+            restingBaseline = restingBaseline.value(nowMs),
+            moving = isMoving(nowMs),
+            minutesWithoutSteps = minutesIdle,
+            battery = battery()
+        )
+    }
+
+    private fun raiseAnomaly(type: String, snapshot: EventSnapshot) {
+        val id = UUID.randomUUID().toString()
+        getSystemService(VibratorManager::class.java).defaultVibrator
+            .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
+        // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
+        fallPrompt.value = FallPrompt(id, Instant.now().toString(), type, snapshot)
+        // A bright wake lock turns the screen on; the full-screen intent brings up MainActivity
+        @Suppress("DEPRECATION")
+        getSystemService(PowerManager::class.java)
+            .newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "EchoCare:anomaly"
+            ).acquire(10_000L)
+        val nm = getSystemService(NotificationManager::class.java)
+        log("canUseFullScreenIntent=${nm.canUseFullScreenIntent()}")
+        nm.notify(FALL_NOTIFICATION_ID, fallNotification())
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
     }
 
     private fun logMinute() {
@@ -162,6 +215,10 @@ class MonitoringService :
             "minute=$minute accel=$accelReadings maxGapMs=${maxAccelGapNs / 1_000_000} " +
                 "heartRates=$heartRateReadings lastHeartRate=$lastHeartRate steps=$steps falls=$falls battery=${battery()}%"
         )
+        if (inactivity.isInactive(System.currentTimeMillis())) {
+            raiseAnomaly("inactivity", snapshot())
+            log("inactivity anomaly")
+        }
         sendCheckIn()
         accelReadings = 0
         maxAccelGapNs = 0L
@@ -266,6 +323,9 @@ class MonitoringService :
         private const val MINUTE_MS = 60_000L
         private const val LOG_FILE = "monitor.log"
 
+        // How long after the last step the wearer is still considered to be moving (UC-09 "not moving")
+        private const val MOVING_WINDOW_MS = 30_000L
+
         // A cap, so a forgotten test does not keep the CPU awake for days
         private const val MAX_WAKE_MS = 4 * 60 * 60_000L
 
@@ -274,7 +334,12 @@ class MonitoringService :
         // MainActivity observes this; non-null brings up the „Sunteți bine?" screen
         val fallPrompt = MutableStateFlow<FallPrompt?>(null)
 
-        data class FallPrompt(val id: String, val measuredAt: String)
+        data class FallPrompt(
+            val id: String,
+            val measuredAt: String,
+            val type: String = "fall",
+            val snapshot: EventSnapshot = EventSnapshot.EMPTY
+        )
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, MonitoringService::class.java))

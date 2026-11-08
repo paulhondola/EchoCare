@@ -184,13 +184,24 @@ data class CheckInForm(
     @SerialName("last_pulse") val lastPulse: Int? = null
 )
 
-// POST /me/events' body (04 §3). [type] is "manual_request" so far; [measuredAt] is ISO-8601 with
-// an offset, and [id] is the phone's, so a resend is a duplicate.
+// POST /me/events' body (04 §3). [type] is one of manual_request, fall, high_pulse_at_rest,
+// inactivity; [measuredAt] is ISO-8601 with an offset; [id] is the device's, so a resend is a
+// duplicate. [snapshot] is optional and carries what the watch saw when the event fired.
 @Serializable
 data class EventForm(
     val id: String,
     val type: String,
-    @SerialName("measured_at") val measuredAt: String
+    @SerialName("measured_at") val measuredAt: String,
+    val snapshot: EventSnapshotForm? = null
+)
+
+@Serializable
+data class EventSnapshotForm(
+    val pulse: Int? = null,
+    @SerialName("resting_baseline") val restingBaseline: Int? = null,
+    val moving: Boolean? = null,
+    @SerialName("minutes_without_steps") val minutesWithoutSteps: Int? = null,
+    val battery: Int? = null
 )
 
 // POST /me/events' answer: [queued] when this event queued a call, [callId] the call it started or
