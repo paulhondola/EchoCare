@@ -113,14 +113,16 @@ class Agent:
             {"role": "system", "content": instructions(form_of_address, heat)},
             {"role": "assistant", "content": greeting},
         ]
-        # Where an interrupt rolls the history back to: the start of what was last
-        # spoken, or None when that was not a model turn (the confirmation question).
-        self._mark: int | None = 1
+        # The history index of the model's last spoken text, which an interrupt cuts
+        # down to what was heard; None while the current turn has spoken nothing yet.
+        self._spoken: int | None = 1
         self._summary: str | None = None
         self._pending: str | None = None  # the tier 2 sentence awaiting its reply
         self._turn: asyncio.Task | None = None
         self._limit: asyncio.Task | None = None
         self._confirm: asyncio.Task | None = None
+        # A round's transcript, answer and concern writes, which outlive a cancel.
+        self._writes: set[asyncio.Task] = set()
         # Set by the one path that ends the call (hand-over, end, failure, time-up or
         # close); after it nothing starts or cancels anything else.
         self._ending = False
@@ -132,6 +134,9 @@ class Agent:
     async def handle(self, message: dict[str, Any]) -> None:
         match message.get("type"):
             case "setup":
+                if self._limit is not None:
+                    log.warning("relay: a second setup, call %s", self.call)
+                    return
                 # Twilio speaks the greeting itself, from the TwiML.
                 await self.line.store(Speaker.agent, TurnKind.speech, self.greeting)
                 self._limit = self._spawn(self._time_up())
@@ -142,7 +147,8 @@ class Agent:
                     if words:
                         await self.line.store(Speaker.senior, TurnKind.speech, words)
                     return
-                log.info("heard: %s", words)
+                # Never the words: senior speech is health data.
+                log.info("heard %d chars, call %s", len(words), self.call)
                 await self.line.store(Speaker.senior, TurnKind.speech, words)
                 if not self._ending:
                     await self._prompt(words)
@@ -154,14 +160,10 @@ class Agent:
                     await self._key(digit)
             case "interrupt":
                 spoken = str(message.get("utteranceUntilInterrupt", ""))
-                if not self._ending:
+                # A confirmation question is not in the history (03 §4).
+                if not self._ending and self._pending is None:
                     await self._cancel(self._turn)
-                    if self._mark is not None:
-                        del self.history[self._mark :]
-                        if spoken:
-                            self.history.append(
-                                {"role": "assistant", "content": spoken}
-                            )
+                    self._heard(spoken)
                 await self.line.store(
                     Speaker.system, TurnKind.speech, f"interrupted after: {spoken}"
                 )
@@ -183,7 +185,8 @@ class Agent:
             await self._hand_over(Escalation.tier_2, self._pending)
         elif self._claim():
             await self._stop_others()
-        if live := [t for t in (self._turn, self._limit, self._confirm) if t]:
+        tasks = (self._turn, self._limit, self._confirm, *self._writes)
+        if live := [t for t in tasks if t]:
             await asyncio.wait(live)
 
     async def idle(self) -> None:
@@ -212,10 +215,11 @@ class Agent:
             await self._alarm(words, alarm.condition)
         elif alarm:
             await self._cancel(self._turn)
-            await self._say(confirmation_question(words))
-            self._mark = None
+            # Pending before it is said, so a hang-up during the question is red too.
             self._pending = words
-            self._confirm = self._spawn(self._confirm_wait())
+            await self._say(confirmation_question(words))
+            if not self._ending:
+                self._confirm = self._spawn(self._confirm_wait())
         else:
             await self._start_turn([words])
 
@@ -252,7 +256,7 @@ class Agent:
             return
         await self._cancel(self._turn)
         self.history.extend({"role": "user", "content": w} for w in said)
-        self._mark = len(self.history)
+        self._spoken = None
         self._turn = self._spawn(self._run_turn())
 
     async def _run_turn(self) -> None:
@@ -267,6 +271,8 @@ class Agent:
             outcomes = [self.rules.run(c.name, c.arguments) for c in calls]
             # The whole round at once, so a cancel never leaves tool calls without
             # their results for the next request.
+            if text:
+                self._spoken = len(self.history)
             if text or calls:
                 self.history.append(_assistant(text, calls))
             self.history.extend(
@@ -276,8 +282,12 @@ class Agent:
             for o in outcomes:
                 if o.end is not None:
                     self._summary = o.end
-            # Shielded: an interrupt or hang-up must not lose what was said.
-            await asyncio.shield(self._keep(text, outcomes))
+            # Shielded and kept: an interrupt or hang-up must not lose what was said,
+            # and nothing ends the call before it lands.
+            write = self._spawn(self._keep(text, outcomes))
+            self._writes.add(write)
+            write.add_done_callback(self._writes.discard)
+            await asyncio.shield(write)
             if red := next((o for o in outcomes if o.hand_over), None):
                 await self._hand_over(red.hand_over, red.reason)
                 return
@@ -317,7 +327,11 @@ class Agent:
         if held is not None:
             await self._send(_text(held, last=True))
         if json_like:
-            log.warning("model text looks like JSON, not sent: %.80s", "".join(pieces))
+            log.warning(
+                "model text looks like JSON, not sent: %d chars, call %s",
+                len("".join(pieces)),
+                self.call,
+            )
             return "", calls, True
         return "".join(pieces).strip(), calls, False
 
@@ -347,12 +361,22 @@ class Agent:
         the end with hand-over data (04 §4.4)."""
         if not self._claim():
             return
-        await self._stop_others()
-        if await self.line.hand_over(escalation, reason):
-            data = json.dumps({"call": self.call, "reason": handoff_reason(escalation)})
-            await self._say(said)
-            await self._send({"type": "end", "handoffData": data})
-        self.finished = True
+        try:
+            await self._stop_others()
+            try:
+                started = await self.line.hand_over(escalation, reason)
+            except Exception as e:  # noqa: BLE001 - logged below, without the words
+                # Type only: the error can carry the reason, the senior's words.
+                log.error("hand-over failed, call %s: %s", self.call, type(e).__name__)
+                started = True  # Twilio's action URL still routes the call to a person
+            if started:
+                data = json.dumps(
+                    {"call": self.call, "reason": handoff_reason(escalation)}
+                )
+                await self._say(said)
+                await self._send({"type": "end", "handoffData": data})
+        finally:
+            self.finished = True
 
     async def _finish(
         self, summary: str, *, dropped: bool = False, said: str | None = None
@@ -399,6 +423,20 @@ class Agent:
     async def _stop_others(self) -> None:
         for task in (self._turn, self._limit, self._confirm):
             await self._cancel(task)
+        if self._writes:  # their failures are logged by _spawn's callback
+            await asyncio.wait(set(self._writes))
+
+    def _heard(self, spoken: str) -> None:
+        """Keep only what the senior heard of the model's last text (design §4)."""
+        if self._spoken is None:  # cut mid-stream, or the stall line
+            if spoken:
+                self.history.append({"role": "assistant", "content": spoken})
+            return
+        message = self.history[self._spoken]
+        message["content"] = spoken or None
+        if not spoken and "tool_calls" not in message:
+            del self.history[self._spoken]
+            self._spoken = None
 
 
 def _text(token: str, *, last: bool) -> dict[str, Any]:

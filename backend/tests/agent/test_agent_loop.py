@@ -309,10 +309,45 @@ async def test_interrupt_cancels_and_keeps_what_was_heard():
     )
     await a.handle(prompt("ce?"))
     await a.idle()
-    # Rolled back to the turn's start: the tool round is gone, what was heard stays.
-    assert model.calls[2][-3:] == [
-        {"role": "user", "content": "bine"},
+    # Cancelled mid-stream: the finished tool round stays, what was heard is added.
+    assert [m["role"] for m in model.calls[2][-5:]] == [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+    ]
+    assert model.calls[2][-2:] == [
         {"role": "assistant", "content": "Doamna Elena"},
+        {"role": "user", "content": "ce?"},
+    ]
+
+
+async def test_an_interrupt_after_the_turn_keeps_only_what_was_heard():
+    model = FakeModel([["Bine. Ce zi e azi?", rec("feeling", "ok", True)], ["Da."]])
+    a, line, _ = await started(model)
+    await a.handle(prompt("bine"))
+    await a.idle()  # the stream ends long before Twilio stops speaking
+    await a.handle({"type": "interrupt", "utteranceUntilInterrupt": "Bine."})
+    await a.handle(prompt("duminică"))
+    await a.idle()
+    spoken, result = model.calls[1][-3:-1]
+    assert spoken["content"] == "Bine." and spoken["tool_calls"][0]["id"] == "c-feeling"
+    assert result["role"] == "tool" and result["tool_call_id"] == "c-feeling"
+    assert (Speaker.agent, TurnKind.speech, "Bine. Ce zi e azi?") in line.turns
+
+
+async def test_an_interrupt_after_the_stall_line_appends():
+    model = FakeModel([[rec("feeling", "ok", True)]] * 3 + [["Da."]])
+    a, _, _ = await started(model)
+    await a.handle(prompt("bine"))
+    await a.idle()
+    await a.handle({"type": "interrupt", "utteranceUntilInterrupt": "Vă"})
+    await a.handle(prompt("ce?"))
+    await a.idle()
+    assert model.calls[3][-3]["role"] == "tool"
+    assert model.calls[3][-2:] == [
+        {"role": "assistant", "content": "Vă"},
         {"role": "user", "content": "ce?"},
     ]
 
@@ -430,9 +465,8 @@ async def test_close_cancels_a_running_turn_quietly():
     assert a.finished
 
 
-async def test_a_cancel_during_the_writes_keeps_the_round_whole():
-    model = FakeModel([[rec("feeling", "ok", True)], ["Ce zi e azi?"]])
-    a, line, _ = await started(model)
+def slow_answers(a, line):
+    """Answers wait for the returned Event before they are recorded."""
     slow = asyncio.Event()
     record = line.answer
 
@@ -441,6 +475,13 @@ async def test_a_cancel_during_the_writes_keeps_the_round_whole():
         await record(question, value)
 
     object.__setattr__(a.line, "answer", answer)
+    return slow
+
+
+async def test_a_cancel_during_the_writes_keeps_the_round_whole():
+    model = FakeModel([[rec("feeling", "ok", True)], ["Ce zi e azi?"]])
+    a, line, _ = await started(model)
+    slow = slow_answers(a, line)
     await a.handle(prompt("bine"))
     await asyncio.sleep(0.02)
     await a.handle(prompt("foarte bine"))  # cancels the turn mid-write
@@ -450,3 +491,87 @@ async def test_a_cancel_during_the_writes_keeps_the_round_whole():
     slow.set()
     await asyncio.sleep(0.02)
     assert len(line.answers) == 1  # the write was not lost
+
+
+async def test_close_waits_for_a_write_in_flight():
+    model = FakeModel([[rec("feeling", "ok", True)]])
+    a, line, _ = await started(model)
+    slow = slow_answers(a, line)
+    await a.handle(prompt("bine"))
+    await asyncio.sleep(0.02)
+    closing = asyncio.create_task(a.close())
+    await asyncio.sleep(0.02)
+    assert not closing.done()  # settle must not conclude before the answer lands
+    slow.set()
+    await closing
+    assert len(line.answers) == 1
+
+
+async def test_a_hand_over_waits_for_a_write_in_flight():
+    model = FakeModel([[rec("feeling", "ok", True)]])
+    a, line, _ = await started(model)
+    slow = slow_answers(a, line)
+    answers_at_hand_over = []
+    hand_over = line.hand_over
+
+    async def noting(escalation, reason):
+        answers_at_hand_over.append(len(line.answers))
+        return await hand_over(escalation, reason)
+
+    object.__setattr__(a.line, "hand_over", noting)
+    await a.handle(prompt("bine"))
+    await asyncio.sleep(0.02)
+    key = asyncio.create_task(a.handle(dtmf("9")))
+    await asyncio.sleep(0.02)
+    slow.set()
+    await key
+    assert answers_at_hand_over == [1]
+
+
+async def test_a_failed_hand_over_still_sends_the_call_to_a_person():
+    a, _, sent = await started(FakeModel([]))
+
+    async def broken(escalation, reason):
+        raise RuntimeError("database down")
+
+    object.__setattr__(a.line, "hand_over", broken)
+    await a.handle(prompt("am căzut"))  # does not raise
+    assert texts(sent) == [CONNECTING]
+    assert json.loads(sent[-1]["handoffData"]) == {"call": CALL, "reason": "alarm"}
+    assert a.finished
+
+
+async def test_a_hang_up_while_the_question_is_said_hands_over():
+    a, line, _ = await started(FakeModel([]))
+    asked = asyncio.Event()
+    store = line.store
+
+    async def slow_store(speaker, kind, content):
+        if content.startswith("Ați spus"):
+            await asked.wait()
+        await store(speaker, kind, content)
+
+    object.__setattr__(a.line, "store", slow_store)
+    saying = asyncio.create_task(a.handle(prompt("am leșinat")))
+    await asyncio.sleep(0.02)
+    await asyncio.wait_for(a.close(), 0.5)
+    asked.set()
+    await saying
+    assert line.hand_overs == [(Escalation.tier_2, "am leșinat")]
+    assert a._confirm is None  # no timer left waiting 8 s
+
+
+async def test_a_second_setup_starts_no_second_timer():
+    a, _, _ = await started(FakeModel([]))
+    first = a._limit
+    await a.handle(SETUP)
+    assert a._limit is first
+
+
+async def test_no_speech_is_logged(caplog):
+    model = FakeModel([['{"name": "record_answer", "secret": "inima"}'], ["Bine."]])
+    a, _, _ = await started(model)
+    with caplog.at_level("DEBUG"):
+        await a.handle(prompt("mă doare capul"))
+        await a.idle()
+    assert "doare" not in caplog.text and "inima" not in caplog.text
