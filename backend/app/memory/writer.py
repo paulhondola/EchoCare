@@ -38,11 +38,14 @@ class SummaryInput:
     earlier: list[CallFacts]  # the previous 5 answered calls, newest first
 
 
-def _senior_words(call: CallFacts) -> str:
-    """Only the senior's own words: agent, system and DAS turns are context (design §4)."""
+def _senior_texts(call: CallFacts) -> list[str]:
+    """Only the senior's own words: agent, system and DAS turns are context (design §4).
+
+    Each turn and each answer quote stays separate, so a quote cannot span two of them.
+    """
     texts = [text for speaker, text in call.turns if speaker == "senior"]
     texts += [quote for _, _, _, quote in call.answers]
-    return normalize(" ".join(texts))
+    return [f" {normalize(t)} " for t in texts]
 
 
 def citation_errors(data: SummaryInput, content: SummaryContent) -> list[str]:
@@ -52,14 +55,18 @@ def citation_errors(data: SummaryInput, content: SummaryContent) -> list[str]:
         carried = {(f.call_id, f.quote) for f in data.previous.follow_ups} | {
             (c.call_id, c.quote) for t in data.previous.trends for c in t.evidence
         }
-    words = {c.id: _senior_words(c) for c in [data.call, *data.earlier]}
+    words = {c.id: _senior_texts(c) for c in [data.call, *data.earlier]}
 
     def check(path: str, cited: Citation) -> list[str]:
         if (cited.call_id, cited.quote) in carried:
             return []
         if cited.call_id not in words:
             return [f"{path} cites call {cited.call_id}, which is not in the input."]
-        if normalize(cited.quote) not in words[cited.call_id]:
+        quote = normalize(cited.quote)
+        if not quote:
+            return [f"{path} cites call {cited.call_id} with an empty quote."]
+        # Whole words only, so "bin" does not match "binecuvântat".
+        if not any(f" {quote} " in t for t in words[cited.call_id]):
             return [
                 (
                     f"{path} cites call {cited.call_id}, but its quote is not in that "

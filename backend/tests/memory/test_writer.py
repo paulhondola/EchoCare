@@ -124,6 +124,53 @@ def test_a_trend_needs_two_calls():
     assert len(errors) == 1 and "trends[0]" in errors[0]
 
 
+@pytest.mark.parametrize("quote", ["", "„”"])
+def test_an_empty_quote_is_refused(quote):
+    call = facts(turns=[("senior", "bine")])
+    errors = citation_errors(data(call), content([follow_up(call.id, quote)]))
+    assert len(errors) == 1 and str(call.id) in errors[0]
+
+
+def test_a_word_fragment_is_refused():
+    call = facts(turns=[("senior", "binecuvântat să fie")])
+    assert len(citation_errors(data(call), content([follow_up(call.id, "bin")]))) == 1
+
+
+def test_a_quote_spanning_two_turns_is_refused():
+    call = facts(turns=[("senior", "mă doare capul"), ("senior", "și nu dorm")])
+    errors = citation_errors(
+        data(call), content([follow_up(call.id, "doare capul și nu")])
+    )
+    assert len(errors) == 1
+
+
+def test_a_two_call_trend_passes():
+    call = facts(turns=[("senior", "cam amețită azi")])
+    old = facts(answers=[("sleep", "bad", True, "am dormit prost")])
+    trend = Trend(
+        note="n",
+        direction="worse",
+        evidence=[
+            Citation(call_id=call.id, quote="cam amețită"),
+            Citation(call_id=old.id, quote="am dormit prost"),
+        ],
+    )
+    assert citation_errors(data(call, earlier=[old]), content(trends=[trend])) == []
+
+
+def test_a_carried_trend_is_trusted():
+    trend = Trend(
+        note="n",
+        direction="steady",
+        evidence=[
+            Citation(call_id=uuid.uuid4(), quote="x"),
+            Citation(call_id=uuid.uuid4(), quote="y"),
+        ],
+    )
+    d = data(facts(turns=[("senior", "bine")]), previous=content(trends=[trend]))
+    assert citation_errors(d, content(trends=[trend])) == []
+
+
 def bad_content_args(call_id: uuid.UUID) -> dict:
     return content([follow_up(call_id, "never said")]).model_dump(mode="json")
 
