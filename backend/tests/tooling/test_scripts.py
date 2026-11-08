@@ -5,12 +5,27 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.settings import get_settings
-from app.models import Call, Grant, Incident, Role, Senior, User
+from app.memory.writer import CallFacts, SummaryInput, citation_errors
+from app.models import (
+    Answer,
+    Call,
+    CallTurn,
+    Grant,
+    Incident,
+    Role,
+    Senior,
+    SummaryVersion,
+    User,
+)
+from app.seniors.schemas import SummaryContent
+from app.status.engine import BUCHAREST
 from app.voice.calls import CallState
 from scripts import seed as seed_script
 from scripts.grant_das import grant_das
 from scripts.place_call import place_call
 from scripts.seed import SENIORS, seed
+
+DEMO = "Eugenia Tudor"
 
 DAS = {"Authorization": "Bearer +40700000001"}
 
@@ -54,6 +69,76 @@ async def test_seed_reset_replaces_only_its_own_rows(db, add_senior):
     # A query, not db.get, which would answer from the session's identity map.
     kept = select(func.count()).where(Senior.id.in_([other.id, theirs.id]))
     assert await db.scalar(kept) == 2
+
+
+async def demo_versions(db) -> list[SummaryVersion]:
+    rows = await db.scalars(
+        select(SummaryVersion)
+        .join(Senior, Senior.id == SummaryVersion.senior_id)
+        .where(Senior.full_name == DEMO)
+        .order_by(SummaryVersion.created_at)
+    )
+    return list(rows)
+
+
+async def test_seed_writes_a_chain_of_versions(db):
+    await seed(reset=True)
+    versions = await demo_versions(db)
+    assert len(versions) == 6
+    assert versions[0].previous_id is None
+    assert [v.previous_id for v in versions[1:]] == [v.id for v in versions[:-1]]
+    assert len({v.call_id for v in versions}) == 6
+    latest = SummaryContent.model_validate(versions[-1].content)
+    assert "caloriferul" in latest.follow_ups[0].topic
+    assert [t.direction for t in latest.trends] == ["worse"]
+
+
+async def test_seeded_citations_are_real(db):
+    await seed(reset=True)
+    versions = await demo_versions(db)
+    assert len(versions) == 6
+    facts: list[CallFacts] = []
+    for v in versions:
+        call = await db.get(Call, v.call_id)
+        turns = await db.execute(
+            select(CallTurn.speaker, CallTurn.content)
+            .where(CallTurn.call_id == call.id)
+            .order_by(CallTurn.position)
+        )
+        answers = await db.execute(
+            select(Answer.field, Answer.value, Answer.clear, Answer.quote).where(
+                Answer.call_id == call.id
+            )
+        )
+        facts.append(
+            CallFacts(
+                id=call.id,
+                trigger=call.trigger.value,
+                campaign_kind=None,
+                date=call.due_at.astimezone(BUCHAREST).date(),
+                state=call.state.value,
+                final_severity=call.final_severity and call.final_severity.name,
+                final_certainty=call.final_certainty and call.final_certainty.name,
+                reason=call.reason,
+                turns=[(sp.value, text) for sp, text in turns],
+                answers=[tuple(a) for a in answers],
+            )
+        )
+    previous = None
+    for i, v in enumerate(versions):
+        content = SummaryContent.model_validate(v.content)
+        data = SummaryInput(
+            previous=previous, call=facts[i], earlier=list(reversed(facts[:i]))
+        )
+        assert citation_errors(data, content) == [], i
+        previous = content
+
+
+async def test_seed_reset_is_repeatable(db):
+    await seed(reset=True)
+    first = len(await demo_versions(db))
+    await seed(reset=True)
+    assert len(await demo_versions(db)) == first == 6
 
 
 async def test_seed_reports_a_number_already_another_seniors(db, add_senior, capsys):
