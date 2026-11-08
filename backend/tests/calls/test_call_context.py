@@ -80,9 +80,9 @@ async def test_context_never_carries_trends_or_narrative(db, senior):
     context = await answer_context(db, call.id, notes=True)
     assert NARRATIVE not in repr(context) and TREND not in repr(context)
     agent = agent_for(call.id, context)(AsyncMock())
-    assert NARRATIVE not in agent.history[0]["content"]
-    assert TREND not in agent.history[0]["content"]
-    assert FIRST in agent.history[0]["content"]
+    instructions = agent.history[0].parts[0].content
+    assert NARRATIVE not in instructions and TREND not in instructions
+    assert FIRST in instructions
 
 
 async def test_unreadable_content_gives_no_notes(db, senior):

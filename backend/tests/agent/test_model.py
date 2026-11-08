@@ -1,96 +1,94 @@
-"""The DeepInfra stream against a fake client, never the network (04 §5)."""
+"""The model seam on Pydantic AI's FunctionModel, never the network (04 §5, design §8)."""
 
-from types import SimpleNamespace as NS
+from pydantic_ai.messages import ModelRequest, UserPromptPart
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
-from app.agent.model import ToolCall, deepinfra
-from app.agent.tools import TOOLS
+from app.agent.model import SETTINGS, ToolCall, stream_with
 
-
-def text_chunk(text):
-    return NS(choices=[NS(delta=NS(content=text, tool_calls=None), finish_reason=None)])
+MESSAGES = [ModelRequest([UserPromptPart("bine")])]
 
 
-def tool_chunk(index, id=None, name=None, args=None, finish=None):
-    call = NS(index=index, id=id, function=NS(name=name, arguments=args))
-    return NS(
-        choices=[NS(delta=NS(content=None, tool_calls=[call]), finish_reason=finish)]
+async def items(stream_function):
+    stream = stream_with(FunctionModel(stream_function=stream_function))
+    return [i async for i in stream(MESSAGES)]
+
+
+async def test_settings_reach_the_model():
+    seen: list[AgentInfo] = []
+
+    async def fn(messages, info):
+        seen.append(info)
+        yield "Bună ziua."
+
+    await items(fn)
+    assert (
+        seen[0].model_settings
+        == SETTINGS
+        == {
+            "temperature": 0.3,
+            "max_tokens": 1000,
+            "extra_body": {"reasoning_effort": "none"},
+        }
     )
-
-
-class FakeClient:
-    def __init__(self, chunks):
-        self.chunks = chunks
-        self.kwargs = {}
-        self.chat = NS(completions=NS(create=self.create))
-
-    async def create(self, **kwargs):
-        self.kwargs = kwargs
-
-        async def gen():
-            for chunk in self.chunks:
-                yield chunk
-
-        return gen()
-
-
-async def test_text_streams_in_order_and_the_request_is_exact():
-    client = FakeClient([text_chunk("Bună "), text_chunk("ziua")])
-    items = [
-        i
-        async for i in deepinfra("k", "m", client=client)(
-            [{"role": "user", "content": "x"}]
-        )
+    assert [t.name for t in seen[0].function_tools] == [
+        "record_answer",
+        "raise_concern",
+        "request_human",
+        "end_call",
     ]
-    assert items == ["Bună ", "ziua"]
-    kw = client.kwargs
-    assert (kw["model"], kw["stream"], kw["temperature"], kw["max_tokens"]) == (
-        "m",
-        True,
-        0.3,
-        1000,
-    )
-    assert kw["extra_body"] == {"reasoning_effort": "none"} and kw["tools"] is TOOLS
 
 
-async def test_tool_call_pieces_are_joined_after_the_text():
-    client = FakeClient(
-        [
-            tool_chunk(0, id="c1", name="record_answer", args='{"field": "fee'),
-            text_chunk("Mulțumesc."),
-            tool_chunk(0, args='ling", "value": "ok", "clear": true, "words": "bine"}'),
-            tool_chunk(1, id="c2", name="end_call", args='{"summary": "s"}'),
-        ]
-    )
-    items = [i async for i in deepinfra("k", "m", client=client)([]) if i != ""]
-    assert items[0] == "Mulțumesc."
-    assert items[1:] == [
+async def test_text_streams_as_pieces():
+    async def fn(messages, info):
+        yield "Bună "
+        yield "ziua"
+
+    assert [i for i in await items(fn) if i] == ["Bună ", "ziua"]
+
+
+async def test_tool_call_pieces_yield_liveness():
+    async def fn(messages, info):
+        yield {0: DeltaToolCall("record_answer", '{"field": "fee', tool_call_id="c1")}
+        yield {0: DeltaToolCall(None, 'ling", "value": "ok", "clear": true}')}
+        yield {1: DeltaToolCall("end_call", '{"summary": "s"}', tool_call_id="c2")}
+
+    got = await items(fn)
+    calls = [i for i in got if isinstance(i, ToolCall)]
+    # Every tool-call piece yields "" first, so the loop's timeout sees the stream alive.
+    assert got[: got.index(calls[0])].count("") >= 3
+    assert calls == [
         ToolCall(
-            "c1",
-            "record_answer",
-            {"field": "feeling", "value": "ok", "clear": True, "words": "bine"},
+            "c1", "record_answer", {"field": "feeling", "value": "ok", "clear": True}
         ),
         ToolCall("c2", "end_call", {"summary": "s"}),
     ]
 
 
-async def test_cut_off_tool_arguments_become_empty():
-    client = FakeClient(
-        [
-            tool_chunk(
-                0,
-                id="c1",
-                name="record_answer",
-                args='{"field": "feeling"',
-                finish="length",
-            )
-        ]
-    )
-    # A tool-call piece yields "", so the loop's timeout sees the stream alive.
-    assert [i async for i in deepinfra("k", "m", client=client)([])] == [
-        "",
+async def test_bad_tool_arguments_become_empty():
+    async def fn(messages, info):
+        yield {
+            0: DeltaToolCall("record_answer", '{"field": "feeling"', tool_call_id="c1")
+        }
+        yield {1: DeltaToolCall("end_call", "[1]", tool_call_id="c2")}
+
+    calls = [i for i in await items(fn) if isinstance(i, ToolCall)]
+    assert calls == [
         ToolCall("c1", "record_answer", {}),
+        ToolCall("c2", "end_call", {}),
     ]
 
 
-def test_building_without_a_key_does_not_raise():
-    deepinfra("", "deepseek-ai/DeepSeek-V4-Pro")
+async def test_closing_early_closes_the_stream():
+    closed = []
+
+    async def fn(messages, info):
+        try:
+            yield "Vă "
+            yield "simțiți?"
+        finally:
+            closed.append(True)
+
+    stream = aiter(stream_with(FunctionModel(stream_function=fn))(MESSAGES))
+    assert await anext(stream) == "Vă "
+    await stream.aclose()
+    assert closed == [True]

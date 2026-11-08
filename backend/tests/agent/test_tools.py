@@ -4,7 +4,7 @@ import pytest
 
 from app.agent.prompt import instructions
 from app.agent.relay import Escalation, handoff_reason
-from app.agent.tools import CallRules, Outcome
+from app.agent.tools import TOOL_DEFS, CallRules, Outcome
 from app.status.engine import Question, Severity
 
 
@@ -112,3 +112,12 @@ def test_the_instructions_name_the_shelter_and_the_new_limits():
 def test_a_request_human_reason_is_a_string():
     outcome = rules().run("request_human", {"reason": 5})
     assert outcome.reason == "5"
+
+
+def test_tool_schemas_forbid_extra_fields():
+    for tool in TOOL_DEFS:
+        schema = tool.parameters_json_schema
+        assert schema["additionalProperties"] is False and tool.strict is False, (
+            tool.name
+        )
+        assert schema["required"] == list(schema["properties"]), tool.name

@@ -13,7 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.loop import Agent, Line, Send
-from app.agent.model import ModelStream, deepinfra
+from app.agent.model import ModelStream, stream_with
 from app.agent.relay import Escalation, HandOver, Relay
 from app.agent.session import Echo, Handler, serve
 from app.auth.service import on_duty, refuse
@@ -28,6 +28,7 @@ from app.calls.ending import (
 from app.calls.service import AnswerContext, answer_context
 from app.codes.models import ReportSource
 from app.core.db import Session, get_session
+from app.core.llm import deepinfra_model
 from app.core.phones import mask
 from app.core.settings import get_settings
 from app.incidents.service import take_for_handover
@@ -461,7 +462,7 @@ REASON_ROOM = 200  # Call.reason's length
 @cache  # one client for every call, so a call's first round reuses its connections
 def model_stream() -> ModelStream:
     s = get_settings()
-    return deepinfra(s.deepinfra_api_key, s.agent_model)
+    return stream_with(deepinfra_model(s.deepinfra_api_key, s.agent_model))
 
 
 def echo_for(call: uuid.UUID, greeting: str) -> Callable[[Send], Handler]:

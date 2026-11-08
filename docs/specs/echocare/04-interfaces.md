@@ -191,7 +191,7 @@ When a medic adds a caregiver, FastAPI sends one SMS from the project's number: 
 
 ## 5. FastAPI ↔ model provider (channel 8)
 
-**The provider is DeepInfra (#49, spike S4)**, through its OpenAI-compatible API (`https://api.deepinfra.com/v1/openai`, the `openai` package, key in `DEEPINFRA_API_KEY`). The model is the `AGENT_MODEL` setting, `deepseek-ai/DeepSeek-V4-Pro` by default; `google/gemma-4-31B-it-turbo` is the faster alternative (06 §6). Requests stream, with `temperature` 0.3, `max_tokens` 1000 and reasoning off. No agent framework is used (01 §8).
+**The provider is DeepInfra (#49, spike S4)**, through its OpenAI-compatible API (`https://api.deepinfra.com/v1/openai`, Pydantic AI's `OpenAIChatModel`, key in `DEEPINFRA_API_KEY`). The model is the `AGENT_MODEL` setting, `deepseek-ai/DeepSeek-V4-Pro` by default; `google/gemma-4-31B-it-turbo` is the faster alternative (06 §6). Requests stream, with `temperature` 0.3, `max_tokens` 1000 and reasoning off (`extra_body`). The call loop uses Pydantic AI at the model layer only: one `model_request_stream` per round, the four tools' schemas from Pydantic models, and the conversation as Pydantic AI messages. The turn loop, the tool rules and the timeouts are the server's; no agent graph runs the call (01 §8).
 
 ### What the model is given on every turn
 

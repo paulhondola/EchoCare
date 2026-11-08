@@ -6,7 +6,10 @@ Results are English, since the model reads them.
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai.tools import ToolDefinition
 
 from app.agent.relay import Escalation
 from app.status.engine import Answer, CallAnswers, Question, Severity
@@ -19,67 +22,73 @@ _VALUES = {
     Question.shelter: {"yes", "no"},
 }
 
-
-def _fn(name: str, description: str, props: dict[str, dict]) -> dict:
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": {
-                "type": "object",
-                "properties": props,
-                "required": list(props),
-                "additionalProperties": False,
-            },
-        },
-    }
+_WORDS = "The senior's exact words."
+_REASON = "A short reason."
 
 
-_STR = {"type": "string"}
-_WORDS = {"type": "string", "description": "The senior's exact words."}
+class RecordAnswerArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-TOOLS: list[dict] = [
-    _fn(
+    field: Literal["feeling", "orientation", "shelter"]
+    value: str = Field(
+        description="feeling: ok or unwell. shelter: yes or no. "
+        "orientation: the day of the week the senior named, or unknown."
+    )
+    clear: bool = Field(description="True only if the answer is clear and certain.")
+    words: str = Field(description=_WORDS)
+
+
+class RaiseConcernArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    level: Literal["yellow", "red"]
+    reason: str = Field(description=_REASON)
+    words: str = Field(description=_WORDS)
+
+
+class RequestHumanArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(description=_REASON)
+
+
+class EndCallArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    summary: str = Field(description="One sentence, in Romanian.")
+
+
+def _tool(name: str, description: str, args: type[BaseModel]) -> ToolDefinition:
+    return ToolDefinition(
+        name=name,
+        description=description,
+        parameters_json_schema=args.model_json_schema(),
+        # Not sent as strict: PR #62's request to DeepInfra had no `strict` (design §8, 11).
+        strict=False,
+    )
+
+
+# The schemas only describe the tools; CallRules checks every argument (design §8).
+TOOL_DEFS: list[ToolDefinition] = [
+    _tool(
         "record_answer",
         "Record what the senior said about one of the three questions.",
-        {
-            "field": {"type": "string", "enum": [q.value for q in Question]},
-            "value": {
-                "type": "string",
-                "description": "feeling: ok or unwell. shelter: yes or no. "
-                "orientation: the day of the week the senior named, or unknown.",
-            },
-            "clear": {
-                "type": "boolean",
-                "description": "True only if the answer is clear and certain.",
-            },
-            "words": _WORDS,
-        },
+        RecordAnswerArgs,
     ),
-    _fn(
+    _tool(
         "raise_concern",
         "Something serious outside the three questions. Raises the level, never lowers it.",
-        {
-            "level": {"type": "string", "enum": ["yellow", "red"]},
-            "reason": {"type": "string", "description": "A short reason."},
-            "words": _WORDS,
-        },
+        RaiseConcernArgs,
     ),
-    _fn(
+    _tool(
         "request_human",
         "The senior asked for a person, or the conversation cannot go on.",
-        {"reason": {"type": "string", "description": "A short reason."}},
+        RequestHumanArgs,
     ),
-    _fn(
+    _tool(
         "end_call",
         "The conversation is finished. Refused until all three answers are recorded.",
-        {
-            "summary": {
-                "type": "string",
-                "description": "One sentence, in Romanian.",
-            }
-        },
+        EndCallArgs,
     ),
 ]
 

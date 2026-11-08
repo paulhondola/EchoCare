@@ -246,7 +246,7 @@ flowchart LR
 
 The rules and status engine has no dependencies on purpose: every rule and every cell of the matrix can be tested without a phone, a model or a database.
 
-**The agent loop is written directly against the model provider's library**, not inside an agent framework. The server refuses tool calls, matches alarm phrases before the model sees a sentence, and cuts the model's reply short on an interruption; a framework's own loop would be in the way.
+**Pydantic AI at the model layer; the turn control stays ours.** The live call loop asks Pydantic AI for one streamed model round at a time (`model_request_stream`), with its message types and tool schemas built from Pydantic models, and never runs an agent graph (`Agent.iter()`, `run_stream()`). The server refuses tool calls, matches alarm phrases before the model sees a sentence, cuts the model's reply short on an interruption, caps a turn at three rounds and keeps a red hand-over through a cancel; a framework's own loop would be in the way. The summary agent, which has no live constraints, is an ordinary Pydantic AI `Agent`.
 
 **Everything in the request path is asynchronous.** One blocking database call or web request in this process would pause every live conversation.
 
