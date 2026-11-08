@@ -337,7 +337,7 @@ The other endings are UC-06, UC-07 and UC-08.
 | After | Code yellow; caregiver notified; medic sees a warning |
 
 1. The rules give yellow (one worrying answer), or green without high certainty, or the model raises a yellow concern.
-2. If certainty is not high and the re-ask has not been used, the agent re-asks the question whose answer was unclear, once.
+2. If certainty is not high and fewer than two re-asks have been used for the question whose answer was unclear, the agent asks it again, up to twice (#49).
 3. FastAPI writes code yellow with the reason and the senior's words. For a worrying answer this happens when it is recorded; for an uncertain green it happens when the call ends.
 4. The notifier sends an alert to the caregivers' devices. The medic's app shows a warning on that patient, with no alert.
 5. The call continues to its normal close.

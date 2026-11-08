@@ -144,7 +144,7 @@ The final severity of a call is decided when the call ends or goes unanswered fo
 | Tier 2 phrase confirmed, or its confirmation not answered | red |
 | `raise_concern` during the call | At least the level raised |
 | Answered, final certainty high | The rules' severity for that call **(P3, proposed)**. This is how a clear „sunt bine, am urcat scările” cancels a watch trigger's starting yellow |
-| Answered, final certainty medium or low after the re-ask | The higher of the starting severity and the rules' severity. If that is green, yellow |
+| Answered, final certainty medium or low after the re-asks | The higher of the starting severity and the rules' severity. If that is green, yellow |
 | Never answered, redial used up | The starting severity. If that is green, yellow |
 | Senior hung up early, or the connection dropped | Treated as answered with low certainty |
 | Senior asked for a person, or pressed 9 | Hand over; at least yellow |
@@ -205,7 +205,7 @@ Alerts go to every device where the account is signed in. Nothing in the flow wa
 ```mermaid
 stateDiagram-v2
     [*] --> Green: consent given on the welcome call
-    Green --> Yellow: call ends yellow, or uncertain after retry
+    Green --> Yellow: call ends yellow, or uncertain after the re-asks
     Green --> Red: red established
     Yellow --> Green: later call ends green with high certainty
     Yellow --> Red: red established
@@ -267,7 +267,7 @@ stateDiagram-v2
 |---|---|---|---|
 | 1 | Campaign | Answers clearly: fine, names today's day, has water and a warm place | Rules green, high. Code green, nobody notified |
 | 2 | Campaign | „Cam amețită”; other answers fine and clear | Rules yellow, high. Code yellow, caregiver alert, medic warning |
-| 3 | Campaign | Vague answers, still vague after the re-ask, nothing worrying said | Rules green, low. Code yellow, reason "unclear answers" |
+| 3 | Campaign | Vague answers, still vague after the re-asks, nothing worrying said | Rules green, low. Code yellow, reason "unclear answers" |
 | 4 | Campaign | Unwell, and says „luni” on a Thursday | Rules red. Code red, alerts, hand-over |
 | 5 | Any | Says „am căzut și nu mă pot ridica” | Tier 1. Red at once, before the model sees the sentence |
 | 6 | Watch | Answers „am urcat scările, sunt bine”, clear on all three questions | Starting yellow, rules green and high. Code stays green, nobody notified |
