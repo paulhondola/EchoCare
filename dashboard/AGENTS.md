@@ -26,7 +26,7 @@ dashboard/
 │   │   ├── shell/                   Shell (Cod Roșu banner and incident dossier over every page), Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
 │   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over
-│   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over
+│   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over, Briefing (the latest summary: Pe scurt, Subiecte deschise, Cum vorbim, Observații)
 │   │   ├── enrollments/             Enrollments: review and Acceptă
 │   │   ├── staff/                   Staff: member list, who is on duty, adding medic or DAS
 │   │   ├── campaigns/               Campaigns: start a weather campaign, progress per campaign, Încheie
@@ -41,6 +41,7 @@ dashboard/
 │   │   ├── incidents.ts             board columns, filter, relative times, with incidents.test.ts
 │   │   ├── campaigns.ts             campaign labels and progress counts, with campaigns.test.ts
 │   │   ├── csv.ts                   CSV text and download, with csv.test.ts
+│   │   ├── briefing.ts              trend direction labels and citation dates, with briefing.test.ts
 │   │   └── poll.svelte.ts           shared reactive timer utility (04 §6), with poll.test.ts
 │   └── vite.config.ts               Vite+: SvelteKit SPA adapter, Tailwind v4, lint, fmt
 ├── tsconfig.json                    extends "$app/tsconfig"

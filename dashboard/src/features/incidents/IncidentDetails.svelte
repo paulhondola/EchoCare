@@ -24,6 +24,7 @@
   } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
   import CallTranscript from "../calls/CallTranscript.svelte";
+  import Briefing from "../seniors/Briefing.svelte";
   import { refusalMessage } from "./commands";
 
   let {
@@ -341,6 +342,12 @@
                 {#if senior.medic.practice}
                   <span class="text-fg-muted">· {senior.medic.practice}</span>
                 {/if}
+              </div>
+            {/if}
+
+            {#if d.summary}
+              <div class="pt-4">
+                <Briefing summary={d.summary} calls={d.calls} />
               </div>
             {/if}
           </div>

@@ -3,11 +3,13 @@
   import {
     fetchCalls,
     fetchSenior,
+    fetchSummary,
     fetchTranscript,
     type CallSummary,
     type IncidentCall,
     type SeniorSummary,
     type SeniorView,
+    type SummaryVersion,
   } from "../../services/api";
   import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
@@ -24,6 +26,7 @@
   } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
   import CallTranscript from "../calls/CallTranscript.svelte";
+  import Briefing from "./Briefing.svelte";
 
   let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
 
@@ -40,6 +43,8 @@
   // so a live call or hand-over is current; the last good read shows meanwhile
   // ponytail: re-read on open, not a timer; poll() the expanded call if DAS needs it live
   let calls = $state<Load<CallSummary[]> | null>(null);
+  // null until read; the briefing's citations are dated from `calls`
+  let briefing = $state<SummaryVersion | null>(null);
   let transcripts = $state<Record<string, Load<IncidentCall>>>({});
   let expanded = $state<string | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
@@ -90,6 +95,17 @@
       .catch((e: unknown) => {
         if (!reads.signal.aborted) load = { kind: "error", message: failed("dosarul", e) };
       });
+    // A failed read leaves "Niciun rezumat încă."; the briefing is not what the dossier hangs on
+    fetchSummary(summary.id, reads.signal)
+      .then((data) => {
+        briefing = data;
+      })
+      .catch(() => {});
+    fetchCalls(summary.id, reads.signal)
+      .then((data) => {
+        if (calls?.kind !== "ok") calls = { kind: "ok", data };
+      })
+      .catch(() => {});
     return () => reads.abort();
   });
 </script>
@@ -285,6 +301,10 @@
             "Medic de familie",
             [s.medic.display_name, s.medic.practice].filter(Boolean).join(" · "),
           )}
+
+          <div class="pt-4">
+            <Briefing summary={briefing} calls={calls?.kind === "ok" ? calls.data : []} />
+          </div>
 
           <div class="sn-label pt-4 pb-2">Aparținători înregistrați</div>
           {#each s.caregivers as c (c.user_id)}
