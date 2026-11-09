@@ -143,15 +143,34 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
 uv run python scripts/seed.py
 ```
 
-A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. It refuses any database but a local one.
+A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. From a laptop it refuses any database but a local one.
 
 ```bash
 uv run python scripts/seed.py --reset
 ```
 
-`seed.py` stays local. Its seniors' numbers are made up and may belong to real people; two are Timișoara landlines.
+Its seniors' numbers are made up and may belong to real people; two are Timișoara landlines. So `seed.py` runs on staging only behind `DIAL_ALLOWLIST`, which keeps every seeded number from ringing, and never on production.
 
 On the day, run `--reset` shortly before the demo, so the open incident is minutes old and the resolved ones are still on the board. Never during a live demo: `--reset` deletes every incident and call attached to a seeded senior.
+
+### The same mock data on staging
+
+Staging holds the same fictional cast, for the dashboard, and the team's own people from the cast file below. From the laptop, inside the `api` container (either order works):
+
+```bash
+railway ssh -s api -e staging -- python scripts/seed.py --confirm staging
+railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging - < cast.json
+```
+
+Add `--reset` to the first for fresh times. It deletes only the seed's own seniors; the team's seniors, made by `seed_cast.py` through the API's steps, and their real calls stay. On a cloud database `seed.py` grants DAS to nobody, since the test numbers' codes are on this page, and writes its campaign already lapsed, so a campaign the team starts queues calls.
+
+Before an end-to-end run on real phones and watches:
+- `DEEPINFRA_API_KEY` is set on staging; without it no summaries are written.
+- `DIAL_ALLOWLIST` on staging holds exactly the team's four numbers.
+- The four numbers are verified in Twilio, the on-duty DAS's too, since hand-overs ring it.
+- The team signs in with real SMS, not test numbers.
+- No one but the cast's DAS holds DAS on staging: check the staff list and revoke the rest by hand. The seed grants none, but deletes none either.
+- A campaign started on staging queues calls for every active fictional senior too. The allowlist keeps them silent; they wait in the campaign's progress until the warning lapses. „Sunați-mă” and the watch reach only the team's seniors.
 
 ### The demo cast on staging and production
 

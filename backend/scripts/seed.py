@@ -19,10 +19,19 @@ through the API, with their history. The Firebase test numbers sign in to it
 +40700000004 as Maria Popescu's son and +40700000005 as Maria Popescu, unless that number
 is already another senior's (AL7), which the run reports.
 
-Local databases only, like alembic/env.py. From backend/:
+Locally, from backend/:
 
     uv run python scripts/seed.py           # add the mock data, unless it is there
     uv run python scripts/seed.py --reset   # replace it, with fresh times
+
+On staging, inside the api container (a cloud database is refused from a laptop, as in
+alembic/env.py, and production always):
+
+    railway ssh -s api -e staging -- python scripts/seed.py --confirm staging
+
+There nobody gets das, since the test numbers' codes are public, and the campaign has
+already lapsed (staging seed design §4.2, §4.3). DIAL_ALLOWLIST keeps every seeded
+number from ringing.
 """
 
 import argparse
@@ -45,7 +54,7 @@ from app.auth.service import sync_senior_grant
 from app.calls.ending import campaign_reason, redial_delay
 from app.core.db import Base, Session
 from app.core.phones import is_mobile
-from app.core.settings import db_host, get_settings, is_local_db
+from app.core.settings import get_settings, is_local_db
 from app.models import (
     Answer,
     Call,
@@ -81,6 +90,7 @@ from app.seniors.schemas import Citation, FollowUp, SummaryContent, Trend
 from app.status.engine import BUCHAREST, Certainty, Question, Severity
 from app.voice.calls import CallState, was_answered
 from app.voice.dialogue import CONSENT_TEXT, CONSENT_VERSION
+from scripts.seed_cast import check_target
 
 # uuid5 under this namespace: the same ids on every machine and every run.
 NAMESPACE = uuid.UUID("5e1a0000-5eed-4000-8000-000000000000")
@@ -862,11 +872,18 @@ class History:
         return call
 
 
-def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
+def build(
+    now: datetime, users: dict[str, uuid.UUID], *, cloud: bool = False
+) -> History:
+    """`cloud`: staging, where only the team holds das, since the Firebase test numbers'
+    codes are published in the README, and the campaign has already lapsed, so one the
+    team starts is not answered by it (04 §2; staging seed design §4.2, §4.3)."""
     h = History(now, users)
     for spec in SENIORS:
         h.register(spec)
     for person, role in STAFF_GRANTS:
+        if cloud and role is Role.das:
+            continue
         granted_by = None if person is DAS else users[DAS.phone]
         h.grant(person, role, granted_by=granted_by)
     h.campaign = Campaign(
@@ -875,7 +892,8 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         level=WarningLevel.yellow,
         started_by=users[DAS.phone],
         started_at=h.ago(125),
-        warning_until=h.ago(125) + timedelta(hours=24),  # Q4
+        # Q4; on staging lapsed a few minutes ago.
+        warning_until=h.ago(5) if cloud else h.ago(125) + timedelta(hours=24),
     )
     green = "Se simte bine, știe ce zi este și are căldură"
 
@@ -1633,27 +1651,36 @@ async def remove(session: AsyncSession) -> None:
     await session.execute(delete(Senior).where(SEEDED))
 
 
-async def seed(reset: bool = False, now: datetime | None = None) -> str:
-    """Returns seeded, reseeded, or already seeded."""
-    url = get_settings().database_url
-    if not is_local_db(url):
-        raise SystemExit(f"Refusing to seed {db_host(url)}: mock data stays local.")
+async def seed(
+    reset: bool = False, now: datetime | None = None, confirm: str | None = None
+) -> str:
+    """Returns seeded, reseeded, or already seeded. A cloud database only from inside its
+    Railway deployment with `confirm` naming it, as seed_cast.py; never production."""
+    settings = get_settings()
+    check_target(confirm)
+    if settings.app_env == "production":
+        raise SystemExit("Refusing to seed production: mock data never goes there.")
+    cloud = not is_local_db(settings.database_url)
     async with Session() as session:
         there = await session.scalar(select(Senior.id).where(SEEDED).limit(1))
         if there and not reset:
             return "already seeded"
         if there:
             await remove(session)
-        history = build(now or datetime.now(UTC), await add_people(session))
+        history = build(
+            now or datetime.now(UTC), await add_people(session), cloud=cloud
+        )
         await save(session, history)
         await session.commit()
     return "reseeded" if there else "seeded"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Mock data for the local database.")
+    parser = argparse.ArgumentParser(description="Mock data, locally or on staging.")
     parser.add_argument("--reset", action="store_true", help="replace it, fresh times")
-    result = asyncio.run(seed(parser.parse_args().reset))
+    parser.add_argument("--confirm", help="the APP_ENV of the cloud database seeded")
+    args = parser.parse_args()
+    result = asyncio.run(seed(args.reset, confirm=args.confirm))
     print(result)
     if result == "already seeded":
         print("Run with --reset to replace it with fresh times.", file=sys.stderr)

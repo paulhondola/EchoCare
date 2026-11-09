@@ -1,4 +1,5 @@
-from types import SimpleNamespace
+import uuid
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -167,12 +168,51 @@ async def test_seed_reports_a_number_already_another_seniors(db, add_senior, cap
     assert "+40700000005 is already another senior's" in capsys.readouterr().err
 
 
-async def test_seed_refuses_a_cloud_database(monkeypatch):
-    cloud = SimpleNamespace(
-        database_url="postgresql://u:p@postgres.railway.internal/db"
-    )
-    monkeypatch.setattr(seed_script, "get_settings", lambda: cloud)
-    with pytest.raises(SystemExit, match="postgres.railway.internal"):
+def fake_users() -> dict[str, uuid.UUID]:
+    """What add_people returns, with no database: each number's user id."""
+    return {p.phone: uuid.uuid4() for p in seed_script.people()}
+
+
+def test_cloud_build_grants_no_das_and_lapses_the_campaign():
+    """Staging design §4.2, §4.3: only the team holds das there, and a campaign the team
+    starts is not answered by the seeded one."""
+    now = datetime.now(UTC)
+    h = seed_script.build(now, fake_users(), cloud=True)
+    assert Role.das not in {g["role"] for g in h.grants}
+    assert Role.medic in {g["role"] for g in h.grants}
+    assert h.campaign.warning_until < now
+
+
+def test_local_build_keeps_das_and_a_running_campaign():
+    now = datetime.now(UTC)
+    h = seed_script.build(now, fake_users())
+    assert Role.das in {g["role"] for g in h.grants}
+    assert h.campaign.warning_until > now
+
+
+async def test_seed_refuses_a_cloud_database_from_a_laptop(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.delenv("RAILWAY_DEPLOYMENT_ID", raising=False)
+    with pytest.raises(SystemExit, match="inside the api container"):
+        await seed(confirm="staging")
+
+
+async def test_seed_refuses_production_even_confirmed(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.setattr(s, "app_env", "production")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "d-1")
+    with pytest.raises(SystemExit, match="production"):
+        await seed(confirm="production")
+
+
+async def test_seed_on_staging_needs_its_name(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.setattr(s, "app_env", "staging")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "d-1")
+    with pytest.raises(SystemExit, match="--confirm staging"):
         await seed()
 
 
