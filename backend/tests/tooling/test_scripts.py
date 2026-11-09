@@ -4,13 +4,14 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 
 from app.core.settings import get_settings
-from app.memory.service import summary_input
+from app.memory.service import ENDED_ANSWERED, summary_input
 from app.memory.writer import citation_errors
 from app.models import (
     Call,
+    EnrollmentState,
     Grant,
     Incident,
     Role,
@@ -21,6 +22,7 @@ from app.models import (
 from app.seniors.schemas import SummaryContent
 from app.status.engine import Severity
 from app.voice.calls import CallState
+from app.voice.models import WELLBEING
 from scripts import seed as seed_script
 from scripts.grant_das import grant_das
 from scripts.place_call import place_call
@@ -93,20 +95,21 @@ async def all_versions(db) -> dict[uuid.UUID, list[SummaryVersion]]:
 
 
 def test_a_second_seniors_first_version_starts_its_own_chain():
+    """Nicolae refused on the welcome call, so he has no version of his own; his first
+    must not chain to another senior's latest (design §4)."""
     h = seed_script.build(datetime.now(UTC), fake_users())
-    maria = next(
-        c for c in h.calls if c.senior_id == h.seniors["maria"].id and c.ended_at
-    )
+    assert h.summaries  # other seniors' versions come first
+    welcome = next(c for c in h.calls if c.senior_id == h.seniors["nicolae"].id)
     h.summarize(
-        "maria",
-        maria,
+        "nicolae",
+        welcome,
         follow_ups=[],
         how_to_talk=[],
         trends=[],
-        narrative="Doamna Maria se descurcă.",
+        narrative="Domnul Nicolae nu vrea să fie sunat.",
     )
     assert h.summaries[-1].previous_id is None
-    assert h.summaries[-1].id == seed_script.seed_id("summary", "maria", "1")
+    assert h.summaries[-1].id == seed_script.seed_id("summary", "nicolae", "1")
 
 
 async def test_seed_writes_a_chain_of_versions(db):
@@ -151,6 +154,46 @@ async def test_seeded_citations_are_real(db):
             content = SummaryContent.model_validate(v.content)
             assert citation_errors(data, content) == [], (senior, i)
             previous = content
+
+
+async def test_every_answered_wellbeing_call_has_a_version(db):
+    """Else the briefing skips it, and on staging with a key due_calls would send a
+    seeded call to the paid model (staging seed design §4.5)."""
+    await seed(reset=True)
+    missing = await db.scalars(
+        select(Call.id)
+        .join(Senior, Senior.id == Call.senior_id)
+        .where(
+            seed_script.SEEDED,
+            Senior.enrollment_state == EnrollmentState.active,
+            Call.trigger.in_(WELLBEING),
+            Call.state.in_(ENDED_ANSWERED),
+            ~exists().where(SummaryVersion.call_id == Call.id),
+        )
+    )
+    assert list(missing) == []
+
+
+async def test_latest_trends_show_every_direction(db):
+    await seed(reset=True)
+    directions = set()
+    for chain in (await all_versions(db)).values():
+        latest = SummaryContent.model_validate(chain[-1].content)
+        directions |= {t.direction for t in latest.trends}
+    assert directions >= {"worse", "better", "steady"}
+
+
+async def test_every_active_seeded_senior_has_a_briefing(db):
+    await seed(reset=True)
+    chains = await all_versions(db)
+    active = list(
+        await db.scalars(
+            select(Senior.id).where(
+                seed_script.SEEDED, Senior.enrollment_state == EnrollmentState.active
+            )
+        )
+    )
+    assert active and all(s in chains for s in active)
 
 
 async def test_seed_reset_is_repeatable(db):
