@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SummaryVersion } from "../../services/api";
   import { citedOn, DIRECTION } from "../../utils/briefing";
+  import { time } from "../../utils/labels";
 
   let {
     summary,
@@ -54,7 +55,7 @@
     {/if}
 
     <p class="border-t border-line pt-2 text-xs text-fg-muted">
-      Rezumat după apelul din {citedOn(summary.call_id, calls)}
+      Rezumat după apelul din {time.format(Date.parse(summary.created_at))}
     </p>
   </section>
 {/if}

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    fetchCalls,
     fetchIncident,
     fetchSenior,
     resolveIncident,
     takeIncident,
+    type CallSummary,
     type Incident,
     type IncidentDetail,
     type IncidentOutcome,
@@ -65,6 +67,8 @@
   let tab = $state<DossierTab>(initialTab);
   let load = $state<Load<IncidentDetail>>({ kind: "loading" });
   let senior = $state<SeniorView | null>(null);
+  // All the senior's calls, to date the briefing's citations; `d.calls` holds only the incident's
+  let seniorCalls = $state<Load<CallSummary[]>>({ kind: "loading" });
   let dialogEl: HTMLDialogElement | undefined = $state();
   let outcome = $state<IncidentOutcome | "">("");
   let note = $state("");
@@ -105,6 +109,23 @@
         senior = s;
       })
       .catch(() => {});
+    return () => ctrl.abort();
+  });
+
+  $effect(() => {
+    if (!seniorId) return;
+    const ctrl = new AbortController();
+    fetchCalls(seniorId, ctrl.signal)
+      .then((data) => {
+        seniorCalls = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!ctrl.signal.aborted)
+          seniorCalls = {
+            kind: "error",
+            message: `Nu am putut citi apelurile seniorului (${e instanceof Error ? e.message : String(e)}).`,
+          };
+      });
     return () => ctrl.abort();
   });
 
@@ -347,7 +368,13 @@
 
             {#if d.summary}
               <div class="pt-4">
-                <Briefing summary={d.summary} calls={d.calls} />
+                {#if seniorCalls.kind === "error"}
+                  <p role="alert" class="pb-2 text-rosu-fg">{seniorCalls.message}</p>
+                {/if}
+                <Briefing
+                  summary={d.summary}
+                  calls={seniorCalls.kind === "ok" ? seniorCalls.data : d.calls}
+                />
               </div>
             {/if}
           </div>
