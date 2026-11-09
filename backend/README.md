@@ -155,13 +155,11 @@ On the day, run `--reset` shortly before the demo, so the open incident is minut
 
 ### The demo cast on staging and production
 
-ADR-001 has staging hold the team's phones and production the demo cast, seeded once before the freeze. [scripts/seed_cast.py](scripts/seed_cast.py) seeds four people through the same steps the apps take:
-- a medic;
-- a DAS employee, put on duty, so hand-overs ring them;
-- a senior the medic registered;
-- the senior's caregiver.
+ADR-001 has staging hold the team's phones and production the demo cast, seeded once before the freeze. [scripts/seed_cast.py](scripts/seed_cast.py) seeds people through the same steps the apps take:
+- `staff`: each with `roles` of `das`, `medic` or both. Exactly one DAS has `"on_duty": true`, so hand-overs ring them;
+- `seniors`: each registered by the staff member whose phone is their `medic`, with their `caregivers`. A caregiver may also be staff, and then holds both.
 
-The senior is left `submitted`, so the demo starts with DAS pressing „Acceptă”, which rings the welcome call. A second run adds nothing.
+Each senior is left `submitted`, so the demo starts with DAS pressing „Acceptă”, which rings the welcome call. A second run adds nothing. Staging and production use the same shape; a cast file written for the old four-slot shape (`medic`, `das`, `senior`, `caregiver`) needs rewriting once.
 
 The cast is real people, so it never enters Git (#48). Keep it in a JSON file outside the repository, or as `backend/cast.json`, which Git and Docker ignore. [cast.example.json](cast.example.json) shows its shape; every field is checked as the API checks it.
 
@@ -173,7 +171,7 @@ railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging -
 
 From a laptop the script refuses any database but a local one, as `alembic/env.py` does.
 
-For the senior's calls to ring, put the senior's and the DAS number on that environment's `DIAL_ALLOWLIST`.
+For the seniors' calls to ring, put the seniors' and the on-duty DAS's numbers on that environment's `DIAL_ALLOWLIST`.
 
 ## Migrations
 
