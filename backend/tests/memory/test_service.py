@@ -9,6 +9,7 @@ from pydantic_ai.models.test import TestModel
 from sqlalchemy import func, select
 
 from app.core.db import Session
+from app.core.settings import get_settings
 from app.memory import service
 from app.memory.service import ATTEMPTS, due_calls, start_summaries, write_summary
 from app.memory.writer import summary_agent
@@ -100,6 +101,11 @@ def agent_says(monkeypatch, call: Call):
     return model
 
 
+@pytest.fixture
+def keyed(monkeypatch):
+    monkeypatch.setattr(get_settings(), "deepinfra_api_key", "test-key")
+
+
 async def run_tasks():
     await asyncio.gather(*service._running.values(), return_exceptions=True)
     await asyncio.sleep(0)  # the done-callbacks
@@ -164,7 +170,7 @@ async def test_a_withdrawn_senior_is_not_summarized(db, senior):
     assert await due(db) == []
 
 
-async def test_a_seniors_calls_are_summarized_in_order(db, senior, monkeypatch):
+async def test_a_seniors_calls_are_summarized_in_order(db, senior, monkeypatch, keyed):
     first = await add_call(
         db,
         senior,
@@ -189,7 +195,7 @@ async def test_a_seniors_calls_are_summarized_in_order(db, senior, monkeypatch):
     assert versions[first.id].previous_id is None
 
 
-async def test_a_failing_call_is_tried_three_times(db, senior, monkeypatch):
+async def test_a_failing_call_is_tried_three_times(db, senior, monkeypatch, keyed):
     call = await add_call(
         db, senior, turns=[(Speaker.senior, SAID, timedelta(hours=1))]
     )
@@ -199,6 +205,13 @@ async def test_a_failing_call_is_tried_three_times(db, senior, monkeypatch):
         await run_tasks()
     assert service._failures[call.id] == ATTEMPTS
     assert await due(db) == []
+
+
+async def test_no_key_starts_nothing(db, senior, monkeypatch):
+    await add_call(db, senior, turns=[(Speaker.senior, SAID, timedelta(hours=1))])
+    monkeypatch.setattr(get_settings(), "deepinfra_api_key", "")
+    assert await start_summaries(NOW) == 0
+    assert service._running == {} and not service._failures
 
 
 async def _boom(call_id):
@@ -216,7 +229,7 @@ async def test_a_second_copy_writing_the_same_call_is_a_no_op(db, senior):
         assert await s.scalar(select(func.count()).select_from(SummaryVersion)) == 1
 
 
-async def test_logs_name_no_words(db, senior, monkeypatch, caplog):
+async def test_logs_name_no_words(db, senior, monkeypatch, caplog, keyed):
     secret = "cuvinte-secrete"
     call = await add_call(
         db, senior, turns=[(Speaker.senior, secret, timedelta(hours=1))]

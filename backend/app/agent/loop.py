@@ -294,7 +294,10 @@ class Agent:
             except Exception as e:  # noqa: BLE001 - a provider error or no first item
                 # Type only: a provider error can echo the request, the senior's words.
                 log.error(
-                    "model round failed, call %s: %s", self.call, type(e).__name__
+                    "model round failed, call %s: %s %s",
+                    self.call,
+                    type(e).__name__,
+                    getattr(e, "status_code", None),
                 )
                 await self._finish(DROPPED_SUMMARY, dropped=True, said=FAILURE)
                 return

@@ -42,7 +42,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import sync_senior_grant
-from app.calls.ending import redial_delay
+from app.calls.ending import campaign_reason, redial_delay
 from app.core.db import Base, Session
 from app.core.phones import is_mobile
 from app.core.settings import db_host, get_settings, is_local_db
@@ -1400,11 +1400,11 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     # Each after DAS accepted them, 20 hours after registering (`register`).
     h.welcome_unreached("stefan", 5)
     h.welcome_unreached("rodica", 6, wrong=True)
-    decline(h, green)
+    decline(h)
     return h
 
 
-def decline(h: History, green: str) -> None:
+def decline(h: History) -> None:
     """Eugenia Tudor: six answered wellbeing calls over three weeks (design §6). The
     wrong day in two of the last three, going out less, and a broken heater at the end."""
     h.welcome("eugenia", 29)
@@ -1436,7 +1436,15 @@ def decline(h: History, green: str) -> None:
     )
     calls: list[Call] = []
     for i, (feeling, day, shelter) in enumerate(plan):
-        heater = shelter[0] == "no"
+        # 03 §3: a wrong day or no heat on a cold campaign is yellow.
+        worrying = [
+            q
+            for q, bad in (
+                (Question.orientation, day is wrong),
+                (Question.shelter, shelter[0] == "no"),
+            )
+            if bad
+        ]
         calls.append(
             h.cold_call(
                 "eugenia",
@@ -1446,8 +1454,8 @@ def decline(h: History, green: str) -> None:
                 feeling=feeling,
                 day=day(days[i]),
                 shelter=shelter,
-                final=Severity.yellow if heater else Severity.green,
-                reason="Nu are căldură în casă" if heater else green,
+                final=Severity.yellow if worrying else Severity.green,
+                reason=campaign_reason(worrying, CampaignKind.cold),
                 summary=f"Doamna Eugenia: {feeling[1]} {shelter[1]}",
             )
         )

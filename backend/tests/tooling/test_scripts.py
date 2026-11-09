@@ -18,7 +18,7 @@ from app.models import (
     User,
 )
 from app.seniors.schemas import SummaryContent
-from app.status.engine import BUCHAREST
+from app.status.engine import BUCHAREST, Severity
 from app.voice.calls import CallState
 from scripts import seed as seed_script
 from scripts.grant_das import grant_das
@@ -91,6 +91,20 @@ async def test_seed_writes_a_chain_of_versions(db):
     latest = SummaryContent.model_validate(versions[-1].content)
     assert "caloriferul" in latest.follow_ups[0].topic
     assert [t.direction for t in latest.trends] == ["worse"]
+    c4, c6 = versions[3].call_id, versions[5].call_id
+    assert [e.call_id for e in latest.trends[0].evidence] == [c4, c6]
+    assert latest.follow_ups[0].call_id == c6
+
+
+async def test_demo_calls_match_their_answers(db):
+    """03 §3: a wrong day, or no heat on a cold campaign, is yellow, with that reason."""
+    await seed(reset=True)
+    versions = await demo_versions(db)
+    for v in (versions[3], versions[5]):
+        call = await db.get(Call, v.call_id)
+        assert call.final_severity is Severity.yellow
+        assert "Se simte bine" not in call.reason
+        assert "nu știe ce zi este" in call.reason.lower()
 
 
 async def test_seeded_citations_are_real(db):

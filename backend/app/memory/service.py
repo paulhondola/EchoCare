@@ -176,6 +176,8 @@ def _finished(senior_id: uuid.UUID, call_id: uuid.UUID, task: asyncio.Task) -> N
 
 async def start_summaries(now: datetime) -> int:
     """The scheduler step: start one task per due call and return; never awaits one."""
+    if not get_settings().deepinfra_api_key:  # no key, no summaries (design §4, R6)
+        return 0
     async with Session() as session:
         due = await due_calls(session, now)
         seniors = dict(

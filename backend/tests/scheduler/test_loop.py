@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 from app.core.db import engine
+from app.core.settings import get_settings
 from app.main import app
 from app.memory import service
 from app.models import (
@@ -98,6 +99,7 @@ def test_the_lifespan_starts_no_loop_in_tests(monkeypatch):
 
 
 async def test_the_tick_never_waits_for_a_summary(db, add_active_senior, monkeypatch):
+    monkeypatch.setattr(get_settings(), "deepinfra_api_key", "test-key")
     """A summary's model call runs in its own task, so the lock is free after the tick."""
     for name in ("cancel_lapsed", "dial_due", "sweep", "silence_watches"):
         monkeypatch.setattr(f"app.scheduler.loop.{name}", AsyncMock(return_value=0))

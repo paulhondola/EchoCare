@@ -27,7 +27,7 @@ check_environment(settings)
 if not settings.deepinfra_api_key:
     # Every wellbeing call would end dropped at the senior's first reply (04 §5).
     logging.getLogger("echocare").error(
-        "DEEPINFRA_API_KEY is not set: the agent loop cannot talk"
+        "DEEPINFRA_API_KEY is not set: the agent loop cannot talk and summaries are off"
     )
 # Pushes after every commit (04 §6), when a credential is set.
 install(sender_from(settings.firebase_push_credentials))
