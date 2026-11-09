@@ -309,6 +309,7 @@ SENIORS = (
 # fmt: on
 
 CAMPAIGN_ID = seed_id("campaign", "cold")
+PAST_CAMPAIGN_ID = seed_id("campaign", "cold-earlier")
 # The seed's ids are uuid5 and the API's uuidv7, so this finds every senior any version
 # of the seed made, even one since renamed or dropped from SENIORS.
 SEEDED = func.uuid_extract_version(Senior.id) == 5
@@ -356,6 +357,8 @@ class History:
         self.seniors: dict[str, Senior] = {}
         self.grants: list[dict[str, Any]] = []
         self.campaign: Campaign | None = None
+        # The cold spell before it: campaign calls dated before `campaign` started.
+        self.past_campaign: Campaign | None = None
         self.calls: list[Call] = []
         # Everything else; each row points only at seniors, users and calls.
         self.rows: list[Base] = []
@@ -434,7 +437,13 @@ class History:
             id=seed_id("call", senior, name),
             senior_id=self.seniors[senior].id,
             trigger=trigger,
-            campaign_id=self.campaign.id if trigger is CallTrigger.campaign else None,
+            campaign_id=(
+                None
+                if trigger is not CallTrigger.campaign
+                else self.campaign.id
+                if due >= self.campaign.started_at
+                else self.past_campaign.id
+            ),
             previous_call_id=previous and previous.id,
             attempt=previous.attempt + 1 if previous else 1,
             starting_severity=starting,
@@ -899,6 +908,16 @@ def build(
         started_at=h.ago(125),
         # Q4; on staging lapsed a few minutes ago.
         warning_until=h.ago(5) if cloud else h.ago(125) + timedelta(hours=24),
+    )
+    # Weeks of earlier wellbeing calls belong to an earlier, lapsed warning, or the
+    # running campaign's progress would count seniors it never called (04 §2).
+    h.past_campaign = Campaign(
+        id=PAST_CAMPAIGN_ID,
+        kind=CampaignKind.cold,
+        level=WarningLevel.yellow,
+        started_by=users[DAS.phone],
+        started_at=h.ago(22 * 24 * 60),
+        warning_until=h.ago(130),
     )
     green = "Se simte bine, știe ce zi este și are căldură"
 
@@ -2359,6 +2378,7 @@ async def save(session: AsyncSession, history: History) -> None:
                 file=sys.stderr,
             )
     # Kept through --reset, fresh times and all: other seniors' calls may name it.
+    await session.merge(history.past_campaign)
     await session.merge(history.campaign)
     await session.flush()
     session.add_all(history.calls)  # in order, so a redial follows its first attempt
@@ -2396,6 +2416,12 @@ async def seed(
     if settings.app_env == "production":
         raise SystemExit("Refusing to seed production: mock data never goes there.")
     cloud = not is_local_db(settings.database_url)
+    if cloud and "*" in settings.dial_allowlist.split(","):
+        # The seeded numbers are made up, in a premium-rate range (staging design §2).
+        raise SystemExit(
+            "Refusing to seed: DIAL_ALLOWLIST is *, so a campaign would ring the "
+            "seeded numbers. Set it to the team's numbers first."
+        )
     async with Session() as session:
         there = await session.scalar(select(Senior.id).where(SEEDED).limit(1))
         if there and not reset:

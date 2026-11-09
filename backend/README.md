@@ -166,7 +166,7 @@ Add `--reset` to the first for fresh times. It deletes only the seed's own senio
 
 Before an end-to-end run on real phones and watches:
 - `DEEPINFRA_API_KEY` is set on staging; without it no summaries are written.
-- `DIAL_ALLOWLIST` on staging holds exactly the team's four numbers.
+- `DIAL_ALLOWLIST` on staging holds exactly the team's four numbers. `seed.py` refuses a cloud database whose allowlist is `*`.
 - The four numbers are verified in Twilio, the on-duty DAS's too, since hand-overs ring it.
 - The team signs in with real SMS, not test numbers.
 - No one but the cast's DAS holds DAS on staging: check the staff list and revoke the rest by hand. The seed grants none, but deletes none either.

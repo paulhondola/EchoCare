@@ -11,6 +11,7 @@ from app.memory.service import ENDED_ANSWERED, summary_input
 from app.memory.writer import citation_errors
 from app.models import (
     Call,
+    Campaign,
     EnrollmentState,
     Grant,
     Incident,
@@ -196,6 +197,18 @@ async def test_every_active_seeded_senior_has_a_briefing(db):
     assert active and all(s in chains for s in active)
 
 
+async def test_no_campaign_call_predates_its_campaign(db):
+    """A campaign's progress counts its calls (04 §2): calls from weeks before the running
+    campaign belong to an earlier one, or the card counts seniors it never called."""
+    await seed(reset=True)
+    early = await db.scalars(
+        select(Call.id)
+        .join(Campaign, Campaign.id == Call.campaign_id)
+        .where(Call.due_at < Campaign.started_at)
+    )
+    assert list(early) == []
+
+
 async def test_seed_reset_is_repeatable(db):
     await seed(reset=True)
     first = len(await demo_versions(db))
@@ -218,6 +231,18 @@ async def test_seed_reports_a_number_already_another_seniors(db, add_senior, cap
 def fake_users() -> dict[str, uuid.UUID]:
     """What add_people returns, with no database: each number's user id."""
     return {p.phone: uuid.uuid4() for p in seed_script.people()}
+
+
+async def test_seed_refuses_a_cloud_database_that_dials_everyone(monkeypatch):
+    """Staging seed design §2: the seeded numbers are made up, in a premium-rate range;
+    with DIAL_ALLOWLIST=* the first campaign would ring them."""
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.setattr(s, "app_env", "staging")
+    monkeypatch.setattr(s, "dial_allowlist", "*")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "d-1")
+    with pytest.raises(SystemExit, match="DIAL_ALLOWLIST"):
+        await seed(confirm="staging")
 
 
 def test_cloud_build_grants_no_das_and_lapses_the_campaign():
