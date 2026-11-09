@@ -6,12 +6,18 @@ Results are English, since the model reads them.
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 from pydantic_ai.tools import ToolDefinition
 
 from app.agent.relay import Escalation
+from app.agent.schemas import (
+    EndCallArgs,
+    RaiseConcernArgs,
+    RecordAnswerArgs,
+    RequestHumanArgs,
+)
 from app.status.engine import Answer, CallAnswers, Question, Severity
 
 # Times an unclear answer is asked again before it is kept as it is (design §3).
@@ -21,41 +27,6 @@ _VALUES = {
     Question.feeling: {"ok", "unwell"},
     Question.shelter: {"yes", "no"},
 }
-
-_WORDS = "The senior's exact words."
-_REASON = "A short reason."
-
-
-class RecordAnswerArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    field: Literal["feeling", "orientation", "shelter"]
-    value: str = Field(
-        description="feeling: ok or unwell. shelter: yes or no. "
-        "orientation: the day of the week the senior named, or unknown."
-    )
-    clear: bool = Field(description="True only if the answer is clear and certain.")
-    words: str = Field(description=_WORDS)
-
-
-class RaiseConcernArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    level: Literal["yellow", "red"]
-    reason: str = Field(description=_REASON)
-    words: str = Field(description=_WORDS)
-
-
-class RequestHumanArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    reason: str = Field(description=_REASON)
-
-
-class EndCallArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    summary: str = Field(description="One sentence, in Romanian.")
 
 
 def _tool(name: str, description: str, args: type[BaseModel]) -> ToolDefinition:

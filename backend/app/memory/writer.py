@@ -52,17 +52,22 @@ def citation_errors(data: SummaryInput, content: SummaryContent) -> list[str]:
     """English problems the model can act on; they name the call and field, never the quote."""
     carried: set[tuple[uuid.UUID, str]] = set()
     if data.previous:
-        carried = {(f.call_id, f.quote) for f in data.previous.follow_ups} | {
-            (c.call_id, c.quote) for t in data.previous.trends for c in t.evidence
+        # Normalized like the input check, so a copy with other spacing or diacritics holds.
+        carried = {
+            (f.call_id, normalize(f.quote)) for f in data.previous.follow_ups
+        } | {
+            (c.call_id, normalize(c.quote))
+            for t in data.previous.trends
+            for c in t.evidence
         }
     words = {c.id: _senior_texts(c) for c in [data.call, *data.earlier]}
 
     def check(path: str, cited: Citation) -> list[str]:
-        if (cited.call_id, cited.quote) in carried:
+        quote = normalize(cited.quote)
+        if quote and (cited.call_id, quote) in carried:
             return []
         if cited.call_id not in words:
             return [f"{path} cites call {cited.call_id}, which is not in the input."]
-        quote = normalize(cited.quote)
         if not quote:
             return [f"{path} cites call {cited.call_id} with an empty quote."]
         # Whole words only, so "bin" does not match "binecuvântat".
@@ -89,8 +94,9 @@ def citation_errors(data: SummaryInput, content: SummaryContent) -> list[str]:
 INSTRUCTIONS = """\
 You write the memory of a phone-check service for seniors living alone. After each call you \
 update a short summary of one senior, using the previous summary, the call just ended and \
-the answers of earlier calls. All text you write is in Romanian, addressing the senior as \
-"dumneavoastră". Never use code words such as „cod roșu”, „galben” or „verde”.
+the answers of earlier calls. All text you write is in Romanian. The follow-up questions \
+address the senior as "dumneavoastră"; the other fields are notes about the senior for the \
+dispatcher, in the third person. Never use code words such as „cod roșu”, „galben” or „verde”.
 
 Fields:
 - follow_ups (at most 3): open topics worth asking about next call. Each has a topic, the \

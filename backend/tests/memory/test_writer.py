@@ -110,6 +110,13 @@ def test_a_carried_citation_is_trusted():
     assert citation_errors(d, content([carried])) == []
 
 
+def test_a_carried_citation_holds_after_normalization():
+    old = uuid.uuid4()
+    previous = content([follow_up(old, "cam amețită")])
+    d = data(facts(turns=[("senior", "bine")]), previous=previous)
+    assert citation_errors(d, content([follow_up(old, "Cam ameţită ")])) == []
+
+
 def test_a_trend_needs_two_calls():
     call = facts(turns=[("senior", "cam amețită azi"), ("senior", "iar amețită")])
     trend = Trend(

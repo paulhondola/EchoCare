@@ -23,16 +23,17 @@ from app.memory.writer import CallFacts, SummaryInput, prompt, summary_agent
 from app.seniors.models import EnrollmentState, Senior, SummaryVersion
 from app.seniors.service import add_summary, latest_summary, read_content
 from app.status.engine import BUCHAREST
-from app.voice.calls import CallState
-from app.voice.models import Answer, Call, CallTrigger, CallTurn
+from app.voice.calls import ANSWERED, ENDED, CallState
+from app.voice.models import WELLBEING, Answer, Call, CallTurn
 
 log = logging.getLogger("echocare.memory")
 
-WELLBEING = {CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual}
-ANSWERED = {CallState.completed, CallState.handed_over, CallState.dropped}
+ENDED_ANSWERED = ANSWERED & ENDED  # completed, handed_over, dropped (03 §9)
 WINDOW = timedelta(hours=24)
 # A handed-over call's DAS talk keeps arriving as turns after `ended_at` (design §4).
 TALK_QUIET = timedelta(minutes=2)
+# Any call: the hang-up's last words and the relay's closing writes land after `ended_at`.
+LINE_QUIET = timedelta(seconds=15)
 ATTEMPTS = 3
 EARLIER = 5
 
@@ -41,31 +42,34 @@ _running: dict[uuid.UUID, asyncio.Task] = {}  # by senior
 _failures: Counter[uuid.UUID] = Counter()  # by call
 
 
-async def due_calls(session, now: datetime) -> list[uuid.UUID]:
-    """At most one call per senior, the oldest that qualifies (design §4)."""
+async def due_calls(session, now: datetime) -> dict[uuid.UUID, uuid.UUID]:
+    """senior id -> call id: at most one call per senior, the oldest that qualifies
+    (design §4)."""
     last = aliased(Call)
     latest_ended = (
         select(last.ended_at)
         .join(SummaryVersion, SummaryVersion.call_id == last.id)
         .where(SummaryVersion.senior_id == Call.senior_id)
-        .order_by(SummaryVersion.created_at.desc())
+        .order_by(SummaryVersion.created_at.desc(), SummaryVersion.id.desc())
         .limit(1)
         .scalar_subquery()
     )
-    talking = exists().where(
-        CallTurn.call_id == Call.id, CallTurn.at >= now - TALK_QUIET
-    )
+
+    def talking(quiet: timedelta):
+        return exists().where(CallTurn.call_id == Call.id, CallTurn.at >= now - quiet)
+
     rows = await session.execute(
         select(Call.id, Call.senior_id)
         .join(Senior, Senior.id == Call.senior_id)
         .where(
             Call.trigger.in_(WELLBEING),
-            Call.state.in_(ANSWERED),
+            Call.state.in_(ENDED_ANSWERED),
             Senior.enrollment_state == EnrollmentState.active,
             Call.ended_at >= now - WINDOW,
             ~exists().where(SummaryVersion.call_id == Call.id),
             (latest_ended.is_(None)) | (Call.ended_at > latest_ended),
-            (Call.state != CallState.handed_over) | ~talking,
+            ~talking(LINE_QUIET),
+            (Call.state != CallState.handed_over) | ~talking(TALK_QUIET),
         )
         .order_by(Call.ended_at, Call.id)
     )
@@ -73,7 +77,7 @@ async def due_calls(session, now: datetime) -> list[uuid.UUID]:
     for call_id, senior_id in rows:
         if _failures[call_id] < ATTEMPTS and senior_id not in _running:
             chosen.setdefault(senior_id, call_id)
-    return list(chosen.values())
+    return chosen
 
 
 def _facts(call: Call, kind, turns, answers) -> CallFacts:
@@ -83,8 +87,12 @@ def _facts(call: Call, kind, turns, answers) -> CallFacts:
         campaign_kind=kind.value if kind else None,
         date=(call.ended_at or call.started_at).astimezone(BUCHAREST).date(),
         state=call.state.value,
-        final_severity=call.final_severity.name if call.final_severity else None,
-        final_certainty=call.final_certainty.name if call.final_certainty else None,
+        final_severity=None
+        if call.final_severity is None
+        else call.final_severity.name,
+        final_certainty=None
+        if call.final_certainty is None
+        else call.final_certainty.name,
         reason=call.reason,
         turns=turns,
         answers=answers,
@@ -105,7 +113,7 @@ async def summary_input(
             .where(
                 Call.senior_id == call.senior_id,
                 Call.trigger.in_(WELLBEING),
-                Call.state.in_(ANSWERED),
+                Call.state.in_(ENDED_ANSWERED),
                 Call.ended_at < ended,
             )
             .order_by(Call.ended_at.desc())
@@ -158,8 +166,13 @@ async def write_summary(call_id: uuid.UUID, *, model: Model | None = None) -> No
         try:
             await session.commit()
         except IntegrityError:
-            # Another API copy wrote this call first (design §4).
             await session.rollback()
+            # Another API copy wrote this call first (design §4); any other
+            # constraint is a failure, counted like one.
+            if not await session.scalar(
+                select(exists().where(SummaryVersion.call_id == call_id))
+            ):
+                raise
             log.info("summary exists, call %s", call_id)
             return
     log.info("summary written, call %s", call_id)
@@ -180,16 +193,16 @@ async def start_summaries(now: datetime) -> int:
         return 0
     async with Session() as session:
         due = await due_calls(session, now)
-        seniors = dict(
-            (
-                await session.execute(
-                    select(Call.id, Call.senior_id).where(Call.id.in_(due))
-                )
-            ).all()
-        )
-    for call_id in due:
-        senior_id = seniors[call_id]
+    for senior_id, call_id in due.items():
         task = asyncio.create_task(write_summary(call_id))
         _running[senior_id] = task
         task.add_done_callback(lambda t, s=senior_id, c=call_id: _finished(s, c, t))
     return len(due)
+
+
+async def stop_summaries() -> None:
+    """On shutdown: cancel the tasks under way; the next copy redoes their calls."""
+    tasks = list(_running.values())
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)

@@ -11,7 +11,13 @@ from sqlalchemy import func, select
 from app.core.db import Session
 from app.core.settings import get_settings
 from app.memory import service
-from app.memory.service import ATTEMPTS, due_calls, start_summaries, write_summary
+from app.memory.service import (
+    ATTEMPTS,
+    due_calls,
+    start_summaries,
+    summary_input,
+    write_summary,
+)
 from app.memory.writer import summary_agent
 from app.models import (
     Call,
@@ -24,7 +30,7 @@ from app.models import (
 )
 from app.seniors.schemas import SummaryContent
 from app.seniors.service import add_summary
-from app.status.engine import Severity
+from app.status.engine import Certainty, Severity
 from app.voice.calls import CallState
 
 NOW = datetime(2026, 11, 9, 12, 0, tzinfo=UTC)
@@ -112,7 +118,7 @@ async def run_tasks():
 
 
 async def due(db) -> list:
-    return await due_calls(db, NOW)
+    return list((await due_calls(db, NOW)).values())
 
 
 async def test_a_completed_campaign_call_is_due(db, senior):
@@ -161,6 +167,20 @@ async def test_a_handed_over_call_waits_for_the_das_talk(db, senior, age, is_due
         turns=[(Speaker.das, "Bună ziua", timedelta(minutes=age))],
     )
     assert await due(db) == ([call.id] if is_due else [])
+
+
+async def test_a_completed_call_waits_for_its_last_turns(db, senior):
+    # The hang-up's last words can land after ended_at.
+    await add_call(db, senior, turns=[(Speaker.senior, SAID, timedelta(seconds=5))])
+    assert await due(db) == []
+
+
+async def test_green_and_low_reach_the_agent_by_name(db, senior):
+    call = await add_call(db, senior)
+    call.final_severity, call.final_certainty = Severity.green, Certainty.low
+    await db.commit()
+    _, _, data = await summary_input(db, call.id)
+    assert (data.call.final_severity, data.call.final_certainty) == ("green", "low")
 
 
 async def test_a_withdrawn_senior_is_not_summarized(db, senior):

@@ -8,6 +8,10 @@
     calls = [],
   }: { summary: SummaryVersion | null; calls?: { id: string; started_at: string | null }[] } =
     $props();
+  // The date of the call the version follows; the version's own time until the calls arrive
+  const after = $derived(
+    calls.find((c) => c.id === summary?.call_id)?.started_at ?? summary?.created_at ?? "",
+  );
 </script>
 
 {#snippet quote(text: string, callId: string)}
@@ -55,7 +59,7 @@
     {/if}
 
     <p class="border-t border-line pt-2 text-xs text-fg-muted">
-      Rezumat după apelul din {time.format(Date.parse(summary.created_at))}
+      Rezumat după apelul din {time.format(Date.parse(after))}
     </p>
   </section>
 {/if}

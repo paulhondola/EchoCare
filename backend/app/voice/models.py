@@ -29,6 +29,10 @@ class CallTrigger(StrEnum):
     test = "test"
 
 
+# The calls that check on the senior's wellbeing, which notes and summaries cover (design §4).
+WELLBEING = frozenset({CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual})
+
+
 class WelcomeOutcome(StrEnum):
     confirmed = "confirmed"
     not_available = "not_available"

@@ -272,7 +272,7 @@ class FollowUp(BaseModel):
 class Trend(BaseModel):
     note: Annotated[str, Field(max_length=200)]
     direction: Literal["worse", "better", "steady"]
-    evidence: Annotated[list[Citation], Field(min_length=2)]
+    evidence: Annotated[list[Citation], Field(min_length=2, max_length=4)]
 
 
 class SummaryContent(BaseModel):

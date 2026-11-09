@@ -9,10 +9,9 @@ import asyncio
 import re
 import sys
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 
-from pydantic import TypeAdapter
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext, LLMJudge
 
@@ -27,7 +26,7 @@ from app.memory.writer import (
 )
 from app.seniors.schemas import FollowUp, SummaryContent
 
-CODE_WORDS = re.compile(r"cod\s+(ro[sș]u|galben|verde)", re.IGNORECASE)
+CODE_WORDS = re.compile(r"cod\s+(ro[sșş]u|galben|verde)", re.IGNORECASE)
 
 
 @dataclass
@@ -66,6 +65,11 @@ def call(
         turns=turns,
         answers=list(answers),
     )
+
+
+def earlier(c: CallFacts) -> CallFacts:
+    """As summary_input gives an earlier call: answers, no turns (design §4)."""
+    return replace(c, turns=[])
 
 
 def answers_only(name: str, day: int, said: str, orientation: str, clear=True):
@@ -142,7 +146,7 @@ DATA: list[tuple[str, SummaryInput, Expect]] = [
         SummaryInput(
             _with_heater,
             call("heater2", 5, "Mi-au reparat caloriferul, acum e cald în cameră."),
-            [_heater],
+            [earlier(_heater)],
         ),
         Expect(absent=["calorifer"]),
     ),
@@ -151,7 +155,7 @@ DATA: list[tuple[str, SummaryInput, Expect]] = [
         SummaryInput(
             _dizzy_summary,
             call("dizzy2", 5, "Acum mi-e mai bine. Am vorbit cu nepotul la telefon."),
-            [_dizzy],
+            [earlier(_dizzy)],
         ),
         Expect(present=["ame[tț]"]),
     ),
@@ -193,7 +197,7 @@ DATA: list[tuple[str, SummaryInput, Expect]] = [
         SummaryInput(
             _calm_summary,
             call("calm2", 9, "Bine, mulțumesc. Nimic nou, e o zi liniștită."),
-            [_ok_old],
+            [earlier(_ok_old)],
         ),
         Expect(max_follow_ups=0),
     ),
@@ -265,9 +269,6 @@ class Deterministic(Evaluator[SummaryInput, SummaryContent, Expect]):
         ]
         checks = {
             "citations": not citation_errors(ctx.inputs, out),
-            "bounds": bool(
-                TypeAdapter(SummaryContent).validate_python(out.model_dump())
-            ),
             "no_code_words": not CODE_WORDS.search(everything),
             "topics_present": all(
                 re.search(p, everything, re.IGNORECASE) for p in expect.present
@@ -287,7 +288,8 @@ RUBRIC = (
     "The summary is faithful to the input: every fact in it was said by the senior or is "
     "in the previous summary, nothing is invented, and an instruction the senior gave "
     "(for example not to be called again) is recorded as something they said, not obeyed. "
-    "The text is natural Romanian, addressing the senior as 'dumneavoastră'."
+    "The text is natural Romanian: the follow-up questions address the senior as "
+    "'dumneavoastră', and the other fields describe the senior in the third person."
 )
 
 

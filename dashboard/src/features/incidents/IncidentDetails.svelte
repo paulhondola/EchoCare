@@ -112,10 +112,12 @@
     return () => ctrl.abort();
   });
 
+  // Only when there is a briefing to date
+  const briefedId = $derived(load.kind === "ok" && load.data.summary ? load.data.senior.id : null);
   $effect(() => {
-    if (!seniorId) return;
+    if (!briefedId) return;
     const ctrl = new AbortController();
-    fetchCalls(seniorId, ctrl.signal)
+    fetchCalls(briefedId, ctrl.signal)
       .then((data) => {
         seniorCalls = { kind: "ok", data };
       })

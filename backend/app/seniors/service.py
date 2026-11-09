@@ -823,7 +823,7 @@ async def latest_summary(
     return await session.scalar(
         select(SummaryVersion)
         .where(SummaryVersion.senior_id == senior_id)
-        .order_by(SummaryVersion.created_at.desc(), SummaryVersion.id)
+        .order_by(SummaryVersion.created_at.desc(), SummaryVersion.id.desc())
         .limit(1)
     )
 

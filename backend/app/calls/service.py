@@ -17,7 +17,7 @@ from app.seniors.models import Senior
 from app.seniors.service import latest_summary, reach, reach_senior, read_content
 from app.voice.calls import CallState
 from app.voice.dialogue import wellbeing_greeting
-from app.voice.models import Answer, Call, CallTrigger, CallTurn
+from app.voice.models import WELLBEING, Answer, Call, CallTrigger, CallTurn
 from app.voice.service import cancel_queued, queue_calls
 
 log = logging.getLogger("echocare.calls")
@@ -133,9 +133,6 @@ class AnswerContext:
     # The latest summary's first follow-up and its notes; wellbeing calls only (design §5 A).
     follow_up: str | None = None
     how_to_talk: tuple[str, ...] = ()
-
-
-WELLBEING = (CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual)
 
 
 async def answer_context(
