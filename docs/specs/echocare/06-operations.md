@@ -54,8 +54,11 @@ flowchart TD
     WD -->|no| NM
     OFF --> NM{"(P20, proposed) Any home node without<br/>motion past the limit, during a warning?"}
     NM -->|yes| INA["Record an inactivity event<br/>queue a call"]
-    NM -->|no| SLEEP
-    INA --> SLEEP
+    NM -->|no| SUM
+    INA --> SUM{"DeepInfra key set, and an answered<br/>wellbeing call without a summary?"}
+    SUM -->|yes| TASK["Start one task per senior<br/>and return, never awaiting the model"]
+    SUM -->|no| SLEEP
+    TASK --> SLEEP
 ```
 
 Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the watch's silence step and the summary step. The home node's silence and inactivity steps are proposed with the node (P20).
