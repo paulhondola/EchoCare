@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import httpx
@@ -6,11 +7,10 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.settings import get_settings
-from app.memory.writer import CallFacts, SummaryInput, citation_errors
+from app.memory.service import summary_input
+from app.memory.writer import citation_errors
 from app.models import (
-    Answer,
     Call,
-    CallTurn,
     Grant,
     Incident,
     Role,
@@ -19,7 +19,7 @@ from app.models import (
     User,
 )
 from app.seniors.schemas import SummaryContent
-from app.status.engine import BUCHAREST, Severity
+from app.status.engine import Severity
 from app.voice.calls import CallState
 from scripts import seed as seed_script
 from scripts.grant_das import grant_das
@@ -82,6 +82,33 @@ async def demo_versions(db) -> list[SummaryVersion]:
     return list(rows)
 
 
+async def all_versions(db) -> dict[uuid.UUID, list[SummaryVersion]]:
+    """Each senior's versions, oldest first."""
+    chains: dict[uuid.UUID, list[SummaryVersion]] = {}
+    for v in await db.scalars(
+        select(SummaryVersion).order_by(SummaryVersion.created_at)
+    ):
+        chains.setdefault(v.senior_id, []).append(v)
+    return chains
+
+
+def test_a_second_seniors_first_version_starts_its_own_chain():
+    h = seed_script.build(datetime.now(UTC), fake_users())
+    maria = next(
+        c for c in h.calls if c.senior_id == h.seniors["maria"].id and c.ended_at
+    )
+    h.summarize(
+        "maria",
+        maria,
+        follow_ups=[],
+        how_to_talk=[],
+        trends=[],
+        narrative="Doamna Maria se descurcă.",
+    )
+    assert h.summaries[-1].previous_id is None
+    assert h.summaries[-1].id == seed_script.seed_id("summary", "maria", "1")
+
+
 async def test_seed_writes_a_chain_of_versions(db):
     await seed(reset=True)
     versions = await demo_versions(db)
@@ -95,6 +122,10 @@ async def test_seed_writes_a_chain_of_versions(db):
     c4, c6 = versions[3].call_id, versions[5].call_id
     assert [e.call_id for e in latest.trends[0].evidence] == [c4, c6]
     assert latest.follow_ups[0].call_id == c6
+    # Every senior's versions form a chain of their own (design §4).
+    for chain in (await all_versions(db)).values():
+        assert chain[0].previous_id is None
+        assert [v.previous_id for v in chain[1:]] == [v.id for v in chain[:-1]]
 
 
 async def test_demo_calls_match_their_answers(db):
@@ -109,44 +140,17 @@ async def test_demo_calls_match_their_answers(db):
 
 
 async def test_seeded_citations_are_real(db):
+    """Every seeded version passes the writer's own check, on the input the live writer
+    builds: the current call's turns, and only answers for earlier calls (design §4)."""
     await seed(reset=True)
-    versions = await demo_versions(db)
-    assert len(versions) == 6
-    facts: list[CallFacts] = []
-    for v in versions:
-        call = await db.get(Call, v.call_id)
-        turns = await db.execute(
-            select(CallTurn.speaker, CallTurn.content)
-            .where(CallTurn.call_id == call.id)
-            .order_by(CallTurn.position)
-        )
-        answers = await db.execute(
-            select(Answer.field, Answer.value, Answer.clear, Answer.quote).where(
-                Answer.call_id == call.id
-            )
-        )
-        facts.append(
-            CallFacts(
-                id=call.id,
-                trigger=call.trigger.value,
-                campaign_kind=None,
-                date=call.due_at.astimezone(BUCHAREST).date(),
-                state=call.state.value,
-                final_severity=call.final_severity and call.final_severity.name,
-                final_certainty=call.final_certainty and call.final_certainty.name,
-                reason=call.reason,
-                turns=[(sp.value, text) for sp, text in turns],
-                answers=[tuple(a) for a in answers],
-            )
-        )
-    previous = None
-    for i, v in enumerate(versions):
-        content = SummaryContent.model_validate(v.content)
-        data = SummaryInput(
-            previous=previous, call=facts[i], earlier=list(reversed(facts[:i]))
-        )
-        assert citation_errors(data, content) == [], i
-        previous = content
+    for senior, chain in (await all_versions(db)).items():
+        previous = None
+        for i, v in enumerate(chain):
+            _, _, data = await summary_input(db, v.call_id)
+            data = replace(data, previous=previous)
+            content = SummaryContent.model_validate(v.content)
+            assert citation_errors(data, content) == [], (senior, i)
+            previous = content
 
 
 async def test_seed_reset_is_repeatable(db):

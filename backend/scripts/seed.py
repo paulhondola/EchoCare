@@ -357,7 +357,8 @@ class History:
         self.calls: list[Call] = []
         # Everything else; each row points only at seniors, users and calls.
         self.rows: list[Base] = []
-        # Summary versions, in call order: each one points at the one before.
+        # Summary versions, in each senior's call order: each one points at that
+        # senior's one before.
         self.summaries: list[SummaryVersion] = []
 
     def ago(self, minutes: float) -> datetime:
@@ -784,14 +785,16 @@ class History:
         )
 
     def summarize(self, senior: str, call: Call, **content: Any) -> None:
-        """The fixed-text version for `call`, chained to the one before (design §6)."""
-        n = len(self.summaries) + 1
+        """The fixed-text version for `call`, chained to that senior's one before
+        (design §6)."""
+        senior_id = self.seniors[senior].id
+        chain = [v for v in self.summaries if v.senior_id == senior_id]
         self.summaries.append(
             SummaryVersion(
-                id=seed_id("summary", senior, str(n)),
-                senior_id=self.seniors[senior].id,
+                id=seed_id("summary", senior, str(len(chain) + 1)),
+                senior_id=senior_id,
                 call_id=call.id,
-                previous_id=self.summaries[-1].id if self.summaries else None,
+                previous_id=chain[-1].id if chain else None,
                 content=SummaryContent(**content).model_dump(mode="json"),
                 model="seed",
                 created_at=call.ended_at + timedelta(seconds=30),
