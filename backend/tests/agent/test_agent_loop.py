@@ -5,6 +5,16 @@ import json
 from datetime import date
 
 import pytest
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 
 from app.agent.loop import (
     DEFAULT_SUMMARY,
@@ -17,7 +27,7 @@ from app.agent.loop import (
     Limits,
     Line,
 )
-from app.agent.model import ToolCall
+from app.agent.model import ToolCall, stream_with
 from app.agent.relay import CONNECTING, Escalation
 from app.status.alarms import SELF_HARM_HANDOVER, confirmation_question
 from app.status.engine import Severity
@@ -34,10 +44,10 @@ class FakeModel:
 
     def __init__(self, rounds):
         self.rounds = list(rounds)
-        self.calls: list[list[dict]] = []
+        self.calls: list[list[ModelMessage]] = []
 
     async def __call__(self, messages):
-        self.calls.append([dict(m) for m in messages])
+        self.calls.append(list(messages))
         for item in self.rounds.pop(0):
             if isinstance(item, Exception):
                 raise item
@@ -141,7 +151,23 @@ def texts(sent):
 
 
 def users(messages):
-    return [m["content"] for m in messages if m["role"] == "user"]
+    return [
+        p.content for m in messages for p in m.parts if isinstance(p, UserPromptPart)
+    ]
+
+
+def parts(messages):
+    """Each message part as (kind, content), a tool call or result by its call id."""
+    return [
+        (
+            p.part_kind,
+            p.tool_call_id
+            if isinstance(p, ToolCallPart | ToolReturnPart)
+            else p.content,
+        )
+        for m in messages
+        for p in m.parts
+    ]
 
 
 async def test_the_04_5_conversation_reaches_a_close():
@@ -161,11 +187,10 @@ async def test_the_04_5_conversation_reaches_a_close():
     assert {"type": "text", "token": "bine acum?", "last": True} in sent
     assert sent[-1] == {"type": "end"} and line.ends == [(DEFAULT_SUMMARY, False)]
     # The re-ask is named in the tool result.
-    assert "feeling" in model.calls[1][-1]["content"]
-    assert model.calls[0][:2] == [
-        {"role": "system", "content": model.calls[0][0]["content"]},
-        {"role": "assistant", "content": "Bună ziua, doamna Elena."},
-    ]
+    assert "feeling" in model.calls[1][-1].parts[0].content
+    system, greeting = model.calls[0][:2]
+    assert isinstance(system.parts[0], SystemPromptPart)
+    assert greeting.parts == [TextPart("Bună ziua, doamna Elena.")]
     assert len(line.answers) == 4 and a.finished
     assert (Speaker.agent, TurnKind.speech, "Vă simțiți bine acum?") in line.turns
 
@@ -317,16 +342,12 @@ async def test_interrupt_cancels_and_keeps_what_was_heard():
     await a.handle(prompt("ce?"))
     await a.idle()
     # Cancelled mid-stream: the finished tool round stays, what was heard is added.
-    assert [m["role"] for m in model.calls[2][-5:]] == [
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-    ]
-    assert model.calls[2][-2:] == [
-        {"role": "assistant", "content": "Doamna Elena"},
-        {"role": "user", "content": "ce?"},
+    assert parts(model.calls[2][-5:]) == [
+        ("user-prompt", "bine"),
+        ("tool-call", "c-feeling"),
+        ("tool-return", "c-feeling"),
+        ("text", "Doamna Elena"),
+        ("user-prompt", "ce?"),
     ]
 
 
@@ -339,9 +360,45 @@ async def test_an_interrupt_after_the_turn_keeps_only_what_was_heard():
     await a.handle(prompt("duminică"))
     await a.idle()
     spoken, result = model.calls[1][-3:-1]
-    assert spoken["content"] == "Bine." and spoken["tool_calls"][0]["id"] == "c-feeling"
-    assert result["role"] == "tool" and result["tool_call_id"] == "c-feeling"
+    # The next request carries only the heard part of the cut reply (design §8, 1).
+    assert isinstance(spoken, ModelResponse)
+    assert parts([spoken, result]) == [
+        ("text", "Bine."),
+        ("tool-call", "c-feeling"),
+        ("tool-return", "c-feeling"),
+    ]
     assert (Speaker.agent, TurnKind.speech, "Bine. Ce zi e azi?") in line.turns
+
+
+@pytest.mark.parametrize(
+    "calls,kept",
+    [
+        ([], []),
+        (
+            [rec("feeling", "ok", True)],
+            [("tool-call", "c-feeling"), ("tool-return", "c-feeling")],
+        ),
+    ],
+    ids=["text", "text-and-tools"],
+)
+async def test_an_interrupt_before_any_word_drops_the_text(calls, kept):
+    """Nothing heard: the reply's text leaves the history, its tool calls and their
+    results stay (design §8, 1, 2)."""
+    model = FakeModel([["Bine. Ce zi e azi?", *calls], ["Da."]])
+    a, _, _ = await started(model)
+    await a.handle(prompt("bine"))
+    await a.idle()
+    await a.handle({"type": "interrupt", "utteranceUntilInterrupt": ""})
+    await a.handle(prompt("duminică"))
+    await a.idle()
+    assert parts(model.calls[1][2:]) == [
+        ("user-prompt", "bine"),
+        *kept,
+        ("user-prompt", "duminică"),
+    ]
+    # No empty response is left behind either.
+    responses = [m for m in model.calls[1][2:] if isinstance(m, ModelResponse)]
+    assert len(responses) == len(calls)
 
 
 async def test_an_interrupt_after_the_stall_line_appends():
@@ -352,10 +409,10 @@ async def test_an_interrupt_after_the_stall_line_appends():
     await a.handle({"type": "interrupt", "utteranceUntilInterrupt": "Vă"})
     await a.handle(prompt("ce?"))
     await a.idle()
-    assert model.calls[3][-3]["role"] == "tool"
-    assert model.calls[3][-2:] == [
-        {"role": "assistant", "content": "Vă"},
-        {"role": "user", "content": "ce?"},
+    assert parts(model.calls[3][-3:]) == [
+        ("tool-return", "c-feeling"),
+        ("text", "Vă"),
+        ("user-prompt", "ce?"),
     ]
 
 
@@ -370,7 +427,7 @@ async def test_a_new_prompt_mid_turn_replaces_the_turn():
     hang.set()  # a turn still alive would now finish its reply
     await asyncio.sleep(0.02)
     assert users(model.calls[1]) == ["bine", "adică foarte bine"]
-    assert model.calls[1][-1] == {"role": "user", "content": "adică foarte bine"}
+    assert parts(model.calls[1][-1:]) == [("user-prompt", "adică foarte bine")]
     assert sent == [{"type": "text", "token": "Bine.", "last": True}]
 
 
@@ -493,8 +550,13 @@ async def test_a_cancel_during_the_writes_keeps_the_round_whole():
     await asyncio.sleep(0.02)
     await a.handle(prompt("foarte bine"))  # cancels the turn mid-write
     await a.idle()
-    roles = [m["role"] for m in model.calls[1]]
-    assert roles[-4:] == ["user", "assistant", "tool", "user"]
+    # The round is whole: its tool call has its result (design §8, 2).
+    assert parts(model.calls[1][-4:]) == [
+        ("user-prompt", "bine"),
+        ("tool-call", "c-feeling"),
+        ("tool-return", "c-feeling"),
+        ("user-prompt", "foarte bine"),
+    ]
     slow.set()
     await asyncio.sleep(0.02)
     assert len(line.answers) == 1  # the write was not lost
@@ -699,3 +761,86 @@ async def test_a_quiet_stream_after_its_first_piece_drops_the_call():
     await a.handle(prompt("bine"))
     await a.idle()
     assert line.ends == [(DROPPED_SUMMARY, True)]
+
+
+# Pydantic AI's model layer behind the seam (design §8).
+
+
+def function_model(fn):
+    return stream_with(FunctionModel(stream_function=fn))
+
+
+async def test_a_quiet_stream_drops_the_call():
+    """Tool-call pieces keep a slow round alive; a stream quiet for too long drops the
+    call (design §8, 4)."""
+    rounds = []
+
+    async def fn(messages, info):
+        rounds.append(len(messages))
+        if len(rounds) == 1:
+            pieces = ['{"field": "feeling", ', '"value": "ok", ', '"clear": true}']
+            for i, piece in enumerate(pieces):
+                await asyncio.sleep(0.1)  # each under first_token, all three over it
+                name = "record_answer" if i == 0 else None
+                yield {0: DeltaToolCall(name, piece, tool_call_id="c1")}
+        else:
+            yield "Ce zi "
+            await asyncio.sleep(1)
+            yield "e azi?"
+
+    a, line, sent = await started(function_model(fn))
+    await a.handle(prompt("bine"))
+    await a.idle()
+    assert len(rounds) == 2 and len(line.answers) == 1  # the slow round was kept
+    assert texts(sent) == [FAILURE] and line.ends == [(DROPPED_SUMMARY, True)]
+
+
+async def test_an_interrupt_closes_the_model_stream():
+    hang, closed = asyncio.Event(), []
+
+    async def fn(messages, info):
+        try:
+            yield "Doamna Elena, "
+            await hang.wait()
+            yield "ce mai faceți?"
+        finally:
+            closed.append(True)
+
+    a, _, _ = await started(function_model(fn))
+    await a.handle(prompt("bine"))
+    await asyncio.sleep(0.02)
+    assert closed == []
+    await a.handle({"type": "interrupt", "utteranceUntilInterrupt": "Doamna Elena"})
+    assert closed == [True]  # at the interrupt, not at GC (design §8, 9)
+
+
+async def test_logs_carry_no_words(caplog):
+    """A whole call, through the model layer: only lengths, ids and error types are
+    logged (design §8, 10)."""
+    rounds = []
+    words = ["doare", "capul", "inima", "Îmi pare", "pastila", "mâine"]
+
+    async def fn(messages, info):
+        rounds.append(True)
+        match len(rounds):
+            case 1:  # a tool call written as text, never sent
+                yield '{"name": "record_answer", "words": "inima"}'
+            case 2:
+                yield "Îmi pare rău. "
+                args = '{"level": "yellow", "reason": "capul", "words": "mă doare"}'
+                yield {0: DeltaToolCall("raise_concern", args, tool_call_id="c1")}
+            case _:  # a provider error that echoes the request
+                yield "Bine"
+                raise RuntimeError(f"400: {messages[-1].parts[0].content}")
+
+    a, line, _ = await started(function_model(fn))
+    with caplog.at_level("DEBUG"):
+        await a.handle(prompt("mă doare capul"))
+        await a.idle()
+        await a.handle({"type": "interrupt", "utteranceUntilInterrupt": "Îmi pare"})
+        await a.handle(prompt("am luat o pastila, mâine"))
+        await a.idle()
+    assert line.concerns == [(Severity.yellow, "capul")]
+    assert line.ends == [(DROPPED_SUMMARY, True)]
+    assert "model round failed" in caplog.text and "RuntimeError" in caplog.text
+    assert not [w for w in words if w in caplog.text]

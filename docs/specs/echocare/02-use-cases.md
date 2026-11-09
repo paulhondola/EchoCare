@@ -320,7 +320,7 @@ sequenceDiagram
 2. The dialer places a few calls at a time.
 3. When the senior answers, Twilio connects the call to the agent. The greeting names the senior and the warning: „…azi e cod roșu de ger”.
 4. Each thing the senior says arrives as text. FastAPI checks it for alarm phrases, then passes the conversation to the model, and streams the reply back to be spoken.
-5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer.
+5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer. If the senior has a summary of past calls, the agent also asks its first follow-up question once, after the feeling answer and before the last question; that reply counts as an answer only for what the senior says now.
 6. The rules give green with high certainty. FastAPI writes the code.
 7. The agent closes the call with a short piece of advice.
 

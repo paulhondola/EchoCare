@@ -28,6 +28,8 @@ erDiagram
     CALL ||--o{ ANSWER : "yields"
     CALL ||--o{ STATUS_REPORT : "produces"
     CALL |o--o{ CONSENT : "records"
+    SENIOR ||--o{ SENIOR_SUMMARY : "is summarized in"
+    CALL ||--o| SENIOR_SUMMARY : "yields at most one"
 
     USER {
         uuid id PK
@@ -80,6 +82,15 @@ erDiagram
         json signature_strokes "for method signature"
         uuid recorded_by FK "for method signature, medic or das"
         datetime at
+    }
+    SENIOR_SUMMARY {
+        uuid id PK
+        uuid senior_id FK
+        uuid call_id FK UK "the call this version came from"
+        uuid previous_id FK "the version it was built on"
+        json content "follow_ups, how_to_talk, trends, narrative"
+        string model "the model name that wrote it"
+        datetime created_at "the newest is the latest"
     }
     WATCH_STATE {
         uuid senior_id PK
@@ -208,6 +219,7 @@ erDiagram
 | Grant | One role for one user, and for caregiver and senior grants the senior it applies to. A user may hold several. Replaces the earlier role field, caregiver link and invite |
 | Senior | The enrolled person, registration details, structured address and enrollment state |
 | Consent | Every consent decision as a history: given or refused on the welcome call (or on the mock card in the senior's app, method `app`), an optional signature, a withdrawal recorded by the medic or DAS. For method `call`, `evidence` holds what decided it: `{"digits": "1"}` for a key, or `{"speech": "Da.", "confidence": 0.91}` for words (#48) |
+| SeniorSummary | One version of what the summary agent knows about a senior, written after each answered call from that call and the version before it. Never updated or deleted by the app; the newest is the latest (design `2026-11-08-senior-summary-agents` §4) |
 | WatchState | The watch's latest check-in, one row per senior |
 | HomeNodeState | The home node's latest room reading and when the room went out of range, one row per senior with a node **(P20, proposed)** |
 | Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
@@ -270,7 +282,7 @@ Several rules from the other files are enforced by the database itself, so they 
 | Data | Kept | Reason |
 |---|---|---|
 | Audio | Never stored | Twilio handles speech; FastAPI receives text only |
-| Transcripts, answers and status reports | Kept | Medic and DAS review; audit of how a code was reached |
+| Transcripts, answers, status reports and senior summaries | Kept | Medic and DAS review; audit of how a code was reached |
 | Consent records | Kept | Proof of what was agreed and when |
 | Incidents | Kept | What DAS did about each red, by whom, and the outcome |
 | Events, with any location | Kept | They explain why a call was placed and where the senior was |

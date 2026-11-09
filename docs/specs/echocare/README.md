@@ -94,6 +94,12 @@ flowchart LR
 | G15 | DAS has two surfaces. A React web dashboard at the desk does everything: all seniors and codes, incidents, enrollment requests, campaigns, staff and on duty. The DAS role in the Android app, on the on-duty phone, shows only red incidents and their details, with take, resolve, call and "open in maps". The dashboard is another client of the same API and re-reads every few seconds | G3 (DAS part) |
 | G16 | Every red, and every hand-over to DAS, opens an incident, or joins the senior's unresolved one (#48): `open`, then `in_progress` when someone takes it (answering the hand-over takes it automatically), then `resolved` with an outcome and a note. Taking replaces acknowledging. Resolving does not change the code; campaigns skip seniors with an open or in-progress incident | P9 (acknowledge), open question 3 |
 
+### Decided in the summary agents design (2026-11-08)
+
+| ID | Decision | Supersedes |
+|---|---|---|
+| G17 | After each answered wellbeing call a summary agent (Pydantic AI, DeepInfra, `SUMMARY_MODEL`) updates a short Romanian summary of the senior: follow-up topics, how to talk, trend notes and a narrative, each citing the senior's own words. The next call's agent gets at most one follow-up question; DAS and the registering medic can read it. It never feeds the status engine and never replaces one of the three questions. Every version is kept with its call. Evals run by hand (`backend/evals/`) | Deferred "Day-over-day trend detection" (as notes for people, not as rules) |
+
 ### Decided in the design session
 
 | ID | Decision | Status |
@@ -171,6 +177,7 @@ Each is marked **(proposed)** where it is specified.
 11. **Room temperature thresholds (P21, P22).** The proposed limits (below 16°C, above 30°C) are orientative and have no medical value. A medical mentor should set them, and say whether an extreme room (below 12°C, above 34°C) should go straight to red. Default: yellow, like every other sensor trigger.
 12. **A detected fall, or the home SOS button, and an unanswered call.** Like question 1: both argue for red. Default: yellow.
 13. ~~**Editing an active senior's registration.**~~ Resolved by the CRUD completion (2026-10-16): the address, access details and phone number are editable in every state, by the registering medic or by DAS for seniors it reaches as DAS. A changed number moves the senior grant and queues no welcome call.
+14. **Consent that covers remembering across calls.** Today's consent texts (`v1`, `v1-app`, `v1-semnatura`) say who sees what is said, not that it is remembered. A pilot needs a new consent version for the summary (GDPR Art. 4(4) and Art. 9), and DAS, as data controller, must confirm the basis (06 §4). Not needed for the demo.
 
 ## Glossary
 

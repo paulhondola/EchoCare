@@ -54,17 +54,21 @@ flowchart TD
     WD -->|no| NM
     OFF --> NM{"(P20, proposed) Any home node without<br/>motion past the limit, during a warning?"}
     NM -->|yes| INA["Record an inactivity event<br/>queue a call"]
-    NM -->|no| SLEEP
-    INA --> SLEEP
+    NM -->|no| SUM
+    INA --> SUM{"DeepInfra key set, and an answered<br/>wellbeing call without a summary?"}
+    SUM -->|yes| TASK["Start one task per senior<br/>and return, never awaiting the model"]
+    SUM -->|no| SLEEP
+    TASK --> SLEEP
 ```
 
-Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep and the watch's silence step. The home node's silence and inactivity steps are proposed with the node (P20).
+Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the watch's silence step and the summary step. The home node's silence and inactivity steps are proposed with the node (P20).
 
 - **The lock** is a Postgres advisory lock held for the whole tick, so during a deploy one copy works. A step that fails is logged and the others still run. A tick logs a line only when a step did something.
 - **Lapsed warnings** (04 §2): the queued calls of a campaign whose warning has passed are canceled, undialed ones only.
 - **The dialer** hands due calls to Twilio up to the free lines, in this order, and in id order within each group: a watch or "Sunați-mă" call, then a redial (a senior already not reached), then a campaign's first attempt, then a welcome call. The order matters only when more calls are due than there are lines, as during a campaign. It uses no risk score and no medical data (03 §11). A call is stamped `dialed_at` and committed before Twilio is asked, so it is dialed once at most (05 §1). It dials only numbers on `DIAL_ALLOWLIST`: empty, the default, dials nobody in every environment, production included, and `*` dials everyone. A call it will not dial stays queued, so the mock card keeps working. Without the Twilio variables it does nothing.
 - **The sweep** settles a dialed call still live after the ring time, the call length limit and a minute (section 3). It asks Twilio for the call, hangs up if Twilio still has it live, and applies Twilio's final status as a status callback would (04 §4.2). A call with no Twilio id, whose dial timed out and which no callback reached, becomes `failed`. A machine that answered, per Twilio's record, ends the call `unanswered`, as voicemail detection would. A Twilio id Twilio no longer knows (after a change of region or account) ends the call `failed`, or `dropped` if it was answered. Each call it settles is logged at warning level.
 - **The watch's silence** (UC-13): a watch in `ok` or `not_worn` whose last check-in is older than the silence limit (section 3) becomes `offline`. No alert; its next check-in (04 §3) brings it back.
+- **Summaries** (design 2026-11-08 §4): a wellbeing call (`campaign`, `watch`, `manual`) that ended `completed`, `handed_over` or `dropped` in the last 24 hours, for an `active` senior, with no summary yet and newer than the call behind the senior's latest version. Per senior it takes the oldest such call, and a handed-over call waits until its newest turn is 2 minutes old. The step only starts one asyncio task per call and returns, so the lock never waits on the model. One task per senior at a time; a failed task is logged (call id and error type) and retried on later ticks, at most 3 times per process.
 
 "A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow. It is a cap in our code, not a number of Twilio numbers.
 
@@ -139,8 +143,11 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Push carries no health details | Generic text and an id (P18) |
 | Region | Database and FastAPI on Railway, EU West. Twilio places and processes the calls in its Ireland region (IE1), by choice of `TWILIO_API_HOST` |
 | Demo data | Fictitious people only |
+| Summary of past calls | The summary agent's notes on a senior are derived health data, built from the senior's own words and shown only to the registering medic and DAS, the same reach as the transcript. Every version is kept with the call it came from, like transcripts. Logs hold the call id, lengths and error types only, never a quote; Pydantic AI instrumentation stays off (no `logfire`, no `instrument=True`), and a test asserts it. It passes through the model provider like a transcript, so no new processor. It never sets a code, a call or a recipient |
 
 **Honest limits for a real pilot.** Transcripts pass through the model provider, speech passes through Twilio, phone numbers pass through Firebase, and the database sits on Railway. Twilio's processing is now in the EU by region choice (IE1); the model provider and Firebase are still outside it. A pilot needs data-processing agreements with all four and a named data controller (v3 §14 assigns this to the medic and DAS). DAS must also confirm that a recorded spoken „da” counts as explicit consent for health data (README open question 7). None of that is needed to demo with fictitious data.
+
+**The summary and the consent text** (design 2026-11-08 §7). The summary is profiling under GDPR Art. 4(4) and health data under Art. 9: an automated evaluation of health and behaviour over time, for continuity of care on the wellbeing calls and for briefing DAS at a hand-over. It makes no decision about the senior (Art. 22). Today's consent texts (`v1`, `v1-app`, `v1-semnatura`) say who sees what is said, not that it is remembered across calls. A pilot needs a new consent version that says so, and DAS, as data controller, must confirm the basis (README open question 14). Withdrawing consent stops new summaries, since only `active` seniors are summarized; stored versions are kept like transcripts. Not needed for the demo.
 
 **Telephony constraints** follow v3 §12 apart from the number and the region: Romania enabled in geographic permissions, the AI features addendum accepted, and a test on each mobile network for how the number is displayed and whether it is flagged as spam.
 
@@ -161,6 +168,8 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Endpoints and permissions | Each endpoint called as each role, as a number with no grant, and signed out; the refused combinations are asserted. Identity tokens are replaced by a stand-in verifier | A local FastAPI and database |
 | Database constraints | Two live calls for one senior, two on-duty employees, a duplicate event, two unresolved incidents for one senior, two takes of one incident: each must be refused | A local database |
 | Incident lifecycle | Open on red; taken by hand or by an answered hand-over; resolved with each outcome; a campaign skipping and then including the senior | A local FastAPI and database |
+| Summary agent | The output validator (unknown call id, a quote not in the senior's turns or answers, a trend citing one call); which calls qualify; versions written in call order, one per call; the scheduler step never awaits the model inside the tick; the read's permissions (medic, DAS, caregiver, senior, stranger); the live instructions carry `follow_ups` and `how_to_talk`, never `trends` or `narrative`; no instrumentation. The agent runs on `TestModel` or `FunctionModel` | Nothing outside the module |
+| Summary evals | A `pydantic_evals` dataset of 10 Romanian cases in `backend/evals/`, run by hand with `uv run python -m evals.summary` against the real model. Deterministic checks (quotes in the input, cited calls exist, bounds, no code words in follow-ups, the case's topics) and one `LLMJudge` for faithful, natural Romanian. Costs money, so CI never runs it; the evaluators' own logic is unit-tested with no model | A DeepInfra key |
 | Watch | The threshold logic fed synthetic readings: high at rest, high while walking, no steps, not worn | An emulator or the watch |
 | Watch to phone to FastAPI | An event from the watch reaches FastAPI with the phone's location, with the phone app in the background | The watch and a phone |
 | Fall detection **(P19)** | Recorded accelerometer traces replayed against the detector; then 20 to 30 controlled trials each of a fall onto a mattress, sitting down hard, walking and climbing stairs. The false-alarm and missed-fall rates are written down | The watch |

@@ -8,7 +8,16 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from pydantic import BaseModel
+from pydantic_ai.tools import ToolDefinition
+
 from app.agent.relay import Escalation
+from app.agent.schemas import (
+    EndCallArgs,
+    RaiseConcernArgs,
+    RecordAnswerArgs,
+    RequestHumanArgs,
+)
 from app.status.engine import Answer, CallAnswers, Question, Severity
 
 # Times an unclear answer is asked again before it is kept as it is (design §3).
@@ -20,66 +29,37 @@ _VALUES = {
 }
 
 
-def _fn(name: str, description: str, props: dict[str, dict]) -> dict:
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": {
-                "type": "object",
-                "properties": props,
-                "required": list(props),
-                "additionalProperties": False,
-            },
-        },
-    }
+def _tool(name: str, description: str, args: type[BaseModel]) -> ToolDefinition:
+    return ToolDefinition(
+        name=name,
+        description=description,
+        parameters_json_schema=args.model_json_schema(),
+        # Not sent as strict: PR #62's request to DeepInfra had no `strict` (design §8, 11).
+        strict=False,
+    )
 
 
-_STR = {"type": "string"}
-_WORDS = {"type": "string", "description": "The senior's exact words."}
-
-TOOLS: list[dict] = [
-    _fn(
+# The schemas only describe the tools; CallRules checks every argument (design §8).
+TOOL_DEFS: list[ToolDefinition] = [
+    _tool(
         "record_answer",
         "Record what the senior said about one of the three questions.",
-        {
-            "field": {"type": "string", "enum": [q.value for q in Question]},
-            "value": {
-                "type": "string",
-                "description": "feeling: ok or unwell. shelter: yes or no. "
-                "orientation: the day of the week the senior named, or unknown.",
-            },
-            "clear": {
-                "type": "boolean",
-                "description": "True only if the answer is clear and certain.",
-            },
-            "words": _WORDS,
-        },
+        RecordAnswerArgs,
     ),
-    _fn(
+    _tool(
         "raise_concern",
         "Something serious outside the three questions. Raises the level, never lowers it.",
-        {
-            "level": {"type": "string", "enum": ["yellow", "red"]},
-            "reason": {"type": "string", "description": "A short reason."},
-            "words": _WORDS,
-        },
+        RaiseConcernArgs,
     ),
-    _fn(
+    _tool(
         "request_human",
         "The senior asked for a person, or the conversation cannot go on.",
-        {"reason": {"type": "string", "description": "A short reason."}},
+        RequestHumanArgs,
     ),
-    _fn(
+    _tool(
         "end_call",
         "The conversation is finished. Refused until all three answers are recorded.",
-        {
-            "summary": {
-                "type": "string",
-                "description": "One sentence, in Romanian.",
-            }
-        },
+        EndCallArgs,
     ),
 ]
 

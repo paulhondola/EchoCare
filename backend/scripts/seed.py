@@ -1,11 +1,13 @@
 """Fill the local database with fictitious people and their history, a starting point for
 the dashboard and the apps. The demo uses fictitious people only (05 §5).
 
-Twenty seniors in Timișoara, one or more in every enrollment state, with their medics
+Twenty-one seniors in Timișoara, one or more in every enrollment state, with their medics
 and caregivers; a second DAS employee; a cold-weather campaign; wellbeing calls with
 their transcripts, answers and status reports; watch check-ins; and fourteen incidents,
 four open, four in progress and six resolved, so every dashboard screen has something
-on it.
+on it. One of them, Eugenia Tudor, is the summary demo: six wellbeing calls over three
+weeks that show a slow decline and a broken heater, each with a fixed-text summary
+version, so the briefing and its observations show with no model or key (design §6).
 
 The seniors and their history have fixed uuid5 ids, so a second run adds nothing.
 --reset deletes every senior the seed made and everything about them, including calls,
@@ -40,7 +42,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import sync_senior_grant
-from app.calls.ending import redial_delay
+from app.calls.ending import campaign_reason, redial_delay
 from app.core.db import Base, Session
 from app.core.phones import is_mobile
 from app.core.settings import db_host, get_settings, is_local_db
@@ -67,6 +69,7 @@ from app.models import (
     SeniorStatus,
     Speaker,
     StatusReport,
+    SummaryVersion,
     TurnKind,
     User,
     WarningLevel,
@@ -74,6 +77,7 @@ from app.models import (
     WatchState,
     WelcomeOutcome,
 )
+from app.seniors.schemas import Citation, FollowUp, SummaryContent, Trend
 from app.status.engine import BUCHAREST, Certainty, Question, Severity
 from app.voice.calls import CallState, was_answered
 from app.voice.dialogue import CONSENT_TEXT, CONSENT_VERSION
@@ -282,6 +286,13 @@ SENIORS = (
         {"street": "Calea Martirilor", "street_number": "40", "block": "11",
          "staircase": "B", "floor": "4", "apartment": "19", "intercom_code": "19"},
     ),
+    # The summary demo (design §6): a slow decline, no incident.
+    SeniorSpec(
+        "eugenia", "Eugenia Tudor", "doamna Eugenia", "+40700000121",
+        EnrollmentState.active, MEDIC, 30,
+        address={"street": "Strada Pestalozzi", "street_number": "14", "floor": "2",
+                 "apartment": "7", "intercom_code": "7"},
+    ),
 )
 # fmt: on
 
@@ -336,6 +347,8 @@ class History:
         self.calls: list[Call] = []
         # Everything else; each row points only at seniors, users and calls.
         self.rows: list[Base] = []
+        # Summary versions, in call order: each one points at the one before.
+        self.summaries: list[SummaryVersion] = []
 
     def ago(self, minutes: float) -> datetime:
         return self.now - timedelta(minutes=minutes)
@@ -758,6 +771,21 @@ class History:
             CallState.unanswered,
             previous=first,
             welcome=WelcomeOutcome.no_answer,
+        )
+
+    def summarize(self, senior: str, call: Call, **content: Any) -> None:
+        """The fixed-text version for `call`, chained to the one before (design §6)."""
+        n = len(self.summaries) + 1
+        self.summaries.append(
+            SummaryVersion(
+                id=seed_id("summary", senior, str(n)),
+                senior_id=self.seniors[senior].id,
+                call_id=call.id,
+                previous_id=self.summaries[-1].id if self.summaries else None,
+                content=SummaryContent(**content).model_dump(mode="json"),
+                model="seed",
+                created_at=call.ended_at + timedelta(seconds=30),
+            )
         )
 
     def cold_call(
@@ -1372,7 +1400,156 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     # Each after DAS accepted them, 20 hours after registering (`register`).
     h.welcome_unreached("stefan", 5)
     h.welcome_unreached("rodica", 6, wrong=True)
+    decline(h)
     return h
+
+
+def decline(h: History) -> None:
+    """Eugenia Tudor: six answered wellbeing calls over three weeks (design §6). The
+    wrong day in two of the last three, going out less, and a broken heater at the end."""
+    h.welcome("eugenia", 29)
+    days = (21, 17, 13, 9, 6, 3)
+    ok = ("yes", "Da, am căldură.")
+
+    def right(m: float) -> tuple[str, str]:
+        named = h.day(m * 24 * 60)
+        return named, f"{named.capitalize()}."
+
+    slips: list[str] = []  # what she said on each wrong day, as cited
+
+    def wrong(m: float) -> tuple[str, str]:
+        named = DAY_NAMES[(DAY_NAMES.index(h.day(m * 24 * 60)) + 1) % 7]
+        slips.append(f"Cred că e {named}")
+        return named, f"{slips[-1]}, nu?"
+
+    plan = (
+        (("ok", "Bine, mulțumesc, mă descurc."), right, ok),
+        (("ok", "Bine, doar mă doare puțin spatele."), right, ok),
+        (("ok", "Bine, dar am dormit prost."), right, ok),
+        (("ok", "Bine, dar nu prea mai ies din casă."), wrong, ok),
+        (("ok", "Bine, mulțumesc."), right, ok),
+        (
+            ("ok", "Mai merge, nu prea mai ies din casă."),
+            wrong,
+            ("no", "Nu merge caloriferul de câteva zile."),
+        ),
+    )
+    calls: list[Call] = []
+    for i, (feeling, day, shelter) in enumerate(plan):
+        # 03 §3: a wrong day or no heat on a cold campaign is yellow.
+        worrying = [
+            q
+            for q, bad in (
+                (Question.orientation, day is wrong),
+                (Question.shelter, shelter[0] == "no"),
+            )
+            if bad
+        ]
+        calls.append(
+            h.cold_call(
+                "eugenia",
+                f"campaign-{i + 1}",
+                days[i] * 24 * 60,
+                previous=None,
+                feeling=feeling,
+                day=day(days[i]),
+                shelter=shelter,
+                final=Severity.yellow if worrying else Severity.green,
+                reason=campaign_reason(worrying, CampaignKind.cold),
+                summary=f"Doamna Eugenia: {feeling[1]} {shelter[1]}",
+            )
+        )
+    h.status("eugenia", calls[-1])
+    _, c2, c3, c4, _, c6 = (c.id for c in calls)
+    back = FollowUp(
+        topic="durerea de spate",
+        question="Cum vă mai simțiți spatele, doamna Eugenia?",
+        call_id=c2,
+        quote="doar mă doare puțin spatele",
+    )
+    out = FollowUp(
+        topic="nu prea mai iese din casă",
+        question="Ați mai ieșit puțin la aer în zilele astea, doamna Eugenia?",
+        call_id=c4,
+        quote="nu prea mai ies din casă",
+    )
+    heater = FollowUp(
+        topic="caloriferul nu merge",
+        question="Data trecută mi-ați spus că nu merge caloriferul. S-a rezolvat?",
+        call_id=c6,
+        quote="nu merge caloriferul",
+    )
+    h.summarize(
+        "eugenia",
+        calls[0],
+        follow_ups=[],
+        how_to_talk=["Vorbește clar și răspunde scurt."],
+        trends=[],
+        narrative="Doamna Eugenia răspunde ușor și se descurcă singură. Nicio "
+        "problemă la primul apel.",
+    )
+    h.summarize(
+        "eugenia",
+        calls[1],
+        follow_ups=[back],
+        how_to_talk=["Vorbește clar și răspunde scurt."],
+        trends=[],
+        narrative="Doamna Eugenia se descurcă singură, dar a amintit o durere ușoară "
+        "de spate.",
+    )
+    h.summarize(
+        "eugenia",
+        calls[2],
+        follow_ups=[
+            back,
+            FollowUp(
+                topic="somnul",
+                question="Ați dormit mai bine în ultimele nopți?",
+                call_id=c3,
+                quote="am dormit prost",
+            ),
+        ],
+        how_to_talk=["Vorbește clar și răspunde scurt."],
+        trends=[],
+        narrative="Doamna Eugenia se descurcă singură. A amintit o durere de spate "
+        "și un somn prost.",
+    )
+    h.summarize(
+        "eugenia",
+        calls[3],
+        follow_ups=[out],
+        how_to_talk=["Vorbiți rar și lăsați-o să răspundă fără grabă."],
+        trends=[],
+        narrative="Doamna Eugenia spune că nu prea mai iese din casă și a încurcat "
+        "ziua săptămânii o dată.",
+    )
+    h.summarize(
+        "eugenia",
+        calls[4],
+        follow_ups=[out],
+        how_to_talk=["Vorbiți rar și lăsați-o să răspundă fără grabă."],
+        trends=[],
+        narrative="Doamna Eugenia a spus corect ziua și se simte bine, dar nu a "
+        "ieșit din casă în ultima vreme.",
+    )
+    h.summarize(
+        "eugenia",
+        calls[5],
+        follow_ups=[heater, out],
+        how_to_talk=["Vorbiți rar și lăsați-o să răspundă fără grabă."],
+        trends=[
+            Trend(
+                note="A încurcat ziua săptămânii în două dintre ultimele trei apeluri.",
+                direction="worse",
+                evidence=[
+                    Citation(call_id=c4, quote=slips[0]),
+                    Citation(call_id=c6, quote=slips[1]),
+                ],
+            )
+        ],
+        narrative="Doamna Eugenia nu prea mai iese din casă și a încurcat ziua în două "
+        "din ultimele trei apeluri. Spune că nu merge caloriferul de câteva zile.",
+    )
 
 
 async def add_people(session: AsyncSession) -> dict[str, uuid.UUID]:
@@ -1435,6 +1612,8 @@ async def save(session: AsyncSession, history: History) -> None:
     await session.flush()
     session.add_all(history.rows)
     await session.flush()
+    session.add_all(history.summaries)  # in order, each after the one it follows
+    await session.flush()
 
 
 async def remove(session: AsyncSession) -> None:
@@ -1443,6 +1622,9 @@ async def remove(session: AsyncSession) -> None:
     Users, staff grants and the campaign stay."""
     seniors = select(Senior.id).where(SEEDED)
     calls = select(Call.id).where(Call.senior_id.in_(seniors))
+    await session.execute(
+        delete(SummaryVersion).where(SummaryVersion.senior_id.in_(seniors))
+    )
     for table in (CallTurn, Answer, StatusReport):
         await session.execute(delete(table).where(table.call_id.in_(calls)))
     for table in (Incident, SeniorStatus, WatchState, Consent, Event):

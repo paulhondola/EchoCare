@@ -41,6 +41,7 @@ def test_every_entity_has_a_table():
         "seniors",
         "consents",
         "watch_states",
+        "senior_summaries",
         "events",
         "campaigns",
         "calls",

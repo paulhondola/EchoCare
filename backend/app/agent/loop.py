@@ -12,9 +12,20 @@ import json
 import logging
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import aclosing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
+
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 
 from app.agent.model import ModelStream, ToolCall
 from app.agent.prompt import instructions
@@ -73,21 +84,11 @@ def _log_failure(task: asyncio.Task) -> None:
         log.error("agent task failed", exc_info=e)
 
 
-def _assistant(text: str, calls: list[ToolCall]) -> dict[str, Any]:
-    message: dict[str, Any] = {"role": "assistant", "content": text or None}
-    if calls:
-        message["tool_calls"] = [
-            {
-                "id": c.id,
-                "type": "function",
-                "function": {
-                    "name": c.name,
-                    "arguments": json.dumps(c.arguments, ensure_ascii=False),
-                },
-            }
-            for c in calls
-        ]
-    return message
+def _assistant(text: str, calls: list[ToolCall]) -> ModelResponse:
+    spoken = [TextPart(text)] if text else []
+    return ModelResponse(
+        [*spoken, *(ToolCallPart(c.name, c.arguments, c.id) for c in calls)]
+    )
 
 
 class Agent:
@@ -98,6 +99,8 @@ class Agent:
         greeting: str,
         form_of_address: str,
         heat: bool,
+        follow_up: str | None = None,
+        how_to_talk: tuple[str, ...] = (),
         send: Send,
         line: Line,
         model: ModelStream,
@@ -112,9 +115,15 @@ class Agent:
         self.limits = limits
         self.rules = CallRules(today or today_in_bucharest())
         # The greeting is the conversation's first agent turn (design §4, Call context).
-        self.history: list[dict[str, Any]] = [
-            {"role": "system", "content": instructions(form_of_address, heat)},
-            {"role": "assistant", "content": greeting},
+        self.history: list[ModelMessage] = [
+            ModelRequest(
+                [
+                    SystemPromptPart(
+                        instructions(form_of_address, heat, follow_up, how_to_talk)
+                    )
+                ]
+            ),
+            ModelResponse([TextPart(greeting)]),
         ]
         # The history index of the model's last spoken text, which an interrupt cuts
         # down to what was heard; None while the current turn has spoken nothing yet.
@@ -273,7 +282,7 @@ class Agent:
         await self._cancel(self._turn)
         if self._ending:  # the cancelled turn handed over (03 §6)
             return
-        self.history.extend({"role": "user", "content": w} for w in said)
+        self.history.extend(ModelRequest([UserPromptPart(w)]) for w in said)
         self._spoken = None
         self._turn = self._spawn(self._run_turn())
 
@@ -282,8 +291,14 @@ class Agent:
         for n in range(1, self.limits.rounds + 1):
             try:
                 text, calls, json_like = await self._round()
-            except Exception:  # a provider error or no first item in time
-                log.exception("model round failed, call %s", self.call)
+            except Exception as e:  # noqa: BLE001 - a provider error or no first item
+                # Type only: a provider error can echo the request, the senior's words.
+                log.error(
+                    "model round failed, call %s: %s %s",
+                    self.call,
+                    type(e).__name__,
+                    getattr(e, "status_code", None),
+                )
                 await self._finish(DROPPED_SUMMARY, dropped=True, said=FAILURE)
                 return
             outcomes = [self.rules.run(c.name, c.arguments) for c in calls]
@@ -293,10 +308,15 @@ class Agent:
                 self._spoken = len(self.history)
             if text or calls:
                 self.history.append(_assistant(text, calls))
-            self.history.extend(
-                {"role": "tool", "tool_call_id": c.id, "content": o.result}
-                for c, o in zip(calls, outcomes, strict=True)
-            )
+            if calls:
+                self.history.append(
+                    ModelRequest(
+                        [
+                            ToolReturnPart(c.name, o.result, c.id)
+                            for c, o in zip(calls, outcomes, strict=True)
+                        ]
+                    )
+                )
             for o in outcomes:
                 if o.end is not None:
                     self._summary = o.end
@@ -489,11 +509,14 @@ class Agent:
         """Keep only what the senior heard of the model's last text (design §4)."""
         if self._spoken is None:  # cut mid-stream, or the stall line
             if spoken:
-                self.history.append({"role": "assistant", "content": spoken})
+                self.history.append(ModelResponse([TextPart(spoken)]))
             return
-        message = self.history[self._spoken]
-        message["content"] = spoken or None
-        if not spoken and "tool_calls" not in message:
+        response = self.history[self._spoken]
+        calls = [p for p in response.parts if isinstance(p, ToolCallPart)]
+        if spoken or calls:
+            heard = [TextPart(spoken)] if spoken else []
+            self.history[self._spoken] = replace(response, parts=[*heard, *calls])
+        else:
             del self.history[self._spoken]
             self._spoken = None
 

@@ -68,7 +68,7 @@ flowchart TB
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
 | Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
 | Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over and transcribes it live, sends the caregiver notice SMS |
-| Model provider | The language model behind the agent | Not yet chosen; see [04-interfaces.md](04-interfaces.md) section 5 |
+| Model provider | The language model behind the agent and the summary agent | DeepInfra, an OpenAI-compatible endpoint (S4); see [04-interfaces.md](04-interfaces.md) section 5 |
 
 ## 4. Channels
 
@@ -235,7 +235,8 @@ flowchart LR
 | Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store | `auth`: `users`, `grants`, `push_tokens` |
 | Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store | `seniors`: `seniors`, `consents`, `watch_states`; `incidents`: `incidents`, `events`; `campaigns`: `campaigns` |
 | Senior event intake | Receives events, check-ins and room readings forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule; turns a room reading that stays out of range into an event (P21) | Store | nothing; writes events and watch states through `incidents` and `seniors` |
-| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store | nothing; queues and moves calls through `voice` |
+| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick. A summary step starts one background task per answered call and returns; it never waits on the model (06 §2) | Store, Summary agent | nothing; queues and moves calls through `voice` |
+| Summary agent | After a wellbeing call, updates a short Romanian summary of the senior (follow-ups, how to talk, trend notes, a narrative) from the call and earlier ones; checks that every quote is the senior's own words. Pure and model-agnostic; the scheduler's summary step runs it. Never feeds the rules (design 2026-11-08 §3) | Model provider | nothing; through `seniors` (`senior_summaries`) |
 | Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store | `voice`: `calls`, `call_turns`, `answers` |
 | Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store | nothing; through `seniors` and `voice` |
 | Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider | nothing; `agent` reads and writes the call through `voice` only |
@@ -245,7 +246,7 @@ flowchart LR
 
 The rules and status engine has no dependencies on purpose: every rule and every cell of the matrix can be tested without a phone, a model or a database.
 
-**The agent loop is written directly against the model provider's library**, not inside an agent framework. The server refuses tool calls, matches alarm phrases before the model sees a sentence, and cuts the model's reply short on an interruption; a framework's own loop would be in the way.
+**Pydantic AI at the model layer; the turn control stays ours.** The live call loop asks Pydantic AI for one streamed model round at a time (`model_request_stream`), with its message types and tool schemas built from Pydantic models, and never runs an agent graph (`Agent.iter()`, `run_stream()`). The server refuses tool calls, matches alarm phrases before the model sees a sentence, cuts the model's reply short on an interruption, caps a turn at three rounds and keeps a red hand-over through a cancel; a framework's own loop would be in the way. The summary agent, which has no live constraints, is an ordinary Pydantic AI `Agent`.
 
 **Everything in the request path is asynchronous.** One blocking database call or web request in this process would pause every live conversation.
 

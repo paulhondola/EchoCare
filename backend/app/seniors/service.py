@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import (
     ColumnElement,
     Select,
@@ -37,6 +38,7 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     Senior,
+    SummaryVersion,
     WatchCondition,
     WatchState,
 )
@@ -50,6 +52,8 @@ from app.seniors.schemas import (
     SeniorSummary,
     SeniorView,
     SignatureForm,
+    SummaryContent,
+    SummaryVersionView,
 )
 
 log = logging.getLogger("echocare.seniors")
@@ -790,3 +794,71 @@ async def silence_watches(session: AsyncSession, now: datetime) -> int:
     if silent:
         log.info("%d watches gone offline", len(silent))
     return len(silent)
+
+
+def add_summary(
+    session: AsyncSession,
+    *,
+    senior_id: uuid.UUID,
+    call_id: uuid.UUID,
+    previous_id: uuid.UUID | None,
+    content: SummaryContent,
+    model: str,
+) -> None:
+    """A new version; the caller commits (design §4)."""
+    session.add(
+        SummaryVersion(
+            senior_id=senior_id,
+            call_id=call_id,
+            previous_id=previous_id,
+            content=content.model_dump(mode="json"),
+            model=model,
+        )
+    )
+
+
+async def latest_summary(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> SummaryVersion | None:
+    return await session.scalar(
+        select(SummaryVersion)
+        .where(SummaryVersion.senior_id == senior_id)
+        .order_by(SummaryVersion.created_at.desc(), SummaryVersion.id.desc())
+        .limit(1)
+    )
+
+
+def read_content(version: SummaryVersion) -> SummaryContent | None:
+    """None when the stored JSON no longer fits the shape; logs the id, never the text."""
+    try:
+        return SummaryContent.model_validate(version.content)
+    except ValidationError:
+        log.warning("summary %s no longer validates", version.id)
+        return None
+
+
+def summary_view(version: SummaryVersion | None) -> SummaryVersionView | None:
+    """None when there is no version or its JSON is stale: no briefing either way."""
+    content = version and read_content(version)
+    if version is None or content is None:
+        return None
+    return SummaryVersionView(
+        content=content, call_id=version.call_id, created_at=version.created_at
+    )
+
+
+async def summary_for(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> SummaryVersionView | None:
+    """The briefing for the senior's registering medic and DAS past `draft`; the
+    caregiver and the senior get 404 like a stranger (04 §1, design §5 B)."""
+    reached = await session.scalar(
+        select(Senior.id).where(
+            Senior.id == senior_id,
+            or_(reach(caller, Role.medic), reach(caller, Role.das)),
+        )
+    )
+    if reached is None:
+        log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
+        raise refuse(404, "not_found")
+    return summary_view(await latest_summary(session, senior_id))

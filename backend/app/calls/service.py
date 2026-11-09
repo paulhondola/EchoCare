@@ -14,10 +14,10 @@ from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
 from app.seniors.models import Senior
-from app.seniors.service import reach, reach_senior
+from app.seniors.service import latest_summary, reach, reach_senior, read_content
 from app.voice.calls import CallState
 from app.voice.dialogue import wellbeing_greeting
-from app.voice.models import Answer, Call, CallTrigger, CallTurn
+from app.voice.models import WELLBEING, Answer, Call, CallTrigger, CallTurn
 from app.voice.service import cancel_queued, queue_calls
 
 log = logging.getLogger("echocare.calls")
@@ -130,16 +130,26 @@ class AnswerContext:
     form_of_address: str
     greeting: str
     heat: bool = False
+    # The latest summary's first follow-up and its notes; wellbeing calls only (design §5 A).
+    follow_up: str | None = None
+    how_to_talk: tuple[str, ...] = ()
 
 
 async def answer_context(
-    session: AsyncSession, call_id: uuid.UUID
+    session: AsyncSession, call_id: uuid.UUID, *, notes: bool = False
 ) -> AnswerContext | None:
     """The call's trigger and its greeting, with the campaign's warning for a campaign
-    call; None for an unknown call."""
+    call; None for an unknown call. `notes` also reads the senior's summary, which only
+    the relay needs: the answer to Twilio must not wait for it (design §5 A)."""
     row = (
         await session.execute(
-            select(Call.trigger, Senior.form_of_address, Campaign.kind, Campaign.level)
+            select(
+                Call.trigger,
+                Senior.id,
+                Senior.form_of_address,
+                Campaign.kind,
+                Campaign.level,
+            )
             .join(Senior, Senior.id == Call.senior_id)
             .outerjoin(Campaign, Campaign.id == Call.campaign_id)
             .where(Call.id == call_id)
@@ -153,9 +163,23 @@ async def answer_context(
         if row.trigger is CallTrigger.welcome
         else wellbeing_greeting(row.form_of_address, row.trigger, row.kind, row.level)
     )
+    follow_up, how_to_talk = None, ()
+    if notes and row.trigger in WELLBEING:
+        # The call goes ahead without the notes if they cannot be read (design §5 A).
+        try:
+            version = await latest_summary(session, row.id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
+            version = None
+        content = read_content(version) if version else None
+        if content:
+            follow_up = content.follow_ups[0].question if content.follow_ups else None
+            how_to_talk = tuple(content.how_to_talk)
     return AnswerContext(
         row.trigger,
         row.form_of_address,
         said,
         heat=row.kind is CampaignKind.heat,
+        follow_up=follow_up,
+        how_to_talk=how_to_talk,
     )
