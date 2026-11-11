@@ -71,12 +71,12 @@
 </script>
 
 <PageHeader title="Dispecerat Incidente">
-  <div class="flex gap-0.5" role="tablist" aria-label="Vizualizare">
+  <!-- Two views of the same incidents: toggle buttons, not tabs -->
+  <div class="flex gap-0.5" role="group" aria-label="Vizualizare">
     {#each [{ key: "board", label: "Panou", icon: "board" }, { key: "table", label: "Tabel", icon: "table" }] as const as v (v.key)}
       <button
         type="button"
-        role="tab"
-        aria-selected={view === v.key}
+        aria-pressed={view === v.key}
         class={[
           "-mb-0.5 flex cursor-pointer items-center gap-[7px] border-b-2 px-3 py-2 font-semibold",
           view === v.key ? "border-link text-fg" : "border-transparent text-fg-muted hover:text-fg",
