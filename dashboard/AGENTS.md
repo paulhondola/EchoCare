@@ -25,6 +25,7 @@ dashboard/
 │   ├── features/                    domain feature components
 │   │   ├── shell/                   Shell (Cod Roșu banner and incident dossier over every page), Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
+│   │   ├── landing/                 Landing: what a signed-out visitor sees first; „Intrați în cont” opens SignIn
 │   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over
 │   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over
 │   │   ├── enrollments/             Enrollments: review and Acceptă
