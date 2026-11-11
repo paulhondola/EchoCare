@@ -140,7 +140,10 @@ class MainActivity : ComponentActivity() {
         phone: String,
         resend: PhoneAuthProvider.ForceResendingToken?
     ) {
-        vm.sending(phone)
+        val attempt = vm.sending(phone)
+
+        // Late callbacks from an attempt left with Înapoi, or replaced by a resend, change nothing
+        fun current() = attempt == vm.attempt
         val options = PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(phone)
             .setTimeout(60L, TimeUnit.SECONDS)
@@ -148,16 +151,20 @@ class MainActivity : ComponentActivity() {
             .setCallbacks(
                 object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                     // Automatic SMS reading: sign in straight away.
-                    override fun onVerificationCompleted(credential: PhoneAuthCredential) =
-                        vm.signIn(credential)
+                    override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                        if (current()) vm.signIn(credential)
+                    }
 
-                    override fun onVerificationFailed(e: FirebaseException) =
-                        vm.verificationFailed(e)
+                    override fun onVerificationFailed(e: FirebaseException) {
+                        if (current()) vm.verificationFailed(e)
+                    }
 
                     override fun onCodeSent(
                         id: String,
                         token: PhoneAuthProvider.ForceResendingToken
-                    ) = vm.codeSent(id, token)
+                    ) {
+                        if (current()) vm.codeSent(id, token)
+                    }
                 }
             )
         resend?.let(options::setForceResendingToken)

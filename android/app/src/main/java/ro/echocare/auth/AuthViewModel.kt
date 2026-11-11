@@ -72,6 +72,13 @@ class AuthViewModel @Inject constructor(
     var resendToken: PhoneAuthProvider.ForceResendingToken? = null
         private set
 
+    /**
+     * Firebase can't cancel a verification, so each code sent, and each step back to the landing,
+     * starts a new attempt: the Activity drops callbacks from an older one.
+     */
+    var attempt = 0
+        private set
+
     private lateinit var verificationId: String
     private lateinit var me: Me
     private var resendTimer: Job? = null
@@ -90,12 +97,15 @@ class AuthViewModel @Inject constructor(
 
     /** Back from the phone or code step, before anyone is signed in. */
     fun backToLanding() {
+        attempt++
         screen = Screen.Landing
     }
 
-    fun sending(phone: String) {
+    /** Returns the new attempt, for the Activity to compare its callbacks against. */
+    fun sending(phone: String): Int {
         this.phone = phone
         screen = Screen.Loading
+        return ++attempt
     }
 
     fun codeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
@@ -186,7 +196,8 @@ class AuthViewModel @Inject constructor(
 
     /**
      * A read after sign-in was refused as signed out or not registered (seniors §8.2): a grant
-     * revoked mid-session ends the session, with the not-registered text.
+     * revoked mid-session ends the session, with the not-registered text. Signed out, it opens the
+     * phone form rather than the landing, as a 401 from /me does: this person was just signed in.
      */
     fun sessionEnded(failure: Failure) =
         show(if (failure == Failure.NotRegistered) Screen.NotRegistered else Screen.Phone())

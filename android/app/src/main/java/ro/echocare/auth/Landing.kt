@@ -11,7 +11,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -233,7 +235,7 @@ private fun Chain(modifier: Modifier = Modifier) {
         }
         HorizontalDivider(thickness = 1.dp, color = Palette.Line)
         Box(Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 12.dp, vertical = 6.dp)) {
-            Trace(trace.value, Modifier.fillMaxSize())
+            Trace({ trace.value }, Modifier.fillMaxSize())
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("128", color = Palette.Fg, style = Mono.copy(fontSize = 20.sp))
                 Text(
@@ -292,7 +294,7 @@ private fun Chain(modifier: Modifier = Modifier) {
             )
             Text(
                 stringResource(R.string.landing_red_note),
-                color = Color(0xFFFFD8D3),
+                color = lerp(Palette.Fg, Palette.RosuFg, 0.35f),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -333,29 +335,35 @@ private val RACING = listOf(
     430 to 22, 440 to 78, 450 to 60, 480 to 60
 )
 
-/** The calm line, and the racing one drawn up to [progress]. */
+/**
+ * The calm line, and the racing one drawn up to [progress]. Read while drawing, so the animation
+ * redraws only this; the paths are built once per size.
+ */
 @Composable
-private fun Trace(progress: Float, modifier: Modifier = Modifier) {
-    val measure = remember { PathMeasure() }
-    Canvas(modifier) {
-        fun path(points: List<Pair<Int, Int>>) = Path().apply {
-            points.forEachIndexed { i, (x, y) ->
-                val px = x / 480f * size.width
-                val py = y / 92f * size.height
-                if (i == 0) moveTo(px, py) else lineTo(px, py)
+private fun Trace(progress: () -> Float, modifier: Modifier = Modifier) {
+    Spacer(
+        modifier.drawWithCache {
+            fun path(points: List<Pair<Int, Int>>) = Path().apply {
+                points.forEachIndexed { i, (x, y) ->
+                    val px = x / 480f * size.width
+                    val py = y / 92f * size.height
+                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                }
+            }
+            val calm = path(CALM)
+            val measure = PathMeasure().apply { setPath(path(RACING), false) }
+            val drawn = Path()
+            val calmStroke = Stroke(2.dp.toPx())
+            val hotStroke =
+                Stroke(2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+            onDrawBehind {
+                drawPath(calm, Palette.LineStrong, style = calmStroke)
+                drawn.reset()
+                measure.getSegment(0f, measure.length * progress(), drawn, true)
+                drawPath(drawn, Palette.Rosu, style = hotStroke)
             }
         }
-        drawPath(path(CALM), Palette.LineStrong, style = Stroke(2.dp.toPx()))
-        val racing = path(RACING)
-        measure.setPath(racing, false)
-        val drawn = Path()
-        measure.getSegment(0f, measure.length * progress, drawn, true)
-        drawPath(
-            drawn,
-            Palette.Rosu,
-            style = Stroke(2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-    }
+    )
 }
 
 @Composable
