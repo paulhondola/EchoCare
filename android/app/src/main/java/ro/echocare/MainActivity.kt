@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -33,6 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -104,7 +109,11 @@ class MainActivity : ComponentActivity() {
                             vm,
                             onSendCode = { sendCode(vm, it, null) },
                             onResend = { sendCode(vm, vm.phone, vm.resendToken) },
-                            modifier = Modifier.padding(innerPadding)
+                            // The keyboard must not cover the code field or its button
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .consumeWindowInsets(innerPadding)
+                                .imePadding()
                         )
                     }
                 }
@@ -281,7 +290,12 @@ private fun Title(text: Int) {
 
 @Composable
 private fun ErrorText(text: Int) {
-    Text(stringResource(text), color = Palette.RosuFg, style = MaterialTheme.typography.bodyMedium)
+    Text(
+        stringResource(text),
+        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        color = Palette.RosuFg,
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
 
 @Composable

@@ -31,8 +31,10 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -93,7 +95,7 @@ fun SnButton(
     Row(
         modifier
             .alpha(if (enabled) 1f else 0.45f)
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .background(fill)
             .border(1.dp, border)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
@@ -111,7 +113,7 @@ fun SnButton(
 fun SquareIconButton(painter: Painter, description: String, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(44.dp)
+            .size(48.dp)
             .border(1.dp, Palette.Line)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -179,7 +181,13 @@ fun Banner(text: String, tone: Tone, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(8.dp).background(tone.dot))
-            Text(text, color = tone.text, style = MaterialTheme.typography.labelLarge)
+            // Banners appear on a change (sent, refused, offline): TalkBack reads them out
+            Text(
+                text,
+                Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                color = tone.text,
+                style = MaterialTheme.typography.labelLarge
+            )
         }
         HorizontalDivider(thickness = 2.dp, color = tone.dot)
     }
@@ -266,7 +274,12 @@ fun SnTextField(
             )
         )
         error?.let {
-            Text(it, color = Palette.RosuFg, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                it,
+                Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                color = Palette.RosuFg,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }

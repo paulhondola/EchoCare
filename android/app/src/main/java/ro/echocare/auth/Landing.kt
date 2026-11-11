@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -257,7 +257,7 @@ private fun Chain(modifier: Modifier = Modifier) {
                 Row(Modifier.alpha(alpha).padding(horizontal = 12.dp, vertical = 5.dp)) {
                     Text(
                         at,
-                        Modifier.width(66.dp),
+                        Modifier.widthIn(min = 62.dp).padding(end = 4.dp),
                         color = Palette.FgMuted,
                         style = Mono.copy(fontSize = 11.sp, lineHeight = 18.sp)
                     )
