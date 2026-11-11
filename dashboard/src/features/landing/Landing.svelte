@@ -24,7 +24,7 @@
       text: "Domnule Pavel, ceasul arată un puls mare. Cum vă simțiți?",
       quote: true,
     },
-    { at: "14:20:58", source: "senior", text: "Mă învârte capul…", quote: true },
+    { at: "14:20:58", source: "senior", text: "Mă apasă pe piept…", quote: true },
     { at: "14:20:58", source: "reguli", text: "Frază de alarmă recunoscută. Cod roșu." },
     { at: "14:21:01", source: "das", text: "Apelul trece la dispecerul de serviciu", delta: "+3s" },
   ];
@@ -71,8 +71,8 @@
       icon: "scale",
       tone: "text-rosu-fg",
       title: "Decide",
-      text: "Codul îl pun reguli fixe, nu modelul. O frază de alarmă duce direct la roșu.",
-      sample: "„mă învârte capul” → roșu",
+      text: "Codul îl pun reguli fixe; modelul îl poate doar ridica. O frază de alarmă gravă duce direct la roșu.",
+      sample: "„mă apasă pe piept” → roșu",
     },
     {
       icon: "headset",
@@ -363,7 +363,7 @@
     opacity: 1;
   }
   .verdict-note {
-    color: #ffd8d3;
+    color: color-mix(in srgb, var(--color-rosu-fg) 35%, var(--color-fg));
   }
 
   .does {

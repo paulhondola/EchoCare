@@ -32,6 +32,9 @@
         return;
       }
       view = { kind: "loading" };
+      // So any sign-out from here lands on the landing page again; a refusal's notice still
+      // shows the sign-in card
+      signingIn = false;
       const refuse = (notice: string) => {
         view = { kind: "signedOut", notice };
         void signOut(auth);
@@ -41,11 +44,9 @@
           if (me === "not_registered") refuse(NOT_REGISTERED);
           else if (me === "not_signed_in") return;
           else if (typeof me === "string") view = { kind: "unavailable" };
-          else if (me.grants.some((g) => g.role === "das")) {
+          else if (me.grants.some((g) => g.role === "das"))
             view = { kind: "das", name: me.display_name };
-            // So Ieșire lands on the landing page again, not on the sign-in card
-            signingIn = false;
-          } else refuse(NO_ACCESS);
+          else refuse(NO_ACCESS);
         })
         .catch((err: unknown) => {
           console.error(err);
