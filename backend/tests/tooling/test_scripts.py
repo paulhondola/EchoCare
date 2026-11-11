@@ -1,15 +1,18 @@
-from types import SimpleNamespace
+import uuid
+from dataclasses import replace
+from datetime import UTC, datetime
 
 import httpx
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 
 from app.core.settings import get_settings
-from app.memory.writer import CallFacts, SummaryInput, citation_errors
+from app.memory.service import ENDED_ANSWERED, summary_input
+from app.memory.writer import citation_errors
 from app.models import (
-    Answer,
     Call,
-    CallTurn,
+    Campaign,
+    EnrollmentState,
     Grant,
     Incident,
     Role,
@@ -18,8 +21,9 @@ from app.models import (
     User,
 )
 from app.seniors.schemas import SummaryContent
-from app.status.engine import BUCHAREST, Severity
+from app.status.engine import Severity
 from app.voice.calls import CallState
+from app.voice.models import WELLBEING
 from scripts import seed as seed_script
 from scripts.grant_das import grant_das
 from scripts.place_call import place_call
@@ -81,6 +85,34 @@ async def demo_versions(db) -> list[SummaryVersion]:
     return list(rows)
 
 
+async def all_versions(db) -> dict[uuid.UUID, list[SummaryVersion]]:
+    """Each senior's versions, oldest first."""
+    chains: dict[uuid.UUID, list[SummaryVersion]] = {}
+    for v in await db.scalars(
+        select(SummaryVersion).order_by(SummaryVersion.created_at)
+    ):
+        chains.setdefault(v.senior_id, []).append(v)
+    return chains
+
+
+def test_a_second_seniors_first_version_starts_its_own_chain():
+    """Nicolae refused on the welcome call, so he has no version of his own; his first
+    must not chain to another senior's latest (design §4)."""
+    h = seed_script.build(datetime.now(UTC), fake_users())
+    assert h.summaries  # other seniors' versions come first
+    welcome = next(c for c in h.calls if c.senior_id == h.seniors["nicolae"].id)
+    h.summarize(
+        "nicolae",
+        welcome,
+        follow_ups=[],
+        how_to_talk=[],
+        trends=[],
+        narrative="Domnul Nicolae nu vrea să fie sunat.",
+    )
+    assert h.summaries[-1].previous_id is None
+    assert h.summaries[-1].id == seed_script.seed_id("summary", "nicolae", "1")
+
+
 async def test_seed_writes_a_chain_of_versions(db):
     await seed(reset=True)
     versions = await demo_versions(db)
@@ -94,6 +126,10 @@ async def test_seed_writes_a_chain_of_versions(db):
     c4, c6 = versions[3].call_id, versions[5].call_id
     assert [e.call_id for e in latest.trends[0].evidence] == [c4, c6]
     assert latest.follow_ups[0].call_id == c6
+    # Every senior's versions form a chain of their own (design §4).
+    for chain in (await all_versions(db)).values():
+        assert chain[0].previous_id is None
+        assert [v.previous_id for v in chain[1:]] == [v.id for v in chain[:-1]]
 
 
 async def test_demo_calls_match_their_answers(db):
@@ -108,44 +144,69 @@ async def test_demo_calls_match_their_answers(db):
 
 
 async def test_seeded_citations_are_real(db):
+    """Every seeded version passes the writer's own check, on the input the live writer
+    builds: the current call's turns, and only answers for earlier calls (design §4)."""
     await seed(reset=True)
-    versions = await demo_versions(db)
-    assert len(versions) == 6
-    facts: list[CallFacts] = []
-    for v in versions:
-        call = await db.get(Call, v.call_id)
-        turns = await db.execute(
-            select(CallTurn.speaker, CallTurn.content)
-            .where(CallTurn.call_id == call.id)
-            .order_by(CallTurn.position)
+    for senior, chain in (await all_versions(db)).items():
+        previous = None
+        for i, v in enumerate(chain):
+            _, _, data = await summary_input(db, v.call_id)
+            data = replace(data, previous=previous)
+            content = SummaryContent.model_validate(v.content)
+            assert citation_errors(data, content) == [], (senior, i)
+            previous = content
+
+
+async def test_every_answered_wellbeing_call_has_a_version(db):
+    """Else the briefing skips it, and on staging with a key due_calls would send a
+    seeded call to the paid model (staging seed design §4.5)."""
+    await seed(reset=True)
+    missing = await db.scalars(
+        select(Call.id)
+        .join(Senior, Senior.id == Call.senior_id)
+        .where(
+            seed_script.SEEDED,
+            Senior.enrollment_state == EnrollmentState.active,
+            Call.trigger.in_(WELLBEING),
+            Call.state.in_(ENDED_ANSWERED),
+            ~exists().where(SummaryVersion.call_id == Call.id),
         )
-        answers = await db.execute(
-            select(Answer.field, Answer.value, Answer.clear, Answer.quote).where(
-                Answer.call_id == call.id
+    )
+    assert list(missing) == []
+
+
+async def test_latest_trends_show_every_direction(db):
+    await seed(reset=True)
+    directions = set()
+    for chain in (await all_versions(db)).values():
+        latest = SummaryContent.model_validate(chain[-1].content)
+        directions |= {t.direction for t in latest.trends}
+    assert directions >= {"worse", "better", "steady"}
+
+
+async def test_every_active_seeded_senior_has_a_briefing(db):
+    await seed(reset=True)
+    chains = await all_versions(db)
+    active = list(
+        await db.scalars(
+            select(Senior.id).where(
+                seed_script.SEEDED, Senior.enrollment_state == EnrollmentState.active
             )
         )
-        facts.append(
-            CallFacts(
-                id=call.id,
-                trigger=call.trigger.value,
-                campaign_kind=None,
-                date=call.due_at.astimezone(BUCHAREST).date(),
-                state=call.state.value,
-                final_severity=call.final_severity and call.final_severity.name,
-                final_certainty=call.final_certainty and call.final_certainty.name,
-                reason=call.reason,
-                turns=[(sp.value, text) for sp, text in turns],
-                answers=[tuple(a) for a in answers],
-            )
-        )
-    previous = None
-    for i, v in enumerate(versions):
-        content = SummaryContent.model_validate(v.content)
-        data = SummaryInput(
-            previous=previous, call=facts[i], earlier=list(reversed(facts[:i]))
-        )
-        assert citation_errors(data, content) == [], i
-        previous = content
+    )
+    assert active and all(s in chains for s in active)
+
+
+async def test_no_campaign_call_predates_its_campaign(db):
+    """A campaign's progress counts its calls (04 §2): calls from weeks before the running
+    campaign belong to an earlier one, or the card counts seniors it never called."""
+    await seed(reset=True)
+    early = await db.scalars(
+        select(Call.id)
+        .join(Campaign, Campaign.id == Call.campaign_id)
+        .where(Call.due_at < Campaign.started_at)
+    )
+    assert list(early) == []
 
 
 async def test_seed_reset_is_repeatable(db):
@@ -167,12 +228,63 @@ async def test_seed_reports_a_number_already_another_seniors(db, add_senior, cap
     assert "+40700000005 is already another senior's" in capsys.readouterr().err
 
 
-async def test_seed_refuses_a_cloud_database(monkeypatch):
-    cloud = SimpleNamespace(
-        database_url="postgresql://u:p@postgres.railway.internal/db"
-    )
-    monkeypatch.setattr(seed_script, "get_settings", lambda: cloud)
-    with pytest.raises(SystemExit, match="postgres.railway.internal"):
+def fake_users() -> dict[str, uuid.UUID]:
+    """What add_people returns, with no database: each number's user id."""
+    return {p.phone: uuid.uuid4() for p in seed_script.people()}
+
+
+async def test_seed_refuses_a_cloud_database_that_dials_everyone(monkeypatch):
+    """Staging seed design §2: the seeded numbers are made up, in a premium-rate range;
+    with DIAL_ALLOWLIST=* the first campaign would ring them."""
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.setattr(s, "app_env", "staging")
+    monkeypatch.setattr(s, "dial_allowlist", "*")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "d-1")
+    with pytest.raises(SystemExit, match="DIAL_ALLOWLIST"):
+        await seed(confirm="staging")
+
+
+def test_cloud_build_grants_no_das_and_lapses_the_campaign():
+    """Staging design §4.2, §4.3: only the team holds das there, and a campaign the team
+    starts is not answered by the seeded one."""
+    now = datetime.now(UTC)
+    h = seed_script.build(now, fake_users(), cloud=True)
+    assert Role.das not in {g["role"] for g in h.grants}
+    assert Role.medic in {g["role"] for g in h.grants}
+    assert h.campaign.warning_until < now
+
+
+def test_local_build_keeps_das_and_a_running_campaign():
+    now = datetime.now(UTC)
+    h = seed_script.build(now, fake_users())
+    assert Role.das in {g["role"] for g in h.grants}
+    assert h.campaign.warning_until > now
+
+
+async def test_seed_refuses_a_cloud_database_from_a_laptop(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.delenv("RAILWAY_DEPLOYMENT_ID", raising=False)
+    with pytest.raises(SystemExit, match="inside the api container"):
+        await seed(confirm="staging")
+
+
+async def test_seed_refuses_production_even_confirmed(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.setattr(s, "app_env", "production")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "d-1")
+    with pytest.raises(SystemExit, match="production"):
+        await seed(confirm="production")
+
+
+async def test_seed_on_staging_needs_its_name(monkeypatch):
+    s = get_settings()
+    monkeypatch.setattr(s, "database_url", "postgresql://u@postgres.railway.internal/r")
+    monkeypatch.setattr(s, "app_env", "staging")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "d-1")
+    with pytest.raises(SystemExit, match="--confirm staging"):
         await seed()
 
 

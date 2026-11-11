@@ -5,9 +5,11 @@ Twenty-one seniors in Timișoara, one or more in every enrollment state, with th
 and caregivers; a second DAS employee; a cold-weather campaign; wellbeing calls with
 their transcripts, answers and status reports; watch check-ins; and fourteen incidents,
 four open, four in progress and six resolved, so every dashboard screen has something
-on it. One of them, Eugenia Tudor, is the summary demo: six wellbeing calls over three
-weeks that show a slow decline and a broken heater, each with a fixed-text summary
-version, so the briefing and its observations show with no model or key (design §6).
+on it. Every active senior has weeks of earlier wellbeing calls, and each answered
+wellbeing call its fixed-text summary version, so the briefing, the incident dossier and
+the observations show with no model or key (design §6; staging seed design §4.4). Eugenia
+Tudor is the summary demo: six calls over three weeks that show a slow decline and a
+broken heater.
 
 The seniors and their history have fixed uuid5 ids, so a second run adds nothing.
 --reset deletes every senior the seed made and everything about them, including calls,
@@ -19,10 +21,19 @@ through the API, with their history. The Firebase test numbers sign in to it
 +40700000004 as Maria Popescu's son and +40700000005 as Maria Popescu, unless that number
 is already another senior's (AL7), which the run reports.
 
-Local databases only, like alembic/env.py. From backend/:
+Locally, from backend/:
 
     uv run python scripts/seed.py           # add the mock data, unless it is there
     uv run python scripts/seed.py --reset   # replace it, with fresh times
+
+On staging, inside the api container (a cloud database is refused from a laptop, as in
+alembic/env.py, and production always):
+
+    railway ssh -s api -e staging -- python scripts/seed.py --confirm staging
+
+There nobody gets das, since the test numbers' codes are public, and the campaign has
+already lapsed (staging seed design §4.2, §4.3). DIAL_ALLOWLIST keeps every seeded
+number from ringing.
 """
 
 import argparse
@@ -45,7 +56,7 @@ from app.auth.service import sync_senior_grant
 from app.calls.ending import campaign_reason, redial_delay
 from app.core.db import Base, Session
 from app.core.phones import is_mobile
-from app.core.settings import db_host, get_settings, is_local_db
+from app.core.settings import get_settings, is_local_db
 from app.models import (
     Answer,
     Call,
@@ -81,6 +92,7 @@ from app.seniors.schemas import Citation, FollowUp, SummaryContent, Trend
 from app.status.engine import BUCHAREST, Certainty, Question, Severity
 from app.voice.calls import CallState, was_answered
 from app.voice.dialogue import CONSENT_TEXT, CONSENT_VERSION
+from scripts.seed_cast import check_target
 
 # uuid5 under this namespace: the same ids on every machine and every run.
 NAMESPACE = uuid.UUID("5e1a0000-5eed-4000-8000-000000000000")
@@ -297,6 +309,7 @@ SENIORS = (
 # fmt: on
 
 CAMPAIGN_ID = seed_id("campaign", "cold")
+PAST_CAMPAIGN_ID = seed_id("campaign", "cold-earlier")
 # The seed's ids are uuid5 and the API's uuidv7, so this finds every senior any version
 # of the seed made, even one since renamed or dropped from SENIORS.
 SEEDED = func.uuid_extract_version(Senior.id) == 5
@@ -344,10 +357,13 @@ class History:
         self.seniors: dict[str, Senior] = {}
         self.grants: list[dict[str, Any]] = []
         self.campaign: Campaign | None = None
+        # The cold spell before it: campaign calls dated before `campaign` started.
+        self.past_campaign: Campaign | None = None
         self.calls: list[Call] = []
         # Everything else; each row points only at seniors, users and calls.
         self.rows: list[Base] = []
-        # Summary versions, in call order: each one points at the one before.
+        # Summary versions, in each senior's call order: each one points at that
+        # senior's one before.
         self.summaries: list[SummaryVersion] = []
 
     def ago(self, minutes: float) -> datetime:
@@ -421,7 +437,13 @@ class History:
             id=seed_id("call", senior, name),
             senior_id=self.seniors[senior].id,
             trigger=trigger,
-            campaign_id=self.campaign.id if trigger is CallTrigger.campaign else None,
+            campaign_id=(
+                None
+                if trigger is not CallTrigger.campaign
+                else self.campaign.id
+                if due >= self.campaign.started_at
+                else self.past_campaign.id
+            ),
             previous_call_id=previous and previous.id,
             attempt=previous.attempt + 1 if previous else 1,
             starting_severity=starting,
@@ -774,14 +796,16 @@ class History:
         )
 
     def summarize(self, senior: str, call: Call, **content: Any) -> None:
-        """The fixed-text version for `call`, chained to the one before (design §6)."""
-        n = len(self.summaries) + 1
+        """The fixed-text version for `call`, chained to that senior's one before
+        (design §6)."""
+        senior_id = self.seniors[senior].id
+        chain = [v for v in self.summaries if v.senior_id == senior_id]
         self.summaries.append(
             SummaryVersion(
-                id=seed_id("summary", senior, str(n)),
-                senior_id=self.seniors[senior].id,
+                id=seed_id("summary", senior, str(len(chain) + 1)),
+                senior_id=senior_id,
                 call_id=call.id,
-                previous_id=self.summaries[-1].id if self.summaries else None,
+                previous_id=chain[-1].id if chain else None,
                 content=SummaryContent(**content).model_dump(mode="json"),
                 model="seed",
                 created_at=call.ended_at + timedelta(seconds=30),
@@ -862,11 +886,18 @@ class History:
         return call
 
 
-def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
+def build(
+    now: datetime, users: dict[str, uuid.UUID], *, cloud: bool = False
+) -> History:
+    """`cloud`: staging, where only the team holds das, since the Firebase test numbers'
+    codes are published in the README, and the campaign has already lapsed, so one the
+    team starts is not answered by it (04 §2; staging seed design §4.2, §4.3)."""
     h = History(now, users)
     for spec in SENIORS:
         h.register(spec)
     for person, role in STAFF_GRANTS:
+        if cloud and role is Role.das:
+            continue
         granted_by = None if person is DAS else users[DAS.phone]
         h.grant(person, role, granted_by=granted_by)
     h.campaign = Campaign(
@@ -875,7 +906,18 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
         level=WarningLevel.yellow,
         started_by=users[DAS.phone],
         started_at=h.ago(125),
-        warning_until=h.ago(125) + timedelta(hours=24),  # Q4
+        # Q4; on staging lapsed a few minutes ago.
+        warning_until=h.ago(5) if cloud else h.ago(125) + timedelta(hours=24),
+    )
+    # Weeks of earlier wellbeing calls belong to an earlier, lapsed warning, or the
+    # running campaign's progress would count seniors it never called (04 §2).
+    h.past_campaign = Campaign(
+        id=PAST_CAMPAIGN_ID,
+        kind=CampaignKind.cold,
+        level=WarningLevel.yellow,
+        started_by=users[DAS.phone],
+        started_at=h.ago(22 * 24 * 60),
+        warning_until=h.ago(130),
     )
     green = "Se simte bine, știe ce zi este și are căldură"
 
@@ -1401,7 +1443,737 @@ def build(now: datetime, users: dict[str, uuid.UUID]) -> History:
     h.welcome_unreached("stefan", 5)
     h.welcome_unreached("rodica", 6, wrong=True)
     decline(h)
+    histories(h)
     return h
+
+
+def named_call(h: History, senior: str, name: str) -> Call:
+    return next(c for c in h.calls if c.id == seed_id("call", senior, name))
+
+
+def earlier(
+    h: History, senior: str, *plan: tuple[float, tuple[str, str], tuple[str, str]]
+) -> list[Call]:
+    """Earlier answered campaign calls, oldest first, each (days ago, feeling, shelter)
+    with the right day. At most one worrying answer each, so the rules give green or
+    yellow (03 §3)."""
+    form = h.seniors[senior].form_of_address
+    calls = []
+    for n, (days_ago, feeling, shelter) in enumerate(plan, start=1):
+        minutes = days_ago * 24 * 60
+        worrying = [
+            q
+            for q, bad in (
+                (Question.feeling, feeling[0] == "unwell"),
+                (Question.shelter, shelter[0] == "no"),
+            )
+            if bad
+        ]
+        assert len(worrying) <= 1, (senior, n)  # two would be red (03 §3)
+        named = h.day(minutes)
+        calls.append(
+            h.cold_call(
+                senior,
+                f"earlier-{n}",
+                minutes,
+                feeling=feeling,
+                day=(named, f"{named.capitalize()}."),
+                shelter=shelter,
+                final=Severity.yellow if worrying else Severity.green,
+                reason=campaign_reason(worrying, CampaignKind.cold),
+                summary=f"{form[:1].upper()}{form[1:]}: {feeling[1]} {shelter[1]}",
+            )
+        )
+    return calls
+
+
+def ask(topic: str, question: str, call: Call, quote: str) -> FollowUp:
+    return FollowUp(topic=topic, question=question, call_id=call.id, quote=quote)
+
+
+def histories(h: History) -> None:
+    """Weeks of earlier wellbeing calls for every other active senior, and the summary
+    version each answered wellbeing call would have produced, in call order, so the
+    briefing and the incident dossier have something on them (staging seed design §4.4).
+    Quotes are the senior's own words: an earlier call's answers, the current call's
+    turns, or a citation carried from the version before (design §4)."""
+    warm = ("yes", "Da, am căldură.")
+    plain = "Vorbește clar și răspunde scurt."
+
+    # Maria Popescu: goes out every week; knees on the stairs; a near-fall today.
+    m1, m2, m3 = earlier(
+        h,
+        "maria",
+        (12, ("ok", "Bine, mulțumesc, am fost la vecina la o cafea."), warm),
+        (8, ("ok", "Bine, doar mă dor puțin genunchii când urc scările."), warm),
+        (
+            4,
+            ("ok", "Bine, am ieșit la plimbare în parc."),
+            ("yes", "Da, merge centrala."),
+        ),
+    )
+    alarm, campaign = (
+        named_call(h, "maria", "alarm"),
+        named_call(h, "maria", "campaign"),
+    )
+    talk = ["Îi place să povestească; lăsați-o să termine."]
+    knees = ask(
+        "genunchii",
+        "Cum vă mai simțiți genunchii, doamna Maria?",
+        m2,
+        "mă dor puțin genunchii când urc scările",
+    )
+    near = ask(
+        "era să cadă",
+        "Data trecută mi-ați spus că era să cădeți. Cum vă mai simțiți?",
+        alarm,
+        "era să cad din picioare",
+    )
+    h.summarize(
+        "maria",
+        m1,
+        follow_ups=[],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Maria se descurcă singură și iese din casă; a fost la o "
+        "vecină la cafea.",
+    )
+    h.summarize(
+        "maria",
+        m2,
+        follow_ups=[knees],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Maria se descurcă singură, dar o dor genunchii când urcă "
+        "scările.",
+    )
+    h.summarize(
+        "maria",
+        m3,
+        follow_ups=[knees],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Maria iese în continuare din casă, la plimbare în parc. "
+        "Genunchii o mai supără pe scări.",
+    )
+    h.summarize(
+        "maria",
+        alarm,
+        follow_ups=[near, knees],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Maria a cerut să fie sunată: era să cadă și i s-a făcut rău "
+        "puțin. A fost transferată către DAS, care a găsit-o bine.",
+    )
+    h.summarize(
+        "maria",
+        campaign,
+        follow_ups=[near, knees],
+        how_to_talk=talk,
+        trends=[
+            Trend(
+                note="Iese din casă în fiecare săptămână: la vecină, în parc, la piață.",
+                direction="steady",
+                evidence=[
+                    Citation(call_id=m1.id, quote="am fost la vecina la o cafea"),
+                    Citation(call_id=m3.id, quote="am ieșit la plimbare în parc"),
+                    Citation(
+                        call_id=campaign.id, quote="am fost la piață azi-dimineață"
+                    ),
+                ],
+            )
+        ],
+        narrative="Doamna Maria se simte bine și a fost la piață, la câteva ore după "
+        "ce era să cadă. Iese din casă în fiecare săptămână; genunchii o supără pe "
+        "scări.",
+    )
+
+    # Ion Dumitrescu: the block's heating never came on, colder from call to call.
+    i1, i2, i3 = earlier(
+        h,
+        "ion",
+        (12, ("ok", "Bine, mulțumesc."), ("yes", "Da, deocamdată e bine.")),
+        (
+            7,
+            ("ok", "Bine, dar seara se face frig în casă."),
+            ("yes", "Da, am un radiator electric."),
+        ),
+        (
+            3,
+            ("ok", "Merge, m-am îmbrăcat mai gros."),
+            ("no", "Nu, nu ne-au dat încă drumul la căldură la bloc."),
+        ),
+    )
+    last = named_call(h, "ion", "campaign-2")
+    talk = ["Telefon fix: vorbiți rar și repetați întrebarea dacă nu răspunde."]
+    evening = ask(
+        "frigul de seara",
+        "Mai e frig seara în casă, domnule Ion?",
+        i2,
+        "seara se face frig în casă",
+    )
+    heating = ask(
+        "căldura la bloc",
+        "Data trecută nu vă dăduseră drumul la căldură. S-a rezolvat?",
+        i3,
+        "nu ne-au dat încă drumul la căldură la bloc",
+    )
+    h.summarize(
+        "ion",
+        i1,
+        follow_ups=[],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Ion se descurcă singur și are căldură deocamdată.",
+    )
+    h.summarize(
+        "ion",
+        i2,
+        follow_ups=[evening],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Ion se simte bine, dar seara îi e frig în casă și folosește "
+        "un radiator electric.",
+    )
+    h.summarize(
+        "ion",
+        i3,
+        follow_ups=[heating, evening],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Ion nu are căldură: blocului nu i s-a dat încă drumul la "
+        "căldură. S-a îmbrăcat mai gros.",
+    )
+    h.summarize(
+        "ion",
+        last,
+        follow_ups=[
+            ask(
+                "durerea de cap",
+                "Vă mai doare capul, domnule Ion?",
+                last,
+                "mă doare capul de dimineață",
+            ),
+            heating,
+        ],
+        how_to_talk=talk,
+        trends=[
+            Trend(
+                note="Frigul din casă a crescut de la un apel la altul: întâi seara, "
+                "apoi toată ziua.",
+                direction="worse",
+                evidence=[
+                    Citation(call_id=i2.id, quote="seara se face frig în casă"),
+                    Citation(
+                        call_id=i3.id,
+                        quote="nu ne-au dat încă drumul la căldură la bloc",
+                    ),
+                    Citation(call_id=last.id, quote="e frig la mine"),
+                ],
+            )
+        ],
+        narrative="Domnul Ion se simte rău, îl doare capul de dimineață și tot nu are "
+        "căldură. Transferat către DAS.",
+    )
+
+    # Elena Stan: dizzy when she stands, then a dizzy spell, then a fall today.
+    e1, e2 = earlier(
+        h,
+        "elena",
+        (
+            10,
+            ("ok", "Bine, nepotul a fost la mine ieri."),
+            ("yes", "Da, avem centrală."),
+        ),
+        (
+            5,
+            ("ok", "Bine, doar amețesc uneori când mă ridic."),
+            ("yes", "Da, e cald în casă."),
+        ),
+    )
+    alarm = named_call(h, "elena", "alarm")
+    campaign, sos = named_call(h, "elena", "campaign"), named_call(h, "elena", "sos")
+    talk = ["Vorbiți rar; îi place să audă de nepotul ei, Mihai."]
+    standing = ask(
+        "amețeala când se ridică",
+        "Mai amețiți când vă ridicați, doamna Elena?",
+        e2,
+        "amețesc uneori când mă ridic",
+    )
+    spell = ask(
+        "amețeala de azi-noapte",
+        "Cum vă simțiți după amețeala de azi-noapte?",
+        alarm,
+        "am amețit rău",
+    )
+    h.summarize(
+        "elena",
+        e1,
+        follow_ups=[],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Elena se descurcă bine; nepotul o vizitează.",
+    )
+    h.summarize(
+        "elena",
+        e2,
+        follow_ups=[standing],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Elena se simte bine, dar amețește uneori când se ridică.",
+    )
+    h.summarize(
+        "elena",
+        alarm,
+        follow_ups=[spell, standing],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Elena a amețit rău și nu s-a putut ridica. Echipa DAS a dus-o "
+        "la Urgențe pentru control.",
+    )
+    h.summarize(
+        "elena",
+        campaign,
+        follow_ups=[spell, standing],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Elena se simte bine după amețeala de azi-noapte și are "
+        "căldură.",
+    )
+    h.summarize(
+        "elena",
+        sos,
+        follow_ups=[
+            ask(
+                "căzătura din baie",
+                "Cum vă simțiți după căzătura din baie, doamna Elena?",
+                sos,
+                "am căzut în baie și nu mă pot ridica",
+            ),
+            standing,
+        ],
+        how_to_talk=talk,
+        trends=[
+            Trend(
+                note="Amețelile s-au înmulțit în ultimele zile și au dus la o căzătură.",
+                direction="worse",
+                evidence=[
+                    Citation(call_id=e2.id, quote="amețesc uneori când mă ridic"),
+                    Citation(call_id=alarm.id, quote="am amețit rău"),
+                    Citation(call_id=sos.id, quote="am căzut în baie"),
+                ],
+            )
+        ],
+        narrative="Doamna Elena a căzut în baie și nu se poate ridica; ușa e încuiată "
+        "și cheia o are vecina de la etajul doi. Transferată către DAS.",
+    )
+
+    # Gheorghe Ionescu: tires on the stairs; chest pain this morning; no heating yet.
+    g1, g2 = earlier(
+        h,
+        "gheorghe",
+        (14, ("ok", "Bine, mă descurc."), ("yes", "Da, am pornit radiatorul.")),
+        (
+            6,
+            ("ok", "Bine, dar obosesc repede când urc scările."),
+            ("yes", "Da, e destul de cald."),
+        ),
+    )
+    alarm = named_call(h, "gheorghe", "alarm")
+    campaign = named_call(h, "gheorghe", "campaign")
+    talk = ["Răspunde scurt; întrebați-l direct cum se simte."]
+    tired = ask(
+        "oboseala pe scări",
+        "Mai obosiți când urcați scările, domnule Gheorghe?",
+        g2,
+        "obosesc repede când urc scările",
+    )
+    chest = ask(
+        "durerea în piept",
+        "Cum vă simțiți după durerea în piept de azi-dimineață?",
+        alarm,
+        "am o durere puternică în piept",
+    )
+    h.summarize(
+        "gheorghe",
+        g1,
+        follow_ups=[],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Gheorghe se descurcă singur.",
+    )
+    h.summarize(
+        "gheorghe",
+        g2,
+        follow_ups=[tired],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Gheorghe se simte bine, dar obosește repede pe scări.",
+    )
+    h.summarize(
+        "gheorghe",
+        alarm,
+        follow_ups=[chest, tired],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Gheorghe a avut o durere puternică în piept și se sufoca. DAS "
+        "a sunat la 112 și ambulanța l-a dus la Urgențe.",
+    )
+    h.summarize(
+        "gheorghe",
+        campaign,
+        follow_ups=[
+            ask(
+                "căldura",
+                "V-au dat drumul la căldură, domnule Gheorghe?",
+                campaign,
+                "încă nu ne-au dat drumul la căldură",
+            ),
+            chest,
+            tired,
+        ],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Domnul Gheorghe spune că e bine după durerea în piept, dar încă nu "
+        "are căldură în casă.",
+    )
+
+    # Ana Constantinescu: a racing heart in the evenings, palpitations today, better now.
+    a1, a2 = earlier(
+        h,
+        "ana",
+        (11, ("ok", "Bine, doar inima o ia uneori la galop seara."), warm),
+        (
+            6,
+            ("ok", "Bine, am luat pastilele și m-am liniștit."),
+            ("yes", "Da, e cald."),
+        ),
+    )
+    pulse, campaign = named_call(h, "ana", "pulse-2"), named_call(h, "ana", "campaign")
+    talk = ["Se liniștește dacă vorbiți calm; nu o grăbiți."]
+    racing = ask(
+        "inima seara",
+        "Ați mai simțit inima bătând repede seara, doamna Ana?",
+        a1,
+        "inima o ia uneori la galop seara",
+    )
+    palpitations = ask(
+        "palpitațiile",
+        "Cum vă mai simțiți inima, doamna Ana?",
+        pulse,
+        "mi-e foarte rău, am palpitații",
+    )
+    h.summarize(
+        "ana",
+        a1,
+        follow_ups=[racing],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Ana se descurcă, dar seara simte uneori inima bătând repede.",
+    )
+    h.summarize(
+        "ana",
+        a2,
+        follow_ups=[racing],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Ana își ia pastilele și se simte liniștită.",
+    )
+    h.summarize(
+        "ana",
+        pulse,
+        follow_ups=[palpitations, racing],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Ana a avut palpitații și i-a fost foarte rău. DAS a vorbit cu "
+        "ea: palpitațiile au trecut după ce s-a odihnit.",
+    )
+    h.summarize(
+        "ana",
+        campaign,
+        follow_ups=[palpitations],
+        how_to_talk=talk,
+        trends=[
+            Trend(
+                note="Se simte mai bine după palpitațiile de azi.",
+                direction="better",
+                evidence=[
+                    Citation(call_id=pulse.id, quote="mi-e foarte rău, am palpitații"),
+                    Citation(call_id=campaign.id, quote="mai bine acum"),
+                ],
+            )
+        ],
+        narrative="Doamna Ana se simte mai bine după palpitațiile de azi, a spus corect "
+        "ziua și are căldură.",
+    )
+
+    # Florica Radu: dizzy mornings, a fall last night, a sore knee today.
+    f1, f2 = earlier(
+        h,
+        "florica",
+        (13, ("ok", "Bine, fiica m-a dus la cumpărături."), warm),
+        (5, ("ok", "Bine, dar am amețit puțin dimineață."), ("yes", "Da, e cald.")),
+    )
+    fall = named_call(h, "florica", "request")
+    campaign = named_call(h, "florica", "campaign")
+    talk = [plain]
+    dizzy = ask(
+        "amețeala de dimineață",
+        "Mai amețiți dimineața, doamna Florica?",
+        f2,
+        "am amețit puțin dimineață",
+    )
+    fell = ask(
+        "căzătura",
+        "Cum vă simțiți după căzătura de aseară?",
+        fall,
+        "am amețit și am căzut",
+    )
+    h.summarize(
+        "florica",
+        f1,
+        follow_ups=[],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Florica se descurcă; fiica o ajută cu cumpărăturile.",
+    )
+    h.summarize(
+        "florica",
+        f2,
+        follow_ups=[dizzy],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Florica se simte bine, dar a amețit puțin dimineață.",
+    )
+    h.summarize(
+        "florica",
+        fall,
+        follow_ups=[fell, dizzy],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Florica a amețit și a căzut și nu s-a putut ridica. DAS a "
+        "trimis o echipă.",
+    )
+    h.summarize(
+        "florica",
+        campaign,
+        follow_ups=[
+            ask(
+                "genunchiul",
+                "Vă mai doare genunchiul, doamna Florica?",
+                campaign,
+                "mă mai doare genunchiul",
+            ),
+            fell,
+            dizzy,
+        ],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Florica se simte bine după căzătura de aseară, dar o mai "
+        "doare genunchiul.",
+    )
+
+    # Aurelia Marinescu: a noisy boiler, broken since yesterday.
+    r1, r2 = earlier(
+        h,
+        "aurelia",
+        (12, ("ok", "Bine, mulțumesc."), ("yes", "Da, merge centrala.")),
+        (
+            6,
+            ("ok", "Bine, dar centrala face niște zgomote ciudate."),
+            ("yes", "Da, deocamdată merge."),
+        ),
+    )
+    campaign = named_call(h, "aurelia", "campaign")
+    talk = [plain]
+    noises = ask(
+        "centrala",
+        "Ați chemat pe cineva să vadă centrala, doamna Aurelia?",
+        r2,
+        "centrala face niște zgomote ciudate",
+    )
+    h.summarize(
+        "aurelia",
+        r1,
+        follow_ups=[],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Aurelia se descurcă și are căldură.",
+    )
+    h.summarize(
+        "aurelia",
+        r2,
+        follow_ups=[noises],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Aurelia se simte bine, dar centrala face zgomote ciudate.",
+    )
+    h.summarize(
+        "aurelia",
+        campaign,
+        follow_ups=[
+            ask(
+                "centrala stricată",
+                "S-a reparat centrala, doamna Aurelia?",
+                campaign,
+                "centrala s-a stricat de ieri",
+            ),
+            ask(
+                "amețelile",
+                "Mai aveți amețeli?",
+                campaign,
+                "am amețeli și mi-e frig",
+            ),
+        ],
+        how_to_talk=talk,
+        trends=[],
+        narrative="Doamna Aurelia are amețeli și îi e frig: centrala s-a stricat de "
+        "ieri, după ce făcuse zgomote. Transferată către DAS.",
+    )
+
+    # The six whose open incident came from the watch or "Sunați-mă": quiet weeks
+    # before it, so their incident dossier has a briefing. Each: (senior, how the agent
+    # addresses them, two earlier answers, the topic one raised, the alarm's topic and
+    # quote, and the three narratives).
+    quiet = (
+        (
+            "vasile",
+            "domnule Vasile",
+            ("Bine, am fost la pescuit cu un prieten.", "Bine, doar dorm cam prost."),
+            ("somnul", "Ați dormit mai bine, domnule Vasile?", "dorm cam prost"),
+            ("nu mai poate sta în picioare", "nu mai pot să stau în picioare"),
+            (
+                "Domnul Vasile se descurcă singur și iese cu prietenii.",
+                "Domnul Vasile se simte bine, dar doarme prost.",
+                (
+                    "Domnul Vasile a spus că îi e foarte rău și nu mai poate sta în "
+                    "picioare; apelul s-a întrerupt și nu a mai putut fi găsit."
+                ),
+            ),
+        ),
+        (
+            "dumitru",
+            "domnule Dumitru",
+            ("Bine, am grijă de grădină.", "Bine, doar urc mai greu la etaj."),
+            (
+                "urcatul la etaj",
+                "Mai urcați greu la etaj, domnule Dumitru?",
+                "urc mai greu la etaj",
+            ),
+            ("strânsoarea în piept", "mă strânge în piept"),
+            (
+                "Domnul Dumitru se descurcă singur și se ocupă de grădină.",
+                "Domnul Dumitru se simte bine, dar urcă mai greu la etaj.",
+                (
+                    "Domnul Dumitru spune că îl strânge în piept și nu poate respira "
+                    "bine. Transferat către DAS."
+                ),
+            ),
+        ),
+        (
+            "teodor",
+            "domnule Teodor",
+            ("Bine, mulțumesc, citesc mult.", "Bine, nepoata vine duminică."),
+            (
+                "vizita nepoatei",
+                "A venit nepoata în vizită, domnule Teodor?",
+                "nepoata vine duminică",
+            ),
+            ("mâna stângă și vorbitul", "nu-mi mai simt mâna stângă"),
+            (
+                "Domnul Teodor se descurcă singur și citește mult.",
+                "Domnul Teodor se simte bine și așteaptă vizita nepoatei.",
+                (
+                    "Domnul Teodor nu își mai simte mâna stângă și vorbește greu. "
+                    "Transferat către DAS."
+                ),
+            ),
+        ),
+        (
+            "viorica",
+            "doamna Viorica",
+            ("Bine, am făcut prăjituri.", "Bine, doar mă cam agit seara."),
+            (
+                "agitația de seara",
+                "Mai sunteți agitată seara, doamna Viorica?",
+                "mă cam agit seara",
+            ),
+            ("inima bate tare", "inima îmi bate foarte tare"),
+            (
+                "Doamna Viorica se descurcă singură; a făcut prăjituri.",
+                "Doamna Viorica se simte bine, dar seara se agită.",
+                (
+                    "Doamna Viorica spune că îi e rău, inima îi bate foarte tare și îi e "
+                    "frică. Transferată către DAS."
+                ),
+            ),
+        ),
+        (
+            "gavril",
+            "domnule Gavril",
+            (
+                "Bine, fiica a trecut pe la mine.",
+                "Bine, dar scările de afară sunt pline de frunze ude.",
+            ),
+            (
+                "scările de afară",
+                "Mai sunt frunze ude pe scări, domnule Gavril?",
+                "scările de afară sunt pline de frunze ude",
+            ),
+            ("șoldul", "mă doare tare șoldul"),
+            (
+                "Domnul Gavril se descurcă singur; fiica trece pe la el.",
+                (
+                    "Domnul Gavril se simte bine, dar scările de afară sunt alunecoase de "
+                    "la frunzele ude."
+                ),
+                (
+                    "Domnul Gavril a alunecat pe scări și îl doare tare șoldul. "
+                    "Transferat către DAS."
+                ),
+            ),
+        ),
+        (
+            "margareta",
+            "doamna Margareta",
+            (
+                "Bine, mulțumesc de întrebare.",
+                "Bine, dar nu prea am poftă de mâncare.",
+            ),
+            (
+                "pofta de mâncare",
+                "Ați mai mâncat ceva bun, doamna Margareta?",
+                "nu prea am poftă de mâncare",
+            ),
+            ("slăbiciunea", "mă simt foarte slăbită"),
+            (
+                "Doamna Margareta se descurcă singură.",
+                "Doamna Margareta se simte bine, dar nu prea are poftă de mâncare.",
+                (
+                    "Doamna Margareta a amețit, se simte foarte slăbită și nu se poate "
+                    "ridica din fotoliu. Transferată către DAS."
+                ),
+            ),
+        ),
+    )
+    for senior, address, (said1, said2), raised, (topic, quote), stories in quiet:
+        q1, q2 = earlier(h, senior, (10, ("ok", said1), warm), (5, ("ok", said2), warm))
+        alarm = named_call(h, senior, "alarm")
+        noted = ask(raised[0], raised[1], q2, raised[2])
+        now = ask(topic, f"Cum vă simțiți acum, {address}?", alarm, quote)
+        for call, follow_ups, narrative in (
+            (q1, [], stories[0]),
+            (q2, [noted], stories[1]),
+            (alarm, [now, noted], stories[2]),
+        ):
+            h.summarize(
+                senior,
+                call,
+                follow_ups=follow_ups,
+                how_to_talk=[plain],
+                trends=[],
+                narrative=narrative,
+            )
 
 
 def decline(h: History) -> None:
@@ -1606,6 +2378,7 @@ async def save(session: AsyncSession, history: History) -> None:
                 file=sys.stderr,
             )
     # Kept through --reset, fresh times and all: other seniors' calls may name it.
+    await session.merge(history.past_campaign)
     await session.merge(history.campaign)
     await session.flush()
     session.add_all(history.calls)  # in order, so a redial follows its first attempt
@@ -1633,27 +2406,42 @@ async def remove(session: AsyncSession) -> None:
     await session.execute(delete(Senior).where(SEEDED))
 
 
-async def seed(reset: bool = False, now: datetime | None = None) -> str:
-    """Returns seeded, reseeded, or already seeded."""
-    url = get_settings().database_url
-    if not is_local_db(url):
-        raise SystemExit(f"Refusing to seed {db_host(url)}: mock data stays local.")
+async def seed(
+    reset: bool = False, now: datetime | None = None, confirm: str | None = None
+) -> str:
+    """Returns seeded, reseeded, or already seeded. A cloud database only from inside its
+    Railway deployment with `confirm` naming it, as seed_cast.py; never production."""
+    settings = get_settings()
+    check_target(confirm)
+    if settings.app_env == "production":
+        raise SystemExit("Refusing to seed production: mock data never goes there.")
+    cloud = not is_local_db(settings.database_url)
+    if cloud and "*" in settings.dial_allowlist.split(","):
+        # The seeded numbers are made up, in a premium-rate range (staging design §2).
+        raise SystemExit(
+            "Refusing to seed: DIAL_ALLOWLIST is *, so a campaign would ring the "
+            "seeded numbers. Set it to the team's numbers first."
+        )
     async with Session() as session:
         there = await session.scalar(select(Senior.id).where(SEEDED).limit(1))
         if there and not reset:
             return "already seeded"
         if there:
             await remove(session)
-        history = build(now or datetime.now(UTC), await add_people(session))
+        history = build(
+            now or datetime.now(UTC), await add_people(session), cloud=cloud
+        )
         await save(session, history)
         await session.commit()
     return "reseeded" if there else "seeded"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Mock data for the local database.")
+    parser = argparse.ArgumentParser(description="Mock data, locally or on staging.")
     parser.add_argument("--reset", action="store_true", help="replace it, fresh times")
-    result = asyncio.run(seed(parser.parse_args().reset))
+    parser.add_argument("--confirm", help="the APP_ENV of the cloud database seeded")
+    args = parser.parse_args()
+    result = asyncio.run(seed(args.reset, confirm=args.confirm))
     print(result)
     if result == "already seeded":
         print("Run with --reset to replace it with fresh times.", file=sys.stderr)

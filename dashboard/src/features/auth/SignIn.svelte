@@ -1,25 +1,11 @@
 <script lang="ts">
-  import { FirebaseError } from "firebase/app";
   import { type ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
   import { onDestroy } from "svelte";
   import { auth } from "../../services/firebase";
   import { toE164 } from "../../utils/phone";
+  import { authErrorText } from "./errors";
 
   let { notice }: { notice?: string } = $props();
-
-  // auth-layer §7.1. Anything else falls back to the "unavailable" text of §3.2.
-  const ERRORS: Record<string, string> = {
-    "auth/invalid-verification-code": "Cod greșit.",
-    "auth/invalid-phone-number": "Număr de telefon invalid.",
-    "auth/too-many-requests": "Prea multe încercări. Încercați mai târziu.",
-  };
-  const UNAVAILABLE = "Autentificarea nu este disponibilă acum. Încercați din nou.";
-
-  function errorText(err: unknown): string {
-    if (err instanceof FirebaseError && err.code in ERRORS) return ERRORS[err.code];
-    console.error(err);
-    return UNAVAILABLE;
-  }
 
   let phone = $state("");
   let code = $state("");
@@ -58,7 +44,7 @@
       confirmation = await signInWithPhoneNumber(auth, toE164(phone), verifier);
     } catch (err) {
       clearVerifier();
-      error = errorText(err);
+      error = authErrorText(err);
     } finally {
       busy = false;
     }
@@ -71,7 +57,7 @@
     try {
       await confirmation!.confirm(code);
     } catch (err) {
-      error = errorText(err);
+      error = authErrorText(err);
     } finally {
       busy = false;
     }
