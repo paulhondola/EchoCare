@@ -13,6 +13,7 @@ app/src/
 │   ├── Modules.kt         Hilt: FirebaseAuth, and EchoCareApi with the token interceptor and 401 retry
 │   ├── auth/Screen.kt     the sign-in screen state and what /me's answer leads to, tested on the JVM
 │   ├── auth/AuthViewModel.kt   sign-in, GET /me, the saved role
+│   ├── auth/Landing.kt    the signed-out first screen; „Intrați” leads on to the phone step
 │   ├── home/Load.kt       what a list or a page shows for each answer, tested on the JVM (seniors §8.2)
 │   ├── home/Routes.kt     the type-safe routes, the home of each role, the state labels
 │   ├── home/HomeNav.kt    the NavHost of the signed-in app and its menu

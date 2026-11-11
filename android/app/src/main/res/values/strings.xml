@@ -16,6 +16,32 @@
     <string name="too_many_attempts">Prea multe încercări. Încercați mai târziu.</string>
     <string name="retry">Reîncercați</string>
 
+    <!-- Landing, signed out: one illustrative incident, UC-09 into UC-07 and UC-11 -->
+    <string name="landing_sign_in">Intrați</string>
+    <string name="landing_title_start">Nimeni nu trebuie să observe</string>
+    <string name="landing_title_end">primul.</string>
+    <string name="landing_lead">Ceasul observă, agentul sună, un om preia doar când e nevoie.</string>
+    <string name="landing_example">Exemplu · Gheorghe Pavel, 84</string>
+    <string name="landing_live">ÎN DESFĂȘURARE</string>
+    <string name="landing_bpm">BPM · repaus</string>
+    <string name="landing_step_1">Ceasul: puls 128, în repaus</string>
+    <string name="landing_step_2">„Sunteți bine?” Niciun răspuns.</string>
+    <string name="landing_step_3">Agentul sună</string>
+    <string name="landing_step_4">„Mă învârte capul…”</string>
+    <string name="landing_step_5">Frază de alarmă: cod roșu</string>
+    <string name="landing_step_6">Dispecerul DAS preia apelul</string>
+    <string name="landing_red">COD ROȘU</string>
+    <string name="landing_red_note">în 58 s. Familia și medicul, anunțați.</string>
+    <string name="landing_observe">Observă</string>
+    <string name="landing_observe_text">Ceasul compară pulsul cu cel obișnuit și cu mișcarea. O plimbare nu declanșează nimic.</string>
+    <string name="landing_call">Sună</string>
+    <string name="landing_call_text">Agentul sună în câteva secunde, vorbește românește și pune trei întrebări simple.</string>
+    <string name="landing_decide">Decide</string>
+    <string name="landing_decide_text">Codul îl pun reguli fixe, nu modelul. O frază de alarmă duce direct la roșu.</string>
+    <string name="landing_hand_over">Predă</string>
+    <string name="landing_hand_over_text">La roșu, apelul trece pe loc la dispecerul DAS, cu dosarul seniorului deschis.</string>
+    <string name="landing_accounts">Conturile le creează medicul de familie și DAS.</string>
+
     <string name="pick_role_title">Alegeți rolul</string>
     <string name="role_das">Dispecerat DAS</string>
     <string name="role_medic">Medic</string>

@@ -59,7 +59,7 @@ class AuthViewModel @Inject constructor(
     // The picked role survives a restart (auth-layer §8.2).
     private val prefs = context.getSharedPreferences("auth", Context.MODE_PRIVATE)
 
-    var screen by mutableStateOf<Screen>(Screen.Phone())
+    var screen by mutableStateOf<Screen>(Screen.Landing)
         private set
 
     /** *Retrimite codul* opens 30 seconds after a code is sent (auth-layer §8.2). */
@@ -81,6 +81,16 @@ class AuthViewModel @Inject constructor(
         // ponytail: until then, a closed app still shows the tray's alert, which names nobody (P18).
         // A WorkManager job if a device can stay offline and signed out for long.
         if (auth.currentUser != null) loadMe() else messaging.deleteToken()
+    }
+
+    /** *Intrați* on the landing page. */
+    fun openSignIn() {
+        screen = Screen.Phone()
+    }
+
+    /** Back from the phone or code step, before anyone is signed in. */
+    fun backToLanding() {
+        screen = Screen.Landing
     }
 
     fun sending(phone: String) {
@@ -170,7 +180,7 @@ class AuthViewModel @Inject constructor(
                     if (e is CancellationException) throw e
                 }
             }
-            show(Screen.Phone())
+            show(Screen.Landing)
         }
     }
 
@@ -196,7 +206,7 @@ class AuthViewModel @Inject constructor(
     private fun show(next: Screen) {
         when (next) {
             // auth-layer §3.2: not_registered and a second 401 sign out of Firebase.
-            is Screen.Phone, Screen.NotRegistered -> {
+            is Screen.Phone, Screen.NotRegistered, Screen.Landing -> {
                 auth.signOut()
                 prefs.edit { remove(SAVED_ROLE) }
                 // Firebase forgets the token, so pushes stop; the next sign-in saves a new one

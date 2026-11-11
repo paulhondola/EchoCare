@@ -7,6 +7,9 @@ val ROLES = listOf("das", "medic", "caregiver", "senior")
 
 /** What the sign-in flow shows (auth-layer §8.2). [error] is a string resource id. */
 sealed interface Screen {
+    /** Signed out: what EchoCare does, with *Intrați* leading on to [Phone]. */
+    data object Landing : Screen
+
     data class Phone(val error: Int? = null) : Screen
 
     data class Code(val error: Int? = null) : Screen

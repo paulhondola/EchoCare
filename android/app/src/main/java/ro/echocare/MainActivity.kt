@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
@@ -44,6 +45,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import ro.echocare.auth.AuthViewModel
+import ro.echocare.auth.Landing
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
@@ -94,6 +96,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         containerColor = Palette.Canvas
                     ) { innerPadding ->
+                        if (screen == Screen.Landing) {
+                            Landing(vm::openSignIn, Modifier.padding(innerPadding))
+                            return@Scaffold
+                        }
                         SignIn(
                             vm,
                             onSendCode = { sendCode(vm, it, null) },
@@ -179,6 +185,12 @@ fun SignIn(
             // Shown by HomeNav in MainActivity, not here.
             is Screen.Home -> {}
             else -> Panel {
+                // Before anyone is signed in, back returns to the landing page
+                val beforeSignIn =
+                    screen is Screen.Phone ||
+                        screen is Screen.Code ||
+                        screen == Screen.NotRegistered
+                BackHandler(enabled = beforeSignIn, onBack = vm::backToLanding)
                 when (screen) {
                     is Screen.Phone -> PhoneForm(screen.error, onSendCode)
                     // Signed out already: the phone form, under the not-registered text (auth-layer §3.2).
@@ -210,6 +222,14 @@ fun SignIn(
                         }
                     }
                     else -> {}
+                }
+                if (beforeSignIn) {
+                    SnButton(
+                        stringResource(R.string.back),
+                        vm::backToLanding,
+                        Modifier.fillMaxWidth(),
+                        kind = Kind.Outline
+                    )
                 }
             }
         }
