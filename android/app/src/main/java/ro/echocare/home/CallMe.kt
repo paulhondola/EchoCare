@@ -26,7 +26,7 @@ enum class CallMe { Idle, Sending, Coming, NotSent }
 
 /** A fresh id per tap, so only a resend of this very tap is a duplicate (04 §3). */
 fun manualRequest(id: String = UUID.randomUUID().toString(), now: Instant = Instant.now()) =
-    EventForm(id, "manual_request", now.toString())
+    EventForm(id, "manual_request", now.toString(), source = "phone")
 
 /**
  * The state once the post answered. A 200 without a call means the server kept the event and

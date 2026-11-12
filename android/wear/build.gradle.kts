@@ -35,11 +35,15 @@ android {
     }
 
     buildTypes {
+        // 06 §3 timers in demo mode so the course jury doesn't wait 4 hours for inactivity
         debug {
             signingConfig = signingConfigs.getByName("shared")
+            val demo = localProps.getProperty("echocare.demo") != "false"
+            buildConfigField("boolean", "DEMO", "$demo")
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
+            buildConfigField("boolean", "DEMO", "false")
             optimization {
                 enable = true
             }
@@ -52,6 +56,7 @@ android {
     useLibrary("wear-sdk")
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -68,6 +73,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling)
     implementation(libs.play.services.wearable)
+    testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)

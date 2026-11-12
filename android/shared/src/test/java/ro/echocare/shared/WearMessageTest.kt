@@ -38,4 +38,33 @@ class WearMessageTest {
         val decoded = EventMessage.fromBytes(original.toBytes())
         assertEquals(original, decoded)
     }
+
+    @Test
+    fun `event round-trips with a full snapshot`() {
+        val original = EventMessage(
+            id = "6569b60e-fdf8-4dfe-916d-025f5e573186",
+            type = "high_pulse_at_rest",
+            measuredAt = "2026-11-07T19:28:51.814+00:00",
+            snapshot = EventSnapshot(
+                pulse = 120,
+                restingBaseline = 72,
+                moving = false,
+                minutesWithoutSteps = 0,
+                battery = 55
+            )
+        )
+        val decoded = EventMessage.fromBytes(original.toBytes())
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `an event with no snapshot serialises without one`() {
+        val msg = EventMessage(
+            id = "a",
+            type = "manual_request",
+            measuredAt = "t"
+        )
+        val encoded = msg.toBytes().decodeToString()
+        assertEquals(false, encoded.contains("snapshot"))
+    }
 }

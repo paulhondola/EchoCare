@@ -28,6 +28,8 @@ class MainActivity : ComponentActivity() {
                         AreYouOkScreen(
                             fallId = f.id,
                             measuredAt = f.measuredAt,
+                            type = f.type,
+                            snapshot = f.snapshot,
                             onDone = {
                                 MonitoringService.fallPrompt.value = null
                                 MonitoringService.dismissFallNotification(this@MainActivity)

@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.health.connect.HealthPermissions
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,11 +25,10 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import com.google.android.gms.wearable.Wearable
 import java.time.Instant
 import java.util.UUID
-import ro.echocare.shared.DataLayer
 import ro.echocare.shared.EventMessage
+import ro.echocare.wear.BuildConfig
 import ro.echocare.wear.R
 import ro.echocare.wear.monitoring.MonitoringService
 
@@ -110,6 +108,28 @@ fun SeniorHomeScreen() {
                         )
                     }
                 }
+                if (BuildConfig.DEBUG) {
+                    item {
+                        Button(
+                            onClick = {
+                                MonitoringService.forceAnomaly(context, "high_pulse_at_rest")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.force_high_pulse)) }
+                    }
+                    item {
+                        Button(
+                            onClick = { MonitoringService.forceAnomaly(context, "inactivity") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.force_inactivity)) }
+                    }
+                    item {
+                        Button(
+                            onClick = { MonitoringService.forceAnomaly(context, "fall") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.force_fall)) }
+                    }
+                }
             }
         }
     }
@@ -121,32 +141,13 @@ private fun Line(text: String) {
 }
 
 private fun sendManualRequest(context: Context, onDone: () -> Unit) {
-    val msg = EventMessage(
-        id = UUID.randomUUID().toString(),
-        type = "manual_request",
-        measuredAt = Instant.now().toString()
+    MonitoringService.sendEvent(
+        context,
+        EventMessage(
+            id = UUID.randomUUID().toString(),
+            type = "manual_request",
+            measuredAt = Instant.now().toString()
+        )
     )
-    Wearable.getNodeClient(context).connectedNodes
-        .addOnSuccessListener { nodes ->
-            if (nodes.isEmpty()) {
-                Log.i("SentinelaMonitor", "manual_request skipped: no connected nodes")
-                onDone()
-                return@addOnSuccessListener
-            }
-            nodes.forEach { node ->
-                Wearable.getMessageClient(context)
-                    .sendMessage(node.id, DataLayer.EVENT, msg.toBytes())
-                    .addOnSuccessListener {
-                        Log.i("SentinelaMonitor", "manual_request sent to ${node.displayName}")
-                    }
-                    .addOnFailureListener {
-                        Log.i("SentinelaMonitor", "manual_request failed: ${it.message}")
-                    }
-            }
-            onDone()
-        }
-        .addOnFailureListener {
-            Log.i("SentinelaMonitor", "manual_request node lookup failed: ${it.message}")
-            onDone()
-        }
+    onDone()
 }

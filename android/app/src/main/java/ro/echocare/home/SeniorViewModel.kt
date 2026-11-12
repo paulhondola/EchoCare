@@ -1,11 +1,13 @@
 package ro.echocare.home
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -21,7 +23,10 @@ import ro.echocare.enroll.signatureForm
 
 /** One senior's page: GET /seniors/{id} (seniors §3.3). */
 @HiltViewModel
-class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewModel() {
+class SeniorViewModel @Inject constructor(
+    private val api: EchoCareApi,
+    @ApplicationContext private val context: Context
+) : ViewModel() {
     var page by mutableStateOf<Load<SeniorPage>>(Load.Loading)
         private set
 
@@ -76,7 +81,13 @@ class SeniorViewModel @Inject constructor(private val api: EchoCareApi) : ViewMo
     fun requestCall() {
         if (callMe == CallMe.Sending) return
         callMe = CallMe.Sending
-        viewModelScope.launch { callMe = callMeAfter(answer { api.sendEvent(manualRequest()) }) }
+        val here = lastKnownLocation(context)
+        val form = manualRequest().copy(
+            latitude = here?.latitude,
+            longitude = here?.longitude,
+            locationAccuracyM = here?.accuracy?.toDouble()
+        )
+        viewModelScope.launch { callMe = callMeAfter(answer { api.sendEvent(form) }) }
     }
 
     /** [id] is null on the senior's own home: the one senior their grant names. */

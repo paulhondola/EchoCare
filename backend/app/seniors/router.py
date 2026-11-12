@@ -70,7 +70,7 @@ async def get_senior(
     view = await senior_view(session, senior)
     # `seniors` can't import `voice` (ADR-005); the router composes them
     view.call_in_progress = await call_in_progress(session, senior_id)
-    view.watch_state = await watch_state(session, caller, senior)
+    view.watch_state, view.last_pulse = await watch_state(session, caller, senior)
     return view
 
 

@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Alerts (04 §6), asked for on the home of a role that receives them -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Last known location is attached to events when the senior allowed it (UC-09 §5, 04 §3) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".EchoCareApp"

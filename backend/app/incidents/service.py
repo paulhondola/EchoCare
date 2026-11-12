@@ -52,6 +52,14 @@ async def record_event(
             senior_id=senior_id,
             type=form.type,
             measured_at=form.measured_at,
+            source=form.source,
+            snapshot=(
+                form.snapshot.model_dump(exclude_none=True) if form.snapshot else None
+            ),
+            latitude=form.latitude,
+            longitude=form.longitude,
+            location_accuracy_m=form.location_accuracy_m,
+            located_at=now if form.latitude is not None else None,
         )
         .on_conflict_do_nothing()
         .returning(Event.id)

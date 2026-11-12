@@ -20,6 +20,8 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import java.io.File
 import java.time.Instant
@@ -29,7 +31,12 @@ import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import ro.echocare.shared.CheckInMessage
 import ro.echocare.shared.DataLayer
+import ro.echocare.shared.EventSnapshot
 import ro.echocare.shared.FallDetector
+import ro.echocare.shared.InactivityDetector
+import ro.echocare.shared.PulseAnomaly
+import ro.echocare.shared.RestingBaseline
+import ro.echocare.wear.BuildConfig
 import ro.echocare.wear.R
 import ro.echocare.wear.presentation.MainActivity
 
@@ -43,12 +50,21 @@ internal const val ACCELEROMETER_PERIOD_US = 20_000
  */
 class MonitoringService :
     Service(),
-    SensorEventListener {
+    SensorEventListener,
+    MessageClient.OnMessageReceivedListener {
     private lateinit var sensorManager: SensorManager
     private lateinit var thread: HandlerThread
     private lateinit var handler: Handler
     private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var eventQueue: EventQueue
     private val fallDetector = FallDetector()
+    private val restingBaseline = RestingBaseline()
+
+    // Demo values from 06 §3; production uses the detector defaults (4 h inactivity)
+    private val pulseAnomaly = PulseAnomaly(holdMs = if (BuildConfig.DEMO) 15_000L else 60_000L)
+    private val inactivity = InactivityDetector(
+        limitMs = if (BuildConfig.DEMO) 60_000L else 4 * 60 * 60_000L
+    )
 
     // Counted on the sensor thread; logged and reset every minute
     private var minute = 0
@@ -60,8 +76,43 @@ class MonitoringService :
     private var stepsAtMinuteStart = -1f
     private var lastStepCount = -1f
     private var falls = 0
+    private var lastStepAtMs = -1L
+    private var startedAtMs = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_FORCE_ANOMALY -> {
+                val type = intent.getStringExtra(EXTRA_FORCE_TYPE) ?: "high_pulse_at_rest"
+                // A fabricated snapshot that looks like the real detector saw it
+                raiseAnomaly(
+                    type,
+                    EventSnapshot(
+                        pulse = if (type ==
+                            "high_pulse_at_rest"
+                        ) {
+                            125
+                        } else {
+                            lastHeartRate.takeIf { it > 0 }
+                        },
+                        restingBaseline = restingBaseline.value(System.currentTimeMillis()),
+                        moving = false,
+                        minutesWithoutSteps = if (type == "inactivity") 240 else 0,
+                        battery = battery()
+                    )
+                )
+                log("forced anomaly=$type")
+            }
+            ACTION_SEND_EVENT -> {
+                val bytes = intent.getByteArrayExtra(EXTRA_EVENT_BYTES)
+                if (bytes != null) {
+                    enqueueAndSend(ro.echocare.shared.EventMessage.fromBytes(bytes))
+                }
+            }
+        }
+        return START_STICKY
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -82,20 +133,35 @@ class MonitoringService :
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
             }
         handler.postDelayed(::logMinute, MINUTE_MS)
+        eventQueue = EventQueue(File(filesDir, "events"))
+        Wearable.getMessageClient(this).addListener(this)
+        startedAtMs = System.currentTimeMillis()
         running.value = true
         // One session per file, so it never grows past a few kilobytes an hour
         File(filesDir, LOG_FILE).delete()
-        log("started battery=${battery()}%")
+        log("started battery=${battery()}% pending=${eventQueue.pending().size}")
+        // Resend anything the phone never acked
+        resendPending()
     }
 
     override fun onDestroy() {
         sensorManager.unregisterListener(this)
+        Wearable.getMessageClient(this).removeListener(this)
         handler.removeCallbacksAndMessages(null)
         thread.quitSafely()
         if (wakeLock.isHeld) wakeLock.release()
         running.value = false
         log("stopped after minute=$minute battery=${battery()}%")
         super.onDestroy()
+    }
+
+    override fun onMessageReceived(event: MessageEvent) {
+        // `/echocare/received/<id>` — the phone acked an event
+        if (event.path.startsWith(DataLayer.RECEIVED)) {
+            val id = event.path.substringAfterLast('/').takeIf { it.isNotEmpty() } ?: return
+            eventQueue.ack(id)
+            log("event acked id=$id")
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -107,10 +173,16 @@ class MonitoringService :
                 if (bpm > 0) {
                     heartRateReadings++
                     lastHeartRate = bpm
+                    onHeartRate(bpm)
                 }
             }
             Sensor.TYPE_STEP_COUNTER -> {
                 if (stepsAtMinuteStart < 0) stepsAtMinuteStart = event.values[0]
+                // Only treat it as a step if the counter actually advanced (not the first reading)
+                if (lastStepCount >= 0 && event.values[0] > lastStepCount) {
+                    lastStepAtMs = System.currentTimeMillis()
+                    inactivity.onStep(lastStepAtMs)
+                }
                 lastStepCount = event.values[0]
             }
         }
@@ -130,29 +202,66 @@ class MonitoringService :
             )
         ) {
             falls++
-            val fallId = UUID.randomUUID().toString()
-            log("fall detected in minute=${minute + 1} id=$fallId")
-            getSystemService(VibratorManager::class.java).defaultVibrator
-                .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
-            // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
-            fallPrompt.value = FallPrompt(fallId, Instant.now().toString())
-            // A bright wake lock turns the screen on; the full-screen intent brings up MainActivity
-            @Suppress("DEPRECATION")
-            getSystemService(PowerManager::class.java)
-                .newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                    "EchoCare:fall"
-                ).acquire(10_000L)
-            val nm = getSystemService(NotificationManager::class.java)
-            log("canUseFullScreenIntent=${nm.canUseFullScreenIntent()}")
-            nm.notify(FALL_NOTIFICATION_ID, fallNotification())
-            // Foreground service with FOREGROUND_SERVICE_HEALTH is allowed to start the activity;
-            // the full-screen intent alone doesn't launch it on Wear OS once the screen is off
-            startActivity(
-                Intent(this, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            )
+            raiseAnomaly("fall", snapshot())
+            log("fall detected in minute=${minute + 1}")
         }
+    }
+
+    /** Called for every valid heart-rate reading. Tracks the resting baseline and the pulse-at-rest rule. */
+    private fun onHeartRate(bpm: Int) {
+        val nowMs = System.currentTimeMillis()
+        val moving = isMoving(nowMs)
+        val baseline = restingBaseline.value(nowMs)
+        restingBaseline.onReading(nowMs, bpm, moving)
+        if (pulseAnomaly.onReading(nowMs, bpm, baseline, moving)) {
+            pulseAnomaly.reset()
+            raiseAnomaly("high_pulse_at_rest", snapshot())
+            log("pulse anomaly bpm=$bpm baseline=$baseline")
+        }
+    }
+
+    private fun isMoving(nowMs: Long): Boolean {
+        // shortcut: steps are the only movement signal the service tracks; non-walking motion that
+        // doesn't add a step reads as not-moving. Good enough for UC-09's "high pulse during a walk"
+        return lastStepAtMs > 0 && nowMs - lastStepAtMs < MOVING_WINDOW_MS
+    }
+
+    private fun snapshot(): EventSnapshot {
+        val nowMs = System.currentTimeMillis()
+        val minutesIdle = if (lastStepAtMs < 0) {
+            ((nowMs - startedAtMs) / 60_000L).toInt()
+        } else {
+            ((nowMs - lastStepAtMs) / 60_000L).toInt()
+        }
+        return EventSnapshot(
+            pulse = if (lastHeartRate > 0) lastHeartRate else null,
+            restingBaseline = restingBaseline.value(nowMs),
+            moving = isMoving(nowMs),
+            minutesWithoutSteps = minutesIdle,
+            battery = battery()
+        )
+    }
+
+    private fun raiseAnomaly(type: String, snapshot: EventSnapshot) {
+        val id = UUID.randomUUID().toString()
+        getSystemService(VibratorManager::class.java).defaultVibrator
+            .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
+        // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
+        fallPrompt.value = FallPrompt(id, Instant.now().toString(), type, snapshot)
+        // A bright wake lock turns the screen on; the full-screen intent brings up MainActivity
+        @Suppress("DEPRECATION")
+        getSystemService(PowerManager::class.java)
+            .newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "EchoCare:anomaly"
+            ).acquire(10_000L)
+        val nm = getSystemService(NotificationManager::class.java)
+        log("canUseFullScreenIntent=${nm.canUseFullScreenIntent()}")
+        nm.notify(FALL_NOTIFICATION_ID, fallNotification())
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
     }
 
     private fun logMinute() {
@@ -162,13 +271,51 @@ class MonitoringService :
             "minute=$minute accel=$accelReadings maxGapMs=${maxAccelGapNs / 1_000_000} " +
                 "heartRates=$heartRateReadings lastHeartRate=$lastHeartRate steps=$steps falls=$falls battery=${battery()}%"
         )
+        if (inactivity.isInactive(System.currentTimeMillis())) {
+            raiseAnomaly("inactivity", snapshot())
+            log("inactivity anomaly")
+        }
         sendCheckIn()
+        // The phone may have come back since the last tick; flush anything the queue still holds
+        resendPending()
         accelReadings = 0
         maxAccelGapNs = 0L
         heartRateReadings = 0
         stepsAtMinuteStart = lastStepCount
         falls = 0
         handler.postDelayed(::logMinute, MINUTE_MS)
+    }
+
+    private fun resendPending() {
+        val pending = eventQueue.pending()
+        if (pending.isEmpty()) return
+        log("resending ${pending.size} queued event(s)")
+        pending.forEach(::sendEventToPhone)
+    }
+
+    /** Enqueue an event and try to send it. [onMessageReceived] clears it when the phone acks. */
+    internal fun enqueueAndSend(msg: ro.echocare.shared.EventMessage) {
+        eventQueue.enqueue(msg)
+        sendEventToPhone(msg)
+    }
+
+    private fun sendEventToPhone(msg: ro.echocare.shared.EventMessage) {
+        Wearable.getNodeClient(this).connectedNodes
+            .addOnSuccessListener { nodes ->
+                if (nodes.isEmpty()) {
+                    log("event ${msg.id} skipped: no connected nodes")
+                    return@addOnSuccessListener
+                }
+                nodes.forEach { node ->
+                    Wearable.getMessageClient(this)
+                        .sendMessage(node.id, DataLayer.EVENT, msg.toBytes())
+                        .addOnSuccessListener { log("event ${msg.id} sent to ${node.displayName}") }
+                        .addOnFailureListener {
+                            log("event ${msg.id} failed to ${node.displayName}: ${it.message}")
+                        }
+                }
+            }
+            .addOnFailureListener { log("event ${msg.id} node lookup failed: ${it.message}") }
     }
 
     private fun sendCheckIn() {
@@ -266,6 +413,9 @@ class MonitoringService :
         private const val MINUTE_MS = 60_000L
         private const val LOG_FILE = "monitor.log"
 
+        // How long after the last step the wearer is still considered to be moving (UC-09 "not moving")
+        private const val MOVING_WINDOW_MS = 30_000L
+
         // A cap, so a forgotten test does not keep the CPU awake for days
         private const val MAX_WAKE_MS = 4 * 60 * 60_000L
 
@@ -274,7 +424,12 @@ class MonitoringService :
         // MainActivity observes this; non-null brings up the „Sunteți bine?" screen
         val fallPrompt = MutableStateFlow<FallPrompt?>(null)
 
-        data class FallPrompt(val id: String, val measuredAt: String)
+        data class FallPrompt(
+            val id: String,
+            val measuredAt: String,
+            val type: String = "fall",
+            val snapshot: EventSnapshot = EventSnapshot.EMPTY
+        )
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, MonitoringService::class.java))
@@ -288,6 +443,33 @@ class MonitoringService :
         fun dismissFallNotification(context: Context) {
             context.getSystemService(NotificationManager::class.java)
                 .cancel(FALL_NOTIFICATION_ID)
+        }
+
+        /**
+         * Hand-raises a synthetic event with a fake snapshot, so the demo can show the whole UC-09
+         * loop without waiting for a real anomaly (debug builds only). The intent fires through
+         * the service so the full-screen prompt wakes the watch just like a real one.
+         */
+        fun forceAnomaly(context: Context, type: String) {
+            context.startService(
+                Intent(context, MonitoringService::class.java)
+                    .setAction(ACTION_FORCE_ANOMALY)
+                    .putExtra(EXTRA_FORCE_TYPE, type)
+            )
+        }
+
+        const val ACTION_FORCE_ANOMALY = "ro.echocare.wear.FORCE_ANOMALY"
+        const val EXTRA_FORCE_TYPE = "type"
+        const val ACTION_SEND_EVENT = "ro.echocare.wear.SEND_EVENT"
+        const val EXTRA_EVENT_BYTES = "event_bytes"
+
+        /** The UI calls this to enqueue and send an event; the service handles retries. */
+        fun sendEvent(context: Context, msg: ro.echocare.shared.EventMessage) {
+            context.startService(
+                Intent(context, MonitoringService::class.java)
+                    .setAction(ACTION_SEND_EVENT)
+                    .putExtra(EXTRA_EVENT_BYTES, msg.toBytes())
+            )
         }
     }
 }

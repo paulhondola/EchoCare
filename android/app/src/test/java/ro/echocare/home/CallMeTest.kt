@@ -16,7 +16,7 @@ class CallMeTest {
     fun theRequestIsSentAsTheServerReadsIt() {
         val form = manualRequest("e1", Instant.parse("2026-10-29T20:00:00Z"))
         assertEquals(
-            """{"id":"e1","type":"manual_request","measured_at":"2026-10-29T20:00:00Z"}""",
+            """{"id":"e1","type":"manual_request","measured_at":"2026-10-29T20:00:00Z","source":"phone"}""",
             json.encodeToString(form)
         )
     }

@@ -251,6 +251,7 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "since",
         "call_in_progress",
         "watch_state",
+        "last_pulse",
         "consent",
         "consent_given_at",
         "signed_at",
@@ -749,24 +750,32 @@ async def record_check_in(
 
 def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> bool:
     """Whether the caller looks after this senior, as her registering medic or as a
-    caregiver (UC-12): the rule for the watch state on her page and on the list."""
+    caregiver (UC-12), or is the senior herself on her own page (UC-03)."""
+    is_self = any(
+        g.role == Role.senior and g.senior_id == senior_id for g in caller.grants
+    )
     registered = Role.medic in caller.roles and medic_id == caller.user.id
     caring = any(
         g.role == Role.caregiver and g.senior_id == senior_id for g in caller.grants
     )
-    return registered or caring
+    return is_self or registered or caring
 
 
 async def watch_state(
     session: AsyncSession, caller: Caller, senior: Senior
-) -> WatchCondition | None:
-    """The watch's state, for who looks after this senior (UC-12): not for DAS or the
-    senior herself, whatever else the caller holds elsewhere."""
+) -> tuple[WatchCondition | None, int | None]:
+    """The watch's state and its latest pulse, for who looks after this senior and for the
+    senior herself (UC-03, UC-12): not for DAS. Returns (None, None) when the caller can't see."""
     if not sees_watch(caller, senior.id, senior.medic_id):
-        return None
-    return await session.scalar(
-        select(WatchState.state).where(WatchState.senior_id == senior.id)
-    )
+        return None, None
+    row = (
+        await session.execute(
+            select(WatchState.state, WatchState.last_pulse).where(
+                WatchState.senior_id == senior.id
+            )
+        )
+    ).one_or_none()
+    return (row.state, row.last_pulse) if row else (None, None)
 
 
 def watch_silence() -> timedelta:
