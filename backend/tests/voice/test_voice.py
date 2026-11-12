@@ -86,6 +86,8 @@ async def test_answer_connects_to_conversation_relay(client, call):
     # Its own voice on a speakerphone is not the senior; a turn ends after 2 s.
     assert relay.get("echoPromptFiltering") == "true"
     assert relay.get("speechTimeout") == "2000"
+    assert relay.get("ttsProvider") == "ElevenLabs"
+    assert relay.get("events") == "speaker-events tokens-played"
 
 
 def welcome_greeting(r) -> str:

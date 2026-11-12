@@ -180,6 +180,8 @@ async def answer(call: uuid.UUID, params: Params, session: Db) -> Response:
         # A turn ends 2 s after the senior stops, not when the provider decides: on a
         # noisy line `auto` sent nothing until the hang-up.
         "speechTimeout": "2000",
+        # When each side speaks and what was played, for the session's log.
+        "events": "speaker-events tokens-played",
     }
     relay_tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
     action = quoteattr(voice_url("handoff", call))

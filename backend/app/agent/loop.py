@@ -10,6 +10,7 @@ a hang-up acts at once (design §4, Concurrency).
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import aclosing
 from dataclasses import dataclass, replace
@@ -190,8 +191,10 @@ class Agent:
                 await self._store(
                     Speaker.system, TurnKind.speech, f"error: {description}"
                 )
-            case other:
-                log.info("relay: ignored message type %s", other)
+            case _:
+                # Twilio's speaker and tokens-played events (04 §4.3) land here: with
+                # the round times, they show which side a silence came from.
+                log.info("relay: %s, call %s", _shape(message), self.call)
 
     async def close(self) -> None:
         """The line is gone. A pending confirmation is red (03 §4): it hands over, which
@@ -362,6 +365,8 @@ class Agent:
         pieces: list[str] = []
         held: str | None = None
         json_like: bool | None = None
+        started = time.monotonic()
+        first: float | None = None  # seconds to the first spoken piece
         stream = aiter(self.model(list(self.history)))
         async with aclosing(stream):
             while True:
@@ -379,11 +384,20 @@ class Agent:
                         json_like = start.startswith("{")
                         item = "".join(pieces)
                     if json_like is False:
+                        if first is None:
+                            first = time.monotonic() - started
                         if held is not None:
                             await self._send(_text(held, last=False))
                         held = item
         if held is not None:
             await self._send(_text(held, last=True))
+        log.info(
+            "model round: first text %s, done %.1f s, %d tool calls, call %s",
+            "none" if first is None else f"{first:.1f} s",
+            time.monotonic() - started,
+            len(calls),
+            self.call,
+        )
         if json_like:
             log.warning(
                 "model text looks like JSON, not sent: %d chars, call %s",
@@ -519,6 +533,18 @@ class Agent:
         else:
             del self.history[self._spoken]
             self._spoken = None
+
+
+def _shape(value: Any) -> Any:
+    """A message for the log without its words: what was said is health data."""
+    if isinstance(value, dict):
+        return {k: _shape(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_shape(v) for v in value]
+    # ponytail: 20 keeps names and on/off flags readable and hides any sentence.
+    if isinstance(value, str) and len(value) > 20:
+        return f"{len(value)} chars"
+    return value
 
 
 def _text(token: str, *, last: bool) -> dict[str, Any]:

@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     # Who the scheduler may dial: comma-joined E.164 numbers, `*` for everyone, empty for
     # nobody. Keeps a laptop or staging from ringing real seniors.
     dial_allowlist: str = ""
-    # ConversationRelay's voice for ro-RO; which one sounds right is spike S1.
-    twilio_tts_provider: str = "Google"
-    twilio_voice: str = "ro-RO-Wavenet-A"
+    # ConversationRelay's voice: Twilio's own default for ro-RO, billed by Twilio.
+    twilio_tts_provider: str = "ElevenLabs"
+    twilio_voice: str = "OlBp4oyr3FBAGEAtJOnU"
     # S3-compatible storage bucket (Railway storage for avatars, logs, blob data)
     s3_bucket_name: str = ""
     s3_endpoint: str = ""

@@ -26,6 +26,7 @@ from app.agent.loop import (
     Agent,
     Limits,
     Line,
+    _shape,
 )
 from app.agent.model import ToolCall, stream_with
 from app.agent.relay import CONNECTING, Escalation
@@ -844,3 +845,12 @@ async def test_logs_carry_no_words(caplog):
     assert line.ends == [(DROPPED_SUMMARY, True)]
     assert "model round failed" in caplog.text and "RuntimeError" in caplog.text
     assert not [w for w in words if w in caplog.text]
+
+
+def test_a_logged_message_keeps_its_shape_and_hides_the_words():
+    message = {"type": "info", "name": "tokensPlayed", "value": {"text": "x" * 40}}
+    assert _shape(message) == {
+        "type": "info",
+        "name": "tokensPlayed",
+        "value": {"text": "40 chars"},
+    }
