@@ -240,9 +240,12 @@ class SeniorView(SeniorDetail):
     # True while one of her calls rings or is live, for the badge (UC-12). Set by
     # GET /seniors/{id} only; null on the other answers that carry the senior.
     call_in_progress: bool | None = None
-    # `ok`, `not_worn` or `offline`, for her caregivers and her medic (UC-12). Set by
-    # GET /seniors/{id} only; null also before the watch's first check-in.
+    # `ok`, `not_worn` or `offline`, for her caregivers, her medic, and the senior herself
+    # on her own page (UC-03, UC-12). Null before the first check-in or for DAS.
     watch_state: WatchCondition | None = None
+    # The watch's latest pulse, alongside `watch_state` (UC-03). Null before the first
+    # check-in that carried one, or for callers who can't see the watch.
+    last_pulse: int | None = Field(None, ge=0, le=300)
     medic: MedicView
     caregivers: list[CaregiverView]
 

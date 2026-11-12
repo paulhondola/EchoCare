@@ -369,7 +369,12 @@ fun SeniorDetails(
                 CodeLabel(senior.code, senior.reason)
                 if (showsCallBadge(senior)) Chip(stringResource(R.string.call_live), Tone.Galben)
                 watchChip(senior.watchState)?.let { (label, tone) ->
-                    Chip(stringResource(label), tone)
+                    val text = if (senior.watchState == "ok" && senior.lastPulse != null) {
+                        stringResource(R.string.watch_ok_pulse, senior.lastPulse)
+                    } else {
+                        stringResource(label)
+                    }
+                    Chip(text, tone)
                 }
             }
         }
