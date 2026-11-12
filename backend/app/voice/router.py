@@ -410,6 +410,20 @@ async def handoff_transcript(call: uuid.UUID, params: Params, session: Db) -> Re
     the DAS employee's turn in the order it arrives (04 §4.4 step 5). A failed
     transcription is a system turn, so the transcript says why the talk is missing."""
     line = transcribed(params)
+    # What Twilio really runs and how sure it is of each sentence; never the words.
+    log.info(
+        "hand-over transcription for call %s: %s engine=%s language=%s config=%s "
+        "track=%s seq=%s final=%s confidence=%s",
+        call,
+        params.get("TranscriptionEvent"),
+        params.get("TranscriptionEngine"),
+        params.get("LanguageCode"),
+        params.get("ProviderConfiguration"),
+        params.get("Track"),
+        params.get("SequenceId"),
+        params.get("Final"),
+        line and line[2],
+    )
     if params.get("TranscriptionEvent") == "transcription-error":
         code = params.get("TranscriptionErrorCode", "")
         log.warning(
