@@ -149,10 +149,10 @@ async def watched(db, add_user, add_senior):
 
 @pytest.mark.parametrize(
     ("token", "state"),
-    [(CAREGIVER, "not_worn"), (MEDIC, "not_worn"), (DAS, None), (SENIOR, None)],
+    [(CAREGIVER, "not_worn"), (MEDIC, "not_worn"), (DAS, None), (SENIOR, "not_worn")],
 )
 async def test_only_who_looks_after_her_sees_the_watch(client, watched, token, state):
-    """UC-12: the caregiver's and the medic's page shows it."""
+    """UC-12: the caregiver's and the medic's page shows it; UC-03: so does her own."""
     r = await client.get(f"/api/seniors/{watched.maria.id}", headers=signed_in(token))
     assert r.status_code == 200
     assert r.json()["watch_state"] == state
