@@ -163,7 +163,7 @@ async def test_signed_out_is_401(client, senior):
 
 
 async def test_an_unknown_type_is_422(client, senior):
-    r = await request(client, type="high_pulse_at_rest")
+    r = await request(client, type="not_an_event_type")
     assert r.status_code == 422
 
 
