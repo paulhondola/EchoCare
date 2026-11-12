@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId = "ro.echocare"
-        minSdk = 37
+        minSdk = 36
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.play.services.wearable)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)

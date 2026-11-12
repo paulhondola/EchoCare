@@ -25,3 +25,6 @@ lefthook-local.yml
 
 # SvelteKit
 .svelte-kit/
+
+# IDE settings opened at the repository root; android/.idea keeps its few shared files
+/.idea/
