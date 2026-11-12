@@ -7,6 +7,12 @@ from app.core.settings import get_settings
 from app.voice.models import Speaker
 
 LANGUAGE = "ro-RO"
+# Words a wellbeing call's answers use, for the relay's speech-to-text (04 §4.3):
+# „Mă stim?” was heard for „Mă simt”.
+HINTS = (
+    "da, nu, bine, rău, mă simt, amețit, luni, marți, miercuri, joi, vineri, "
+    "sâmbătă, duminică, cald, frig, răcoare, acasă"
+)
 SORRY = "Ne pare rău, apelul nu poate continua. La revedere."
 # When the hand-over reaches nobody (UC-07).
 CALL_BACK = "Un coleg vă va suna înapoi în cel mai scurt timp."

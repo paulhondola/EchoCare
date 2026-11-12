@@ -10,6 +10,7 @@ a hang-up acts at once (design §4, Concurrency).
 import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import aclosing
@@ -548,4 +549,7 @@ def _shape(value: Any) -> Any:
 
 
 def _text(token: str, *, last: bool) -> dict[str, Any]:
+    # The voice gets one line: the only reply with „\n\n” in it was followed by an
+    # unexplained silence (04 §4.3). Per piece, so the spaces between pieces stay.
+    token = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", token)
     return {"type": "text", "token": token, "last": last}

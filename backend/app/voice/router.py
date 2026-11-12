@@ -43,6 +43,7 @@ from app.voice.dialogue import (
     CALL_BACK,
     CONSENT_TEXT,
     CONSENT_VERSION,
+    HINTS,
     LANGUAGE,
     SORRY,
     STOP_TRANSCRIPTION,
@@ -177,11 +178,16 @@ async def answer(call: uuid.UUID, params: Params, session: Db) -> Response:
         "reportInputDuringAgentSpeech": "any",
         # On a speakerphone the agent hears itself; this drops its own words.
         "echoPromptFiltering": "true",
-        # A turn ends 2 s after the senior stops, not when the provider decides: on a
-        # noisy line `auto` sent nothing until the hang-up.
-        "speechTimeout": "2000",
+        # Twilio's documented ro-RO default, named so an account default can't change it.
+        "transcriptionProvider": "Deepgram",
+        "speechModel": "nova-3-general",
+        "hints": HINTS,
+        # A turn ends 1.2 s after the senior stops, not when the provider decides: on a
+        # noisy line `auto` sent nothing until the hang-up. 2 s added to every silence.
+        "speechTimeout": "1200",
         # When each side speaks and what was played, for the session's log.
         "events": "speaker-events tokens-played",
+        "debug": "debugging",
     }
     relay_tag = "".join(f" {name}={quoteattr(value)}" for name, value in attrs.items())
     action = quoteattr(voice_url("handoff", call))

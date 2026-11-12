@@ -204,6 +204,14 @@ async def test_a_text_round_ends_the_turn():
     assert len(model.calls) == 1
 
 
+async def test_a_line_break_never_reaches_the_voice():
+    model = FakeModel([["Stați jos.\n\n", "Beți apă."]])
+    a, _, sent = await started(model)
+    await a.handle(prompt("amețit"))
+    await a.idle()
+    assert texts(sent) == ["Stați jos.  ", "Beți apă."]
+
+
 async def test_three_tool_only_rounds_say_the_stall_line():
     model = FakeModel([[rec("feeling", "ok", True)]] * 3)
     a, line, sent = await started(model)
