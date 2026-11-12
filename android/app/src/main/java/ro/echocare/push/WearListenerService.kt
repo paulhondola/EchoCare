@@ -1,5 +1,6 @@
 package ro.echocare.push
 
+import android.content.Context
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
@@ -13,12 +14,13 @@ import ro.echocare.CheckInForm
 import ro.echocare.EchoCareApi
 import ro.echocare.EventForm
 import ro.echocare.EventSnapshotForm
+import ro.echocare.home.lastKnownLocation
 import ro.echocare.shared.CheckInMessage
 import ro.echocare.shared.DataLayer
 import ro.echocare.shared.EventMessage
 import ro.echocare.shared.EventSnapshot
 
-private fun EventSnapshot.toForm(): EventSnapshotForm? = if (this == EventSnapshot.EMPTY) {
+internal fun EventSnapshot.toForm(): EventSnapshotForm? = if (this == EventSnapshot.EMPTY) {
     null
 } else {
     EventSnapshotForm(
@@ -29,6 +31,29 @@ private fun EventSnapshot.toForm(): EventSnapshotForm? = if (this == EventSnapsh
         battery = battery
     )
 }
+
+/** Watch → phone mapping; separated so JVM tests can exercise it without Android. */
+internal fun EventMessage.toEventForm(
+    latitude: Double? = null,
+    longitude: Double? = null,
+    locationAccuracyM: Double? = null
+): EventForm = EventForm(
+    id = id,
+    type = type,
+    measuredAt = measuredAt,
+    source = "watch",
+    snapshot = snapshot.toForm(),
+    latitude = latitude,
+    longitude = longitude,
+    locationAccuracyM = locationAccuracyM
+)
+
+internal fun CheckInMessage.toCheckInForm(): CheckInForm = CheckInForm(
+    measuredAt = measuredAt,
+    battery = battery,
+    worn = worn,
+    lastPulse = lastPulse
+)
 
 /**
  * Receives Data Layer messages from the watch (04 §3, UC-09, UC-13) and forwards them to FastAPI.
@@ -45,30 +70,18 @@ class WearListenerService : WearableListenerService() {
         CoroutineScope(Dispatchers.IO).launch {
             when (event.path) {
                 DataLayer.CHECK_IN -> {
-                    val msg = CheckInMessage.fromBytes(event.data)
-                    runCatching {
-                        api.checkIn(
-                            CheckInForm(
-                                measuredAt = msg.measuredAt,
-                                battery = msg.battery,
-                                worn = msg.worn,
-                                lastPulse = msg.lastPulse
-                            )
-                        )
-                    }
+                    val form = CheckInMessage.fromBytes(event.data).toCheckInForm()
+                    runCatching { api.checkIn(form) }
                 }
                 DataLayer.EVENT -> {
                     val msg = EventMessage.fromBytes(event.data)
-                    val ok = runCatching {
-                        api.sendEvent(
-                            EventForm(
-                                id = msg.id,
-                                type = msg.type,
-                                measuredAt = msg.measuredAt,
-                                snapshot = msg.snapshot.toForm()
-                            )
-                        )
-                    }.isSuccess
+                    val here = lastKnownLocation(this@WearListenerService as Context)
+                    val form = msg.toEventForm(
+                        latitude = here?.latitude,
+                        longitude = here?.longitude,
+                        locationAccuracyM = here?.accuracy?.toDouble()
+                    )
+                    val ok = runCatching { api.sendEvent(form) }.isSuccess
                     // Tell the watch to drop this id from its resend queue (04 §3)
                     if (ok) ackToWatch(event.sourceNodeId, msg.id)
                 }

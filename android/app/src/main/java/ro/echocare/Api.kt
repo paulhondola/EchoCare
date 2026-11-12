@@ -73,9 +73,10 @@ data class SeniorPage(
     // One of her calls is ringing or live: the "call in progress" badge (UC-12). Null from an
     // older API, which reads as no.
     @SerialName("call_in_progress") val callInProgress: Boolean? = null,
-    // The watch's state, for her caregivers and her medic (UC-12); null for anyone else, or from an
-    // older API. A string: the server may add a state (ADR-001 §2.3)
+    // The watch's state and latest pulse, for her caregivers, her medic and the senior
+    // herself on her own page (UC-03, UC-12). Null before the first check-in or for DAS.
     @SerialName("watch_state") val watchState: String? = null,
+    @SerialName("last_pulse") val lastPulse: Int? = null,
     // The timeline of the registration and of her consent (04 §1, G7); all null from an older API.
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("submitted_at") val submittedAt: String? = null,
@@ -186,13 +187,18 @@ data class CheckInForm(
 
 // POST /me/events' body (04 §3). [type] is one of manual_request, fall, high_pulse_at_rest,
 // inactivity; [measuredAt] is ISO-8601 with an offset; [id] is the device's, so a resend is a
-// duplicate. [snapshot] is optional and carries what the watch saw when the event fired.
+// duplicate. [source] is watch, phone or home_node. [snapshot] and the location fields are
+// optional.
 @Serializable
 data class EventForm(
     val id: String,
     val type: String,
     @SerialName("measured_at") val measuredAt: String,
-    val snapshot: EventSnapshotForm? = null
+    val source: String? = null,
+    val snapshot: EventSnapshotForm? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerialName("location_accuracy_m") val locationAccuracyM: Double? = null
 )
 
 @Serializable

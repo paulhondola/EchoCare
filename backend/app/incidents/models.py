@@ -58,6 +58,8 @@ class Event(Base):
     type: Mapped[EventType] = mapped_column(enum_type(EventType))
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime] = timestamp_now()
+    # Where the event came from: "watch", "phone" or "home_node" (04 §3)
+    source: Mapped[str | None] = mapped_column(String(32))
     snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     # The phone's last known location, stored only with an event (05 §4).
     latitude: Mapped[float | None] = mapped_column(Float)

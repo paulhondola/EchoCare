@@ -52,7 +52,7 @@ class EventSnapshotForm(BaseModel):
 class EventForm(BaseModel):
     """POST /me/events' body (04 §3). „Sunați-mă”, falls and the watch's own anomalies; the id
     is the device's, so a resend is a duplicate. `measured_at` carries an offset: a naive time
-    is 422. `snapshot` is optional for backward compatibility."""
+    is 422. `source`, `snapshot` and location are all optional for backward compatibility."""
 
     id: uuid.UUID
     type: Literal[
@@ -62,7 +62,11 @@ class EventForm(BaseModel):
         EventType.inactivity,
     ]
     measured_at: AwareDatetime
+    source: Literal["watch", "phone", "home_node"] | None = None
     snapshot: EventSnapshotForm | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    location_accuracy_m: float | None = None
 
 
 class EventView(BaseModel):
