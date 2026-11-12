@@ -119,7 +119,7 @@ async def test_pickup_asks_who_answers(client, db, welcome_call):
     say = gather.find("Say")
     assert say.text == identity("doamna Maria")
     assert say.text.count("doamna Maria") == 2
-    assert say.get("voice") == "Google.ro-RO-Wavenet-A"
+    assert say.get("voice") == "ElevenLabs.X6vOWkVPB3AcILSfttxa"
     assert (await stored(db, welcome_call)).state == CallState.in_progress
 
 

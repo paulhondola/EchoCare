@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     dial_allowlist: str = ""
     # ConversationRelay's voice: Twilio's own default for ro-RO, billed by Twilio.
     twilio_tts_provider: str = "ElevenLabs"
-    twilio_voice: str = "OlBp4oyr3FBAGEAtJOnU"
+    twilio_voice: str = "X6vOWkVPB3AcILSfttxa"
     # S3-compatible storage bucket (Railway storage for avatars, logs, blob data)
     s3_bucket_name: str = ""
     s3_endpoint: str = ""

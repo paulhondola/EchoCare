@@ -74,10 +74,9 @@ def twiml(body: str) -> Response:
 
 
 def say(text: str) -> str:
-    """Romanian in the voice S1 proved for `<Say>` (04 §4.2)."""
-    # ponytail: not the relay's ElevenLabs voice, whose `<Say>` form Twilio's reference
-    # does not give; switch once a phone call proves it.
-    voice = "Google.ro-RO-Wavenet-A"
+    """Romanian in the voice the relay speaks with (04 §4.3)."""
+    s = get_settings()
+    voice = f"{s.twilio_tts_provider}.{s.twilio_voice}"
     return f"<Say language={quoteattr(LANGUAGE)} voice={quoteattr(voice)}>{escape(text)}</Say>"
 
 
