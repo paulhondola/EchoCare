@@ -26,7 +26,7 @@ from app.incidents.schemas import (
 )
 from app.seniors.models import EnrollmentState, Senior
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
-from app.seniors.service import caregivers_query
+from app.seniors.service import caregivers_query, latest_summary, summary_view
 from app.status.engine import Severity
 from app.voice.models import Call, CallTrigger, CallTurn
 from app.voice.service import queue_calls, recent_call
@@ -279,6 +279,7 @@ async def load_incident(
         caregivers=[CaregiverSummary.model_validate(dict(c)) for c in caregivers],
         event=event and TriggerEventView.model_validate(event, from_attributes=True),
         calls=[call_detail(c, reports[c.id], turns[c.id]) for c in calls],
+        summary=summary_view(await latest_summary(session, senior.id)),
     )
 
 

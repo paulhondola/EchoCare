@@ -13,8 +13,11 @@ from app.calls.ending import (
     close_welcome,
     conclude,
     conclude_welcome,
+    end_wellbeing,
     redial_delay,
+    save_concern,
     settle,
+    stored_answers,
 )
 from app.core.changes import Change, ChangeKind, take_notes
 from app.models import (
@@ -34,8 +37,16 @@ from app.models import (
     WarningLevel,
     WelcomeOutcome,
 )
-from app.status.engine import Answer, CallAnswers, Certainty, Question, Severity
+from app.status.engine import (
+    WEEKDAYS,
+    Answer,
+    CallAnswers,
+    Certainty,
+    Question,
+    Severity,
+)
 from app.voice.calls import CallState
+from app.voice.service import save_answer
 from tests.voice.test_voice import FIXTURES, SID, callback, stored
 
 
@@ -612,3 +623,143 @@ async def test_a_second_hand_over_is_a_no_op(db, live_call):
     assert not await begin_handover(call.id, ReportSource.request_human, reason)
     assert await db.scalar(select(func.count()).select_from(StatusReport)) == 1
     assert len(await incidents_of(db, call)) == 1
+
+
+# Stored answers, concerns and dropped calls (#49, 03 §6, 03 §9).
+
+
+def today_name() -> str:
+    return WEEKDAYS[date(2026, 10, 15).weekday()]
+
+
+async def _answer_all_fine(call):
+    for q, v in [
+        (Question.feeling, "ok"),
+        (Question.orientation, today_name()),
+        (Question.shelter, "yes"),
+    ]:
+        await save_answer(call.id, q, v, clear=True, quote=v)
+
+
+async def test_stored_answers_keep_a_clear_answer(db, live_call):
+    call = await live_call()
+    await save_answer(call.id, Question.feeling, "unwell", clear=True, quote="mi-e rău")
+    await save_answer(call.id, Question.feeling, "ok", clear=True, quote="acum bine")
+    assert (await stored_answers(db, call.id)).answers[
+        Question.feeling
+    ].value == "unwell"
+
+
+async def test_an_answer_longer_than_its_column_is_cut_to_fit(db, live_call):
+    call = await live_call()
+    value = "nu știe, zice că poate e luni sau marți, sau poate chiar miercuri"
+    await save_answer(call.id, Question.orientation, value, clear=False, quote=value)
+    stored_value = (await stored_answers(db, call.id)).answers[Question.orientation]
+    assert stored_value.value == value[:60] and stored_value.words == value
+
+
+async def test_a_hang_up_after_mi_e_rau_ends_yellow_without_a_redial(db, live_call):
+    call = await live_call(code=Severity.green)
+    await save_answer(call.id, Question.feeling, "unwell", clear=True, quote="mi-e rău")
+    await settle(db, call.id, None, CallState.dropped)
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert (ended.state, ended.final_severity, ended.final_certainty) == (
+        CallState.dropped,
+        Severity.yellow,
+        Certainty.low,
+    )
+    assert await db.scalar(select(func.count()).select_from(Call)) == 1  # no redial
+
+
+async def test_a_hang_up_after_the_greeting_ends_yellow_incomplete(db, live_call):
+    call = await live_call(code=Severity.green)
+    await settle(db, call.id, None, CallState.dropped)
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert (ended.final_severity, ended.reason) == (
+        Severity.yellow,
+        "Nu a răspuns la toate întrebările",
+    )
+
+
+async def test_a_stored_concern_raises_the_result(db, live_call):
+    call = await live_call(code=Severity.green)
+    await _answer_all_fine(call)
+    await save_concern(call.id, Severity.yellow, "Nu-și găsește pastilele de inimă")
+    assert await end_wellbeing(call.id, "Rezumat.") is Severity.yellow
+
+
+async def test_ending_a_clear_green_call_completes_with_the_summary(db, live_call):
+    call = await live_call(code=Severity.green)
+    await _answer_all_fine(call)
+    assert await end_wellbeing(call.id, "Doamna se simte bine.") is Severity.green
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert ended.state == "completed"
+    assert ended.summary.startswith("Doamna se simte bine.")
+
+
+async def test_a_model_failure_ends_dropped(db, live_call):
+    call = await live_call(code=Severity.green)
+    result = await end_wellbeing(call.id, "Convorbirea s-a întrerupt.", dropped=True)
+    assert result is Severity.yellow
+    assert (await db.get(Call, call.id, populate_existing=True)).state == "dropped"
+
+
+async def test_ending_a_call_already_dropped_does_nothing(db, live_call):
+    call = await live_call()
+    await settle(db, call.id, None, CallState.dropped)
+    assert await end_wellbeing(call.id, "x") is None
+    reports = await db.scalar(
+        select(func.count())
+        .select_from(StatusReport)
+        .where(StatusReport.call_id == call.id)
+    )
+    assert reports == 1
+
+
+async def test_a_red_from_the_rules_hands_over_with_the_answers_reason(db, live_call):
+    call = await live_call(code=Severity.green)
+    await save_answer(call.id, Question.feeling, "unwell", clear=True, quote="rău")
+    await save_answer(call.id, Question.shelter, "no", clear=True, quote="nu")
+    assert await begin_handover(call.id, ReportSource.rules, None)
+    status = await code_of(db, call)
+    assert status.code is Severity.red and "se simte rău" in status.reason.lower()
+
+
+async def test_a_red_concern_hands_over_red(db, live_call):
+    call = await live_call(code=Severity.green)
+    assert await begin_handover(
+        call.id, ReportSource.raise_concern, "Durere de cap puternică"
+    )
+    assert (await code_of(db, call)).code is Severity.red
+
+
+async def test_a_long_handover_reason_is_cut_to_200(db, live_call):
+    call = await live_call(code=Severity.green)
+    reason = "x" * 300
+    assert await begin_handover(call.id, ReportSource.raise_concern, reason)
+    assert (await code_of(db, call)).reason == "x" * 200
+    report = await db.scalar(
+        select(StatusReport).where(StatusReport.call_id == call.id)
+    )
+    assert report.reason == "x" * 200
+
+
+async def test_a_dropped_real_call_is_not_called_simulated(db, live_call):
+    call = await live_call(code=Severity.green)
+    await settle(db, call.id, None, CallState.dropped)
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert ended.summary.startswith("Convorbirea s-a întrerupt.")
+
+
+async def test_key_9_after_a_red_answer_hands_over_red(db, live_call):
+    call = await live_call(code=Severity.green)
+    await save_answer(call.id, Question.feeling, "unwell", clear=True, quote="rău")
+    await save_answer(call.id, Question.shelter, "no", clear=True, quote="nu")
+    assert await begin_handover(call.id, ReportSource.request_human, "tasta 9")
+    ended = await db.get(Call, call.id)
+    await db.refresh(ended)
+    assert ended.final_severity is Severity.red

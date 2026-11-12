@@ -22,6 +22,7 @@ from app.seniors.schemas import (
     SeniorSummary,
     SeniorView,
     SignatureForm,
+    SummaryVersionView,
 )
 from app.seniors.service import (
     accept,
@@ -39,6 +40,7 @@ from app.seniors.service import (
     senior_summaries,
     senior_view,
     submit,
+    summary_for,
     watch_state,
     withdraw_consent,
 )
@@ -238,3 +240,18 @@ async def check_in(
     the latest; an older one than the stored is ignored."""
     senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
     await record_check_in(session, senior_id, body, datetime.now(UTC))
+
+
+@router.get(
+    "/seniors/{senior_id}/summary",
+    response_model=SummaryVersionView,
+    responses={204: {"description": "No summary yet"}},
+)
+async def get_summary(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The DAS briefing: the latest summary, for her medic and DAS (04 §1, design §5 B)."""
+    view = await summary_for(session, caller, senior_id)
+    return view if view is not None else Response(status_code=204)

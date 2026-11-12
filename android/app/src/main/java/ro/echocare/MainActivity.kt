@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
@@ -14,8 +15,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -32,6 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -44,6 +50,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import ro.echocare.auth.AuthViewModel
+import ro.echocare.auth.Landing
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
@@ -94,11 +101,19 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         containerColor = Palette.Canvas
                     ) { innerPadding ->
+                        if (screen == Screen.Landing) {
+                            Landing(vm::openSignIn, Modifier.padding(innerPadding))
+                            return@Scaffold
+                        }
                         SignIn(
                             vm,
                             onSendCode = { sendCode(vm, it, null) },
                             onResend = { sendCode(vm, vm.phone, vm.resendToken) },
-                            modifier = Modifier.padding(innerPadding)
+                            // The keyboard must not cover the code field or its button
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .consumeWindowInsets(innerPadding)
+                                .imePadding()
                         )
                     }
                 }
@@ -134,7 +149,10 @@ class MainActivity : ComponentActivity() {
         phone: String,
         resend: PhoneAuthProvider.ForceResendingToken?
     ) {
-        vm.sending(phone)
+        val attempt = vm.sending(phone)
+
+        // Late callbacks from an attempt left with Înapoi, or replaced by a resend, change nothing
+        fun current() = attempt == vm.attempt
         val options = PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(phone)
             .setTimeout(60L, TimeUnit.SECONDS)
@@ -142,16 +160,20 @@ class MainActivity : ComponentActivity() {
             .setCallbacks(
                 object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                     // Automatic SMS reading: sign in straight away.
-                    override fun onVerificationCompleted(credential: PhoneAuthCredential) =
-                        vm.signIn(credential)
+                    override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                        if (current()) vm.signIn(credential)
+                    }
 
-                    override fun onVerificationFailed(e: FirebaseException) =
-                        vm.verificationFailed(e)
+                    override fun onVerificationFailed(e: FirebaseException) {
+                        if (current()) vm.verificationFailed(e)
+                    }
 
                     override fun onCodeSent(
                         id: String,
                         token: PhoneAuthProvider.ForceResendingToken
-                    ) = vm.codeSent(id, token)
+                    ) {
+                        if (current()) vm.codeSent(id, token)
+                    }
                 }
             )
         resend?.let(options::setForceResendingToken)
@@ -179,6 +201,12 @@ fun SignIn(
             // Shown by HomeNav in MainActivity, not here.
             is Screen.Home -> {}
             else -> Panel {
+                // Before anyone is signed in, back returns to the landing page
+                val beforeSignIn =
+                    screen is Screen.Phone ||
+                        screen is Screen.Code ||
+                        screen == Screen.NotRegistered
+                BackHandler(enabled = beforeSignIn, onBack = vm::backToLanding)
                 when (screen) {
                     is Screen.Phone -> PhoneForm(screen.error, onSendCode)
                     // Signed out already: the phone form, under the not-registered text (auth-layer §3.2).
@@ -210,6 +238,14 @@ fun SignIn(
                         }
                     }
                     else -> {}
+                }
+                if (beforeSignIn) {
+                    SnButton(
+                        stringResource(R.string.back),
+                        vm::backToLanding,
+                        Modifier.fillMaxWidth(),
+                        kind = Kind.Outline
+                    )
                 }
             }
         }
@@ -254,7 +290,12 @@ private fun Title(text: Int) {
 
 @Composable
 private fun ErrorText(text: Int) {
-    Text(stringResource(text), color = Palette.RosuFg, style = MaterialTheme.typography.bodyMedium)
+    Text(
+        stringResource(text),
+        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        color = Palette.RosuFg,
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
 
 @Composable

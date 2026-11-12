@@ -1,5 +1,6 @@
 """Twilio's callbacks replayed against FastAPI, one with a bad signature (#15, 06 §5)."""
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -15,12 +16,15 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.agent import session as agent_session
+from app.agent.model import ToolCall
 from app.agent.relay import GOODBYE
 from app.core.db import get_session
 from app.main import app
 from app.models import Call, CallTurn, Campaign, Incident, StatusReport
+from app.status.engine import WEEKDAYS, today_in_bucharest
 from app.voice import router as voice_router
 from app.voice.dialogue import SORRY, greeting
+from app.voice.router import echo_for
 from app.voice.twilio import signature
 
 FIXTURES = json.loads(
@@ -331,7 +335,8 @@ async def test_a_database_failure_at_pickup_says_sorry(client, call):
 class Socket:
     """The relay's side of a WebSocket, signed as Twilio signs the connect (04 §4.1)."""
 
-    def __init__(self, call_id, messages):
+    def __init__(self, call_id, messages, drain: float = 0):
+        self.drain = drain
         self.url = SimpleNamespace(path="/api/voice/relay", query=f"call={call_id}")
         url = f"wss://echocare.test/api/voice/relay?call={call_id}"
         self.headers = {"x-twilio-signature": signature(TOKEN, url, [])}
@@ -346,6 +351,9 @@ class Socket:
 
     async def receive_text(self):
         if not self.incoming:
+            if self.drain:  # lets a turn task finish
+                await asyncio.sleep(self.drain)
+                self.drain = 0
             raise WebSocketDisconnect(1000)
         return self.incoming.pop(0)
 
@@ -362,6 +370,8 @@ async def answered(client, call):
 
 
 async def test_our_close_ends_completed(client, db, call):
+    call.trigger = "test"
+    await db.commit()
     await answered(client, call)
     ws = Socket(call.id, [SETUP, {"type": "dtmf", "digit": "0"}])
     await voice_router.relay(ws, call.id)  # through the signature check
@@ -382,7 +392,7 @@ async def test_our_close_ends_completed(client, db, call):
 async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
     await answered(client, call)
     ws = Socket(call.id, [SETUP, "not json", "[1, 2]", {"type": "dtmf", "digit": "0"}])
-    await agent_session.serve(ws, call.id, "Bună ziua.")
+    await agent_session.serve(ws, call.id, echo_for(call.id, "Bună ziua."))
     assert (ws.closed, ws.sent[-1]) == (None, {"type": "end"})
 
 
@@ -396,7 +406,7 @@ async def test_the_relay_skips_what_is_not_a_json_object(client, db, call):
 async def test_the_relay_needs_the_calls_own_setup_first(client, db, call, first):
     await answered(client, call)
     ws = Socket(call.id, [first, {"type": "dtmf", "digit": "0"}])
-    await agent_session.serve(ws, call.id, "Bună ziua.")
+    await agent_session.serve(ws, call.id, echo_for(call.id, "Bună ziua."))
     assert (ws.closed, ws.sent) == (1008, [])
     assert (await stored(db, call)).state == "in_progress"
 
@@ -407,7 +417,7 @@ async def test_an_ended_call_takes_no_relay(client, db, call):
         params = {**FIXTURES["status_common"], "CallStatus": status}
         await callback(client, "status", call.id, params)
     ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
-    await agent_session.serve(ws, call.id, "Bună ziua.")
+    await agent_session.serve(ws, call.id, echo_for(call.id, "Bună ziua."))
     assert (ws.accepted, ws.closed) == (False, 1008)
 
 
@@ -429,7 +439,7 @@ async def test_a_dropped_relay_keeps_its_turns(client, db, call):
         call.id, [SETUP, {"type": "prompt", "voicePrompt": "Bine", "last": True}]
     )
     await agent_session.serve(
-        ws, call.id, "Bună ziua."
+        ws, call.id, echo_for(call.id, "Bună ziua.")
     )  # the script runs out: WebSocketDisconnect
     turns = await db.scalars(
         select(CallTurn.content).where(CallTurn.call_id == call.id)
@@ -462,3 +472,97 @@ async def test_key_9_on_a_test_call_writes_nothing(client, db, call):
     assert (await stored(db, call)).state == "in_progress"
     assert await db.scalar(select(func.count()).select_from(Incident)) == 0
     assert await db.scalar(select(func.count()).select_from(StatusReport)) == 0
+
+
+async def test_a_wellbeing_call_talks_to_the_model(client, db, call, monkeypatch):
+    async def stream(messages):
+        yield "Mă bucur. Ce zi e azi?"
+
+    monkeypatch.setattr(voice_router, "model_stream", lambda: stream)
+    await answered(client, call)
+    ws = Socket(
+        call.id,
+        [SETUP, {"type": "prompt", "voicePrompt": "bine", "last": True}],
+        drain=0.2,
+    )
+    await voice_router.relay(ws, call.id)
+    assert {"type": "text", "token": "Mă bucur. Ce zi e azi?", "last": True} in ws.sent
+
+
+async def test_a_test_call_still_echoes(client, db, call):
+    call.trigger = "test"
+    await db.commit()
+    await answered(client, call)
+    ws = Socket(
+        call.id, [SETUP, {"type": "prompt", "voicePrompt": "bine", "last": True}]
+    )
+    await voice_router.relay(ws, call.id)
+    assert ws.sent[0]["token"].startswith("Am auzit")
+
+
+async def test_a_model_hand_over_sends_reason_agent(client, db, call, monkeypatch):
+    async def stream(messages):
+        yield ToolCall("c1", "request_human", {"reason": "nu aude"})
+
+    monkeypatch.setattr(voice_router, "model_stream", lambda: stream)
+    await answered(client, call)
+    ws = Socket(
+        call.id,
+        [SETUP, {"type": "prompt", "voicePrompt": "alo?", "last": True}],
+        drain=0.2,
+    )
+    await voice_router.relay(ws, call.id)
+    assert json.loads(ws.sent[-1]["handoffData"])["reason"] == "agent"
+    assert (await stored(db, call)).state == "handed_over"
+
+
+async def test_serve_closes_the_handler_on_any_error(client, db, call):
+    """The agent's limit and turn tasks stop with the socket (session.py)."""
+    await answered(client, call)
+
+    class Failing:
+        closed = False
+
+        async def handle(self, message):
+            if message["type"] == "prompt":
+                raise RuntimeError("database down")
+
+        async def close(self):
+            Failing.closed = True
+
+    ws = Socket(call.id, [SETUP, {"type": "prompt", "voicePrompt": "x", "last": True}])
+    with pytest.raises(RuntimeError):
+        await agent_session.serve(ws, call.id, lambda send: Failing())
+    assert Failing.closed
+
+
+async def test_three_clear_answers_end_the_call_completed(
+    client, db, call, monkeypatch
+):
+    """#49's done when: the model records three clear answers and ends the call."""
+    today = WEEKDAYS[today_in_bucharest().weekday()]
+
+    def record(field, value):
+        args = {"field": field, "value": value, "clear": True, "words": value}
+        return ToolCall(f"c-{field}", "record_answer", args)
+
+    async def stream(messages):
+        yield record("feeling", "ok")
+        yield record("orientation", today)
+        yield record("shelter", "yes")
+        yield ToolCall("c-end", "end_call", {"summary": "Doamna se simte bine."})
+        yield "Vă mulțumesc. La revedere."
+
+    monkeypatch.setattr(voice_router, "model_stream", lambda: stream)
+    await answered(client, call)
+    ws = Socket(
+        call.id,
+        [SETUP, {"type": "prompt", "voicePrompt": "bine, e " + today, "last": True}],
+        drain=0.2,
+    )
+    await voice_router.relay(ws, call.id)
+    assert ws.sent[-1] == {"type": "end"}
+    ended = await stored(db, call)
+    assert ended.state == "completed"
+    assert ended.final_severity is not None
+    assert ended.summary.startswith("Doamna se simte bine.")

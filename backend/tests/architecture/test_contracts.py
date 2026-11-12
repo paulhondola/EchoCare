@@ -148,9 +148,9 @@ def test_package_inits_import_nothing():
 def test_status_forbids_every_dependency():
     pyproject = tomllib.loads((BACKEND / "pyproject.toml").read_text())
     # ponytail: "firebase-admin>=7.7.0" -> firebase_admin holds for every dependency
-    # today; map the odd one by hand (python-dateutil -> dateutil) when it arrives.
+    # today; map the odd one by hand (python-dateutil -> dateutil; pydantic-ai-slim -> pydantic_ai) when it arrives.
     imported_as = {
-        re.match(r"[\w-]+", dep)[0].replace("-", "_").lower()
+        re.match(r"[\w-]+", dep)[0].replace("-", "_").lower().replace("_slim", "")
         for dep in pyproject["project"]["dependencies"]
     }
     status = next(
@@ -394,3 +394,14 @@ def test_a_same_named_class_from_elsewhere_is_no_write(tmp_path):
         "def rule():\n    return Answer('bine', True, 'Bine')\n"
     )
     assert ("calls/rule.py", "Answer") not in foreign_writes(tmp_path / "app")
+
+
+def test_no_instrumentation():
+    # No senior words reach a tracing backend (design §7).
+    banned = ("logfire", "instrument=True", "instrument_all")
+    hits = [
+        str(path.relative_to(BACKEND))
+        for path in (BACKEND / "app").rglob("*.py")
+        if any(word in path.read_text() for word in banned)
+    ]
+    assert hits == []

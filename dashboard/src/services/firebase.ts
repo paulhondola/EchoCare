@@ -17,3 +17,13 @@ export const auth = getAuth(app);
 if (import.meta.env.DEV && import.meta.env.VITE_REAL_SMS !== "true") {
   auth.settings.appVerificationDisabledForTesting = true;
 }
+
+// Real SMS on the dev server: Firebase rejects the reCAPTCHA from localhost (auth/invalid-app-credential)
+// but accepts 127.0.0.1, which the local API's CORS also allows. Same port, path and query.
+if (
+  import.meta.env.DEV &&
+  import.meta.env.VITE_REAL_SMS === "true" &&
+  location.hostname === "localhost"
+) {
+  location.replace(location.href.replace("//localhost", "//127.0.0.1"));
+}

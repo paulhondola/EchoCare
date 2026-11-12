@@ -1,6 +1,7 @@
-"""Seed the demo cast: a medic, a DAS employee on duty, and a senior the medic registered
-with a caregiver, submitted for DAS to accept (ADR-001: staging holds the team's phones,
-production the demo cast). DAS pressing „Acceptă” then rings the senior's welcome call.
+"""Seed the demo cast: staff, each with one or both of das and medic, exactly one DAS on
+duty, and seniors their medic registered with caregivers, submitted for DAS to accept
+(ADR-001: staging holds the team's phones, production the demo cast). A caregiver may
+also be staff. DAS pressing „Acceptă” then rings the senior's welcome call.
 
 The cast is real people, so it never enters Git (#48). It comes from a JSON file kept
 outside the repository, or as the git-ignored backend/cast.json; cast.example.json shows
@@ -21,50 +22,105 @@ import asyncio
 import sys
 import uuid
 from pathlib import Path
-from typing import Any, Self
+from typing import Annotated, Literal, Self
 
 # Run as a file, Python puts scripts/ on the path, not the folder that holds app/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from sqlalchemy import select
 
 from app.auth.schemas import StaffGrantForm
 from app.auth.service import Caller, grant_staff, set_on_duty
 from app.core.db import Session
-from app.core.phones import mask
+from app.core.phones import mask, normalize
 from app.core.settings import db_host, get_settings, is_local_db, on_railway
 from app.models import EnrollmentState, Grant, Role, Senior, User
 from app.seniors.schemas import CaregiverForm, SeniorForm
 from app.seniors.service import grant_caregiver, register, submit
 
 
-class Cast(BaseModel):
-    """The four people, each checked as the API checks them (POST /staff, /seniors,
-    /seniors/{id}/caregivers); the role of each staff entry comes from its key."""
+class StaffEntry(BaseModel):
+    """One staff member with one or both staff roles (grants are unique per user and
+    role, so das and medic can share a number). Each role is checked as POST /staff
+    checks it; the medic's practice is ignored for das."""
 
-    medic: StaffGrantForm
-    das: StaffGrantForm
-    senior: SeniorForm
-    caregiver: CaregiverForm
+    display_name: str
+    phone: str
+    roles: Annotated[list[Literal["das", "medic"]], Field(min_length=1, max_length=2)]
+    practice: str | None = None
+    on_duty: bool = False
 
-    @model_validator(mode="before")
+    @field_validator("roles")
     @classmethod
-    def staff_roles(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            for role in ("medic", "das"):
-                if isinstance(data.get(role), dict):
-                    data = {**data, role: {**data[role], "role": role}}
-        return data
+    def no_repeats(cls, roles: list[str]) -> list[str]:
+        if len(set(roles)) != len(roles):
+            raise ValueError("a role is named twice")
+        return roles
 
     @model_validator(mode="after")
-    def senior_can_be_submitted(self) -> Self:
-        # Submitting needs the address (UC-01 step 6); a draft would wait forever.
-        if not (self.senior.street and self.senior.street_number):
-            raise ValueError(
-                "the senior needs street and street_number to be submitted"
+    def staff_forms(self) -> Self:
+        self.phone = self.forms()[0].phone  # E.164, as the forms normalize it
+        if self.on_duty and "das" not in self.roles:
+            raise ValueError("only a das can be on duty")
+        return self
+
+    def forms(self) -> list[StaffGrantForm]:
+        return [
+            StaffGrantForm(
+                display_name=self.display_name,
+                phone=self.phone,
+                role=role,
+                practice=self.practice,
             )
+            for role in self.roles
+        ]
+
+
+class SeniorEntry(SeniorForm):
+    """A senior as POST /seniors checks them, the staff phone of their medic, and their
+    caregivers as POST /seniors/{id}/caregivers checks each."""
+
+    medic: str
+    caregivers: list[CaregiverForm] = Field(default_factory=list)
+
+    @field_validator("medic")
+    @classmethod
+    def medic_e164(cls, raw: str) -> str:
+        return normalize(raw)
+
+    def form(self) -> SeniorForm:
+        return SeniorForm(**self.model_dump(exclude={"medic", "caregivers"}))
+
+
+class Cast(BaseModel):
+    """Staff and seniors, who name each other by phone (ADR-001: staging holds the
+    team's phones, production the demo cast)."""
+
+    staff: Annotated[list[StaffEntry], Field(min_length=1)]
+    seniors: list[SeniorEntry] = []
+
+    @model_validator(mode="after")
+    def people_fit(self) -> Self:
+        phones = [s.phone for s in self.staff]
+        if len(set(phones)) != len(phones):
+            raise ValueError("two staff entries share a phone")
+        # One on duty: the hand-over rings that person (set_on_duty, 06 §4).
+        if sum(s.on_duty for s in self.staff) != 1:
+            raise ValueError("exactly one das must be on_duty")
+        medics = {s.phone for s in self.staff if "medic" in s.roles}
+        for senior in self.seniors:
+            if senior.medic not in medics:
+                raise ValueError(
+                    f"{senior.form_of_address}: medic is not a staff medic in the cast"
+                )
+            # Submitting needs the address (UC-01 step 6); a draft would wait forever.
+            if not (senior.street and senior.street_number):
+                raise ValueError(
+                    f"{senior.form_of_address} needs street and street_number to be "
+                    "submitted"
+                )
         return self
 
 
@@ -113,55 +169,59 @@ async def staff(session, form: StaffGrantForm) -> tuple[uuid.UUID, str]:
     return user_id, f"{role.value} {form.display_name} ({mask(form.phone)}): {said}"
 
 
+async def senior(session, entry: SeniorEntry, medic_id: uuid.UUID) -> str:
+    """Registers, gives caregivers and submits one senior as their medic; what it did."""
+    medic = await session.get(User, medic_id, populate_existing=True)
+    grants = list(await session.scalars(select(Grant).where(Grant.user_id == medic_id)))
+    caller = Caller(medic, grants)
+    found = await session.scalar(
+        select(Senior)
+        .where(Senior.phone_e164 == entry.phone)
+        .order_by(Senior.created_at)
+    )
+    name = f"{entry.form_of_address} ({mask(entry.phone)})"
+    if found is not None and found.medic_id != medic_id:
+        return f"senior {name}: registered by another medic, left as it is"
+    if found is None:
+        senior_id = (await register(session, caller, entry.form())).id
+    else:
+        senior_id = found.id
+    for caregiver in entry.caregivers:
+        try:
+            await grant_caregiver(session, caller, senior_id, caregiver)
+        except HTTPException as e:
+            if e.detail.get("reason") != "already_done":
+                raise
+    state = await session.scalar(
+        select(Senior.enrollment_state).where(Senior.id == senior_id)
+    )
+    if state is EnrollmentState.draft:
+        await submit(session, caller, senior_id)
+        return f"senior submitted: {name}, for DAS to accept"
+    return f"senior {name}: already {state.value}"
+
+
 async def seed_cast(cast: Cast) -> list[str]:
     """Seeds the cast through the same steps the apps take; what it did, one line each.
     Each step commits, so a run that stops halfway is finished by the next one."""
     lines = []
+    users: dict[str, uuid.UUID] = {}
     async with Session() as session:
-        medic_id, said = await staff(session, cast.medic)
-        lines.append(said)
-        das_id, said = await staff(session, cast.das)
-        lines.append(said)
-        await set_on_duty(session, das_id)
-        lines.append(f"on duty: {cast.das.display_name}")
-
-        medic = await session.get(User, medic_id, populate_existing=True)
-        grants = list(
-            await session.scalars(select(Grant).where(Grant.user_id == medic_id))
-        )
-        caller = Caller(medic, grants)
-        senior = await session.scalar(
-            select(Senior)
-            .where(Senior.phone_e164 == cast.senior.phone)
-            .order_by(Senior.created_at)
-        )
-        name = f"{cast.senior.form_of_address} ({mask(cast.senior.phone)})"
-        if senior is not None and senior.medic_id != medic_id:
-            lines.append(f"senior {name}: registered by another medic, left as it is")
-            return lines
-        if senior is None:
-            senior_id = (await register(session, caller, cast.senior)).id
-        else:
-            senior_id = senior.id
-        try:
-            await grant_caregiver(session, caller, senior_id, cast.caregiver)
-        except HTTPException as e:
-            if e.detail.get("reason") != "already_done":
-                raise
-        state = await session.scalar(
-            select(Senior.enrollment_state).where(Senior.id == senior_id)
-        )
-        if state is EnrollmentState.draft:
-            await submit(session, caller, senior_id)
-            lines.append(f"senior submitted: {name}, for DAS to accept")
-        else:
-            lines.append(f"senior {name}: already {state.value}")
+        for entry in cast.staff:
+            for form in entry.forms():
+                users[entry.phone], said = await staff(session, form)
+                lines.append(said)
+        duty = next(s for s in cast.staff if s.on_duty)
+        await set_on_duty(session, users[duty.phone])
+        lines.append(f"on duty: {duty.display_name}")
+        for entry in cast.seniors:
+            lines.append(await senior(session, entry, users[entry.medic]))
     return lines
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Seed the demo cast (medic, DAS, senior, caregiver) from a JSON file."
+        description="Seed the demo cast (staff and seniors) from a JSON file."
     )
     parser.add_argument("cast", help='the cast JSON file, or "-" for stdin')
     parser.add_argument(

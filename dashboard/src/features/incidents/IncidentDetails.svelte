@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    fetchCalls,
     fetchIncident,
     fetchSenior,
     resolveIncident,
     takeIncident,
+    type CallSummary,
     type Incident,
     type IncidentDetail,
     type IncidentOutcome,
@@ -24,6 +26,7 @@
   } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
   import CallTranscript from "../calls/CallTranscript.svelte";
+  import Briefing from "../seniors/Briefing.svelte";
   import { refusalMessage } from "./commands";
 
   let {
@@ -64,6 +67,8 @@
   let tab = $state<DossierTab>(initialTab);
   let load = $state<Load<IncidentDetail>>({ kind: "loading" });
   let senior = $state<SeniorView | null>(null);
+  // All the senior's calls, to date the briefing's citations; `d.calls` holds only the incident's
+  let seniorCalls = $state<Load<CallSummary[]>>({ kind: "loading" });
   let dialogEl: HTMLDialogElement | undefined = $state();
   let outcome = $state<IncidentOutcome | "">("");
   let note = $state("");
@@ -104,6 +109,25 @@
         senior = s;
       })
       .catch(() => {});
+    return () => ctrl.abort();
+  });
+
+  // Only when there is a briefing to date
+  const briefedId = $derived(load.kind === "ok" && load.data.summary ? load.data.senior.id : null);
+  $effect(() => {
+    if (!briefedId) return;
+    const ctrl = new AbortController();
+    fetchCalls(briefedId, ctrl.signal)
+      .then((data) => {
+        seniorCalls = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!ctrl.signal.aborted)
+          seniorCalls = {
+            kind: "error",
+            message: `Nu am putut citi apelurile seniorului (${e instanceof Error ? e.message : String(e)}).`,
+          };
+      });
     return () => ctrl.abort();
   });
 
@@ -341,6 +365,18 @@
                 {#if senior.medic.practice}
                   <span class="text-fg-muted">· {senior.medic.practice}</span>
                 {/if}
+              </div>
+            {/if}
+
+            {#if d.summary}
+              <div class="pt-4">
+                {#if seniorCalls.kind === "error"}
+                  <p role="alert" class="pb-2 text-rosu-fg">{seniorCalls.message}</p>
+                {/if}
+                <Briefing
+                  summary={d.summary}
+                  calls={seniorCalls.kind === "ok" ? seniorCalls.data : d.calls}
+                />
               </div>
             {/if}
           </div>

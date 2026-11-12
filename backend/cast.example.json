@@ -1,24 +1,41 @@
 {
-  "medic": {
-    "display_name": "Medic Demo",
-    "phone": "+40700000002",
-    "practice": "CMI Demo"
-  },
-  "das": {
-    "display_name": "DAS Demo",
-    "phone": "+40700000001"
-  },
-  "senior": {
-    "full_name": "Senior Demo",
-    "form_of_address": "doamna Demo",
-    "phone": "+40700000005",
-    "street": "Strada Demo",
-    "street_number": "1",
-    "call_window": "10:00–18:00"
-  },
-  "caregiver": {
-    "display_name": "Aparținător Demo",
-    "relation": "fiica",
-    "phone": "+40700000004"
-  }
+  "staff": [
+    {
+      "display_name": "DAS și Medic Demo",
+      "phone": "+40700000001",
+      "roles": ["das", "medic"],
+      "practice": "CMI Demo",
+      "on_duty": true
+    },
+    {
+      "display_name": "DAS Demo",
+      "phone": "+40700000003",
+      "roles": ["das"]
+    }
+  ],
+  "seniors": [
+    {
+      "full_name": "Senior Demo",
+      "form_of_address": "doamna Demo",
+      "phone": "+40700000005",
+      "street": "Strada Demo",
+      "street_number": "1",
+      "call_window": "10:00–18:00",
+      "medic": "+40700000001",
+      "caregivers": [
+        {"display_name": "DAS Demo", "relation": "fiul", "phone": "+40700000003"}
+      ]
+    },
+    {
+      "full_name": "Al Doilea Senior Demo",
+      "form_of_address": "domnul Demo",
+      "phone": "+40700000006",
+      "street": "Strada Demo",
+      "street_number": "2",
+      "medic": "+40700000001",
+      "caregivers": [
+        {"display_name": "Aparținător Demo", "relation": "fiica", "phone": "+40700000004"}
+      ]
+    }
+  ]
 }

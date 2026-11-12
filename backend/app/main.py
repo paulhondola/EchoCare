@@ -11,6 +11,7 @@ from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
 from app.core.settings import check_environment, cors_origins, get_settings
 from app.incidents.router import router as incidents_router
+from app.memory.service import stop_summaries
 from app.notify.service import drain, install, sender_from
 from app.scheduler.loop import run
 from app.seniors.router import router as seniors_router
@@ -24,6 +25,11 @@ logging.getLogger("echocare.incidents").setLevel(logging.INFO)
 
 settings = get_settings()
 check_environment(settings)
+if not settings.deepinfra_api_key:
+    # Every wellbeing call would end dropped at the senior's first reply (04 §5).
+    logging.getLogger("echocare").error(
+        "DEEPINFRA_API_KEY is not set: the agent loop cannot talk and summaries are off"
+    )
 # Pushes after every commit (04 §6), when a credential is set.
 install(sender_from(settings.firebase_push_credentials))
 
@@ -38,6 +44,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+    await stop_summaries()  # a summary under way is redone by the next copy
     await drain()  # the pushes already under way
 
 

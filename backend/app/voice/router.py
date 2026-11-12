@@ -1,6 +1,8 @@
 import json
 import logging
 import uuid
+from collections.abc import Callable
+from functools import cache, partial
 from typing import Annotated
 from urllib.parse import parse_qsl
 from xml.sax.saxutils import quoteattr
@@ -10,13 +12,23 @@ from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.relay import Escalation, HandOver
-from app.agent.session import serve
+from app.agent.loop import Agent, Line, Send
+from app.agent.model import ModelStream, stream_with
+from app.agent.relay import Escalation, HandOver, Relay
+from app.agent.session import Echo, Handler, serve
 from app.auth.service import on_duty, refuse
-from app.calls.ending import begin_handover, close_welcome, conclude_welcome, settle
-from app.calls.service import answer_context
+from app.calls.ending import (
+    begin_handover,
+    close_welcome,
+    conclude_welcome,
+    end_wellbeing,
+    save_concern,
+    settle,
+)
+from app.calls.service import AnswerContext, answer_context
 from app.codes.models import ReportSource
 from app.core.db import Session, get_session
+from app.core.llm import deepinfra_model
 from app.core.phones import mask
 from app.core.settings import get_settings
 from app.incidents.service import take_for_handover
@@ -51,6 +63,8 @@ from app.voice.service import (
     form_of_address,
     live_call_for_update,
     move_call,
+    save_answer,
+    save_turn,
     transition,
 )
 from app.voice.twilio import (
@@ -426,28 +440,96 @@ async def relay(ws: WebSocket, call: uuid.UUID) -> None:
         return
     # The session holds no database session (ADR-004), so its greeting is read here.
     async with Session() as session:
-        context = await answer_context(session, call)
+        context = await answer_context(session, call, notes=True)
     if context is None:
         log.warning("relay connect for unknown call %s", call)
         await ws.close(code=1008)
         return
-    hand_over = None if context.trigger is CallTrigger.test else hand_over_for(call)
-    await serve(ws, call, context.greeting, hand_over)
+    start = (
+        echo_for(call, context.greeting)
+        if context.trigger is CallTrigger.test
+        else agent_for(call, context)
+    )
+    await serve(ws, call, start)
 
 
 KEY_9_REASON = "A cerut un operator (tasta 9)"
 ALARM_REASON = "A spus: «{words}»"
+HUMAN_REASON = "A cerut un operator"
+REASON_ROOM = 200  # Call.reason's length
+
+
+@cache  # one client for every call, so a call's first round reuses its connections
+def model_stream() -> ModelStream:
+    s = get_settings()
+    return stream_with(deepinfra_model(s.deepinfra_api_key, s.agent_model))
+
+
+def echo_for(call: uuid.UUID, greeting: str) -> Callable[[Send], Handler]:
+    """A test call keeps the scripted echo and never hands over (05 §1)."""
+
+    def start(send: Send) -> Handler:
+        return Echo(Relay(greeting, partial(save_turn, call)), send, call)
+
+    return start
+
+
+def agent_for(call: uuid.UUID, context: AnswerContext) -> Callable[[Send], Handler]:
+    """The agent, with its writes composed here: `agent` can't import `calls`."""
+
+    async def answer(q, a) -> None:
+        await save_answer(call, q, a.value, clear=a.clear, quote=a.words)
+
+    async def end(summary: str, dropped: bool) -> None:
+        await end_wellbeing(call, summary, dropped=dropped)
+
+    line = Line(
+        store=partial(save_turn, call),
+        answer=answer,
+        concern=partial(save_concern, call),
+        hand_over=hand_over_for(call),
+        end=end,
+    )
+
+    def start(send: Send) -> Handler:
+        return Agent(
+            call=str(call),
+            greeting=context.greeting,
+            form_of_address=context.form_of_address,
+            heat=context.heat,
+            follow_up=context.follow_up,
+            how_to_talk=context.how_to_talk,
+            send=send,
+            line=line,
+            model=model_stream(),
+        )
+
+    return start
 
 
 def hand_over_for(call: uuid.UUID) -> HandOver:
-    """The session's way to start a hand-over: `agent` can't import `calls` (layers),
-    and a router may import anything."""
+    """The session's way to start a hand-over: `agent` can't import `calls`, and a
+    router may import anything (04 §4.3, 04 §5)."""
 
     async def hand_over(escalation: Escalation, words: str) -> bool:
-        if escalation is Escalation.key_9:
-            return await begin_handover(call, ReportSource.request_human, KEY_9_REASON)
-        room = 200 - len(ALARM_REASON.format(words=""))  # Call.reason's length
-        reason = ALARM_REASON.format(words=words[:room])
-        return await begin_handover(call, ReportSource.alarm_tier1, reason)
+        match escalation:
+            case Escalation.key_9:
+                source, reason = ReportSource.request_human, KEY_9_REASON
+            case Escalation.alarm | Escalation.tier_2:
+                room = REASON_ROOM - len(ALARM_REASON.format(words=""))
+                reason = ALARM_REASON.format(words=words[:room])
+                source = (
+                    ReportSource.alarm_tier1
+                    if escalation is Escalation.alarm
+                    else ReportSource.alarm_tier2
+                )
+            case Escalation.concern:
+                source, reason = ReportSource.raise_concern, words[:REASON_ROOM]
+            case Escalation.human:
+                source = ReportSource.request_human
+                reason = words[:REASON_ROOM] or HUMAN_REASON
+            case Escalation.rules:
+                source, reason = ReportSource.rules, None
+        return await begin_handover(call, source, reason)
 
     return hand_over

@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from pydantic import AwareDatetime, BaseModel, BeforeValidator, StringConstraints
 
 from app.incidents.models import EventType, IncidentOutcome, IncidentStatus
-from app.seniors.schemas import CaregiverSummary, SeniorDetail
+from app.seniors.schemas import CaregiverSummary, SeniorDetail, SummaryVersionView
 
 # Severity and Certainty are IntEnums; clients read their names, "red", not "2".
 Level = Annotated[str, BeforeValidator(lambda v: getattr(v, "name", v))]
@@ -133,3 +133,4 @@ class IncidentDetail(BaseModel):
     caregivers: list[CaregiverSummary]
     event: TriggerEventView | None
     calls: list[CallDetail]
+    summary: SummaryVersionView | None = None

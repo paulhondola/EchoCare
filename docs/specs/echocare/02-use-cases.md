@@ -320,7 +320,7 @@ sequenceDiagram
 2. The dialer places a few calls at a time.
 3. When the senior answers, Twilio connects the call to the agent. The greeting names the senior and the warning: „…azi e cod roșu de ger”.
 4. Each thing the senior says arrives as text. FastAPI checks it for alarm phrases, then passes the conversation to the model, and streams the reply back to be spoken.
-5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer.
+5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer. If the senior has a summary of past calls, the agent also asks its first follow-up question once, after the feeling answer and before the last question; that reply counts as an answer only for what the senior says now.
 6. The rules give green with high certainty. FastAPI writes the code.
 7. The agent closes the call with a short piece of advice.
 
@@ -337,7 +337,7 @@ The other endings are UC-06, UC-07 and UC-08.
 | After | Code yellow; caregiver notified; medic sees a warning |
 
 1. The rules give yellow (one worrying answer), or green without high certainty, or the model raises a yellow concern.
-2. If certainty is not high and the re-ask has not been used, the agent re-asks the question whose answer was unclear, once.
+2. If certainty is not high and fewer than two re-asks have been used for the question whose answer was unclear, the agent asks it again, up to twice (#49).
 3. FastAPI writes code yellow with the reason and the senior's words. For a worrying answer this happens when it is recorded; for an uncertain green it happens when the call ends.
 4. The notifier sends an alert to the caregivers' devices. The medic's app shows a warning on that patient, with no alert.
 5. The call continues to its normal close.
@@ -401,7 +401,7 @@ Variations:
 - **Nobody is on duty.** No dial is attempted; same message to the senior; the dashboard shows the open incident with a "nobody on duty" warning.
 - **Red with no call left to hand over.** Happens if the line drops between the red and the hand-over. The incident opens as usual and DAS phones the senior.
 
-**Built so far (#48): key 9 and a tier 1 phrase.** Either one starts the hand-over at any point in a wellbeing call. Before the session closes, one step writes the status report, the code, the incident (or joins the senior's unresolved one) and the call's `handed_over`, so a line lost at step 3 keeps them. A second 9 changes nothing. A tier 2 phrase, the rules' red, the model's red concern and a spoken request for a person wait for the agent loop: until then a tier 2 match is kept in the transcript and acts on nothing. The on-duty number is dialed only if it is on `DIAL_ALLOWLIST`; otherwise the senior hears the call-back message. An incident someone took from the dashboard before the phone was answered stays theirs. No push alerts are sent yet. Test calls (`place_call.py`) never hand over.
+**Hand-over triggers (#48, #49).** Key 9 and a tier 1 phrase start the hand-over at any point in a wellbeing call. Before the session closes, one step writes the status report, the code, the incident (or joins the senior's unresolved one) and the call's `handed_over`, so a line lost at step 3 keeps them. A second 9 changes nothing. A confirmed or unanswered tier 2 phrase, the rules' red, the model's red concern and a request for a person (or the agent judging the conversation cannot go on) start it too (04 §4.3, §5). The on-duty number is dialed only if it is on `DIAL_ALLOWLIST`; otherwise the senior hears the call-back message. An incident someone took from the dashboard before the phone was answered stays theirs. No push alerts are sent yet. Test calls (`place_call.py`) never hand over.
 
 ### UC-08 Nobody answers
 

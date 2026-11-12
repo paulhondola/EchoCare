@@ -3,11 +3,13 @@
   import {
     fetchCalls,
     fetchSenior,
+    fetchSummary,
     fetchTranscript,
     type CallSummary,
     type IncidentCall,
     type SeniorSummary,
     type SeniorView,
+    type SummaryVersion,
   } from "../../services/api";
   import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
@@ -23,7 +25,9 @@
     TRIGGERS,
   } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
+  import { tabKeydown } from "../../utils/tabs";
   import CallTranscript from "../calls/CallTranscript.svelte";
+  import Briefing from "./Briefing.svelte";
 
   let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
 
@@ -36,10 +40,15 @@
 
   let load = $state<Load<SeniorView>>({ kind: "loading" });
   let tab = $state<(typeof TABS)[number]["key"]>("file");
+  const TAB_KEYS = TABS.map((t) => t.key);
+  const select = (key: (typeof TABS)[number]["key"]) =>
+    key === "calls" ? showCalls() : (tab = key);
   // Read again each time the tab is opened, and each transcript each time its call is,
   // so a live call or hand-over is current; the last good read shows meanwhile
   // ponytail: re-read on open, not a timer; poll() the expanded call if DAS needs it live
   let calls = $state<Load<CallSummary[]> | null>(null);
+  // null until read; the briefing's citations are dated from `calls`
+  let briefing = $state<Load<SummaryVersion | null>>({ kind: "loading" });
   let transcripts = $state<Record<string, Load<IncidentCall>>>({});
   let expanded = $state<string | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
@@ -89,6 +98,22 @@
       })
       .catch((e: unknown) => {
         if (!reads.signal.aborted) load = { kind: "error", message: failed("dosarul", e) };
+      });
+    fetchSummary(summary.id, reads.signal)
+      .then((data) => {
+        briefing = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!reads.signal.aborted) briefing = { kind: "error", message: failed("rezumatul", e) };
+      });
+    // Dates the briefing's citations; a failure shows as the Apeluri tab's error
+    calls = { kind: "loading" };
+    fetchCalls(summary.id, reads.signal)
+      .then((data) => {
+        calls = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!reads.signal.aborted) calls = { kind: "error", message: failed("apelurile", e) };
       });
     return () => reads.abort();
   });
@@ -169,21 +194,31 @@
         <button
           type="button"
           role="tab"
+          id={`senior-tab-${t.key}`}
+          data-tab={t.key}
           aria-selected={tab === t.key}
+          aria-controls="senior-panel"
+          tabindex={tab === t.key ? 0 : -1}
+          onkeydown={tabKeydown(TAB_KEYS, tab, select)}
           class={[
             "-mb-0.5 flex cursor-pointer items-center gap-1.5 border-b-2 px-2.5 py-[11px] text-[12.5px] font-semibold",
             tab === t.key
               ? "border-link text-fg"
               : "border-transparent text-fg-muted hover:text-fg",
           ]}
-          onclick={() => (t.key === "calls" ? showCalls() : (tab = t.key))}
+          onclick={() => select(t.key)}
         >
           {t.label}
         </button>
       {/each}
     </div>
 
-    <div class="min-h-0 flex-1 overflow-auto px-5 pt-[18px] pb-6" role="tabpanel">
+    <div
+      id="senior-panel"
+      class="min-h-0 flex-1 overflow-auto px-5 pt-[18px] pb-6"
+      role="tabpanel"
+      aria-labelledby={`senior-tab-${tab}`}
+    >
       {#if tab === "calls"}
         {#if !calls || calls.kind === "loading"}
           <div role="status" class="loading-delay flex items-center gap-2 text-fg-muted">
@@ -285,6 +320,18 @@
             "Medic de familie",
             [s.medic.display_name, s.medic.practice].filter(Boolean).join(" · "),
           )}
+
+          <div class="pt-4">
+            {#if briefing.kind === "loading"}
+              <div role="status" class="loading-delay flex items-center gap-2 text-fg-muted">
+                <span class="loading loading-sm loading-spinner"></span>Se încarcă rezumatul…
+              </div>
+            {:else if briefing.kind === "error"}
+              <p role="alert" class="text-rosu-fg">{briefing.message}</p>
+            {:else}
+              <Briefing summary={briefing.data} calls={calls?.kind === "ok" ? calls.data : []} />
+            {/if}
+          </div>
 
           <div class="sn-label pt-4 pb-2">Aparținători înregistrați</div>
           {#each s.caregivers as c (c.user_id)}

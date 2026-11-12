@@ -143,25 +143,42 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
 uv run python scripts/seed.py
 ```
 
-A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. It refuses any database but a local one.
+A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. From a laptop it refuses any database but a local one.
 
 ```bash
 uv run python scripts/seed.py --reset
 ```
 
-`seed.py` stays local. Its seniors' numbers are made up and may belong to real people; two are Timișoara landlines.
+Its seniors' numbers are made up and may belong to real people; two are Timișoara landlines. So `seed.py` runs on staging only behind `DIAL_ALLOWLIST`, which keeps every seeded number from ringing, and never on production.
 
 On the day, run `--reset` shortly before the demo, so the open incident is minutes old and the resolved ones are still on the board. Never during a live demo: `--reset` deletes every incident and call attached to a seeded senior.
 
+### The same mock data on staging
+
+Staging holds the same fictional cast, for the dashboard, and the team's own people from the cast file below. From the laptop, inside the `api` container (either order works):
+
+```bash
+railway ssh -s api -e staging -- python scripts/seed.py --confirm staging
+railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging - < cast.json
+```
+
+Add `--reset` to the first for fresh times. It deletes only the seed's own seniors; the team's seniors, made by `seed_cast.py` through the API's steps, and their real calls stay. On a cloud database `seed.py` grants DAS to nobody, since the test numbers' codes are on this page, and writes its campaign already lapsed, so a campaign the team starts queues calls.
+
+Before an end-to-end run on real phones and watches:
+- `DEEPINFRA_API_KEY` is set on staging; without it no summaries are written.
+- `DIAL_ALLOWLIST` on staging holds exactly the team's four numbers. `seed.py` refuses a cloud database whose allowlist is `*`.
+- The four numbers are verified in Twilio, the on-duty DAS's too, since hand-overs ring it.
+- The team signs in with real SMS, not test numbers.
+- No one but the cast's DAS holds DAS on staging: check the staff list and revoke the rest by hand. The seed grants none, but deletes none either.
+- A campaign started on staging queues calls for every active fictional senior too. The allowlist keeps them silent; they wait in the campaign's progress until the warning lapses. „Sunați-mă” and the watch reach only the team's seniors.
+
 ### The demo cast on staging and production
 
-ADR-001 has staging hold the team's phones and production the demo cast, seeded once before the freeze. [scripts/seed_cast.py](scripts/seed_cast.py) seeds four people through the same steps the apps take:
-- a medic;
-- a DAS employee, put on duty, so hand-overs ring them;
-- a senior the medic registered;
-- the senior's caregiver.
+ADR-001 has staging hold the team's phones and production the demo cast, seeded once before the freeze. [scripts/seed_cast.py](scripts/seed_cast.py) seeds people through the same steps the apps take:
+- `staff`: each with `roles` of `das`, `medic` or both. Exactly one DAS has `"on_duty": true`, so hand-overs ring them;
+- `seniors`: each registered by the staff member whose phone is their `medic`, with their `caregivers`. A caregiver may also be staff, and then holds both.
 
-The senior is left `submitted`, so the demo starts with DAS pressing „Acceptă”, which rings the welcome call. A second run adds nothing.
+Each senior is left `submitted`, so the demo starts with DAS pressing „Acceptă”, which rings the welcome call. A second run adds nothing. Staging and production use the same shape; a cast file written for the old four-slot shape (`medic`, `das`, `senior`, `caregiver`) needs rewriting once.
 
 The cast is real people, so it never enters Git (#48). Keep it in a JSON file outside the repository, or as `backend/cast.json`, which Git and Docker ignore. [cast.example.json](cast.example.json) shows its shape; every field is checked as the API checks it.
 
@@ -173,7 +190,7 @@ railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging -
 
 From a laptop the script refuses any database but a local one, as `alembic/env.py` does.
 
-For the senior's calls to ring, put the senior's and the DAS number on that environment's `DIAL_ALLOWLIST`.
+For the seniors' calls to ring, put the seniors' and the on-duty DAS's numbers on that environment's `DIAL_ALLOWLIST`.
 
 ## Migrations
 

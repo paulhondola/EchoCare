@@ -34,6 +34,8 @@
   aria-label="Cod Roșu"
   class="flex flex-wrap items-center gap-3 border-b-2 border-rosu bg-rosu-strong/20 px-5 py-2.5"
 >
+  <!-- Read out once per incident, as the Shell remounts this banner for each; not the ticking time -->
+  <span role="alert" class="sr-only">Cod roșu: {incident.senior_full_name}, {incident.reason}</span>
   <span class={["size-2.5 flex-none bg-rosu", live.sound && "sn-pulse"]}></span>
   <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
     <span class="font-extrabold tracking-[0.06em] text-rosu-fg">COD ROȘU</span>

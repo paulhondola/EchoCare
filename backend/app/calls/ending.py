@@ -16,7 +16,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.campaigns.models import Campaign, CampaignKind
-from app.codes.models import ReportSource, SeniorStatus
+from app.codes.models import ReportSource, SeniorStatus, StatusReport
 from app.codes.service import add_report, set_code
 from app.core.db import Session
 from app.core.settings import get_settings
@@ -25,7 +25,9 @@ from app.incidents.service import note_red_added, open_incident, opens_incident
 from app.seniors.models import ConsentMethod, EnrollmentState
 from app.seniors.service import confirm_welcome, end_welcome
 from app.status.engine import (
+    Answer,
     CallAnswers,
+    Certainty,
     Question,
     Severity,
     final_severity,
@@ -33,12 +35,25 @@ from app.status.engine import (
     today_in_bucharest,
 )
 from app.voice.calls import CallState
+from app.voice.models import Answer as StoredAnswer
 from app.voice.models import Call, CallTrigger, WelcomeOutcome
 from app.voice.service import (
     finish,
     live_call_for_update,
     queue_redial,
     transition,
+)
+
+INCOMPLETE_REASON = "Nu a răspuns la toate întrebările"
+LINE_LOST_SUMMARY = "Convorbirea s-a întrerupt."
+# Sources that hand a call over red; any other hand-over is yellow (03 §6, 04 §4.4).
+RED_SOURCES = frozenset(
+    {
+        ReportSource.alarm_tier1,
+        ReportSource.alarm_tier2,
+        ReportSource.raise_concern,
+        ReportSource.rules,
+    }
 )
 
 
@@ -62,32 +77,78 @@ def campaign_reason(worrying: list[Question], kind: CampaignKind) -> str:
     return (f"{', '.join(init)} și {last}" if init else last).capitalize()
 
 
+async def stored_answers(session: AsyncSession, call_id: uuid.UUID) -> CallAnswers:
+    """The call's stored answers in the order heard, the overwrite rule applied (03 §3)."""
+    answers = CallAnswers()
+    rows = await session.scalars(
+        select(StoredAnswer)
+        .where(StoredAnswer.call_id == call_id)
+        .order_by(StoredAnswer.at)
+    )
+    for row in rows:
+        answers.record(row.field, Answer(row.value, row.clear, row.quote))
+    return answers
+
+
+async def stored_concern(session: AsyncSession, call_id: uuid.UUID) -> Severity | None:
+    """The highest severity the call raised as a concern, if any (03 §6)."""
+    found = await session.scalars(
+        select(StatusReport.severity).where(
+            StatusReport.call_id == call_id,
+            StatusReport.source == ReportSource.raise_concern,
+        )
+    )
+    return max(found, default=None)
+
+
+async def save_concern(call_id: uuid.UUID, severity: Severity, reason: str) -> None:
+    """A concern the agent raised, committed as it comes (03 §6). Owns its session."""
+    async with Session() as session:
+        add_report(session, call_id, ReportSource.raise_concern, severity, reason[:200])
+        await session.commit()
+
+
+async def call_reason(session: AsyncSession, call: Call, answers: CallAnswers) -> str:
+    """What the answers found, in Romanian; INCOMPLETE_REASON when nothing worrying was
+    said and a question is missing or unclear (unclear never counts as fine, 03 §5)."""
+    kind = await session.scalar(
+        select(Campaign.kind).where(Campaign.id == call.campaign_id)
+    )  # a call with no campaign reads as cold
+    today = today_in_bucharest()
+    worrying = [q for q in Question if answers.worrying(q, today)]
+    if not worrying and answers.unclear():
+        return INCOMPLETE_REASON
+    return campaign_reason(worrying, kind or CampaignKind.cold)
+
+
 async def conclude(
-    session: AsyncSession, call: Call, answers: CallAnswers | None
+    session: AsyncSession,
+    call: Call,
+    answers: CallAnswers | None,
+    *,
+    summary: str = "Apel simulat din aplicație.",
+    concern: Severity | None = None,
+    dropped: bool = False,
 ) -> Severity | None:
     """End a call that is `in_progress` (answered) or already `unanswered`.
 
     Returns the result, or None when a redial was queued instead (03 §6: a campaign's
-    green waits for the redial). Doesn't commit.
+    green waits for the redial). A dropped call counts as answered with low certainty
+    and is never redialed (03 §9). Doesn't commit.
     """
     now = datetime.now(UTC)
     if answers is not None:
-        today = today_in_bucharest()
-        kind = await session.scalar(
-            select(Campaign.kind).where(Campaign.id == call.campaign_id)
-        )  # a call with no campaign reads as cold
-        reason = campaign_reason(
-            [q for q in Question if answers.worrying(q, today)],
-            kind or CampaignKind.cold,
-        )
-        certainty = answers.certainty()
+        reason = await call_reason(session, call, answers)
+        certainty = Certainty.low if dropped else answers.certainty()
         result = final_severity(
             starting=call.starting_severity,
             answered=True,
-            rules=answers.severity(today),
+            rules=answers.severity(today_in_bucharest()),
             certainty=certainty,
+            concern=concern,
         )
-        end, summary = CallState.completed, f"Apel simulat din aplicație. {reason}."
+        end = CallState.dropped if dropped else CallState.completed
+        summary = f"{summary} {reason}."
         source = ReportSource.rules
     elif call.attempt == 1:
         add_report(
@@ -158,8 +219,19 @@ async def settle(
             now = datetime.now(UTC)
             finish(call, moved, now, welcome_outcome=WelcomeOutcome.no_answer)
             await retry_welcome(session, call)
-        elif call.trigger is not CallTrigger.test and moved is not CallState.dropped:
-            await conclude(session, call, None)
+        elif call.trigger is not CallTrigger.test:
+            if moved is CallState.dropped:
+                # Concluded from what was stored; no redial (03 §9).
+                await conclude(
+                    session,
+                    call,
+                    await stored_answers(session, call_id),
+                    summary=LINE_LOST_SUMMARY,
+                    concern=await stored_concern(session, call_id),
+                    dropped=True,
+                )
+            else:
+                await conclude(session, call, None)
     await session.commit()
     return moved
 
@@ -231,21 +303,55 @@ async def close_welcome(
     return True
 
 
-async def begin_handover(call_id: uuid.UUID, source: ReportSource, reason: str) -> bool:
+async def end_wellbeing(
+    call_id: uuid.UUID, summary: str, *, dropped: bool = False
+) -> Severity | None:
+    """The agent ends a wellbeing call from what was stored. Owns its session, like
+    `begin_handover`. None, with nothing written, once the call is no longer in progress."""
+    async with Session() as session:
+        call = await live_call_for_update(session, call_id)
+        if call is None:
+            return None
+        result = await conclude(
+            session,
+            call,
+            await stored_answers(session, call_id),
+            summary=summary,
+            concern=await stored_concern(session, call_id),
+            dropped=dropped,
+        )
+        await session.commit()
+    return result
+
+
+async def begin_handover(
+    call_id: uuid.UUID, source: ReportSource, reason: str | None
+) -> bool:
     """A call going to a person (04 §4.4): key 9 (`request_human`, at least yellow) or
-    a tier 1 phrase (`alarm_tier1`, red). Every hand-over opens an incident, or joins
+    a tier 1 phrase (`alarm_tier1`, red), or the agent's own (red per `RED_SOURCES`;
+    `reason=None` is what the stored answers found). Every hand-over opens an incident, or joins
     the senior's unresolved one, so the DAS phone that rings shows who is calling
     (design §4). Written before the session closes, so a line lost now keeps it.
 
     Owns its session, like `voice.service.save_turn`: the relay holds none (ADR-004).
     False, with nothing written, once the call is no longer in progress.
     """
-    severity = Severity.red if source is ReportSource.alarm_tier1 else Severity.yellow
+    severity = Severity.red if source in RED_SOURCES else Severity.yellow
     async with Session() as session:
         call = await live_call_for_update(session, call_id)
         if call is None:
             return False
         now = datetime.now(UTC)
+        answers = await stored_answers(session, call_id)
+        # A red already heard stays red, whatever started the hand-over (03 §6).
+        severity = max(
+            severity,
+            answers.severity(today_in_bucharest()),
+            await stored_concern(session, call_id) or Severity.green,
+        )
+        if reason is None:
+            reason = await call_reason(session, call, answers)
+        reason = reason[:200]  # String(200) in reports and the code (05 §2)
         add_report(session, call.id, source, severity, reason)
         current = await session.scalar(
             select(SeniorStatus.code).where(SeniorStatus.senior_id == call.senior_id)
