@@ -11,6 +11,7 @@ from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
 from app.core.settings import check_environment, cors_origins, get_settings
 from app.incidents.router import router as incidents_router
+from app.medical.router import router as medical_router
 from app.memory.service import stop_summaries
 from app.notify.service import drain, install, sender_from
 from app.scheduler.loop import run
@@ -69,6 +70,7 @@ api = APIRouter(prefix="/api")
 # Assemble domain routers onto /api
 api.include_router(auth_router)
 api.include_router(seniors_router)
+api.include_router(medical_router)
 api.include_router(incidents_router)
 api.include_router(campaigns_router)
 api.include_router(calls_router)
