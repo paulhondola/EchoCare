@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     agent_model: str = "deepseek-ai/DeepSeek-V4-Pro"
     # The per-senior summary agent's model (design §3).
     summary_model: str = "deepseek-ai/DeepSeek-V4-Pro"
+    # The vision model that reads scanned medical record pages (design §5.3).
+    ocr_model: str = "allenai/olmOCR-2-7B-1025"
 
     @field_validator("dial_allowlist")
     @classmethod
