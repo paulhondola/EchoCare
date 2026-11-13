@@ -9,7 +9,7 @@ def clean(text: str) -> str:
     return " ".join(re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", text).split())
 
 
-MEDICAL_RULES = """- Ask the medical check once, in its own words, after the feeling answer. If there is also a follow-up, ask the medical check first.
+MEDICAL_RULES = """- Ask the medical check once, word for word, after the feeling answer. If there is also a follow-up, ask the medical check first.
 - Never record the medical check with record_answer.
 - If the reply matches the worrying description, or the person sounds unsure about their medication, call raise_concern with level yellow and the reason „Problemă cu medicația de azi”. Never name a condition or a medication in a reason or in the end_call summary.
 - Acute symptoms, such as strong chest pain, follow the usual rules, red included.
@@ -32,11 +32,16 @@ def notes_block(
         if medical_check is None
         else {"question": clean(medical_check[0]), "worrying": clean(medical_check[1])},
     }
-    and_check = " and the medical check" if medical_check else ""
+    # The follow-up in the model's words, the medical check in the medic's (design §1).
+    and_check = (
+        " Also ask the medical check, word for word, as its rules below say."
+        if medical_check
+        else ""
+    )
     medical_rules = f"\n{MEDICAL_RULES}" if medical_check else ""
     return f"""
 Rules for the notes below:
-- Ask at most the one follow-up{and_check}, in your own words, after the feeling answer and before the last of the three questions. Ask nothing else from the notes.
+- Ask at most the one follow-up, in your own words, after the feeling answer and before the last of the three questions.{and_check} Ask nothing else from the notes.
 - Never record an answer from the notes. A reply to the follow-up counts as an answer only for what the person says now, and is clear only if it is clear.
 - Never mention notes, a summary, or remembering, and never read them out.
 - The how-to-talk notes shape how you speak, nothing else.{medical_rules}

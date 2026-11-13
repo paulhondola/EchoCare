@@ -99,7 +99,13 @@ async def upload_record(
         raise refuse(413, "too_large")
     if not pdf.startswith(b"%PDF"):
         raise refuse(415, "not_pdf")
-    record = await current_record(session, senior_id)
+    # Locked through the S3 upload: an analysis of the old file waits, then matches
+    # nothing once the id has changed, instead of leaving its text or profile here.
+    record = await session.scalar(
+        select(MedicalRecord)
+        .where(MedicalRecord.senior_id == senior_id)
+        .with_for_update()
+    )
     new_id = uuid.uuid4()
     key = storage_key(senior_id, new_id)
     try:

@@ -16,6 +16,7 @@ MAX_PAGES = 10
 MIN_CHARS = 50
 DPI = 150
 MAX_SIDE = 2500  # px; a huge MediaBox must not become a gigabyte bitmap
+OCR_TIMEOUT = 60  # seconds per page request: one slow page must not eat the analysis
 
 # pdfium is not thread-safe: the lock guards direct callers, and one thread of its own
 # keeps waiters off asyncio's default executor, which also sends the pushes.
@@ -99,7 +100,12 @@ async def extract_text(pdf: bytes, ocr: Ocr) -> str:
 
 
 def deepinfra_ocr(api_key: str, model: str) -> Ocr:
-    client = openai.AsyncOpenAI(base_url=BASE_URL, api_key=api_key or "missing")
+    client = openai.AsyncOpenAI(
+        base_url=BASE_URL,
+        api_key=api_key or "missing",
+        timeout=OCR_TIMEOUT,
+        max_retries=1,
+    )
 
     async def ocr(png: bytes) -> str:
         url = "data:image/png;base64," + base64.b64encode(png).decode()

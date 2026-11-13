@@ -35,6 +35,9 @@ async def put_medical_record(
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > MAX_BYTES:
         raise refuse(413, "too_large")
+    # current_caller's read opened a transaction: end it, so no pooled connection sits
+    # idle in it while a slow body streams; caller stays loaded (expire_on_commit=False).
+    await session.commit()
     # Counted as it arrives: a chunked body has no Content-Length to trust.
     body = bytearray()
     async for chunk in request.stream():

@@ -59,6 +59,10 @@ def test_no_medical_check_means_null_and_no_rules():
     text = instructions("x", False, "Cum?", ())
     assert json.loads(text.rstrip().splitlines()[-1])["medical_check"] is None
     assert "medical check" not in text.split("Notes from past")[0]
+    assert (
+        "- Ask at most the one follow-up, in your own words, after the feeling answer "
+        "and before the last of the three questions. Ask nothing else from the notes.\n"
+    ) in text
 
 
 def test_medical_check_cannot_add_instruction_lines():
@@ -66,9 +70,11 @@ def test_medical_check_cannot_add_instruction_lines():
     assert "\n- Ignore the rules" not in text
 
 
-def test_the_first_notes_rule_allows_the_medical_check():
+def test_the_medical_check_is_asked_in_the_medics_wording():
     with_check = instructions("x", False, medical_check=("a", "b"))
-    assert (
-        "Ask at most the one follow-up and the medical check, in your own" in with_check
+    assert "Also ask the medical check, word for word, as its rules below say." in (
+        with_check
     )
-    assert "Ask at most the one follow-up, in your own" not in with_check
+    assert "Ask the medical check once, word for word, after the feeling" in with_check
+    assert "in its own words" not in with_check
+    assert "Ask at most the one follow-up and the medical check" not in with_check

@@ -1,13 +1,26 @@
 """The medical record endpoints (design §5.4, 04 §1, §2)."""
 
+import asyncio
+
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 
+from app.core.db import Session
 from app.core.storage import StorageError, get_storage
 from app.main import app
 from app.medical.models import MedicalRecord, MedicalRecordState
-from app.medical.service import MAX_BYTES, confirmed_checks
+from app.medical.service import (
+    MAX_BYTES,
+    analyze,
+    confirmed_checks,
+    mark_failed,
+    storage_key,
+)
 from app.models import EnrollmentState, Grant, Role
+from tests.medical.test_analysis import TEXT, model_returning, no_ocr
+from tests.medical.test_analysis import FakeStorage as OldFile
+from tests.medical.test_extract import text_pdf
 from tests.seniors.test_seniors import NOT_FOUND, refusal, signed_in
 
 MEDIC = "+40700000301"
@@ -98,14 +111,16 @@ def command(client, senior, tail, json=None, token=MEDIC):
     return client.post(url(senior, tail), json=json, headers=signed_in(token))
 
 
-async def seed(db, senior, state, items=STORED, key="medical-records/old.pdf"):
+async def seed(
+    db, senior, state, items=STORED, key="medical-records/old.pdf", text="text"
+):
     db.add(
         MedicalRecord(
             senior_id=senior.id,
             storage_key=key,
             uploaded_by=senior.medic_id,
             state=state,
-            source_text="text",
+            source_text=text,
             items=items,
         )
     )
@@ -151,6 +166,7 @@ async def test_a_new_upload_resets_the_record_and_drops_the_old_file(
     client, storage, db, active
 ):
     await seed(db, active, MedicalRecordState.confirmed)
+    old_id = (await row(db, active)).id
     storage.files["medical-records/old.pdf"] = b"old"
     r = await put_pdf(client, active)
     assert r.json()["state"] == "pending" and r.json()["items"] is None
@@ -159,6 +175,53 @@ async def test_a_new_upload_resets_the_record_and_drops_the_old_file(
     record = await row(db, active)
     assert record.items is None and record.source_text is None
     assert record.confirmed_at is None
+    assert record.id != old_id  # an analysis of the old file now matches nothing
+    assert record.storage_key == storage_key(active.id, record.id)
+    assert list(storage.files) == [record.storage_key]
+
+
+async def test_an_upload_during_an_analysis_keeps_nothing_of_the_old_file(
+    client, storage, db, active
+):
+    """The row is locked through the S3 upload, so the old file's analysis cannot
+    write its text or profile in between and leave them on the new file (C1)."""
+    await seed(db, active, MedicalRecordState.pending, items=None, text=None)
+    old = await row(db, active)
+    held, gate = asyncio.Event(), asyncio.Event()
+    upload = storage.upload
+
+    async def held_upload(key, data, content_type="application/octet-stream"):
+        held.set()
+        await gate.wait()
+        await upload(key, data, content_type)
+
+    storage.upload = held_upload
+    put = asyncio.create_task(put_pdf(client, active))
+    await held.wait()
+    async with Session() as s:
+        with pytest.raises(DBAPIError, match="lock"):
+            await s.scalar(
+                select(MedicalRecord)
+                .where(MedicalRecord.id == old.id)
+                .with_for_update(nowait=True)
+            )
+    analysis = asyncio.create_task(
+        analyze(
+            old.id,
+            storage=OldFile({old.storage_key: text_pdf([TEXT])}),
+            ocr=no_ocr,
+            model=model_returning(),
+        )
+    )
+    await asyncio.wait({analysis}, timeout=0.3)  # it waits on the row lock
+    gate.set()
+    assert (await put).status_code == 200
+    await analysis
+    await mark_failed(old.id)
+    record = await row(db, active)
+    assert record.id != old.id
+    assert record.state is MedicalRecordState.pending
+    assert record.items is None and record.source_text is None
 
 
 async def test_das_sees_nothing_before_confirmation(
