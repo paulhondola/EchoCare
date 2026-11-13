@@ -19,17 +19,21 @@ CALL_BACK = "Un coleg vă va suna înapoi în cel mai scurt timp."
 
 # The consent the call reads, and the one the mock card shows; the version is stored
 # with every consent so a text change is traceable (05 §1, design §4.4).
-CONSENT_VERSION = "v1"
+CONSENT_VERSION = "v2"
 CONSENT_TEXT = (
     "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
-    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. "
+    "Dacă medicul a adăugat fișa medicală, o folosim ca să vă punem întrebări potrivite. "
+    "Puteți renunța oricând. "
     "Dacă sunteți de acord, apăsați 1 sau spuneți «da». Dacă nu, apăsați 2 sau spuneți "
     "«nu». Ca să ascultați din nou, apăsați 0."
 )
-CARD_CONSENT_VERSION = "v1-app"
+CARD_CONSENT_VERSION = "v2-app"
 CARD_CONSENT_TEXT = (
     "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
-    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. "
+    "Dacă medicul a adăugat fișa medicală, o folosim ca să vă punem întrebări potrivite. "
+    "Puteți renunța oricând. "
     "Sunteți de acord?"
 )
 
