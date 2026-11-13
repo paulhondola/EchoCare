@@ -5,6 +5,7 @@ import base64
 import io
 import threading
 from collections.abc import Awaitable, Callable
+from concurrent.futures import ThreadPoolExecutor
 
 import openai
 import pypdfium2 as pdfium
@@ -16,8 +17,10 @@ MIN_CHARS = 50
 DPI = 150
 MAX_SIDE = 2500  # px; a huge MediaBox must not become a gigabyte bitmap
 
-# pdfium is not thread-safe and several analyses run in to_thread at once.
+# pdfium is not thread-safe: the lock guards direct callers, and one thread of its own
+# keeps waiters off asyncio's default executor, which also sends the pushes.
 _PDFIUM = threading.Lock()
+_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pdfium")
 
 type Ocr = Callable[[bytes], Awaitable[str]]
 
@@ -85,10 +88,12 @@ def _page_png(pdf: bytes, index: int) -> bytes:
 
 
 async def extract_text(pdf: bytes, ocr: Ocr) -> str:
-    texts = await asyncio.to_thread(page_texts, pdf)
+    texts = await asyncio.get_running_loop().run_in_executor(_POOL, page_texts, pdf)
     for i, text in enumerate(texts):
         if len("".join(text.split())) < MIN_CHARS:
-            png = await asyncio.to_thread(page_png, pdf, i)
+            png = await asyncio.get_running_loop().run_in_executor(
+                _POOL, page_png, pdf, i
+            )
             texts[i] = await ocr(png)
     return "\n\n".join(texts)
 

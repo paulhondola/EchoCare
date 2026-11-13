@@ -28,6 +28,7 @@ MAX_BYTES = 10 * 1024 * 1024
 URL_SECONDS = 600
 ANALYZABLE = {EnrollmentState.accepted, EnrollmentState.active}
 ATTEMPTS = 3
+MAX_RUNNING = 2  # analyses in flight: each holds a PDF of up to 10 MB
 
 # Per process, as the summaries' (design §5.3): a restart forgets the failures.
 _running: dict[uuid.UUID, asyncio.Task] = {}  # by record id
@@ -298,6 +299,7 @@ async def mark_failed(record_id: uuid.UUID) -> None:
             .values(state=MedicalRecordState.failed)
         )
         await session.commit()
+    _failures.pop(record_id, None)  # a reanalysis starts over
     log.error("record %s failed after %d attempts", record_id, ATTEMPTS)
 
 
@@ -305,7 +307,10 @@ def _finished(record_id: uuid.UUID, task: asyncio.Task) -> None:
     _running.pop(record_id, None)
     if task.cancelled():
         return
-    if e := task.exception():
+    e = task.exception()
+    if e is None:
+        _failures.pop(record_id, None)
+    else:
         _failures[record_id] += 1
         log.error("analysis failed, record %s: %s", record_id, type(e).__name__)
         if _failures[record_id] >= ATTEMPTS:
@@ -324,6 +329,7 @@ async def start_analyses(now: datetime) -> int:
         due = await due_records(session)
     model = deepinfra_model(settings.deepinfra_api_key, settings.summary_model)
     ocr = deepinfra_ocr(settings.deepinfra_api_key, settings.ocr_model)
+    due = due[: max(MAX_RUNNING - len(_running), 0)]
     for record_id in due:
         task = asyncio.create_task(
             analyze(record_id, storage=storage, ocr=ocr, model=model)

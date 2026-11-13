@@ -184,3 +184,44 @@ async def test_only_accepted_or_active_seniors_are_due(db, add_record):
             row.uploaded_at = NOW - timedelta(hours=age)
         await s.commit()
     assert await due_records(db) == [first.id, second.id]
+
+
+async def test_a_reanalyzed_failed_record_is_tried_again(add_record, monkeypatch):
+    record = await add_record("+40700000208")
+    monkeypatch.setattr(get_settings(), "deepinfra_api_key", "test-key")
+    monkeypatch.setattr(
+        service,
+        "get_storage",
+        lambda: FakeStorage({record.storage_key: b"%PDF-broken"}),
+    )
+    for _ in range(ATTEMPTS):
+        assert await start_analyses(NOW) == 1
+        await asyncio.gather(*service._running.values(), return_exceptions=True)
+        await asyncio.sleep(0)
+    await asyncio.gather(*service._marking)
+    assert (await reread(record.id)).state is MedicalRecordState.failed
+    async with Session() as s:  # what reanalyze_record does
+        service.clear_analysis(await s.get(MedicalRecord, record.id))
+        await s.commit()
+    assert await start_analyses(NOW) == 1
+    await asyncio.gather(*service._running.values(), return_exceptions=True)
+
+
+async def test_at_most_max_running_start_per_tick(add_record, monkeypatch):
+    for i in range(3):
+        await add_record(f"+4070000022{i}")
+    monkeypatch.setattr(get_settings(), "deepinfra_api_key", "test-key")
+    monkeypatch.setattr(service, "get_storage", lambda: FakeStorage({}))
+    never = asyncio.Event()
+
+    async def stuck(*args, **kwargs):
+        await never.wait()
+
+    monkeypatch.setattr(service, "analyze", stuck)
+    try:
+        assert await start_analyses(NOW) == service.MAX_RUNNING == 2
+        assert await start_analyses(NOW) == 0
+    finally:
+        for task in service._running.values():
+            task.cancel()
+        await asyncio.gather(*service._running.values(), return_exceptions=True)
