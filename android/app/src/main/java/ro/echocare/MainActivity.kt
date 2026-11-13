@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import ro.echocare.auth.AuthViewModel
 import ro.echocare.auth.Landing
+import ro.echocare.auth.ROLE_LABELS
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
@@ -90,7 +91,8 @@ class MainActivity : ComponentActivity() {
                     // Signed in: the role's home and what opens from it (seniors §8.2).
                     is Screen.Home -> HomeNav(
                         screen,
-                        onSwitchRole = vm::switchRole,
+                        phone = auth.currentUser?.phoneNumber,
+                        onPickRole = vm::pickRole,
                         onSignOut = vm::signOut,
                         onSessionEnd = vm::sessionEnded,
                         opening = opening,
@@ -180,13 +182,6 @@ class MainActivity : ComponentActivity() {
         PhoneAuthProvider.verifyPhoneNumber(options.build())
     }
 }
-
-private val ROLE_LABELS = mapOf(
-    "das" to R.string.role_das,
-    "medic" to R.string.role_medic,
-    "caregiver" to R.string.role_caregiver,
-    "senior" to R.string.role_senior
-)
 
 @Composable
 fun SignIn(

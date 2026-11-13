@@ -22,6 +22,10 @@ data object MonitorRoute
 @Serializable
 data class SeniorRoute(val id: String)
 
+/** The signed-in person's profile: their roles to switch between and Ieșire (design 2026-11-13). */
+@Serializable
+data object ProfileRoute
+
 /** The senior's home: their own page. */
 @Serializable
 data object OwnRoute

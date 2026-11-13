@@ -3,6 +3,7 @@ package ro.echocare.home
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -82,6 +86,12 @@ fun HomeScaffold(
 /** The signed-in person's name, for the top bar on every screen (UC-12, 04 §1 `/profile`). */
 val LocalSignedIn = staticCompositionLocalOf<String?> { null }
 
+/**
+ * Opens the profile page from the person's square in the top bar (design 2026-11-13 medic home);
+ * null on the profile page itself and outside the signed-in app.
+ */
+val LocalOpenProfile = staticCompositionLocalOf<(() -> Unit)?> { null }
+
 /** The dashboard's header on a phone: brand over the title, square buttons, a 2dp rule. */
 @Composable
 private fun TopBar(title: String, onBack: (() -> Unit)?, menu: @Composable () -> Unit) {
@@ -127,7 +137,9 @@ private fun TopBar(title: String, onBack: (() -> Unit)?, menu: @Composable () ->
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                LocalSignedIn.current?.takeIf { it.isNotBlank() }?.let { SignedIn(it, wide) }
+                val name = LocalSignedIn.current.orEmpty()
+                val openProfile = LocalOpenProfile.current
+                if (openProfile != null || name.isNotBlank()) SignedIn(name, wide, openProfile)
                 menu()
             }
             Rule()
@@ -210,20 +222,43 @@ fun Message(text: String, action: @Composable () -> Unit = {}) {
 }
 
 /** Read-only: initials in a square, and the name too when the bar is [wide] (tablet). */
+/**
+ * The person's square, and their name on a wide screen. With [onOpen] it is the button to the
+ * profile page; a name with no letters, such as "Dr.", gets an icon there so the page stays reachable.
+ */
 @Composable
-private fun SignedIn(name: String, wide: Boolean) {
+private fun SignedIn(name: String, wide: Boolean, onOpen: (() -> Unit)?) {
+    val letters = initials(name)
+    if (letters.isEmpty() && onOpen != null) {
+        SquareIconButton(
+            painterResource(R.drawable.ic_more_vert),
+            stringResource(R.string.profile),
+            onOpen
+        )
+        return
+    }
+    val description = stringResource(R.string.profile)
     Row(
+        Modifier.then(
+            if (onOpen == null) {
+                Modifier
+            } else {
+                Modifier
+                    .clickable(role = Role.Button, onClick = onOpen)
+                    .semantics(mergeDescendants = true) { contentDescription = description }
+                    .heightIn(min = 48.dp)
+            }
+        ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // A name of titles only, such as "Dr.", has no letters: no empty square
-        val letters = initials(name)
         if (letters.isNotEmpty()) {
             Box(
                 Modifier
                     .size(28.dp)
                     .background(Palette.Card)
-                    .border(1.dp, Palette.LineStrong),
+                    .border(1.dp, if (onOpen == null) Palette.LineStrong else Palette.Link),
                 contentAlignment = Alignment.Center
             ) {
                 Text(letters, style = MaterialTheme.typography.labelMedium)
