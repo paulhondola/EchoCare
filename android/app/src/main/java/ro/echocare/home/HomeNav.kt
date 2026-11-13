@@ -88,16 +88,19 @@ fun HomeNav(
                     )
                 }
                 composable<EnrollRoute> {
-                    EnrollScreen(
-                        // Popping by route makes a second tap a no-op, never the home popped too
-                        onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
-                        onSubmitted = {
-                            sent = true
-                            nav.popBackStack<MedicHomeRoute>(inclusive = false)
-                        },
-                        onDone = { nav.toPage(it) },
-                        onSessionEnd = onSessionEnd
-                    )
+                    // No profile from a form: switching role there would drop what was typed
+                    CompositionLocalProvider(LocalOpenProfile provides null) {
+                        EnrollScreen(
+                            // Popping by route makes a second tap a no-op, never the home popped too
+                            onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
+                            onSubmitted = {
+                                sent = true
+                                nav.popBackStack<MedicHomeRoute>(inclusive = false)
+                            },
+                            onDone = { nav.toPage(it) },
+                            onSessionEnd = onSessionEnd
+                        )
+                    }
                 }
                 composable<ProfileRoute> {
                     ProfileScreen(
@@ -128,12 +131,14 @@ fun HomeNav(
                     )
                 }
                 composable<ResolveRoute> {
-                    ResolveScreen(
-                        onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
-                        // Resolved incidents leave the list: back to it, past the incident's page
-                        onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
-                        onSessionEnd = onSessionEnd
-                    )
+                    CompositionLocalProvider(LocalOpenProfile provides null) {
+                        ResolveScreen(
+                            onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
+                            // Resolved incidents leave the list: back to it, past the incident's page
+                            onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
+                            onSessionEnd = onSessionEnd
+                        )
+                    }
                 }
             }
         }

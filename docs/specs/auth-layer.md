@@ -418,7 +418,7 @@ If Hilt or KSP cannot build under AGP 9.4.1 even with matching versions, stop an
   - `onCodeSent` keeps the verification id and the resend token.
   - *Retrimite codul* becomes available after 30 seconds.
 - **The role choice is saved in `SharedPreferences`.** A saved role that is no longer among the grants is dropped. With one distinct role, `Home` opens directly.
-- **The menu** in `Home` holds *Ieșire*, and *Schimbă rolul* when there are several roles.
+- **The menu** in `Home` holds *Ieșire*, and *Schimbă rolul* when there are several roles. Superseded by design 2026-11-13 medic home: there is no menu; the profile page, opened from the person's square in the top bar, lists the roles to switch to in one tap and holds *Ieșire*.
 - **The skeleton health screen goes.**
 
 **What the app does with each answer from `/profile`**, as a pure function in `bia.sentinela.auth`, unit-tested on the JVM:
@@ -447,7 +447,7 @@ If Hilt or KSP cannot build under AGP 9.4.1 even with matching versions, stop an
 | Picker title | „Alegeți rolul” |
 | Role labels | `das` „Dispecerat DAS”, `medic` „Medic”, `caregiver` „Aparținător”, `senior` „Senior” |
 | Home | „Conectat ca %1$s · %2$s” |
-| Menu | „Schimbă rolul”, „Ieșire” |
+| Menu | „Schimbă rolul”, „Ieșire” (superseded by design 2026-11-13: „Profil”, „Rol”, „Activ”, „Ieșire”) |
 
 The phone field applies the same E.164 conversion as the dashboard (§7.1).
 
@@ -460,7 +460,7 @@ Slice 3 is done when all of these hold:
 - A release build installs and launches on an emulator, which checks R8 and Hilt.
 - On an emulator against an API where the test numbers are granted:
   - `+40700000001` reaches the DAS home.
-  - `+40700000003` sees the picker; the chosen role survives an app restart; *Schimbă rolul* returns to the picker.
+  - `+40700000003` sees the picker; the chosen role survives an app restart; *Schimbă rolul* returns to the picker (since design 2026-11-13, the profile page switches role directly).
   - `+40700000009` sees the not-registered text and is signed out.
   - *Ieșire* returns to the phone screen.
 

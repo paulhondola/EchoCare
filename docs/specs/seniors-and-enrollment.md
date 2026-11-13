@@ -483,7 +483,7 @@ If Navigation cannot build under AGP 9.4.1 and Kotlin 2.2.10, stop and report th
 
 - **Sign-in stays as it is.** `AuthViewModel` and its `Screen` states are unchanged up to `Screen.Home`.
 - **`Screen.Home` hosts a `NavHost`** in place of the placeholder. Its start destination is the role's home, and it is rebuilt when the role changes.
-- **Every home has a menu** with „Schimbă rolul”, when there are several roles, and „Ieșire”.
+- **Every home has a menu** with „Schimbă rolul”, when there are several roles, and „Ieșire”. Superseded by design 2026-11-13 medic home: there is no menu; the profile page, opened from the person's square in the top bar, lists the roles to switch to in one tap and holds „Ieșire”.
 
 | Role | Home | Reads |
 |---|---|---|

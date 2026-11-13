@@ -12,10 +12,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -221,7 +221,6 @@ fun Message(text: String, action: @Composable () -> Unit = {}) {
     }
 }
 
-/** Read-only: initials in a square, and the name too when the bar is [wide] (tablet). */
 /**
  * The person's square, and their name on a wide screen. With [onOpen] it is the button to the
  * profile page; a name with no letters, such as "Dr.", gets an icon there so the page stays reachable.
@@ -246,10 +245,11 @@ private fun SignedIn(name: String, wide: Boolean, onOpen: (() -> Unit)?) {
                 Modifier
                     .clickable(role = Role.Button, onClick = onOpen)
                     .semantics(mergeDescendants = true) { contentDescription = description }
-                    .heightIn(min = 48.dp)
+                    // The only way to Ieșire and role switching: a full 48dp target, as ⋮ was
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             }
         ),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // A name of titles only, such as "Dr.", has no letters: no empty square
