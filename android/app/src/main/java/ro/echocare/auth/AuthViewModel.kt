@@ -168,11 +168,8 @@ class AuthViewModel @Inject constructor(
 
     fun pickRole(role: String) {
         prefs.edit { putString(SAVED_ROLE, role) }
-        show(Screen.Home(role, me.displayName, canSwitch = true))
+        show(Screen.Home(role, me.displayName, rolesOf(me)))
     }
-
-    /** *Schimbă rolul*: back to the picker, forgetting the saved role. */
-    fun switchRole() = show(screenFor(me, saved = null))
 
     /**
      * *Ieșire*. The API forgets this device's token first, while the caller is still signed in to

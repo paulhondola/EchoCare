@@ -16,7 +16,10 @@ app/src/
 │   ├── auth/Landing.kt    the signed-out first screen; „Intrați” leads on to the phone step
 │   ├── home/Load.kt       what a list or a page shows for each answer, tested on the JVM (seniors §8.2)
 │   ├── home/Routes.kt     the type-safe routes, the home of each role, the state labels
-│   ├── home/HomeNav.kt    the NavHost of the signed-in app and its menu
+│   ├── home/HomeNav.kt    the NavHost of the signed-in app
+│   ├── home/Profile.kt    the profile page from the top bar's square: switch role, alerts, Ieșire
+│   ├── home/Tasks.kt      the medic home's to-do list from the patient rows, tested on the JVM
+│   ├── home/MedicHome.kt  the medic's home: the code strip and the tasks
 │   ├── home/Frame.kt      the shared top bar, the timed re-read, loading and failure states
 │   ├── home/Seniors*.kt   the medic's and the caregiver's list of seniors
 │   ├── home/Senior*.kt    one senior's page

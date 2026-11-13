@@ -43,7 +43,10 @@ data class SeniorRow(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("submitted_at") val submittedAt: String? = null,
     @SerialName("accepted_at") val acceptedAt: String? = null,
-    @SerialName("watch_state") val watchState: String? = null
+    @SerialName("watch_state") val watchState: String? = null,
+    // The medical record's state for the registering medic (pending, review, confirmed, failed),
+    // null for anyone else; a string for a later server's value (design 2026-11-13, ADR-001 §2.3).
+    @SerialName("medical_record_state") val medicalRecordState: String? = null
 )
 
 // GET /seniors/{id} (seniors §3.3): the row, the address with its access details (G13), the

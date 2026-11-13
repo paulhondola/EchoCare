@@ -1,38 +1,25 @@
 package ro.echocare.home
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import ro.echocare.R
 import ro.echocare.auth.Screen
 import ro.echocare.das.IncidentScreen
 import ro.echocare.das.IncidentsScreen
 import ro.echocare.das.ResolveScreen
 import ro.echocare.enroll.EnrollScreen
 import ro.echocare.push.Push
-import ro.echocare.ui.SquareIconButton
-import ro.echocare.ui.theme.Palette
 
 /**
  * The signed-in app: the role's home and what opens from it (seniors §8.2). Permissions are
@@ -41,7 +28,8 @@ import ro.echocare.ui.theme.Palette
 @Composable
 fun HomeNav(
     home: Screen.Home,
-    onSwitchRole: () -> Unit,
+    phone: String?,
+    onPickRole: (String) -> Unit,
     onSignOut: () -> Unit,
     onSessionEnd: (Failure) -> Unit,
     opening: Push.Alert? = null,
@@ -50,17 +38,24 @@ fun HomeNav(
     // A new graph for a new role, so that role's home is the start destination.
     key(home.role) {
         val nav = rememberNavController()
-        val menu: @Composable () -> Unit = { HomeMenu(home.canSwitch, onSwitchRole, onSignOut) }
+        // The top bar's slot holds nothing of the app's own: the profile opens from the person's
+        // square, which carries role switching and Ieșire (design 2026-11-13 medic home)
+        val menu: @Composable () -> Unit = {}
         // Only the medic registers seniors (04 §2): the form's entry points are theirs (seniors §9.1)
         val medic = home.role == "medic"
         var sent by rememberSaveable { mutableStateOf(false) }
-        CompositionLocalProvider(LocalSignedIn provides home.displayName) {
+        CompositionLocalProvider(
+            LocalSignedIn provides home.displayName,
+            LocalOpenProfile provides { nav.navigate(ProfileRoute) { launchSingleTop = true } }
+        ) {
             NavHost(nav, startDestination = homeFor(home.role)) {
                 composable<MedicHomeRoute> {
                     MedicHomeScreen(
                         menu = menu,
                         onMonitor = { nav.navigate(MonitorRoute) },
-                        onRegister = { nav.navigate(RegisterRoute) },
+                        onNew = { nav.navigate(EnrollRoute()) },
+                        onOpen = { nav.navigate(SeniorRoute(it)) },
+                        onDraft = { nav.navigate(EnrollRoute(it)) },
                         onSessionEnd = onSessionEnd,
                         sent = sent,
                         onSentShown = { sent = false }
@@ -71,17 +66,8 @@ fun HomeNav(
                         onBack = { nav.popBackStack<MonitorRoute>(inclusive = true) },
                         menu = menu,
                         onOpen = { nav.navigate(SeniorRoute(it)) },
-                        onRegister = { nav.navigate(RegisterRoute) },
-                        onEdit = { nav.navigate(EnrollRoute(it)) },
-                        onSessionEnd = onSessionEnd
-                    )
-                }
-                composable<RegisterRoute> {
-                    RegisterScreen(
-                        onBack = { nav.popBackStack<RegisterRoute>(inclusive = true) },
-                        menu = menu,
                         onNew = { nav.navigate(EnrollRoute()) },
-                        onDraft = { nav.navigate(EnrollRoute(it)) },
+                        onEdit = { nav.navigate(EnrollRoute(it)) },
                         onSessionEnd = onSessionEnd
                     )
                 }
@@ -102,15 +88,28 @@ fun HomeNav(
                     )
                 }
                 composable<EnrollRoute> {
-                    EnrollScreen(
-                        // Popping by route makes a second tap a no-op, never the home popped too
-                        onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
-                        onSubmitted = {
-                            sent = true
-                            nav.popBackStack<MedicHomeRoute>(inclusive = false)
-                        },
-                        onDone = { nav.toPage(it) },
-                        onSessionEnd = onSessionEnd
+                    // No profile from a form: switching role there would drop what was typed
+                    CompositionLocalProvider(LocalOpenProfile provides null) {
+                        EnrollScreen(
+                            // Popping by route makes a second tap a no-op, never the home popped too
+                            onLeave = { nav.popBackStack<EnrollRoute>(inclusive = true) },
+                            onSubmitted = {
+                                sent = true
+                                nav.popBackStack<MedicHomeRoute>(inclusive = false)
+                            },
+                            onDone = { nav.toPage(it) },
+                            onSessionEnd = onSessionEnd
+                        )
+                    }
+                }
+                composable<ProfileRoute> {
+                    ProfileScreen(
+                        home = home,
+                        phone = phone,
+                        // By route, as EnrollRoute: a second tap never pops the home
+                        onBack = { nav.popBackStack<ProfileRoute>(inclusive = true) },
+                        onPickRole = onPickRole,
+                        onSignOut = onSignOut
                     )
                 }
                 composable<OwnRoute> {
@@ -132,12 +131,14 @@ fun HomeNav(
                     )
                 }
                 composable<ResolveRoute> {
-                    ResolveScreen(
-                        onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
-                        // Resolved incidents leave the list: back to it, past the incident's page
-                        onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
-                        onSessionEnd = onSessionEnd
-                    )
+                    CompositionLocalProvider(LocalOpenProfile provides null) {
+                        ResolveScreen(
+                            onBack = { nav.popBackStack<ResolveRoute>(inclusive = true) },
+                            // Resolved incidents leave the list: back to it, past the incident's page
+                            onDone = { nav.popBackStack<IncidentsRoute>(inclusive = false) },
+                            onSessionEnd = onSessionEnd
+                        )
+                    }
                 }
             }
         }
@@ -172,43 +173,4 @@ private fun NavController.toPage(id: String) {
     } else {
         navigate(SeniorRoute(id)) { popUpTo<EnrollRoute> { inclusive = true } }
     }
-}
-
-/** *Schimbă rolul*, when there are several roles, and *Ieșire* (auth-layer §8.2). */
-@Composable
-private fun HomeMenu(canSwitch: Boolean, onSwitchRole: () -> Unit, onSignOut: () -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    // The Box anchors the menu to the button
-    Box {
-        SquareIconButton(
-            painterResource(R.drawable.ic_more_vert),
-            stringResource(R.string.menu),
-            onClick = { open = true }
-        )
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            containerColor = Palette.Subtle,
-            border = BorderStroke(1.dp, Palette.Line)
-        ) {
-            if (canSwitch) {
-                MenuItem(stringResource(R.string.change_role)) {
-                    open = false
-                    onSwitchRole()
-                }
-            }
-            MenuItem(stringResource(R.string.sign_out)) {
-                open = false
-                onSignOut()
-            }
-        }
-    }
-}
-
-@Composable
-private fun MenuItem(text: String, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(text, color = Palette.Fg, style = MaterialTheme.typography.labelLarge) },
-        onClick = onClick
-    )
 }

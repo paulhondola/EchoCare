@@ -47,9 +47,19 @@
     <string name="role_medic">Medic</string>
     <string name="role_caregiver">Aparținător</string>
     <string name="role_senior">Senior</string>
-    <string name="change_role">Schimbă rolul</string>
     <string name="sign_out">Ieșire</string>
-    <string name="menu">Meniu</string>
+    <!-- The profile page (design 2026-11-13 medic home) -->
+    <string name="profile">Profil</string>
+    <string name="profile_role">Rol</string>
+    <string name="role_active">Activ</string>
+    <string name="role_line_das">Incidentele roșii</string>
+    <string name="role_line_medic">Sarcinile și pacienții dumneavoastră</string>
+    <string name="role_line_caregiver">Seniorii de care aveți grijă</string>
+    <string name="role_line_senior">Pagina dumneavoastră</string>
+    <string name="notifications">Notificări</string>
+    <string name="notifications_device">Alerte pe acest telefon</string>
+    <string name="notifications_state_on">Pornite</string>
+    <string name="notifications_state_off">Oprite</string>
     <string name="back">Înapoi</string>
 
     <!-- Homes and the senior's page (seniors §8.2) -->
@@ -290,16 +300,23 @@
     <string name="hide">Ascunde</string>
     <string name="says_welcome_pending">Apel de bun venit în curs</string>
     <string name="monitor">Monitorizare</string>
-    <string name="register">Înregistrare</string>
     <string name="count_red">Roșu: %d</string>
     <string name="count_yellow">Galben: %d</string>
-    <string name="count_to_resolve">De rezolvat: %d</string>
-    <plurals name="drafts_left">
-        <item quantity="one">%d ciornă nefinalizată</item>
-        <item quantity="few">%d ciorne nefinalizate</item>
-        <item quantity="other">%d de ciorne nefinalizate</item>
-    </plurals>
-    <string name="drafts">Ciorne</string>
+    <!-- The medic home: tasks first (design 2026-11-13 medic home) -->
+    <string name="count_green">Verzi: %d</string>
+    <string name="count_at_das">La DAS: %d</string>
+    <string name="all_patients">Toți pacienții →</string>
+    <string name="tasks_title">De făcut · %d</string>
+    <string name="all_done">Totul e la zi</string>
+    <string name="task_confirm">Fișa medicală e analizată: confirmați întrebările</string>
+    <string name="task_failed">Analiza fișei medicale a eșuat</string>
+    <string name="task_wrong_number">Număr greșit la apelul de bun venit</string>
+    <string name="task_unreachable">Nu răspunde la apelul de bun venit</string>
+    <string name="task_draft">Înregistrare neterminată</string>
+    <string name="do_review">Revizuiește</string>
+    <string name="do_open">Deschide</string>
+    <string name="do_correct">Corectează</string>
+    <string name="do_continue">Continuă</string>
     <!-- The medic's patient: commands, consent and transcripts (UC-04, UC-12, 04 §2) -->
     <string name="call_again">Sună din nou</string>
     <string name="withdraw">Retragere consimțământ</string>

@@ -383,3 +383,47 @@ async def test_a_draft_with_a_record_can_be_deleted(client, storage, db, senior)
     r = await client.delete(f"/api/seniors/{senior.id}", headers=signed_in(MEDIC))
     assert r.status_code == 204
     assert await row(db, senior) is None
+
+
+CAREGIVER = "+40700000305"
+
+
+async def seniors_rows(client, token, role=None):
+    r = await client.get(
+        "/api/seniors",
+        params={"role": role} if role else None,
+        headers=signed_in(token),
+    )
+    assert r.status_code == 200
+    return {row["id"]: row for row in r.json()}
+
+
+async def test_the_registering_medic_sees_the_record_state_on_the_row(
+    client, db, active
+):
+    """Medic home: a profile in review is a task on the medic's own list."""
+    await seed(db, active, MedicalRecordState.review)
+    rows = await seniors_rows(client, MEDIC, "medic")
+    assert rows[str(active.id)]["medical_record_state"] == "review"
+
+
+async def test_no_record_is_null_on_the_row(client, active):
+    rows = await seniors_rows(client, MEDIC, "medic")
+    assert rows[str(active.id)]["medical_record_state"] is None
+
+
+async def test_das_rows_carry_no_record_state(client, db, das, active):
+    """01 §6: the record is the registering medic's; the row says nothing to DAS."""
+    await seed(db, active, MedicalRecordState.confirmed)
+    rows = await seniors_rows(client, DAS, "das")
+    assert rows[str(active.id)]["medical_record_state"] is None
+
+
+async def test_caregiver_rows_carry_no_record_state(client, db, add_user, active):
+    """01 §6: a caregiver never sees the medical record."""
+    user = await add_user(CAREGIVER)
+    db.add(Grant(user_id=user.id, role=Role.caregiver, senior_id=active.id))
+    await db.commit()
+    await seed(db, active, MedicalRecordState.review)
+    rows = await seniors_rows(client, CAREGIVER, "caregiver")
+    assert rows[str(active.id)]["medical_record_state"] is None

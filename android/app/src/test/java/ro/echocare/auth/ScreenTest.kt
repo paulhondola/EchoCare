@@ -1,6 +1,8 @@
 package ro.echocare.auth
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.echocare.Grant
 import ro.echocare.Me
@@ -12,11 +14,11 @@ class ScreenTest {
     @Test
     fun oneDistinctRoleOpensHome() {
         assertEquals(
-            Screen.Home("caregiver", "Ana Pop", canSwitch = false),
+            Screen.Home("caregiver", "Ana Pop", listOf("caregiver")),
             screenFor(me("caregiver", "caregiver"), null)
         )
         assertEquals(
-            Screen.Home("das", "Ana Pop", canSwitch = false),
+            Screen.Home("das", "Ana Pop", listOf("das")),
             screenFor(me("das"), "medic")
         )
     }
@@ -24,9 +26,18 @@ class ScreenTest {
     @Test
     fun severalRolesWithValidSavedRoleOpensIt() {
         assertEquals(
-            Screen.Home("medic", "Ana Pop", canSwitch = true),
+            Screen.Home("medic", "Ana Pop", listOf("das", "medic")),
             screenFor(me("das", "medic"), "medic")
         )
+    }
+
+    @Test
+    fun homeListsEveryKnownRoleInOrder() {
+        // The profile page lists them to switch between (design 2026-11-13 medic home)
+        val home = screenFor(me("caregiver", "medic", "das", "pilot", "medic"), "medic")
+        assertEquals(Screen.Home("medic", "Ana Pop", listOf("das", "medic", "caregiver")), home)
+        assertTrue((home as Screen.Home).canSwitch)
+        assertFalse(Screen.Home("das", "Ana Pop", listOf("das")).canSwitch)
     }
 
     @Test
@@ -41,7 +52,7 @@ class ScreenTest {
     @Test
     fun unknownRolesAreDropped() {
         assertEquals(
-            Screen.Home("das", "Ana Pop", canSwitch = false),
+            Screen.Home("das", "Ana Pop", listOf("das")),
             screenFor(me("das", "nurse"), null)
         )
         assertEquals(Screen.NotRegistered, screenFor(me("nurse"), null))

@@ -109,9 +109,12 @@ class PanelTest {
             row("4", "wrong_number"),
             row("5", "unreachable"),
             row("6", "draft"),
-            row("7", "active", "green")
+            row("7", "active", "green"),
+            row("8", "submitted"),
+            row("9", "submitted"),
+            row("10", "withdrawn", "green")
         )
-        assertEquals(Counts(red = 1, yellow = 2, toResolve = 2, drafts = 1), countsOf(rows))
+        assertEquals(Counts(red = 1, yellow = 2, green = 1, atDas = 2), countsOf(rows))
     }
 
     @Test

@@ -10,7 +10,7 @@ import ro.echocare.ui.Tone
 @Serializable
 data class SeniorsRoute(val role: String)
 
-/** The medic's home: the Monitorizare and Înregistrare tiles (UC-12, UC-01). */
+/** The medic's home: their tasks, most important first, and the codes (design 2026-11-13 medic home). */
 @Serializable
 data object MedicHomeRoute
 
@@ -18,13 +18,13 @@ data object MedicHomeRoute
 @Serializable
 data object MonitorRoute
 
-/** Înregistrare: „Pacient nou” and the unfinished drafts (UC-01). */
-@Serializable
-data object RegisterRoute
-
 /** One senior's page. */
 @Serializable
 data class SeniorRoute(val id: String)
+
+/** The signed-in person's profile: their roles to switch between and Ieșire (design 2026-11-13). */
+@Serializable
+data object ProfileRoute
 
 /** The senior's home: their own page. */
 @Serializable

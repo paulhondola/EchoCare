@@ -57,7 +57,7 @@ fun MonitorScreen(
     onBack: () -> Unit,
     menu: @Composable () -> Unit,
     onOpen: (String) -> Unit,
-    onRegister: () -> Unit,
+    onNew: () -> Unit,
     onEdit: (String) -> Unit,
     onSessionEnd: (Failure) -> Unit,
     vm: MedicViewModel = hiltViewModel()
@@ -72,7 +72,7 @@ fun MonitorScreen(
             val groups = panel(seniors)
             if (groups.isEmpty()) {
                 Message(stringResource(R.string.no_patients_yet)) {
-                    SnButton(stringResource(R.string.register), onRegister)
+                    SnButton(stringResource(R.string.new_patient), onNew)
                 }
                 return@LoadBody
             }
