@@ -1,7 +1,7 @@
 # Medical record profile design
 
 Date: 2026-11-13. Builds on the summary agents ([2026-11-08-senior-summary-agents-design.md](2026-11-08-senior-summary-agents-design.md)) and the medic tablet panel ([2026-11-04-medic-tablet-panel-design.md](2026-11-04-medic-tablet-panel-design.md)).
-Spec: UC-03 (registration), UC-04 (welcome call, consent), 01 §6 (who sees what), 04 §2 and §5, 05 §1.
+Spec: UC-01 (registration), UC-04 (welcome call, consent), 01 §6 (who sees what), 04 §2 and §5, 05 §1.
 
 ## 1. Intent
 

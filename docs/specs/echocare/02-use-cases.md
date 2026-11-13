@@ -169,6 +169,7 @@ A DAS employee's phone number is also their hand-over number when they are on du
 
 Variations:
 - **The senior cannot come to the practice.** A caregiver comes alone, or the medic fills the form on a home visit. Nothing changes: consent is the senior's own, given on the welcome call.
+- **The medic attaches the fișa medicală (optional).** While registering, or later from the senior's page, the medic may attach it as a PDF. It is analyzed after DAS accepts the senior, and the medic reviews and confirms the questions it suggests before any call uses them (design 2026-11-13).
 - **Form left unfinished.** The draft is saved. DAS cannot see it until it is submitted; the medic sees it, and so do the caregivers and the senior whose numbers it already grants (step 4).
 
 Nothing rings and no code exists yet.
