@@ -7,7 +7,7 @@ from app.core.storage import StorageError, get_storage
 from app.main import app
 from app.medical.models import MedicalRecord, MedicalRecordState
 from app.medical.service import MAX_BYTES, confirmed_checks
-from app.models import EnrollmentState, Role
+from app.models import EnrollmentState, Grant, Role
 from tests.seniors.test_seniors import NOT_FOUND, refusal, signed_in
 
 MEDIC = "+40700000301"
@@ -262,3 +262,39 @@ async def test_confirmed_checks_reads_included_items_only(client, storage, db, a
         },
     )
     assert await confirmed_checks(db, active.id) == [("q1", STORED[0]["worrying"])]
+
+
+async def test_a_chunked_body_over_the_limit_is_cut_off(client, storage, senior):
+    async def chunks():
+        for _ in range(MAX_BYTES // 65536 + 2):
+            yield b"%PDF" + b"0" * 65532
+
+    r = await client.put(url(senior), content=chunks(), headers=signed_in(MEDIC))
+    assert "content-length" not in r.request.headers
+    assert (r.status_code, r.json()["detail"]["reason"]) == (413, "too_large")
+    assert storage.files == {}
+
+
+async def test_a_declared_length_over_the_limit_is_refused_unread(
+    client, storage, senior
+):
+    headers = {**signed_in(MEDIC), "Content-Length": str(MAX_BYTES + 1)}
+    r = await client.put(url(senior), content=b"%PDF", headers=headers)
+    assert (r.status_code, r.json()["detail"]["reason"]) == (413, "too_large")
+
+
+async def test_caregiver_and_senior_get_not_found(
+    client, storage, db, add_user, medic, active
+):
+    caregiver = await add_user("+40700000305")
+    db.add(
+        Grant(
+            user_id=caregiver.id,
+            role=Role.caregiver,
+            senior_id=active.id,
+            granted_by=medic.id,
+        )
+    )
+    await db.commit()
+    for token in ("+40700000305", SENIOR):
+        assert refusal(await get_record(client, active, token)) == NOT_FOUND

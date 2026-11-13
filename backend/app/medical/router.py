@@ -33,11 +33,15 @@ async def put_medical_record(
 ) -> MedicalRecordView:
     """Attach the senior's record PDF as the raw body (04 §2, design §5.4)."""
     declared = request.headers.get("content-length", "")
-    if declared.isdigit() and int(declared) > MAX_BYTES + 1024:
+    if declared.isdigit() and int(declared) > MAX_BYTES:
         raise refuse(413, "too_large")
-    return await upload_record(
-        session, caller, senior_id, await request.body(), storage
-    )
+    # Counted as it arrives: a chunked body has no Content-Length to trust.
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_BYTES:
+            raise refuse(413, "too_large")
+    return await upload_record(session, caller, senior_id, bytes(body), storage)
 
 
 @router.get(
