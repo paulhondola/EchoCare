@@ -1,8 +1,9 @@
 /** One reading on the line: when (ms) and its value, null when the watch sent none */
 export type Point = { t: number; v: number | null };
 
-// A hole longer than two 5-minute buckets breaks the line, so a watch left off shows as a gap
-const GAP_MS = 10 * 60_000;
+// A hole longer than two missed 15-minute check-ins (06 §3) breaks the line, so a watch left
+// off shows as a gap while one check-in per bucket still draws
+const GAP_MS = 35 * 60_000;
 
 /**
  * An SVG path for `points` across [from, to] in a w × h box, the highest value at the top.

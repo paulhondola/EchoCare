@@ -35,6 +35,21 @@ describe("sparkline", () => {
     expect(path).not.toContain("L");
   });
 
+  it("joins check-ins 15 minutes apart", () => {
+    const path = sparkline(
+      [
+        { t: 0, v: 70 },
+        { t: 15 * MIN, v: 72 },
+      ],
+      0,
+      60 * MIN,
+      60,
+      10,
+    );
+    expect(path.match(/M/g)).toHaveLength(1);
+    expect(path).toContain("L");
+  });
+
   it("is empty with nothing to draw", () => {
     expect(sparkline([{ t: 0, v: null }], 0, MIN, 10, 10)).toBe("");
     expect(sparkline([], 0, MIN, 10, 10)).toBe("");
