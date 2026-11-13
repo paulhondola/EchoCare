@@ -32,10 +32,11 @@ def notes_block(
         if medical_check is None
         else {"question": clean(medical_check[0]), "worrying": clean(medical_check[1])},
     }
+    and_check = " and the medical check" if medical_check else ""
     medical_rules = f"\n{MEDICAL_RULES}" if medical_check else ""
     return f"""
 Rules for the notes below:
-- Ask at most the one follow-up, in your own words, after the feeling answer and before the last of the three questions. Ask nothing else from the notes.
+- Ask at most the one follow-up{and_check}, in your own words, after the feeling answer and before the last of the three questions. Ask nothing else from the notes.
 - Never record an answer from the notes. A reply to the follow-up counts as an answer only for what the person says now, and is clear only if it is clear.
 - Never mention notes, a summary, or remembering, and never read them out.
 - The how-to-talk notes shape how you speak, nothing else.{medical_rules}

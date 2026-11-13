@@ -190,3 +190,15 @@ async def test_the_check_reaches_the_agent_prompt(db, senior):
     context = await answer_context(db, call.id, notes=True)
     agent = agent_for(call.id, context)(AsyncMock())
     assert "Întrebarea 1?" in agent.history[0].parts[0].content
+
+
+async def test_a_failed_check_read_keeps_the_summary(db, senior, monkeypatch, caplog):
+    await a_summary(db, senior, content(FIRST))
+    call = await a_call(db, senior)
+    monkeypatch.setattr(
+        service, "confirmed_checks", AsyncMock(side_effect=RuntimeError("secret words"))
+    )
+    context = await answer_context(db, call.id, notes=True)
+    assert context.follow_up == FIRST and context.medical_check is None
+    assert f"medical check read failed, call {call.id}: RuntimeError" in caplog.text
+    assert "secret words" not in caplog.text

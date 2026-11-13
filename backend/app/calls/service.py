@@ -171,6 +171,11 @@ async def answer_context(
         # The call goes ahead without the notes if they cannot be read (design §5 A).
         try:
             version = await latest_summary(session, row.id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
+            version = None
+        # Its own guard: a failure here costs the check, not the summary (design §5.5).
+        try:
             checks = await confirmed_checks(session, row.id)
             if checks:
                 done = await session.scalar(
@@ -184,8 +189,9 @@ async def answer_context(
                 )
                 medical_check = checks[(done or 0) % len(checks)]
         except Exception as e:  # noqa: BLE001
-            log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
-            version = None
+            log.warning(
+                "medical check read failed, call %s: %s", call_id, type(e).__name__
+            )
         content = read_content(version) if version else None
         if content:
             follow_up = content.follow_ups[0].question if content.follow_ups else None
