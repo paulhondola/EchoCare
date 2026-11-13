@@ -182,7 +182,10 @@ data class CheckInForm(
     @SerialName("measured_at") val measuredAt: String,
     val battery: Int? = null,
     val worn: Boolean? = null,
-    @SerialName("last_pulse") val lastPulse: Int? = null
+    @SerialName("last_pulse") val lastPulse: Int? = null,
+    @SerialName("resting_pulse") val restingPulse: Int? = null,
+    @SerialName("steps_today") val stepsToday: Int? = null,
+    @SerialName("minutes_without_steps") val minutesWithoutSteps: Int? = null
 )
 
 // POST /me/events' body (04 §3). [type] is one of manual_request, fall, high_pulse_at_rest,

@@ -18,6 +18,16 @@ class PulseAnomalyTest {
     }
 
     @Test
+    fun `no anomaly before the resting baseline is measured`() {
+        val a = PulseAnomaly(marginBpm = 25, holdMs = 60_000L)
+        var fired = false
+        for (t in 0L..120_000L step 1_000L) {
+            fired = fired || a.onReading(t, bpm = 140, baselineBpm = null, moving = false)
+        }
+        assertFalse(fired)
+    }
+
+    @Test
     fun `a brief spike that returns to baseline is not an anomaly`() {
         val a = PulseAnomaly(marginBpm = 25, holdMs = 60_000L)
         a.onReading(0L, bpm = 100, baselineBpm = 70, moving = false)

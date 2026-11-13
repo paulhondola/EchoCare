@@ -22,9 +22,12 @@ class RestingBaseline(
     }
 
     /** The mean of still readings in the window, or [defaultBpm] before enough have landed. */
-    fun value(nowMs: Long): Int {
+    fun value(nowMs: Long): Int = measured(nowMs) ?: defaultBpm
+
+    /** The mean of still readings in the window, or null before enough have landed: what the check-in reports (ADR-006). */
+    fun measured(nowMs: Long): Int? {
         drop(nowMs)
-        if (samples.size < minSamples) return defaultBpm
+        if (samples.size < minSamples) return null
         return (samples.sumOf { it.bpm } / samples.size).coerceAtLeast(1)
     }
 

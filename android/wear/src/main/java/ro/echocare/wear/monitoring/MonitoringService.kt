@@ -25,6 +25,7 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import java.io.File
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -78,6 +79,12 @@ class MonitoringService :
     private var falls = 0
     private var lastStepAtMs = -1L
     private var startedAtMs = 0L
+    private var lastTickMs = 0L
+
+    // For the check-in (ADR-006). Stays true on a watch without an off-body sensor, as before
+    private var worn = true
+    private var stepsAtDayStart = -1f
+    private var stepDay: LocalDate? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -117,29 +124,34 @@ class MonitoringService :
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
-        // Keeps the CPU awake with the screen off, so no reading is lost while it sleeps. S5 measures what that costs
-        wakeLock = getSystemService(PowerManager::class.java)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EchoCare:monitoring")
-            .apply { acquire(MAX_WAKE_MS) }
+        // One session per file, so it never grows past a few kilobytes an hour
+        File(filesDir, LOG_FILE).delete()
         thread = HandlerThread(TAG).apply { start() }
         handler = Handler(thread.looper)
         sensorManager = getSystemService(SensorManager::class.java)
-        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
-            sensorManager.registerListener(this, it, ACCELEROMETER_PERIOD_US, handler)
-        }
-        listOf(Sensor.TYPE_HEART_RATE, Sensor.TYPE_STEP_COUNTER)
-            .mapNotNull(sensorManager::getDefaultSensor)
-            .forEach {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
-            }
-        handler.postDelayed(::logMinute, MINUTE_MS)
+        // Before the sensors: their first reading may run the minute's tick, which needs these
         eventQueue = EventQueue(File(filesDir, "events"))
-        Wearable.getMessageClient(this).addListener(this)
         startedAtMs = System.currentTimeMillis()
+        lastTickMs = startedAtMs
+        // Sensors batch their readings and wake the CPU only to hand a batch over, so it can sleep
+        // in between (S5 measured ~24 %/h with it always awake)
+        val accelerometer = register(Sensor.TYPE_ACCELEROMETER, ACCELEROMETER_PERIOD_US)
+        listOf(
+            Sensor.TYPE_HEART_RATE,
+            Sensor.TYPE_STEP_COUNTER,
+            Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT
+        ).forEach { register(it, SensorManager.SENSOR_DELAY_NORMAL) }
+        // A non-wake-up accelerometer drops what it reads while the CPU sleeps: keep it awake, as before
+        wakeLock = getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EchoCare:monitoring")
+        if (accelerometer?.isWakeUpSensor != true) wakeLock.acquire(MAX_WAKE_MS)
+        handler.postDelayed(::tickLoop, TICK_CHECK_MS)
+        Wearable.getMessageClient(this).addListener(this)
         running.value = true
-        // One session per file, so it never grows past a few kilobytes an hour
-        File(filesDir, LOG_FILE).delete()
-        log("started battery=${battery()}% pending=${eventQueue.pending().size}")
+        log(
+            "started battery=${battery()}% pending=${eventQueue.pending().size} " +
+                "wakeLock=${wakeLock.isHeld}"
+        )
         // Resend anything the phone never acked
         resendPending()
     }
@@ -164,7 +176,35 @@ class MonitoringService :
         }
     }
 
+    /** The wake-up variant when the watch has one, batched up to [BATCH_LATENCY_US]; null without the sensor. */
+    private fun register(type: Int, periodUs: Int): Sensor? {
+        val sensor = sensorManager.getDefaultSensor(type, true)
+            ?: sensorManager.getDefaultSensor(type)
+            ?: return null
+        sensorManager.registerListener(this, sensor, periodUs, BATCH_LATENCY_US, handler)
+        log(
+            "sensor ${sensor.stringType} wakeUp=${sensor.isWakeUpSensor} fifo=${sensor.fifoMaxEventCount}"
+        )
+        return sensor
+    }
+
+    // Wall-clock minutes: a Handler's delay stops counting while the CPU sleeps, so the sensors'
+    // batches also drive the tick
+    private fun tickIfDue() {
+        val now = System.currentTimeMillis()
+        if (now - lastTickMs >= MINUTE_MS) {
+            lastTickMs = now
+            logMinute()
+        }
+    }
+
+    private fun tickLoop() {
+        tickIfDue()
+        handler.postDelayed(::tickLoop, TICK_CHECK_MS)
+    }
+
     override fun onSensorChanged(event: SensorEvent) {
+        tickIfDue()
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> onAcceleration(event)
             Sensor.TYPE_HEART_RATE -> {
@@ -176,8 +216,25 @@ class MonitoringService :
                     onHeartRate(bpm)
                 }
             }
+            Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT -> {
+                // 1.0 on the wrist, 0.0 off it
+                val now = event.values[0] == 1f
+                if (now != worn) {
+                    worn = now
+                    log("worn=$worn")
+                    // Taking it off (or back on) shouldn't wait up to 15 minutes for the next check-in
+                    if (minute > 0) sendCheckIn()
+                }
+            }
             Sensor.TYPE_STEP_COUNTER -> {
                 if (stepsAtMinuteStart < 0) stepsAtMinuteStart = event.values[0]
+                // shortcut: counts from the service's first reading of the day, so a restart loses the
+                // morning's steps; Health Services' STEPS_DAILY if the exact daily total matters
+                val today = LocalDate.now()
+                if (stepDay != today) {
+                    stepDay = today
+                    stepsAtDayStart = event.values[0]
+                }
                 // Only treat it as a step if the counter actually advanced (not the first reading)
                 if (lastStepCount >= 0 && event.values[0] > lastStepCount) {
                     lastStepAtMs = System.currentTimeMillis()
@@ -211,7 +268,8 @@ class MonitoringService :
     private fun onHeartRate(bpm: Int) {
         val nowMs = System.currentTimeMillis()
         val moving = isMoving(nowMs)
-        val baseline = restingBaseline.value(nowMs)
+        // Null until enough still readings land, so the default can't raise a false alarm
+        val baseline = restingBaseline.measured(nowMs)
         restingBaseline.onReading(nowMs, bpm, moving)
         if (pulseAnomaly.onReading(nowMs, bpm, baseline, moving)) {
             pulseAnomaly.reset()
@@ -226,18 +284,23 @@ class MonitoringService :
         return lastStepAtMs > 0 && nowMs - lastStepAtMs < MOVING_WINDOW_MS
     }
 
+    private fun minutesWithoutSteps(nowMs: Long): Int =
+        ((nowMs - if (lastStepAtMs < 0) startedAtMs else lastStepAtMs) / 60_000L).toInt()
+
+    /** Null without a step counter; 0 on a new day before its first step. */
+    private fun stepsToday(): Int? = when {
+        stepsAtDayStart < 0 -> null
+        stepDay != LocalDate.now() -> 0
+        else -> (lastStepCount - stepsAtDayStart).toInt()
+    }
+
     private fun snapshot(): EventSnapshot {
         val nowMs = System.currentTimeMillis()
-        val minutesIdle = if (lastStepAtMs < 0) {
-            ((nowMs - startedAtMs) / 60_000L).toInt()
-        } else {
-            ((nowMs - lastStepAtMs) / 60_000L).toInt()
-        }
         return EventSnapshot(
             pulse = if (lastHeartRate > 0) lastHeartRate else null,
             restingBaseline = restingBaseline.value(nowMs),
             moving = isMoving(nowMs),
-            minutesWithoutSteps = minutesIdle,
+            minutesWithoutSteps = minutesWithoutSteps(nowMs),
             battery = battery()
         )
     }
@@ -275,7 +338,8 @@ class MonitoringService :
             raiseAnomaly("inactivity", snapshot())
             log("inactivity anomaly")
         }
-        sendCheckIn()
+        // 06 §3: every 15 minutes, every minute in the demo; the first right away
+        if (minute == 1 || minute % CHECK_IN_MINUTES == 0) sendCheckIn()
         // The phone may have come back since the last tick; flush anything the queue still holds
         resendPending()
         accelReadings = 0
@@ -283,7 +347,6 @@ class MonitoringService :
         heartRateReadings = 0
         stepsAtMinuteStart = lastStepCount
         falls = 0
-        handler.postDelayed(::logMinute, MINUTE_MS)
     }
 
     private fun resendPending() {
@@ -319,11 +382,15 @@ class MonitoringService :
     }
 
     private fun sendCheckIn() {
+        val nowMs = System.currentTimeMillis()
         val msg = CheckInMessage(
             measuredAt = Instant.now().toString(),
             battery = battery(),
-            worn = true,
-            lastPulse = if (lastHeartRate > 0) lastHeartRate else null
+            worn = worn,
+            lastPulse = if (lastHeartRate > 0) lastHeartRate else null,
+            restingPulse = restingBaseline.measured(nowMs),
+            stepsToday = stepsToday(),
+            minutesWithoutSteps = minutesWithoutSteps(nowMs)
         )
         Wearable.getNodeClient(this).connectedNodes
             .addOnSuccessListener { nodes ->
@@ -411,6 +478,15 @@ class MonitoringService :
         private const val NOTIFICATION_ID = 1
         private const val FALL_NOTIFICATION_ID = 2
         private const val MINUTE_MS = 60_000L
+
+        // How often the Handler checks for a due minute while the CPU is awake
+        private const val TICK_CHECK_MS = 10_000L
+
+        // A batch waits at most this long; a fall still needs 7 s of stillness before it counts (S13)
+        private const val BATCH_LATENCY_US = 10_000_000
+
+        // 06 §3's check-in interval; under the 90 s and 45 min silence limits
+        private val CHECK_IN_MINUTES = if (BuildConfig.DEMO) 1 else 15
         private const val LOG_FILE = "monitor.log"
 
         // How long after the last step the wearer is still considered to be moving (UC-09 "not moving")

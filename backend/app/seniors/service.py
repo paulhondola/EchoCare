@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import ValidationError
 from sqlalchemy import (
     ColumnElement,
+    Integer,
     Select,
     and_,
     delete,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    text,
     update,
 )
 from sqlalchemy.dialects.postgresql import insert
@@ -40,6 +42,7 @@ from app.seniors.models import (
     Senior,
     SummaryVersion,
     WatchCondition,
+    WatchReading,
     WatchState,
 )
 from app.seniors.schemas import (
@@ -54,6 +57,8 @@ from app.seniors.schemas import (
     SignatureForm,
     SummaryContent,
     SummaryVersionView,
+    WatchReadingView,
+    WatchView,
 )
 
 log = logging.getLogger("echocare.seniors")
@@ -720,13 +725,31 @@ async def record_check_in(
     """Stores the watch's latest check-in (UC-13). A time ahead of `now` is stored as
     `now`; a check-in older than the stored one changes nothing, since the phone may
     relay late and out of order."""
+    measured_at = min(form.measured_at, now)
     check_in = insert(WatchState).values(
         senior_id=senior_id,
         state=WatchCondition.not_worn if form.worn is False else WatchCondition.ok,
-        last_check_in_at=min(form.measured_at, now),
+        last_check_in_at=measured_at,
         battery=form.battery,
         worn=form.worn,
         last_pulse=form.last_pulse,
+        resting_pulse=form.resting_pulse,
+        steps_today=form.steps_today,
+        minutes_without_steps=form.minutes_without_steps,
+    )
+    # Every check-in is a reading, a late one too; a resent one is kept once (ADR-006)
+    await session.execute(
+        insert(WatchReading)
+        .values(
+            senior_id=senior_id,
+            measured_at=measured_at,
+            pulse=form.last_pulse,
+            resting_pulse=form.resting_pulse,
+            steps_today=form.steps_today,
+            battery=form.battery,
+            worn=form.worn,
+        )
+        .on_conflict_do_nothing(index_elements=["senior_id", "measured_at"])
     )
     before = await session.scalar(
         select(WatchState.state).where(WatchState.senior_id == senior_id)
@@ -737,7 +760,16 @@ async def record_check_in(
             index_elements=[WatchState.senior_id],
             set_={
                 c: check_in.excluded[c]
-                for c in ("state", "last_check_in_at", "battery", "worn", "last_pulse")
+                for c in (
+                    "state",
+                    "last_check_in_at",
+                    "battery",
+                    "worn",
+                    "last_pulse",
+                    "resting_pulse",
+                    "steps_today",
+                    "minutes_without_steps",
+                )
             },
             where=WatchState.last_check_in_at <= check_in.excluded.last_check_in_at,
         ).returning(WatchState.state)
@@ -749,8 +781,9 @@ async def record_check_in(
 
 
 def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> bool:
-    """Whether the caller looks after this senior, as her registering medic or as a
-    caregiver (UC-12), or is the senior herself on her own page (UC-03)."""
+    """Whether the caller looks after this senior, as her registering medic, as a
+    caregiver (UC-12) or as DAS (ADR-006), or is the senior herself on her own page
+    (UC-03). DAS reaches only seniors past `draft`; `reach_senior` checks that first."""
     is_self = any(
         g.role == Role.senior and g.senior_id == senior_id for g in caller.grants
     )
@@ -758,14 +791,14 @@ def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> boo
     caring = any(
         g.role == Role.caregiver and g.senior_id == senior_id for g in caller.grants
     )
-    return is_self or registered or caring
+    return is_self or registered or caring or Role.das in caller.roles
 
 
 async def watch_state(
     session: AsyncSession, caller: Caller, senior: Senior
 ) -> tuple[WatchCondition | None, int | None]:
-    """The watch's state and its latest pulse, for who looks after this senior and for the
-    senior herself (UC-03, UC-12): not for DAS. Returns (None, None) when the caller can't see."""
+    """The watch's state and its latest pulse, for whoever `sees_watch` (UC-03, UC-12,
+    ADR-006). Returns (None, None) when the caller can't see."""
     if not sees_watch(caller, senior.id, senior.medic_id):
         return None, None
     row = (
@@ -776,6 +809,60 @@ async def watch_state(
         )
     ).one_or_none()
     return (row.state, row.last_pulse) if row else (None, None)
+
+
+READINGS_KEPT = timedelta(hours=24)
+# Literal SQL, so the GROUP BY renders the same text as the SELECT
+BUCKET = func.date_bin(
+    text("interval '5 minutes'"),
+    WatchReading.measured_at,
+    text("timestamptz '2000-01-01 00:00+00'"),
+)
+
+
+async def watch_view(
+    session: AsyncSession, caller: Caller, senior: Senior
+) -> WatchView | None:
+    """The latest check-in (04 §1, ADR-006); None before the first one or when the
+    caller can't see the watch."""
+    if not sees_watch(caller, senior.id, senior.medic_id):
+        return None
+    row = await session.get(WatchState, senior.id)
+    return WatchView.model_validate(row, from_attributes=True) if row else None
+
+
+async def watch_readings(
+    session: AsyncSession, caller: Caller, senior: Senior, now: datetime
+) -> list[WatchReadingView]:
+    """The last 24 hours in 5-minute buckets, oldest first (04 §1, ADR-006); empty when
+    the caller can't see the watch."""
+    if not sees_watch(caller, senior.id, senior.medic_id):
+        return []
+    rows = await session.execute(
+        select(
+            BUCKET.label("at"),
+            func.round(func.avg(WatchReading.pulse)).cast(Integer).label("pulse"),
+            func.min(WatchReading.battery).label("battery"),
+            func.bool_and(WatchReading.worn).label("worn"),
+            func.max(WatchReading.steps_today).label("steps_today"),
+        )
+        .where(
+            WatchReading.senior_id == senior.id,
+            WatchReading.measured_at >= now - READINGS_KEPT,
+        )
+        .group_by(BUCKET)
+        .order_by(BUCKET)
+    )
+    return [WatchReadingView.model_validate(r, from_attributes=True) for r in rows]
+
+
+async def prune_watch_readings(session: AsyncSession, now: datetime) -> int:
+    """Deletes readings older than 24 hours (05 §5, ADR-006). Returns how many."""
+    pruned = await session.execute(
+        delete(WatchReading).where(WatchReading.measured_at < now - READINGS_KEPT)
+    )
+    await session.commit()
+    return pruned.rowcount
 
 
 def watch_silence() -> timedelta:
