@@ -139,7 +139,7 @@ fun MedicalSection(
                     }
                 }, kind = Kind.Link)
             }
-            if (stage in setOf(MedicalStage.Review, MedicalStage.Confirmed, MedicalStage.Failed)) {
+            if (canReanalyze(stage, editing)) {
                 SnButton(
                     stringResource(R.string.medical_reanalyze),
                     onReanalyze,
@@ -168,6 +168,7 @@ fun MedicalSection(
 private fun stageLine(stage: MedicalStage): Int? = when (stage) {
     MedicalStage.WaitingForDas -> R.string.medical_waiting
     MedicalStage.Analyzing -> R.string.medical_analyzing
+    MedicalStage.NotAnalyzed -> R.string.medical_not_analyzed
     MedicalStage.Review -> R.string.medical_review
     MedicalStage.Failed -> R.string.medical_failed
     MedicalStage.None, MedicalStage.Confirmed -> null

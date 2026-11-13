@@ -27,8 +27,16 @@ class MedicalTest {
     }
 
     @Test
-    fun `pending analyzes once the senior is further on`() {
+    fun `pending analyzes once the senior is accepted or active`() {
+        assertEquals(MedicalStage.Analyzing, stageOf(record("pending"), "accepted"))
         assertEquals(MedicalStage.Analyzing, stageOf(record("pending"), "active"))
+    }
+
+    @Test
+    fun `pending is never analyzed for a senior the server does not analyze`() {
+        for (state in listOf("refused", "withdrawn", "wrong_number", "unreachable", "new_state")) {
+            assertEquals(MedicalStage.NotAnalyzed, stageOf(record("pending"), state))
+        }
     }
 
     @Test
@@ -56,6 +64,22 @@ class MedicalTest {
         val stored = listOf(item("a"), item("kept", included = false))
         val edited = listOf(item(" a2 "), item("  ", included = false))
         assertEquals(listOf("a2", "kept"), confirmFormOf(edited, stored).items.map { it.question })
+    }
+
+    @Test
+    fun `a reread with fewer stored items does not crash the confirm form`() {
+        val edited = listOf(item("a"), item("  ", included = false))
+        val form = confirmFormOf(edited, stored = listOf(item("a")))
+        assertEquals(listOf("a", ""), form.items.map { it.question })
+    }
+
+    @Test
+    fun `reanalyzing a confirmed profile waits for Modifica`() {
+        assertFalse(canReanalyze(MedicalStage.Confirmed, editing = false))
+        assertTrue(canReanalyze(MedicalStage.Confirmed, editing = true))
+        assertTrue(canReanalyze(MedicalStage.Review, editing = false))
+        assertTrue(canReanalyze(MedicalStage.Failed, editing = false))
+        assertFalse(canReanalyze(MedicalStage.Analyzing, editing = false))
     }
 
     @Test

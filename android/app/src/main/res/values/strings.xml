@@ -194,6 +194,7 @@
     <string name="medical_replace">Încarcă altă fișă</string>
     <string name="medical_waiting">Se analizează după acceptarea DAS</string>
     <string name="medical_analyzing">Se analizează…</string>
+    <string name="medical_not_analyzed">Nu se analizează în această stare</string>
     <string name="medical_review">Așteaptă confirmarea medicului</string>
     <string name="medical_failed">Analiza a eșuat</string>
     <string name="medical_confirm">Confirmă</string>

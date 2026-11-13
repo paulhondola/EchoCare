@@ -53,6 +53,13 @@ fun pushFrom(data: Map<String, String?>): Push? {
     }
 }
 
+/** What a tapped notification opens: an alert, or a notice's senior as an alert with no incident. */
+fun tappedFrom(data: Map<String, String?>): Push.Alert? = when (val push = pushFrom(data)) {
+    is Push.Alert -> push
+    is Push.Notice -> Push.Alert(push.seniorId, null)
+    else -> null
+}
+
 /**
  * Runs [save] to its end on the calling thread: Firebase stops the service, and may end the process,
  * once `onNewToken` returns. Messages wait on that thread, tray alerts included, so [limit] keeps a
