@@ -153,7 +153,10 @@ def per_device(wanted: dict[str, set[Push]]) -> list[tuple[str, Push]]:
     out = []
     for token, pushes in wanted.items():
         alerted = set().union(*(p.ids() for p in pushes if p.alert))
-        out += [(token, p) for p in pushes if p.alert or not (p.ids() & alerted)]
+        # A notice says something an alert doesn't, so it is never stood in for.
+        out += [
+            (token, p) for p in pushes if p.alert or p.notice or not (p.ids() & alerted)
+        ]
     return sorted(out, key=lambda tp: (tp[0], not tp[1].alert, tp[1].data))
 
 

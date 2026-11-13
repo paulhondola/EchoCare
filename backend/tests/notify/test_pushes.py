@@ -143,6 +143,11 @@ def test_an_alert_stands_in_for_the_refresh_about_the_same_senior():
     ]
 
 
+def test_an_alert_never_stands_in_for_a_medical_notice():
+    out = per_device({"t1": {code_alert(S), medical_notice(S)}})
+    assert out == [("t1", code_alert(S)), ("t1", medical_notice(S))]
+
+
 class FakeSender:
     """Records what would go to Firebase; `dead` tokens come back as unregistered."""
 

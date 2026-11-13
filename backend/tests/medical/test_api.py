@@ -4,9 +4,7 @@ import asyncio
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import DBAPIError
 
-from app.core.db import Session
 from app.core.storage import StorageError, get_storage
 from app.main import app
 from app.medical.models import MedicalRecord, MedicalRecordState
@@ -183,8 +181,8 @@ async def test_a_new_upload_resets_the_record_and_drops_the_old_file(
 async def test_an_upload_during_an_analysis_keeps_nothing_of_the_old_file(
     client, storage, db, active
 ):
-    """The row is locked through the S3 upload, so the old file's analysis cannot
-    write its text or profile in between and leave them on the new file (C1)."""
+    """No row is locked through the S3 upload, so the old file's analysis may finish
+    meanwhile; the swap after the upload still leaves nothing of it (C1)."""
     await seed(db, active, MedicalRecordState.pending, items=None, text=None)
     old = await row(db, active)
     held, gate = asyncio.Event(), asyncio.Event()
@@ -198,13 +196,6 @@ async def test_an_upload_during_an_analysis_keeps_nothing_of_the_old_file(
     storage.upload = held_upload
     put = asyncio.create_task(put_pdf(client, active))
     await held.wait()
-    async with Session() as s:
-        with pytest.raises(DBAPIError, match="lock"):
-            await s.scalar(
-                select(MedicalRecord)
-                .where(MedicalRecord.id == old.id)
-                .with_for_update(nowait=True)
-            )
     analysis = asyncio.create_task(
         analyze(
             old.id,
@@ -213,10 +204,10 @@ async def test_an_upload_during_an_analysis_keeps_nothing_of_the_old_file(
             model=model_returning(),
         )
     )
-    await asyncio.wait({analysis}, timeout=0.3)  # it waits on the row lock
+    await asyncio.wait_for(analysis, 5)  # nothing holds it up now
+    assert (await row(db, active)).state is MedicalRecordState.review
     gate.set()
     assert (await put).status_code == 200
-    await analysis
     await mark_failed(old.id)
     record = await row(db, active)
     assert record.id != old.id
@@ -361,3 +352,34 @@ async def test_caregiver_and_senior_get_not_found(
     await db.commit()
     for token in ("+40700000305", SENIOR):
         assert refusal(await get_record(client, active, token)) == NOT_FOUND
+
+
+async def test_confirm_takes_an_edited_worry(client, storage, db, active):
+    await seed(db, active, MedicalRecordState.review)
+    form = {
+        "items": [
+            {"included": True, "question": "Ați avut amețeli?", "worrying": " Da "},
+            {"included": True, "question": "q"},
+        ]
+    }
+    body = (await command(client, active, "/confirm", form)).json()
+    assert body["items"][0]["worrying"] == "Da"
+    assert body["items"][1]["worrying"] == STORED[1]["worrying"]
+
+
+async def test_confirm_of_an_older_profile_is_refused(client, storage, db, active):
+    await seed(db, active, MedicalRecordState.review)
+    form = {
+        "items": [{"included": True, "question": "a"}] * 2,
+        "analyzed_at": "2026-01-01T00:00:00Z",
+    }
+    r = await command(client, active, "/confirm", form)
+    assert (r.status_code, r.json()["detail"]["reason"]) == (409, "wrong_state")
+    assert (await row(db, active)).state is MedicalRecordState.review
+
+
+async def test_a_draft_with_a_record_can_be_deleted(client, storage, db, senior):
+    assert (await put_pdf(client, senior)).status_code == 200
+    r = await client.delete(f"/api/seniors/{senior.id}", headers=signed_in(MEDIC))
+    assert r.status_code == 204
+    assert await row(db, senior) is None

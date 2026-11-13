@@ -33,7 +33,11 @@ fun stageOf(record: MedicalRecord?, seniorState: String): MedicalStage = when (r
  * The server refuses an empty question, so an excluded item the medic blanked sends its [stored]
  * one; an included blank is stopped by [canConfirm].
  */
-fun confirmFormOf(edited: List<MedicalItem>, stored: List<MedicalItem>) = MedicalConfirmForm(
+fun confirmFormOf(
+    edited: List<MedicalItem>,
+    stored: List<MedicalItem>,
+    analyzedAt: String? = null
+) = MedicalConfirmForm(
     edited.mapIndexed { i, it ->
         val question = it.question.trim()
         ConfirmItem(
@@ -44,9 +48,12 @@ fun confirmFormOf(edited: List<MedicalItem>, stored: List<MedicalItem>) = Medica
                 stored.getOrNull(i)?.question ?: question
             } else {
                 question
-            }
+            },
+            // A blank worry keeps the stored one
+            it.worrying.trim().ifEmpty { null }
         )
-    }
+    },
+    analyzedAt
 )
 
 fun canConfirm(items: List<MedicalItem>) = items.all { !it.included || it.question.isNotBlank() }

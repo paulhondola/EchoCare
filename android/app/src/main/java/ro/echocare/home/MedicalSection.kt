@@ -187,11 +187,14 @@ private fun ItemRow(item: MedicalItem, editable: Boolean, onChange: (MedicalItem
             )
             Text(item.condition, style = MaterialTheme.typography.titleMedium)
         }
-        Text(
-            "${stringResource(R.string.medical_worrying)}: ${item.worrying}",
-            Modifier.padding(start = 12.dp),
-            color = Palette.FgSoft
-        )
+        // Editable with the question: an edited question needs its own worry (design §5.5)
+        if (!editable) {
+            Text(
+                "${stringResource(R.string.medical_worrying)}: ${item.worrying}",
+                Modifier.padding(start = 12.dp),
+                color = Palette.FgSoft
+            )
+        }
         if (item.evidence.isNotBlank()) {
             Text(item.evidence, Modifier.padding(start = 12.dp), color = Palette.FgMuted)
         }
@@ -200,6 +203,14 @@ private fun ItemRow(item: MedicalItem, editable: Boolean, onChange: (MedicalItem
                 item.question,
                 { onChange(item.copy(question = it)) },
                 stringResource(R.string.medical_question),
+                KeyboardType.Text,
+                mono = false,
+                singleLine = false
+            )
+            SnTextField(
+                item.worrying,
+                { onChange(item.copy(worrying = it)) },
+                stringResource(R.string.medical_worrying),
                 KeyboardType.Text,
                 mono = false,
                 singleLine = false

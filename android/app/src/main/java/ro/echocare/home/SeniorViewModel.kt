@@ -213,7 +213,8 @@ class SeniorViewModel @Inject constructor(
             id,
             confirmFormOf(
                 items,
-                medical?.items ?: items
+                medical?.items ?: items,
+                medical?.analyzedAt
             )
         )
     }

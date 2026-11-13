@@ -31,12 +31,19 @@ class MedicalRecordView(BaseModel):
     pdf_url: str | None
 
 
+Text200 = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+]
+
+
 class ConfirmItem(BaseModel):
     included: bool
-    question: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
-    ]
+    question: Text200
+    # The reply that would worry, rewritten with an edited question; None keeps it.
+    worrying: Text200 | None = None
 
 
 class MedicalConfirmForm(BaseModel):
     items: list[ConfirmItem]
+    # The `analyzed_at` of the profile the medic reviewed; a newer one is refused.
+    analyzed_at: datetime | None = None

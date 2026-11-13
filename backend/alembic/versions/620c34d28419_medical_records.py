@@ -51,10 +51,8 @@ def upgrade() -> None:
             ["confirmed_by"],
             ["users.id"],
         ),
-        sa.ForeignKeyConstraint(
-            ["senior_id"],
-            ["seniors.id"],
-        ),
+        # A deleted draft takes its record along (04 §2 delete draft).
+        sa.ForeignKeyConstraint(["senior_id"], ["seniors.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["uploaded_by"],
             ["users.id"],

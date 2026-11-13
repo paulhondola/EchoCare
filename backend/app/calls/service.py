@@ -169,25 +169,29 @@ async def answer_context(
     follow_up, how_to_talk, medical_check = None, (), None
     if notes and row.trigger in WELLBEING:
         # The call goes ahead without the notes if they cannot be read (design §5 A).
+        # Each read in its own savepoint: a failed one must not abort the other's
+        # transaction (design §5.5).
         try:
-            version = await latest_summary(session, row.id)
+            async with session.begin_nested():
+                version = await latest_summary(session, row.id)
         except Exception as e:  # noqa: BLE001
             log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
             version = None
         # Its own guard: a failure here costs the check, not the summary (design §5.5).
         try:
-            checks = await confirmed_checks(session, row.id)
-            if checks:
-                done = await session.scalar(
-                    select(func.count())
-                    .select_from(Call)
-                    .where(
-                        Call.senior_id == row.id,
-                        Call.trigger.in_(WELLBEING),
-                        Call.state.in_(ANSWERED & ENDED),
+            async with session.begin_nested():
+                checks = await confirmed_checks(session, row.id)
+                if checks:
+                    done = await session.scalar(
+                        select(func.count())
+                        .select_from(Call)
+                        .where(
+                            Call.senior_id == row.id,
+                            Call.trigger.in_(WELLBEING),
+                            Call.state.in_(ANSWERED & ENDED),
+                        )
                     )
-                )
-                medical_check = checks[(done or 0) % len(checks)]
+                    medical_check = checks[(done or 0) % len(checks)]
         except Exception as e:  # noqa: BLE001
             log.warning(
                 "medical check read failed, call %s: %s", call_id, type(e).__name__

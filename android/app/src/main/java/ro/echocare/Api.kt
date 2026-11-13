@@ -174,11 +174,15 @@ data class MedicalRecord(
     @SerialName("pdf_url") val pdfUrl: String? = null
 )
 
+// [worrying] null keeps the stored one; [analyzedAt] is the profile the medic reviewed.
 @Serializable
-data class ConfirmItem(val included: Boolean, val question: String)
+data class ConfirmItem(val included: Boolean, val question: String, val worrying: String? = null)
 
 @Serializable
-data class MedicalConfirmForm(val items: List<ConfirmItem>)
+data class MedicalConfirmForm(
+    val items: List<ConfirmItem>,
+    @SerialName("analyzed_at") val analyzedAt: String? = null
+)
 
 // GET /profile/mock-call (design §4.2): the senior's due call, which the card answers in place of a
 // phone. [trigger] stays a string (ADR-001 §2.3). [kind] and [level] are a campaign's, [consentText]

@@ -74,6 +74,14 @@ class MedicalTest {
     }
 
     @Test
+    fun `the confirm form sends an edited worry and the profile it reviewed`() {
+        val edited = listOf(item("a").copy(worrying = " Da "), item("b").copy(worrying = "  "))
+        val form = confirmFormOf(edited, edited, analyzedAt = "2026-11-13T10:00:00Z")
+        assertEquals(listOf("Da", null), form.items.map { it.worrying })
+        assertEquals("2026-11-13T10:00:00Z", form.analyzedAt)
+    }
+
+    @Test
     fun `reanalyzing a confirmed profile waits for Modifica`() {
         assertFalse(canReanalyze(MedicalStage.Confirmed, editing = false))
         assertTrue(canReanalyze(MedicalStage.Confirmed, editing = true))

@@ -64,24 +64,28 @@ def _page_texts(pdf: bytes) -> list[str]:
         doc.close()
 
 
-def page_png(pdf: bytes, index: int) -> bytes:
+def page_pngs(pdf: bytes, indexes: list[int]) -> list[bytes]:
+    """The pages at `indexes` as PNGs, from one parse of the PDF."""
     with _PDFIUM:
-        return _page_png(pdf, index)
+        return _page_pngs(pdf, indexes)
 
 
-def _page_png(pdf: bytes, index: int) -> bytes:
+def _page_pngs(pdf: bytes, indexes: list[int]) -> list[bytes]:
     doc = _open(pdf)
     try:
-        page = doc[index]
-        try:
-            width, height = page.get_size()
-            scale = min(DPI / 72, MAX_SIDE / max(width, height))
-            image = page.render(scale=scale).to_pil()
-        finally:
-            page.close()
-        out = io.BytesIO()
-        image.save(out, format="PNG")
-        return out.getvalue()
+        pngs = []
+        for index in indexes:
+            page = doc[index]
+            try:
+                width, height = page.get_size()
+                scale = min(DPI / 72, MAX_SIDE / max(width, height))
+                image = page.render(scale=scale).to_pil()
+            finally:
+                page.close()
+            out = io.BytesIO()
+            image.save(out, format="PNG")
+            pngs.append(out.getvalue())
+        return pngs
     except pdfium.PdfiumError as e:
         raise ValueError("unreadable PDF") from e
     finally:
@@ -89,14 +93,17 @@ def _page_png(pdf: bytes, index: int) -> bytes:
 
 
 async def extract_text(pdf: bytes, ocr: Ocr) -> str:
-    texts = await asyncio.get_running_loop().run_in_executor(_POOL, page_texts, pdf)
-    for i, text in enumerate(texts):
-        if len("".join(text.split())) < MIN_CHARS:
-            png = await asyncio.get_running_loop().run_in_executor(
-                _POOL, page_png, pdf, i
-            )
-            texts[i] = await ocr(png)
-    return "\n\n".join(texts)
+    loop = asyncio.get_running_loop()
+    texts = await loop.run_in_executor(_POOL, page_texts, pdf)
+    scanned = [i for i, t in enumerate(texts) if len("".join(t.split())) < MIN_CHARS]
+    if scanned:
+        pngs = await loop.run_in_executor(_POOL, page_pngs, pdf, scanned)
+        # ponytail: every scanned page at once (at most MAX_PAGES); a semaphore if
+        # DeepInfra starts refusing the burst.
+        for i, text in zip(scanned, await asyncio.gather(*map(ocr, pngs)), strict=True):
+            texts[i] = text
+    # Postgres text refuses NUL, which a broken text layer or OCR can carry.
+    return "\n\n".join(texts).replace("\x00", "")
 
 
 def deepinfra_ocr(api_key: str, model: str) -> Ocr:

@@ -111,13 +111,18 @@
       .catch((e: unknown) => {
         if (!reads.signal.aborted) briefing = { kind: "error", message: failed("rezumatul", e) };
       });
-    fetchMedicalRecord(summary.id, reads.signal)
-      .then((data) => {
-        medical = { kind: "ok", data };
-      })
-      .catch((e: unknown) => {
-        if (!reads.signal.aborted) medical = { kind: "error", message: failed("fișa medicală", e) };
-      });
+    const readMedical = () =>
+      fetchMedicalRecord(summary.id, reads.signal)
+        .then((data) => {
+          medical = { kind: "ok", data };
+        })
+        .catch((e: unknown) => {
+          if (!reads.signal.aborted)
+            medical = { kind: "error", message: failed("fișa medicală", e) };
+        });
+    readMedical();
+    // The PDF link is presigned for 10 minutes: read a fresh one before it lapses
+    const relink = setInterval(readMedical, 9 * 60_000);
     // Dates the briefing's citations; a failure shows as the Apeluri tab's error
     calls = { kind: "loading" };
     fetchCalls(summary.id, reads.signal)
@@ -127,7 +132,10 @@
       .catch((e: unknown) => {
         if (!reads.signal.aborted) calls = { kind: "error", message: failed("apelurile", e) };
       });
-    return () => reads.abort();
+    return () => {
+      clearInterval(relink);
+      reads.abort();
+    };
   });
 </script>
 

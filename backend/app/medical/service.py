@@ -3,6 +3,7 @@ import logging
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
+from functools import cache
 
 from pydantic_ai.models import Model
 from sqlalchemy import select, update
@@ -89,23 +90,14 @@ async def upload_record(
     storage: StorageService,
 ) -> MedicalRecordView:
     """Attach a PDF, replacing the current one; analysis starts over (design §5.4)."""
-    senior = await own_senior(session, caller, senior_id)
-    if senior.enrollment_state in {
-        EnrollmentState.refused,
-        EnrollmentState.withdrawn,
-    }:
-        raise refuse(409, "wrong_state")
+    await uploadable(session, caller, senior_id)
     if len(pdf) > MAX_BYTES:
         raise refuse(413, "too_large")
     if not pdf.startswith(b"%PDF"):
         raise refuse(415, "not_pdf")
-    # Locked through the S3 upload: an analysis of the old file waits, then matches
-    # nothing once the id has changed, instead of leaving its text or profile here.
-    record = await session.scalar(
-        select(MedicalRecord)
-        .where(MedicalRecord.senior_id == senior_id)
-        .with_for_update()
-    )
+    # No row stays locked while S3 works: other writers of the senior must not wait on
+    # a slow upload. The file goes under a new key, so nothing reads it until the swap.
+    await session.commit()
     new_id = uuid.uuid4()
     key = storage_key(senior_id, new_id)
     try:
@@ -113,6 +105,19 @@ async def upload_record(
     except StorageError as e:
         log.warning("upload failed for senior %s: %s", senior_id, e)
         raise refuse(503, "storage_unavailable") from e
+    try:
+        # Locked again for the swap, and the state checked again: it may have moved.
+        await uploadable(session, caller, senior_id)
+    except Exception:
+        await forget(storage, key)
+        raise
+    # An analysis of the old file that finishes after this matches nothing once the id
+    # has changed, instead of leaving its text or profile here.
+    record = await session.scalar(
+        select(MedicalRecord)
+        .where(MedicalRecord.senior_id == senior_id)
+        .with_for_update()
+    )
     old_key = record.storage_key if record else None
     if record is None:
         record = MedicalRecord(senior_id=senior_id, uploaded_by=caller.user.id)
@@ -125,11 +130,24 @@ async def upload_record(
     clear_analysis(record)
     await session.commit()
     if old_key:
-        try:
-            await storage.delete(old_key)
-        except StorageError:
-            log.warning("could not delete old record file %s", old_key)
+        await forget(storage, old_key)
     return await view_of(record, storage, full=True)
+
+
+async def uploadable(
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+) -> None:
+    """The caller's own senior, locked, in a state that takes a record."""
+    senior = await own_senior(session, caller, senior_id)
+    if senior.enrollment_state in {EnrollmentState.refused, EnrollmentState.withdrawn}:
+        raise refuse(409, "wrong_state")
+
+
+async def forget(storage: StorageService, key: str) -> None:
+    try:
+        await storage.delete(key)
+    except StorageError:
+        log.warning("could not delete record file %s", key)
 
 
 async def record_for(
@@ -187,10 +205,18 @@ async def confirm_record(
         {MedicalRecordState.review, MedicalRecordState.confirmed},
     )
     stored = record.items or []
-    if len(form.items) != len(stored):
+    # The profile the medic's screen showed: a newer analysis is not confirmed with its
+    # questions. Optional, so an app that sends none keeps the count check alone.
+    stale = form.analyzed_at is not None and form.analyzed_at != record.analyzed_at
+    if stale or len(form.items) != len(stored):
         raise refuse(409, "wrong_state")
     record.items = [
-        {**old, "included": new.included, "question": new.question}
+        {
+            **old,
+            "included": new.included,
+            "question": new.question,
+            "worrying": new.worrying or old["worrying"],
+        }
         for old, new in zip(stored, form.items, strict=True)
     ]
     record.state = MedicalRecordState.confirmed
@@ -326,6 +352,11 @@ def _finished(record_id: uuid.UUID, task: asyncio.Task) -> None:
             marking.add_done_callback(_marking.discard)
 
 
+@cache  # built once, so analyses reuse their connections
+def clients(api_key: str, model: str, ocr_model: str) -> tuple[Model, Ocr]:
+    return deepinfra_model(api_key, model), deepinfra_ocr(api_key, ocr_model)
+
+
 async def start_analyses(now: datetime) -> int:
     """The scheduler step: start one task per due record and return; never awaits one."""
     settings = get_settings()
@@ -334,9 +365,12 @@ async def start_analyses(now: datetime) -> int:
         return 0
     async with Session() as session:
         due = await due_records(session)
-    model = deepinfra_model(settings.deepinfra_api_key, settings.summary_model)
-    ocr = deepinfra_ocr(settings.deepinfra_api_key, settings.ocr_model)
     due = due[: max(MAX_RUNNING - len(_running), 0)]
+    if not due:
+        return 0
+    model, ocr = clients(
+        settings.deepinfra_api_key, settings.summary_model, settings.ocr_model
+    )
     for record_id in due:
         task = asyncio.create_task(
             asyncio.wait_for(

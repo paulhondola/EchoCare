@@ -24,7 +24,9 @@ class MedicalRecord(Base):
     __tablename__ = "medical_records"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    senior_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seniors.id"), unique=True)
+    senior_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("seniors.id", ondelete="CASCADE"), unique=True
+    )
     storage_key: Mapped[str] = mapped_column(Text)
     uploaded_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     uploaded_at: Mapped[datetime] = timestamp_now()

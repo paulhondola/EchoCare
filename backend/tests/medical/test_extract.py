@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from app.medical import extract
-from app.medical.extract import MAX_SIDE, extract_text, page_png, page_texts
+from app.medical.extract import MAX_SIDE, extract_text, page_pngs, page_texts
 
 
 def text_pdf(lines: list[str]) -> bytes:
@@ -72,7 +72,7 @@ def test_a_huge_page_renders_within_the_pixel_cap():
     out = io.BytesIO()
     # 600x800 px at 1 dpi is a 43200x57600 pt page.
     Image.new("RGB", (600, 800), "white").save(out, format="PDF", resolution=1.0)
-    size = Image.open(io.BytesIO(page_png(out.getvalue(), 0))).size
+    size = Image.open(io.BytesIO(page_pngs(out.getvalue(), [0])[0])).size
     assert max(size) <= MAX_SIDE
 
 
@@ -90,3 +90,10 @@ async def test_pdfium_work_runs_on_its_own_thread(monkeypatch):
     monkeypatch.setattr(extract, "page_texts", spy)
     await extract_text(scan_pdf(), ocr)
     assert names[0].startswith("pdfium")
+
+
+async def test_nul_characters_are_dropped():
+    async def ocr(_: bytes) -> str:
+        return "Diabet\x00 zaharat"
+
+    assert await extract_text(scan_pdf(), ocr) == "Diabet zaharat"
