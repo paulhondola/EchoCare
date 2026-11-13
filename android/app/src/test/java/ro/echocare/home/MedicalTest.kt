@@ -45,9 +45,17 @@ class MedicalTest {
 
     @Test
     fun `the confirm form trims, keeps order and included`() {
-        val form = confirmFormOf(listOf(item("  a  "), item(" b", included = false), item("c ")))
+        val edited = listOf(item("  a  "), item(" b", included = false), item("c "))
+        val form = confirmFormOf(edited, edited)
         assertEquals(listOf("a", "b", "c"), form.items.map { it.question })
         assertEquals(listOf(true, false, true), form.items.map { it.included })
+    }
+
+    @Test
+    fun `a blanked excluded item sends its stored question`() {
+        val stored = listOf(item("a"), item("kept", included = false))
+        val edited = listOf(item(" a2 "), item("  ", included = false))
+        assertEquals(listOf("a2", "kept"), confirmFormOf(edited, stored).items.map { it.question })
     }
 
     @Test

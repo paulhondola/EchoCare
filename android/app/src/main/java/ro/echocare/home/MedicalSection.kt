@@ -95,7 +95,7 @@ fun MedicalSection(
     val stage = stageOf(record, seniorState)
     val pick = rememberPdfPicker { bytes -> bytes?.let(onUpload) }
     var items by remember(record?.items) { mutableStateOf(record?.items.orEmpty()) }
-    var editing by remember(record?.state) { mutableStateOf(false) }
+    var editing by remember(record?.state, record?.confirmedAt) { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().padding(top = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)

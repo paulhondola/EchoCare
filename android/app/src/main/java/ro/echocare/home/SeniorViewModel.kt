@@ -208,8 +208,15 @@ class SeniorViewModel @Inject constructor(
     }
 
     /** „Confirmă”: the medic's edits and choices, in the stored order (design §5.5). */
-    fun confirmMedical(id: String, items: List<MedicalItem>) =
-        runCommand(id, {}) { api.confirmMedicalRecord(id, confirmFormOf(items)) }
+    fun confirmMedical(id: String, items: List<MedicalItem>) = runCommand(id, {}) {
+        api.confirmMedicalRecord(
+            id,
+            confirmFormOf(
+                items,
+                medical?.items ?: items
+            )
+        )
+    }
 
     /** „Analizează din nou” (design §5.3). */
     fun reanalyzeMedical(id: String) = runCommand(id, {}) { api.reanalyzeMedicalRecord(id) }
