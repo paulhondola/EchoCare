@@ -60,13 +60,14 @@ fun panel(rows: List<SeniorRow>): List<Pair<Group, List<SeniorRow>>> {
     }
 }
 
-data class Counts(val red: Int, val yellow: Int, val toResolve: Int, val drafts: Int)
+// The medic home's strip (design 2026-11-13 medic home): the codes of active seniors, and those at DAS.
+data class Counts(val red: Int, val yellow: Int, val green: Int, val atDas: Int)
 
 fun countsOf(rows: List<SeniorRow>): Counts = Counts(
     red = rows.count { it.state == "active" && it.code == "red" },
     yellow = rows.count { it.state == "active" && it.code == "yellow" },
-    toResolve = rows.count { groupOf(it) == Group.ToResolve },
-    drafts = rows.count { it.state == "draft" }
+    green = rows.count { it.state == "active" && it.code == "green" },
+    atDas = rows.count { it.state == "submitted" }
 )
 
 enum class PatientAction { CallAgain, Withdraw, Sign, Edit }

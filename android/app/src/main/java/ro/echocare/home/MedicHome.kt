@@ -1,10 +1,8 @@
 package ro.echocare.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -13,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -22,10 +23,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -42,11 +42,14 @@ import ro.echocare.SeniorRow
 import ro.echocare.push.NotificationsPrompt
 import ro.echocare.ui.Banner
 import ro.echocare.ui.Chip
+import ro.echocare.ui.Kind
+import ro.echocare.ui.SectionLabel
+import ro.echocare.ui.SnButton
 import ro.echocare.ui.Tone
 import ro.echocare.ui.theme.Palette
 
 /**
- * The medic's seniors for her home, Înregistrare and Monitorizare (UC-12, UC-01):
+ * The medic's seniors for her home and Monitorizare (UC-12, design 2026-11-13 medic home):
  * GET /seniors?role=medic (04 §2). `hiltViewModel()` is scoped to the nav entry, so each of those
  * destinations has its own instance. [selected] is Monitorizare's chosen patient, kept in
  * [SavedStateHandle] so a rotation or a process death keeps it.
@@ -74,14 +77,18 @@ class MedicViewModel @Inject constructor(
 }
 
 /**
- * The medic's home: two tiles, Monitorizare with what needs her and Înregistrare with her drafts
- * (UC-12, UC-01). [sent] shows „Trimis la DAS.” for 5 s after the form submits.
+ * The medic's home: their tasks, most important first, under the codes of their patients
+ * (design 2026-11-13 medic home). A draft opens the form [onDraft], every other task the
+ * patient's page [onOpen], where its action already is. [sent] shows „Trimis la DAS.” for 5 s
+ * after the form submits.
  */
 @Composable
 fun MedicHomeScreen(
     menu: @Composable () -> Unit,
     onMonitor: () -> Unit,
-    onRegister: () -> Unit,
+    onNew: () -> Unit,
+    onOpen: (String) -> Unit,
+    onDraft: (String) -> Unit,
     onSessionEnd: (Failure) -> Unit,
     sent: Boolean = false,
     onSentShown: () -> Unit = {},
@@ -94,62 +101,53 @@ fun MedicHomeScreen(
             onSentShown()
         }
     }
-    HomeScaffold(stringResource(R.string.medic_home), onBack = null, menu = menu) {
+    val bar: @Composable () -> Unit = {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SnButton(stringResource(R.string.new_patient), onNew, kind = Kind.Success)
+            menu()
+        }
+    }
+    HomeScaffold(stringResource(R.string.medic_home), onBack = null, menu = bar) {
         LoadBody(vm.seniors, onRetry = vm::reread, onSessionEnd = onSessionEnd) { seniors ->
-            val counts = countsOf(seniors)
+            val tasks = tasksOf(seniors)
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 // The medic's alerts (04 §6), asked for where she lands
                 NotificationsPrompt()
                 if (sent) Banner(stringResource(R.string.sent), Tone.Verde)
-                BoxWithConstraints(Modifier.padding(16.dp)) {
-                    val monitor: @Composable (Modifier) -> Unit = { m ->
-                        Tile(stringResource(R.string.monitor), onMonitor, m) {
-                            if (counts.red > 0) {
-                                Chip(stringResource(R.string.count_red, counts.red), Tone.Rosu)
-                            }
-                            if (counts.yellow > 0) {
-                                Chip(
-                                    stringResource(R.string.count_yellow, counts.yellow),
-                                    Tone.Galben
-                                )
-                            }
-                            if (counts.toResolve > 0) {
-                                Chip(
-                                    stringResource(R.string.count_to_resolve, counts.toResolve),
-                                    Tone.Link
-                                )
-                            }
-                        }
+                // One column on any screen, kept readable on a tablet
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 720.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Strip(countsOf(seniors), onMonitor)
+                    SectionLabel(
+                        stringResource(R.string.tasks_title, tasks.size),
+                        Modifier.padding(top = 12.dp, bottom = 4.dp)
+                    )
+                    if (tasks.isEmpty()) {
+                        Text(
+                            stringResource(R.string.all_done),
+                            color = Palette.FgMuted,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
-                    val register: @Composable (Modifier) -> Unit = { m ->
-                        Tile(stringResource(R.string.register), onRegister, m) {
-                            Text(
-                                if (counts.drafts > 0) {
-                                    pluralStringResource(
-                                        R.plurals.drafts_left,
-                                        counts.drafts,
-                                        counts.drafts
-                                    )
-                                } else {
-                                    stringResource(R.string.new_patient)
-                                },
-                                color = Palette.FgMuted,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    if (maxWidth >= 600.dp) {
-                        Row(
-                            Modifier.height(IntrinsicSize.Min),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            monitor(Modifier.weight(1f).fillMaxHeight())
-                            register(Modifier.weight(1f).fillMaxHeight())
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            monitor(Modifier)
-                            register(Modifier)
+                    tasks.forEach { task ->
+                        val id = task.row.id
+                        TaskRow(task) {
+                            if (task.kind ==
+                                TaskKind.Draft
+                            ) {
+                                onDraft(id)
+                            } else {
+                                onOpen(id)
+                            }
                         }
                     }
                 }
@@ -158,27 +156,71 @@ fun MedicHomeScreen(
     }
 }
 
-/** A big tile: card, 2dp rule border, the title flush left, [content] under it. */
+/** The codes of her patients and those at DAS, each only above zero, and the way to all of them. */
 @Composable
-private fun Tile(
-    title: String,
-    onClick: () -> Unit,
-    modifier: Modifier,
-    content: @Composable () -> Unit
-) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .background(Palette.Card)
-            .border(2.dp, Palette.Line)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+private fun Strip(counts: Counts, onMonitor: () -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) { content() }
+        if (counts.red > 0) Chip(stringResource(R.string.count_red, counts.red), Tone.Rosu)
+        if (counts.yellow > 0) {
+            Chip(stringResource(R.string.count_yellow, counts.yellow), Tone.Galben)
+        }
+        if (counts.green > 0) Chip(stringResource(R.string.count_green, counts.green), Tone.Verde)
+        if (counts.atDas > 0) Chip(stringResource(R.string.count_at_das, counts.atDas), Tone.Link)
+        SnButton(stringResource(R.string.all_patients), onMonitor, kind = Kind.Link)
+    }
+}
+
+/** One task: a 4dp bar by kind, who, what is waiting, and the button that goes to it. */
+@Composable
+private fun TaskRow(task: MedicTask, onGo: () -> Unit) {
+    val (bar, line, action) = when (task.kind) {
+        TaskKind.Confirm -> Triple(Palette.Link, R.string.task_confirm, R.string.do_review)
+        TaskKind.AnalysisFailed -> Triple(Palette.Link, R.string.task_failed, R.string.do_open)
+        TaskKind.WrongNumber ->
+            Triple(Palette.Galben, R.string.task_wrong_number, R.string.do_correct)
+        TaskKind.Unreachable ->
+            Triple(Palette.Galben, R.string.task_unreachable, R.string.call_again)
+        TaskKind.Draft -> Triple(Palette.LineStrong, R.string.task_draft, R.string.do_continue)
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(Palette.Card),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .width(4.dp)
+                .fillMaxHeight()
+                .background(bar)
+        )
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // A draft may not have its form of address yet
+            task.row.formOfAddress.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                task.row.fullName,
+                color = Palette.FgMuted,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(stringResource(line), style = MaterialTheme.typography.bodyMedium)
+        }
+        SnButton(
+            stringResource(action),
+            onGo,
+            Modifier.padding(end = 12.dp),
+            kind = Kind.Outline
+        )
     }
 }

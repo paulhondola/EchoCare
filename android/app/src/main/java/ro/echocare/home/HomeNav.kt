@@ -60,7 +60,9 @@ fun HomeNav(
                     MedicHomeScreen(
                         menu = menu,
                         onMonitor = { nav.navigate(MonitorRoute) },
-                        onRegister = { nav.navigate(RegisterRoute) },
+                        onNew = { nav.navigate(EnrollRoute()) },
+                        onOpen = { nav.navigate(SeniorRoute(it)) },
+                        onDraft = { nav.navigate(EnrollRoute(it)) },
                         onSessionEnd = onSessionEnd,
                         sent = sent,
                         onSentShown = { sent = false }
@@ -71,17 +73,8 @@ fun HomeNav(
                         onBack = { nav.popBackStack<MonitorRoute>(inclusive = true) },
                         menu = menu,
                         onOpen = { nav.navigate(SeniorRoute(it)) },
-                        onRegister = { nav.navigate(RegisterRoute) },
-                        onEdit = { nav.navigate(EnrollRoute(it)) },
-                        onSessionEnd = onSessionEnd
-                    )
-                }
-                composable<RegisterRoute> {
-                    RegisterScreen(
-                        onBack = { nav.popBackStack<RegisterRoute>(inclusive = true) },
-                        menu = menu,
                         onNew = { nav.navigate(EnrollRoute()) },
-                        onDraft = { nav.navigate(EnrollRoute(it)) },
+                        onEdit = { nav.navigate(EnrollRoute(it)) },
                         onSessionEnd = onSessionEnd
                     )
                 }

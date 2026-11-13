@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import ro.echocare.R
-import ro.echocare.SeniorRow
 import ro.echocare.auth.ROLES
 import ro.echocare.ui.Tone
 
@@ -27,20 +26,6 @@ class RoutesTest {
     @Test
     fun theCaregiverStillLandsOnTheirSeniors() {
         assertEquals(SeniorsRoute("caregiver"), homeFor("caregiver"))
-    }
-
-    @Test
-    fun draftsComeNewestFirstAndOnlyDrafts() {
-        // UC-01: Înregistrare lists the unfinished enrollments, the latest first
-        fun r(id: String, state: String, at: String?) =
-            SeniorRow(id, "N", "d", "+40256123456", true, state, createdAt = at)
-        val rows = listOf(
-            r("a", "draft", "2026-11-01T10:00:00Z"),
-            r("b", "active", "2026-11-04T10:00:00Z"),
-            r("c", "draft", "2026-11-03T10:00:00Z"),
-            r("d", "draft", null)
-        )
-        assertEquals(listOf("c", "a", "d"), draftsNewestFirst(rows).map { it.id })
     }
 
     @Test
