@@ -25,6 +25,7 @@ from app.incidents.models import (
     IncidentOutcome,
     IncidentStatus,
 )
+from app.medical.models import MedicalRecord, MedicalRecordState
 from app.seniors.models import (
     Consent,
     ConsentDecision,
@@ -67,6 +68,8 @@ __all__ = [
     "IncidentEvent",
     "IncidentOutcome",
     "IncidentStatus",
+    "MedicalRecord",
+    "MedicalRecordState",
     "PushToken",
     "ReportSource",
     "Role",

@@ -51,6 +51,7 @@ def test_every_entity_has_a_table():
         "senior_statuses",
         "incidents",
         "push_tokens",
+        "medical_records",
     }
 
 
