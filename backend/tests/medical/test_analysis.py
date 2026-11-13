@@ -12,6 +12,7 @@ from sqlalchemy import select
 from app.core.db import Session
 from app.core.settings import get_settings
 from app.medical import service
+from app.medical.analyzer import analyzer_agent
 from app.medical.models import MedicalRecord, MedicalRecordState
 from app.medical.schemas import MedicalItem, MedicalProfile
 from app.medical.service import (
@@ -225,3 +226,22 @@ async def test_at_most_max_running_start_per_tick(add_record, monkeypatch):
         for task in service._running.values():
             task.cancel()
         await asyncio.gather(*service._running.values(), return_exceptions=True)
+
+
+async def test_a_hung_analysis_times_out_as_one_failed_attempt(add_record, monkeypatch):
+    record = await add_record("+40700000230", source_text=TEXT)
+    monkeypatch.setattr(get_settings(), "deepinfra_api_key", "test-key")
+    monkeypatch.setattr(service, "get_storage", lambda: FakeStorage({}))
+    monkeypatch.setattr(service, "ANALYSIS_TIMEOUT", 0.05)
+
+    async def hung(messages, info: AgentInfo) -> ModelResponse:
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(
+        service, "analyzer_agent", lambda _: analyzer_agent(FunctionModel(hung))
+    )
+    assert await start_analyses(NOW) == 1
+    await asyncio.gather(*service._running.values(), return_exceptions=True)
+    await asyncio.sleep(0)
+    assert service._failures[record.id] == 1
+    assert (await reread(record.id)).state is MedicalRecordState.pending

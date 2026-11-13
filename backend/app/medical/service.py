@@ -28,6 +28,7 @@ MAX_BYTES = 10 * 1024 * 1024
 URL_SECONDS = 600
 ANALYZABLE = {EnrollmentState.accepted, EnrollmentState.active}
 ATTEMPTS = 3
+ANALYSIS_TIMEOUT = 300  # seconds: a hung OCR or model call must free its slot
 MAX_RUNNING = 2  # analyses in flight: each holds a PDF of up to 10 MB
 
 # Per process, as the summaries' (design §5.3): a restart forgets the failures.
@@ -332,7 +333,10 @@ async def start_analyses(now: datetime) -> int:
     due = due[: max(MAX_RUNNING - len(_running), 0)]
     for record_id in due:
         task = asyncio.create_task(
-            analyze(record_id, storage=storage, ocr=ocr, model=model)
+            asyncio.wait_for(
+                analyze(record_id, storage=storage, ocr=ocr, model=model),
+                ANALYSIS_TIMEOUT,
+            )
         )
         _running[record_id] = task
         task.add_done_callback(lambda t, r=record_id: _finished(r, t))
