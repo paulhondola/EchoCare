@@ -90,6 +90,8 @@ fun PatientPane(
     onChanged: () -> Unit = {},
     vm: SeniorViewModel = hiltViewModel(key = id)
 ) {
+    // The medic's panel, which reads the medical record with the page (design §5.7)
+    vm.readsMedical = id != null && onEdit != null
     RereadWhileShown { vm.reread(id) }
     // An alert can open a senior she only cares for: her panel is for her own patients
     if (id != null && onEdit != null) LaunchedEffect(id) { vm.checkHers(id) }
@@ -142,6 +144,15 @@ fun PatientPane(
                                 vm.sign(senior.id, strokes, w, h, onChanged)
                             }
                         }
+                        MedicalSection(
+                            vm.medical,
+                            senior.state,
+                            vm.busy,
+                            vm.uploadNotice,
+                            onUpload = { vm.uploadPdf(senior.id, it, onChanged) },
+                            onConfirm = { vm.confirmMedical(senior.id, it) },
+                            onReanalyze = { vm.reanalyzeMedical(senior.id) }
+                        )
                     }
                 }
             )

@@ -11,11 +11,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import ro.echocare.CallRow
 import ro.echocare.EchoCareApi
 import ro.echocare.IncidentCall
+import ro.echocare.MedicalItem
+import ro.echocare.MedicalRecord
 import ro.echocare.MockAnswer
 import ro.echocare.MockCall
+import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.enroll.Point
 import ro.echocare.enroll.ensure
@@ -69,6 +74,17 @@ class SeniorViewModel @Inject constructor(
     var notHers by mutableStateOf(false)
         private set
 
+    /** The medical record (design §5.7); null until read, and for anyone but the medic. */
+    var medical by mutableStateOf<MedicalRecord?>(null)
+        private set
+
+    /** Set by the screen: the medic's panel is shown, so the record is read with the page. */
+    var readsMedical = false
+
+    /** A string resource: why the last upload did not go (design §5.7). */
+    var uploadNotice by mutableStateOf<Int?>(null)
+        private set
+
     private var reading: Job? = null
 
     /** The number on the page when „Editează datele” was pressed, until a reread shows another. */
@@ -103,6 +119,16 @@ class SeniorViewModel @Inject constructor(
             }
             // A failed read keeps the last list, as the page keeps its last answer
             if (id != null) (answer { api.calls(id) } as? Answer.Ok)?.let { calls = it.value }
+            if (id != null && readsMedical) {
+                // A failed read keeps the last; a 204 is no record
+                (answer { api.medicalRecord(id) } as? Answer.Ok)?.value?.let { r ->
+                    if (r.isSuccessful) {
+                        medical = r.body()
+                    } else if (r.code() == 204) {
+                        medical = null
+                    }
+                }
+            }
             // A failed read keeps the last answer: the page's own banner says offline
             if (id == null) {
                 (answer { api.me() } as? Answer.Ok)?.let { warning = it.value.warningActive }
@@ -166,6 +192,28 @@ class SeniorViewModel @Inject constructor(
         onChanged: () -> Unit = {}
     ) = runCommand(id, onChanged) { ensure(api.sign(id, signatureForm(strokes, width, height))) }
 
+    /** Uploads the PDF; over the limit nothing is sent (design §5.7). */
+    fun uploadPdf(id: String, bytes: ByteArray, onChanged: () -> Unit = {}) {
+        if (bytes.size > MAX_PDF_BYTES) {
+            uploadNotice = R.string.medical_too_large
+            return
+        }
+        // The upload's own line replaces the generic banner
+        runCommand(id, onChanged, failed = {
+            notice = null
+            uploadNotice = R.string.medical_upload_failed
+        }) {
+            api.uploadMedicalRecord(id, bytes.toRequestBody("application/pdf".toMediaType()))
+        }
+    }
+
+    /** „Confirmă”: the medic's edits and choices, in the stored order (design §5.5). */
+    fun confirmMedical(id: String, items: List<MedicalItem>) =
+        runCommand(id, {}) { api.confirmMedicalRecord(id, confirmFormOf(items)) }
+
+    /** „Analizează din nou” (design §5.3). */
+    fun reanalyzeMedical(id: String) = runCommand(id, {}) { api.reanalyzeMedicalRecord(id) }
+
     /** „Transcriere”: reads the call's transcript once; a failed read is tried again on a tap. */
     fun openTranscript(callId: String) {
         val known = transcripts[callId]
@@ -181,13 +229,20 @@ class SeniorViewModel @Inject constructor(
      * One command at a time. Any answer but [CommandOutcome.Offline] rereads the senior and runs
      * [onChanged].
      */
-    private fun runCommand(id: String, onChanged: () -> Unit, call: suspend () -> Unit) {
+    private fun runCommand(
+        id: String,
+        onChanged: () -> Unit,
+        failed: () -> Unit = {},
+        call: suspend () -> Any?
+    ) {
         if (busy) return
         busy = true
         notice = null
+        uploadNotice = null
         viewModelScope.launch {
-            val outcome = command(call)
+            val outcome = command { call() }
             notice = outcome.takeIf { it != CommandOutcome.Done }
+            if (outcome != CommandOutcome.Done) failed()
             if (outcome != CommandOutcome.Offline) {
                 numberChanged = false
                 reread(id)

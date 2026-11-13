@@ -37,6 +37,7 @@ import ro.echocare.home.HomeScaffold
 import ro.echocare.home.Load
 import ro.echocare.home.LoadBody
 import ro.echocare.home.SeniorDetails
+import ro.echocare.home.rememberPdfPicker
 import ro.echocare.home.showsConsent
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
@@ -225,10 +226,30 @@ private fun ReviewStep(vm: EnrollViewModel, onSessionEnd: (Failure) -> Unit) {
                 NoticeLine(Notice.Missing(missing))
             }
             SeniorDetails(senior, callSenior = false, calls = false)
+            MedicalUpload(vm)
             if (showsConsent(senior)) {
                 ConsentSection(senior.signedAt, vm.busy) { strokes, w, h -> vm.sign(strokes, w, h) }
             }
         }
+    }
+}
+
+/** The optional PDF (design §5.7): analysed once DAS accepts the patient. */
+@Composable
+private fun MedicalUpload(vm: EnrollViewModel) {
+    val pick = rememberPdfPicker(vm::uploadPdf)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel(stringResource(R.string.medical_section))
+        if (vm.medicalSent) Text(stringResource(R.string.medical_waiting), color = Palette.FgSoft)
+        vm.medicalNotice?.let { Text(stringResource(it), color = Palette.GalbenFg) }
+        SnButton(
+            stringResource(
+                if (vm.medicalSent) R.string.medical_replace else R.string.medical_upload
+            ),
+            pick,
+            kind = Kind.Outline,
+            enabled = !vm.uploading
+        )
     }
 }
 
@@ -276,7 +297,10 @@ private fun Buttons(vm: EnrollViewModel, onDone: (String) -> Unit) {
                 stringResource(R.string.submit),
                 vm::submit,
                 kind = Kind.Success,
-                enabled = !vm.busy && missingOf(senior).isEmpty() && vm.notice !is Notice.Missing
+                enabled = !vm.busy &&
+                    !vm.uploading &&
+                    missingOf(senior).isEmpty() &&
+                    vm.notice !is Notice.Missing
             )
         } else {
             SnButton(stringResource(R.string.done), { onDone(senior.id) }, kind = Kind.Link)
