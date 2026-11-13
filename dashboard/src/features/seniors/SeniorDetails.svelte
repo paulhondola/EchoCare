@@ -2,11 +2,13 @@
   import { onMount } from "svelte";
   import {
     fetchCalls,
+    fetchMedicalRecord,
     fetchSenior,
     fetchSummary,
     fetchTranscript,
     type CallSummary,
     type IncidentCall,
+    type MedicalRecord as MedicalRecordData,
     type SeniorSummary,
     type SeniorView,
     type SummaryVersion,
@@ -28,6 +30,7 @@
   import { tabKeydown } from "../../utils/tabs";
   import CallTranscript from "../calls/CallTranscript.svelte";
   import Briefing from "./Briefing.svelte";
+  import MedicalRecord from "./MedicalRecord.svelte";
   import WatchHealth from "./WatchHealth.svelte";
 
   let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
@@ -50,6 +53,7 @@
   let calls = $state<Load<CallSummary[]> | null>(null);
   // null until read; the briefing's citations are dated from `calls`
   let briefing = $state<Load<SummaryVersion | null>>({ kind: "loading" });
+  let medical = $state<Load<MedicalRecordData | null>>({ kind: "loading" });
   let transcripts = $state<Record<string, Load<IncidentCall>>>({});
   let expanded = $state<string | null>(null);
   let dialogEl: HTMLDialogElement | undefined = $state();
@@ -107,6 +111,18 @@
       .catch((e: unknown) => {
         if (!reads.signal.aborted) briefing = { kind: "error", message: failed("rezumatul", e) };
       });
+    const readMedical = () =>
+      fetchMedicalRecord(summary.id, reads.signal)
+        .then((data) => {
+          medical = { kind: "ok", data };
+        })
+        .catch((e: unknown) => {
+          if (!reads.signal.aborted)
+            medical = { kind: "error", message: failed("fișa medicală", e) };
+        });
+    readMedical();
+    // The PDF link is presigned for 10 minutes: read a fresh one before it lapses
+    const relink = setInterval(readMedical, 9 * 60_000);
     // Dates the briefing's citations; a failure shows as the Apeluri tab's error
     calls = { kind: "loading" };
     fetchCalls(summary.id, reads.signal)
@@ -116,7 +132,10 @@
       .catch((e: unknown) => {
         if (!reads.signal.aborted) calls = { kind: "error", message: failed("apelurile", e) };
       });
-    return () => reads.abort();
+    return () => {
+      clearInterval(relink);
+      reads.abort();
+    };
   });
 </script>
 
@@ -333,6 +352,12 @@
               <Briefing summary={briefing.data} calls={calls?.kind === "ok" ? calls.data : []} />
             {/if}
           </div>
+
+          {#if medical.kind === "error"}
+            <p role="alert" class="pt-4 text-rosu-fg">{medical.message}</p>
+          {:else if medical.kind === "ok"}
+            <div class="pt-4"><MedicalRecord record={medical.data} /></div>
+          {/if}
 
           <div class="pt-4">
             <WatchHealth id={s.id} />

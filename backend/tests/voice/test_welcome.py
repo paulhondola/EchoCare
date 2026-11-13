@@ -23,7 +23,13 @@ from app.models import (
 )
 from app.status.engine import Severity
 from app.voice.calls import CallState
-from app.voice.dialogue import CONSENT_TEXT, SORRY
+from app.voice.dialogue import (
+    CARD_CONSENT_TEXT,
+    CARD_CONSENT_VERSION,
+    CONSENT_TEXT,
+    CONSENT_VERSION,
+    SORRY,
+)
 from app.voice.models import Speaker, TurnKind
 from app.voice.welcome import (
     GIVEN,
@@ -199,7 +205,7 @@ async def test_consent_given(client, db, welcome_call, params, evidence):
     consent = await db.scalar(select(Consent))
     assert (consent.method, consent.text_version, consent.evidence) == (
         ConsentMethod.call,
-        "v1",
+        CONSENT_VERSION,
         evidence,
     )
     row = await stored(db, welcome_call)
@@ -312,3 +318,13 @@ async def test_a_database_failure_at_the_welcome_says_sorry(client, welcome_call
 async def test_welcome_callbacks_refuse_a_bad_signature(client, welcome_call, path):
     r = await callback(client, path, welcome_call.id, {}, sign=False, query="&ask=1")
     assert r.status_code == 403
+
+
+def test_consent_v2_names_the_medical_record():  # design §7
+    sentence = "Dacă medicul a adăugat fișa medicală, o folosim ca să vă punem întrebări potrivite."
+    assert (CONSENT_VERSION, CARD_CONSENT_VERSION) == ("v2", "v2-app")
+    assert sentence in CONSENT_TEXT and sentence in CARD_CONSENT_TEXT
+    assert CONSENT_TEXT.index(sentence) < CONSENT_TEXT.index("Puteți renunța oricând.")
+    assert CARD_CONSENT_TEXT.index(sentence) < CARD_CONSENT_TEXT.index(
+        "Puteți renunța oricând."
+    )

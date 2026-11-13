@@ -145,6 +145,7 @@ Phone numbers are normalized to the international format (+40…) on every write
 | Watch state (worn, battery, last check-in, pulse, steps) and its last 24 hours ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)) | Yes | Yes | Yes |
 | Home node state and latest room reading (temperature, humidity, last motion) **(proposed)** | Yes | Yes | Yes |
 | Consent record | No | Yes | Yes |
+| Medical record and its profile (design 2026-11-13) | No | Registering medic only | Once the medic confirms it |
 
 ## 7. Live updates and push (G4)
 

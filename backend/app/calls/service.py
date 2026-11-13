@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
@@ -13,9 +13,10 @@ from app.campaigns.models import Campaign, CampaignKind
 from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
+from app.medical.service import confirmed_checks
 from app.seniors.models import Senior
 from app.seniors.service import latest_summary, reach, reach_senior, read_content
-from app.voice.calls import CallState
+from app.voice.calls import ANSWERED, ENDED, CallState
 from app.voice.dialogue import wellbeing_greeting
 from app.voice.models import WELLBEING, Answer, Call, CallTrigger, CallTurn
 from app.voice.service import cancel_queued, queue_calls
@@ -133,6 +134,8 @@ class AnswerContext:
     # The latest summary's first follow-up and its notes; wellbeing calls only (design §5 A).
     follow_up: str | None = None
     how_to_talk: tuple[str, ...] = ()
+    # One confirmed medical check, rotating per answered wellbeing call (design §5.5).
+    medical_check: tuple[str, str] | None = None
 
 
 async def answer_context(
@@ -163,14 +166,36 @@ async def answer_context(
         if row.trigger is CallTrigger.welcome
         else wellbeing_greeting(row.form_of_address, row.trigger, row.kind, row.level)
     )
-    follow_up, how_to_talk = None, ()
+    follow_up, how_to_talk, medical_check = None, (), None
     if notes and row.trigger in WELLBEING:
         # The call goes ahead without the notes if they cannot be read (design §5 A).
+        # Each read in its own savepoint: a failed one must not abort the other's
+        # transaction (design §5.5).
         try:
-            version = await latest_summary(session, row.id)
+            async with session.begin_nested():
+                version = await latest_summary(session, row.id)
         except Exception as e:  # noqa: BLE001
             log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
             version = None
+        # Its own guard: a failure here costs the check, not the summary (design §5.5).
+        try:
+            async with session.begin_nested():
+                checks = await confirmed_checks(session, row.id)
+                if checks:
+                    done = await session.scalar(
+                        select(func.count())
+                        .select_from(Call)
+                        .where(
+                            Call.senior_id == row.id,
+                            Call.trigger.in_(WELLBEING),
+                            Call.state.in_(ANSWERED & ENDED),
+                        )
+                    )
+                    medical_check = checks[(done or 0) % len(checks)]
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "medical check read failed, call %s: %s", call_id, type(e).__name__
+            )
         content = read_content(version) if version else None
         if content:
             follow_up = content.follow_ups[0].question if content.follow_ups else None
@@ -182,4 +207,5 @@ async def answer_context(
         heat=row.kind is CampaignKind.heat,
         follow_up=follow_up,
         how_to_talk=how_to_talk,
+        medical_check=medical_check,
     )

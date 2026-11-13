@@ -10,12 +10,16 @@ import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import ro.echocare.Caregiver
 import ro.echocare.EchoCareApi
+import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.home.Answer
 import ro.echocare.home.EnrollRoute
 import ro.echocare.home.Load
+import ro.echocare.home.MAX_PDF_BYTES
 import ro.echocare.home.after
 import ro.echocare.home.answer
 
@@ -68,6 +72,16 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         private set
 
     var notice by mutableStateOf<Notice?>(null)
+        private set
+
+    /** The optional medical record PDF: sending, sent, and the line for a refusal (design §5.7). */
+    var uploading by mutableStateOf(false)
+        private set
+
+    var medicalSent by mutableStateOf(false)
+        private set
+
+    var medicalNotice by mutableStateOf<Int?>(null)
         private set
 
     var submitted by mutableStateOf(false)
@@ -136,6 +150,30 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         val id = id ?: return
         command(Action.Remove, { ensure(api.removeCaregiver(id, caregiver.userId)) }) {
             caregivers = caregivers.filter { it.userId != caregiver.userId }
+        }
+    }
+
+    /** The PDF of step 4. A failure shows a line and never blocks „Trimite la DAS”. */
+    fun uploadPdf(bytes: ByteArray?) {
+        val id = id ?: return
+        if (uploading) return
+        medicalNotice = null
+        if (bytes == null || bytes.size > MAX_PDF_BYTES) {
+            medicalNotice = if (bytes == null) {
+                R.string.medical_upload_failed
+            } else {
+                R.string.medical_too_large
+            }
+            return
+        }
+        uploading = true
+        viewModelScope.launch {
+            val body = bytes.toRequestBody("application/pdf".toMediaType())
+            when (send { api.uploadMedicalRecord(id, body) }) {
+                is Sent.Ok -> medicalSent = true
+                is Sent.No -> medicalNotice = R.string.medical_upload_failed
+            }
+            uploading = false
         }
     }
 

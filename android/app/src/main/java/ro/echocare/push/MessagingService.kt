@@ -31,6 +31,7 @@ class MessagingService : FirebaseMessagingService() {
         if (auth.currentUser == null) return
         val push = pushFrom(message.data) ?: return
         if (push is Push.Alert) showAlert(this, message.data)
+        if (push is Push.Notice) showNotice(this, message.data)
         // An alert changed something too: the open screen re-reads either way
         Refreshes.signal()
     }

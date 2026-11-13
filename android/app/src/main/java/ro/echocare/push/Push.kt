@@ -18,6 +18,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** The channel of every alert; the API names it in each alert (backend notify/service.py). */
 const val ALERT_CHANNEL = "alerts"
 
+/** The channel of "profile ready" notices; the API names it in each notice (backend notify/service.py). */
+const val NOTICE_CHANNEL = "updates"
+
 /** The data keys a push carries (04 §6); a tapped notification's extras carry the same. */
 val PUSH_KEYS = listOf("type", "what", "senior_id", "incident_id")
 
@@ -25,6 +28,9 @@ val PUSH_KEYS = listOf("type", "what", "senior_id", "incident_id")
 sealed interface Push {
     /** Something about [seniorId] needs attention; [incidentId] only for DAS. */
     data class Alert(val seniorId: String, val incidentId: String?) : Push
+
+    /** A medical profile of [seniorId] is ready for the medic to review (design §5.6). */
+    data class Notice(val seniorId: String) : Push
 
     /** Something changed: an open screen re-reads (04 §6). */
     data object Refresh : Push
@@ -41,8 +47,17 @@ fun pushFrom(data: Map<String, String?>): Push? {
         (type == "code_changed" || type == "incident") && senior != null ->
             Push.Alert(senior, data["incident_id"].takeIf { type == "incident" })
 
+        type == "medical_record" && senior != null -> Push.Notice(senior)
+
         else -> Push.Refresh
     }
+}
+
+/** What a tapped notification opens: an alert, or a notice's senior as an alert with no incident. */
+fun tappedFrom(data: Map<String, String?>): Push.Alert? = when (val push = pushFrom(data)) {
+    is Push.Alert -> push
+    is Push.Notice -> Push.Alert(push.seniorId, null)
+    else -> null
 }
 
 /**

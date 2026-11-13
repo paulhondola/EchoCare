@@ -2,6 +2,7 @@ package ro.echocare
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -150,6 +151,37 @@ data class CaregiverForm(
     @SerialName("display_name") val displayName: String,
     val relation: String,
     val phone: String
+)
+
+// The medical record (design §5.7): [state] stays a string (ADR-001 §2.3). [items] is null until
+// analysed; [pdfUrl] is presigned for 10 minutes.
+@Serializable
+data class MedicalItem(
+    val condition: String,
+    val question: String,
+    val worrying: String,
+    val evidence: String = "",
+    val included: Boolean = true
+)
+
+@Serializable
+data class MedicalRecord(
+    val state: String,
+    @SerialName("uploaded_at") val uploadedAt: String,
+    @SerialName("analyzed_at") val analyzedAt: String? = null,
+    @SerialName("confirmed_at") val confirmedAt: String? = null,
+    val items: List<MedicalItem>? = null,
+    @SerialName("pdf_url") val pdfUrl: String? = null
+)
+
+// [worrying] null keeps the stored one; [analyzedAt] is the profile the medic reviewed.
+@Serializable
+data class ConfirmItem(val included: Boolean, val question: String, val worrying: String? = null)
+
+@Serializable
+data class MedicalConfirmForm(
+    val items: List<ConfirmItem>,
+    @SerialName("analyzed_at") val analyzedAt: String? = null
 )
 
 // GET /profile/mock-call (design §4.2): the senior's due call, which the card answers in place of a
@@ -383,6 +415,23 @@ interface EchoCareApi {
     /** Stores the signed consent, 204 (04 §2). A Response, because a 204 has no body. */
     @POST("seniors/{id}/signature")
     suspend fun sign(@Path("id") id: String, @Body body: SignatureForm): Response<Unit>
+
+    /** 200 with the record, 204 with none (design §5.7). A 204 has no body. */
+    @GET("seniors/{id}/medical-record")
+    suspend fun medicalRecord(@Path("id") id: String): Response<MedicalRecord>
+
+    /** The raw PDF, `application/pdf`, at most 10 MB (design §5.7). */
+    @PUT("seniors/{id}/medical-record")
+    suspend fun uploadMedicalRecord(@Path("id") id: String, @Body pdf: RequestBody): MedicalRecord
+
+    @POST("seniors/{id}/medical-record/confirm")
+    suspend fun confirmMedicalRecord(
+        @Path("id") id: String,
+        @Body body: MedicalConfirmForm
+    ): MedicalRecord
+
+    @POST("seniors/{id}/medical-record/reanalyze")
+    suspend fun reanalyzeMedicalRecord(@Path("id") id: String): MedicalRecord
 
     /** 200 with the due call, 204 with none, 404 on production (design §4.2). A 204 has no body. */
     @GET("profile/mock-call")

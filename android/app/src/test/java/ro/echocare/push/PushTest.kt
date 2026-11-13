@@ -34,6 +34,34 @@ class PushTest {
     }
 
     @Test
+    fun aMedicalRecordNoticeNamesItsSenior() {
+        assertEquals(
+            Push.Notice("s1"),
+            pushFrom(mapOf("type" to "medical_record", "senior_id" to "s1"))
+        )
+    }
+
+    @Test
+    fun aMedicalRecordNoticeWithoutASeniorIsARefresh() {
+        assertEquals(Push.Refresh, pushFrom(mapOf("type" to "medical_record")))
+    }
+
+    @Test
+    fun aTappedNoticeOpensItsSeniorLikeAnAlert() {
+        // Design §5.6: the medic lands on the senior's page, where the profile waits
+        assertEquals(
+            Push.Alert("s1", null),
+            tappedFrom(mapOf("type" to "medical_record", "senior_id" to "s1"))
+        )
+        assertEquals(
+            Push.Alert("s1", "i1"),
+            tappedFrom(mapOf("type" to "incident", "senior_id" to "s1", "incident_id" to "i1"))
+        )
+        assertNull(tappedFrom(mapOf("type" to "refresh", "senior_id" to "s1")))
+        assertNull(tappedFrom(emptyMap()))
+    }
+
+    @Test
     fun aRefreshIsARefresh() {
         assertEquals(
             Push.Refresh,

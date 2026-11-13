@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 
 from app.campaigns.service import cancel_lapsed
 from app.core.db import Session, engine
+from app.medical.service import start_analyses
 from app.memory.service import start_summaries
 from app.scheduler.dialer import dial_due
 from app.scheduler.sweep import sweep
@@ -42,7 +43,7 @@ async def prune(now: datetime) -> int:
 
 
 async def tick(now: datetime | None = None) -> bool:
-    """One pass of the six steps at `now`; False when another copy holds the lock.
+    """One pass of the steps at `now`; False when another copy holds the lock.
 
     A step that raises is logged and the others still run.
     """
@@ -60,6 +61,7 @@ async def tick(now: datetime | None = None) -> bool:
                 ("silenced", silence),
                 ("pruned", prune),
                 ("summarized", start_summaries),
+                ("analyzed", start_analyses),
             ):
                 try:
                     counts[name] = await step(now)

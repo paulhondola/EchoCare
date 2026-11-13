@@ -57,11 +57,14 @@ flowchart TD
     NM -->|no| SUM
     INA --> SUM{"DeepInfra key set, and an answered<br/>wellbeing call without a summary?"}
     SUM -->|yes| TASK["Start one task per senior<br/>and return, never awaiting the model"]
-    SUM -->|no| SLEEP
-    TASK --> SLEEP
+    SUM -->|no| MED
+    TASK --> MED{"DeepInfra key and file store set, and a pending<br/>medical record of an accepted or active senior?"}
+    MED -->|yes| ANA["Start one task per record, at most 2 at once,<br/>and return, never awaiting OCR or the model"]
+    MED -->|no| SLEEP
+    ANA --> SLEEP
 ```
 
-Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the watch's silence step, the watch readings' pruning and the summary step. The home node's silence and inactivity steps are proposed with the node (P20).
+Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the watch's silence step, the watch readings' pruning, the summary step and the medical record analysis step. The home node's silence and inactivity steps are proposed with the node (P20).
 
 - **The lock** is a Postgres advisory lock held for the whole tick, so during a deploy one copy works. A step that fails is logged and the others still run. A tick logs a line only when a step did something.
 - **Lapsed warnings** (04 §2): the queued calls of a campaign whose warning has passed are canceled, undialed ones only.
@@ -70,6 +73,7 @@ Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the wa
 - **The watch's silence** (UC-13): a watch in `ok` or `not_worn` whose last check-in is older than the silence limit (section 3) becomes `offline`. No alert; its next check-in (04 §3) brings it back.
 - **Watch readings' pruning** (05 §5, ADR-006): readings measured more than 24 hours ago are deleted.
 - **Summaries** (design 2026-11-08 §4): a wellbeing call (`campaign`, `watch`, `manual`) that ended `completed`, `handed_over` or `dropped` in the last 24 hours, for an `active` senior, with no summary yet and newer than the call behind the senior's latest version. Per senior it takes the oldest such call, and a handed-over call waits until its newest turn is 2 minutes old. The step only starts one asyncio task per call and returns, so the lock never waits on the model. One task per senior at a time; a failed task is logged (call id and error type) and retried on later ticks, at most 3 times per process.
+- **Medical records** (design 2026-11-13 §5.3): a `pending` record of an `accepted` or `active` senior is analyzed: the PDF's text layer, DeepInfra OCR for a page with almost none, then the analyzer writes the profile and the record moves to `review` for the medic. At most 2 tasks at once, each with a 5-minute limit; a failed one is logged (record id and error type) and retried on later ticks, and after 3 attempts per process the record becomes `failed`. A new upload while a task runs replaces the record, and the task's result is dropped.
 
 "A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow. It is a cap in our code, not a number of Twilio numbers.
 
@@ -144,11 +148,12 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Push carries no health details | Generic text and an id (P18) |
 | Region | Database and FastAPI on Railway, EU West. Twilio places and processes the calls in its Ireland region (IE1), by choice of `TWILIO_API_HOST` |
 | Demo data | Fictitious people only |
+| Medical record | The fișa medicală the medic attaches (design 2026-11-13). The PDF is stored in S3 under `medical-records/`, its extracted text and the profile in `medical_records`; the PDF and the profile are read by the registering medic, and by DAS only once the medic confirms (04 §1), never by a caregiver or the senior. Logs hold record ids and error types only, never its text. DeepInfra reads it for OCR and the analysis, as a processor, only for `accepted` and `active` seniors. Kept until the medic replaces it, also for a senior who refused or withdrew; the call asks only confirmed checks, never naming a condition or a medication in a reason or summary |
 | Summary of past calls | The summary agent's notes on a senior are derived health data, built from the senior's own words and shown only to the registering medic and DAS, the same reach as the transcript. Every version is kept with the call it came from, like transcripts. Logs hold the call id, lengths and error types only, never a quote; Pydantic AI instrumentation stays off (no `logfire`, no `instrument=True`), and a test asserts it. It passes through the model provider like a transcript, so no new processor. It never sets a code, a call or a recipient |
 
 **Honest limits for a real pilot.** Transcripts pass through the model provider, speech passes through Twilio, phone numbers pass through Firebase, and the database sits on Railway. Twilio's processing is now in the EU by region choice (IE1); the model provider and Firebase are still outside it. A pilot needs data-processing agreements with all four and a named data controller (v3 §14 assigns this to the medic and DAS). DAS must also confirm that a recorded spoken „da” counts as explicit consent for health data (README open question 7). None of that is needed to demo with fictitious data.
 
-**The summary and the consent text** (design 2026-11-08 §7). The summary is profiling under GDPR Art. 4(4) and health data under Art. 9: an automated evaluation of health and behaviour over time, for continuity of care on the wellbeing calls and for briefing DAS at a hand-over. It makes no decision about the senior (Art. 22). Today's consent texts (`v1`, `v1-app`, `v1-semnatura`) say who sees what is said, not that it is remembered across calls. A pilot needs a new consent version that says so, and DAS, as data controller, must confirm the basis (README open question 14). Withdrawing consent stops new summaries, since only `active` seniors are summarized; stored versions are kept like transcripts. Not needed for the demo.
+**The summary and the consent text** (design 2026-11-08 §7). The summary is profiling under GDPR Art. 4(4) and health data under Art. 9: an automated evaluation of health and behaviour over time, for continuity of care on the wellbeing calls and for briefing DAS at a hand-over. It makes no decision about the senior (Art. 22). Today's consent texts (`v2`, `v2-app`, `v1-semnatura`) say who sees what is said, not that what is said is remembered across calls. `v2` and `v2-app` also say that the fișa medicală shapes the questions when the medic added it; `v1-semnatura` does not, and the analysis starts at `accepted`, before the welcome call's consent, so it can run with only `v1-semnatura` on file. A pilot needs a new consent version that says so, and DAS, as data controller, must confirm the basis (README open question 14). Withdrawing consent stops new summaries, since only `active` seniors are summarized; stored versions are kept like transcripts. Not needed for the demo.
 
 **Telephony constraints** follow v3 §12 apart from the number and the region: Romania enabled in geographic permissions, the AI features addendum accepted, and a test on each mobile network for how the number is displayed and whether it is flagged as spam.
 

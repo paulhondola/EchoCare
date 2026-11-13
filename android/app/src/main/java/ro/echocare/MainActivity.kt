@@ -56,7 +56,7 @@ import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
 import ro.echocare.push.PUSH_KEYS
 import ro.echocare.push.Push
-import ro.echocare.push.pushFrom
+import ro.echocare.push.tappedFrom
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SnButton
@@ -136,10 +136,10 @@ class MainActivity : ComponentActivity() {
         outState.putBoolean(ALERT_OPENED, opening == null)
     }
 
-    /** The alert a notification tap carries, from the tray or from [ro.echocare.push.showAlert]. */
+    /** What a notification tap opens, from the tray or shown in front (04 §6, design §5.6). */
     private fun alertIn(intent: Intent?): Push.Alert? {
         val extras = intent?.extras ?: return null
-        return pushFrom(PUSH_KEYS.associateWith { extras.getString(it) }) as? Push.Alert
+        return tappedFrom(PUSH_KEYS.associateWith { extras.getString(it) })
     }
 
     // PhoneAuthOptions needs an Activity for the reCAPTCHA fallback, so verification starts here

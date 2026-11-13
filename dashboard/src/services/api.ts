@@ -230,6 +230,35 @@ export async function fetchSummary(
   return (await r.json()) as SummaryVersion;
 }
 
+export type MedicalItem = {
+  condition: string;
+  question: string;
+  worrying: string;
+  evidence: string;
+  included: boolean;
+};
+
+// For DAS, items and pdf_url are null unless state is "confirmed"
+export type MedicalRecord = {
+  state: string;
+  uploaded_at: string;
+  analyzed_at: string | null;
+  confirmed_at: string | null;
+  items: MedicalItem[] | null;
+  pdf_url: string | null;
+};
+
+// 204 when the senior has no medical record
+export async function fetchMedicalRecord(
+  seniorId: string,
+  signal?: AbortSignal,
+): Promise<MedicalRecord | null> {
+  const r = await apiFetch(`/api/seniors/${seniorId}/medical-record`, { signal });
+  if (r.status === 204) return null;
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as MedicalRecord;
+}
+
 /** The address fields every senior view carries (G13) */
 export type SeniorAddress = Pick<
   IncidentDetail["senior"],

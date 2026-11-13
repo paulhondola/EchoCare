@@ -6,9 +6,11 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy import update
 
 from app.calls import service
 from app.calls.service import answer_context
+from app.medical.models import MedicalRecord, MedicalRecordState
 from app.models import Call, SummaryVersion
 from app.voice.router import agent_for
 
@@ -118,3 +120,85 @@ async def test_the_answer_path_reads_no_summary(db, senior, monkeypatch):
     context = await answer_context(db, (await a_call(db, senior)).id)
     read.assert_not_awaited()
     assert (context.follow_up, context.how_to_talk) == (None, ())
+
+
+async def a_record(db, senior, state=MedicalRecordState.confirmed) -> None:
+    def item(n, included=True):
+        return {
+            "condition": "c",
+            "question": f"Întrebarea {n}?",
+            "worrying": f"îngrijorător {n}",
+            "evidence": "e",
+            "included": included,
+        }
+
+    db.add(
+        MedicalRecord(
+            senior_id=senior.id,
+            storage_key="k",
+            uploaded_by=senior.medic_id,
+            state=state,
+            items=[item(1), item(2, False), item(3)],
+        )
+    )
+    await db.commit()
+
+
+async def test_context_rotates_through_confirmed_checks(db, senior):
+    await a_record(db, senior)
+    call = await a_call(db, senior)
+    first = await answer_context(db, call.id, notes=True)
+    assert first.medical_check == ("Întrebarea 1?", "îngrijorător 1")
+    call.state = "completed"
+    await db.commit()
+    second = await answer_context(db, (await a_call(db, senior)).id, notes=True)
+    assert second.medical_check == ("Întrebarea 3?", "îngrijorător 3")
+
+
+async def test_unanswered_calls_do_not_advance_the_check(db, senior):
+    await a_record(db, senior)
+    await a_call(db, senior, state="unanswered")
+    context = await answer_context(db, (await a_call(db, senior)).id, notes=True)
+    assert context.medical_check[0] == "Întrebarea 1?"
+
+
+async def test_context_has_no_check_for_a_welcome_call_or_unconfirmed_record(
+    db, senior
+):
+    await a_record(db, senior, MedicalRecordState.review)
+    context = await answer_context(
+        db, (await a_call(db, senior, state="unanswered")).id, notes=True
+    )
+    assert context.medical_check is None
+    await db.execute(update(MedicalRecord).values(state=MedicalRecordState.confirmed))
+    await db.commit()
+    welcome = await answer_context(
+        db, (await a_call(db, senior, "welcome")).id, notes=True
+    )
+    assert welcome.medical_check is None
+
+
+async def test_context_without_notes_reads_no_check(db, senior):
+    await a_record(db, senior)
+    context = await answer_context(db, (await a_call(db, senior)).id)
+    assert context.medical_check is None
+
+
+async def test_the_check_reaches_the_agent_prompt(db, senior):
+    await a_record(db, senior)
+    call = await a_call(db, senior)
+    context = await answer_context(db, call.id, notes=True)
+    agent = agent_for(call.id, context)(AsyncMock())
+    assert "Întrebarea 1?" in agent.history[0].parts[0].content
+
+
+async def test_a_failed_check_read_keeps_the_summary(db, senior, monkeypatch, caplog):
+    await a_summary(db, senior, content(FIRST))
+    call = await a_call(db, senior)
+    monkeypatch.setattr(
+        service, "confirmed_checks", AsyncMock(side_effect=RuntimeError("secret words"))
+    )
+    context = await answer_context(db, call.id, notes=True)
+    assert context.follow_up == FIRST and context.medical_check is None
+    assert f"medical check read failed, call {call.id}: RuntimeError" in caplog.text
+    assert "secret words" not in caplog.text

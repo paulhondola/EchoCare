@@ -342,7 +342,7 @@ async def test_the_card_shows_a_welcome_call_with_the_consent_text(
     assert (body["trigger"], body["campaign_kind"], body["text_version"]) == (
         "welcome",
         None,
-        "v1-app",
+        CARD_CONSENT_VERSION,
     )
     assert body["consent_text"].endswith("Sunteți de acord?")
 
@@ -470,7 +470,7 @@ async def test_the_welcome_card_and_consent(client, db, welcome_card):
         welcome_card["trigger"],
         welcome_card["text_version"],
         welcome_card["consent_text"],
-    ) == ("welcome", "v1-app", CARD_CONSENT_TEXT)
+    ) == ("welcome", CARD_CONSENT_VERSION, CARD_CONSENT_TEXT)
     r = await answer(client, welcome_card["call_id"], {"consent": True}, WELCOMED)
     assert r.status_code == 204
     row = await welcomed(client, db)
@@ -526,7 +526,7 @@ async def test_welcome_no_refuses(client, db, welcome_card):
     consent = (
         await db.execute(select(Consent.decision, Consent.method, Consent.text_version))
     ).one()
-    assert tuple(consent) == ("refused", "app", "v1-app")
+    assert tuple(consent) == ("refused", "app", CARD_CONSENT_VERSION)
     t = (
         await client.get(
             f"/api/calls/{welcome_card['call_id']}/transcript", headers=signed_in(DAS)

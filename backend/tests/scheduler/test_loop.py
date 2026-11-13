@@ -33,6 +33,7 @@ def patch_steps(monkeypatch, **overrides):
         "silence_watches": AsyncMock(return_value=0),
         "prune_watch_readings": AsyncMock(return_value=0),
         "start_summaries": AsyncMock(return_value=0),
+        "start_analyses": AsyncMock(return_value=0),
         **overrides,
     }
     for name, step in steps.items():
@@ -64,7 +65,13 @@ async def test_a_step_that_raises_does_not_stop_the_others(db, monkeypatch):
 async def test_the_tick_cancels_a_lapsed_campaigns_calls(
     db, add_user, add_active_senior, monkeypatch
 ):
-    for name in ("dial_due", "sweep", "silence_watches", "start_summaries"):
+    for name in (
+        "dial_due",
+        "sweep",
+        "silence_watches",
+        "start_summaries",
+        "start_analyses",
+    ):
         monkeypatch.setattr(f"app.scheduler.loop.{name}", AsyncMock(return_value=0))
     das = await add_user("+40700000001", Role.das)
     senior = await add_active_senior("+40700000101")

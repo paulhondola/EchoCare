@@ -38,6 +38,9 @@ log = logging.getLogger("echocare.notify")
 # The visible notification of every alert (04 §6), in Romanian.
 ALERT_TITLE = "EchoCare"
 ALERT_TEXT = "O persoană pe care o urmăriți are nevoie de atenție."
+# The visible notice that a medical record is ready to check (04 §6).
+NOTICE_TEXT = "O fișă medicală e gata de verificat."
+NOTICE_CHANNEL = "updates"
 # The Android app's channel for alerts (android/app: Push.kt), created at its start.
 ALERT_CHANNEL = "alerts"
 # Firebase sends at most this many messages in one call.
@@ -60,6 +63,7 @@ class Push:
 
     alert: bool
     data: tuple[tuple[str, str], ...]
+    notice: bool = False  # visible, but not an alert
 
     def ids(self) -> set[str]:
         return {v for k, v in self.data if k in ("senior_id", "incident_id")}
@@ -90,6 +94,14 @@ def incidents_refresh(incident_id: uuid.UUID) -> Push:
     return Push(
         False,
         (("type", "refresh"), ("what", "incidents"), ("incident_id", str(incident_id))),
+    )
+
+
+def medical_notice(senior_id: uuid.UUID) -> Push:
+    return Push(
+        False,
+        (("type", "medical_record"), ("senior_id", str(senior_id))),
+        notice=True,
     )
 
 
@@ -130,6 +142,8 @@ def pushes_for(change: Change) -> list[tuple[Audience, Push]]:
             return [(Audience.das, incidents_refresh(change.incident_id))]
         case ChangeKind.caregivers:
             return [(Audience.medic, refresh)]
+        case ChangeKind.medical_record:
+            return [(Audience.medic, medical_notice(senior))]
     return []
 
 
@@ -139,7 +153,10 @@ def per_device(wanted: dict[str, set[Push]]) -> list[tuple[str, Push]]:
     out = []
     for token, pushes in wanted.items():
         alerted = set().union(*(p.ids() for p in pushes if p.alert))
-        out += [(token, p) for p in pushes if p.alert or not (p.ids() & alerted)]
+        # A notice says something an alert doesn't, so it is never stood in for.
+        out += [
+            (token, p) for p in pushes if p.alert or p.notice or not (p.ids() & alerted)
+        ]
     return sorted(out, key=lambda tp: (tp[0], not tp[1].alert, tp[1].data))
 
 
@@ -204,6 +221,16 @@ def message(token: str, push: Push) -> messaging.Message:
             android=messaging.AndroidConfig(
                 priority="high",
                 notification=messaging.AndroidNotification(channel_id=ALERT_CHANNEL),
+            ),
+        )
+    if push.notice:
+        return messaging.Message(
+            token=token,
+            data=dict(push.data),
+            notification=messaging.Notification(title=ALERT_TITLE, body=NOTICE_TEXT),
+            android=messaging.AndroidConfig(
+                priority="normal",
+                notification=messaging.AndroidNotification(channel_id=NOTICE_CHANNEL),
             ),
         )
     return messaging.Message(
