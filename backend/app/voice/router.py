@@ -521,6 +521,7 @@ def agent_for(call: uuid.UUID, context: AnswerContext) -> Callable[[Send], Handl
             heat=context.heat,
             follow_up=context.follow_up,
             how_to_talk=context.how_to_talk,
+            medical_check=context.medical_check,
             send=send,
             line=line,
             model=model_stream(),

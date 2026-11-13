@@ -103,6 +103,7 @@ class Agent:
         heat: bool,
         follow_up: str | None = None,
         how_to_talk: tuple[str, ...] = (),
+        medical_check: tuple[str, str] | None = None,
         send: Send,
         line: Line,
         model: ModelStream,
@@ -121,7 +122,9 @@ class Agent:
             ModelRequest(
                 [
                     SystemPromptPart(
-                        instructions(form_of_address, heat, follow_up, how_to_talk)
+                        instructions(
+                            form_of_address, heat, follow_up, how_to_talk, medical_check
+                        )
                     )
                 ]
             ),
