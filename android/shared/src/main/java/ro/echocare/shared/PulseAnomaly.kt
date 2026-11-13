@@ -12,10 +12,12 @@ class PulseAnomaly(private val marginBpm: Int = 25, private val holdMs: Long = 6
     /**
      * Feed every valid heart-rate reading with the wearer's current resting baseline. Returns
      * true the first time the pulse has stayed high at rest for at least [holdMs]; the caller
-     * then clears the detector with [reset] once it has acted on the anomaly.
+     * then clears the detector with [reset] once it has acted on the anomaly. A null baseline (not
+     * measured yet) is never an anomaly: a default would call a senior whose normal pulse is high
+     * within a minute of putting the watch on.
      */
-    fun onReading(atMs: Long, bpm: Int, baselineBpm: Int, moving: Boolean): Boolean {
-        val high = !moving && bpm > 0 && bpm >= baselineBpm + marginBpm
+    fun onReading(atMs: Long, bpm: Int, baselineBpm: Int?, moving: Boolean): Boolean {
+        val high = baselineBpm != null && !moving && bpm > 0 && bpm >= baselineBpm + marginBpm
         if (!high) {
             sinceMs = -1L
             return false

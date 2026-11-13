@@ -80,9 +80,15 @@ fun cardAfterRead(status: Int?, body: MockCall?, previous: MockCall?): MockCall?
  */
 fun answerSettled(status: Int?): Boolean = status != null && status in 200..499
 
-/** The campaign's code and its kind as „Cod galben de caniculă”; null for a value this build lacks. */
+private val EVENT_TRIGGERS = setOf("watch", "manual")
+
+/**
+ * The campaign's code and its kind as „Cod galben de caniculă”, or why a watch or „Sunați-mă” call
+ * rings (UC-09, UC-10); null for a value this build lacks.
+ */
 @Composable
 private fun warningLine(call: MockCall): String? {
+    if (call.trigger in EVENT_TRIGGERS) return stringResource(R.string.mock_why_event)
     val level = when (call.level) {
         "yellow" -> R.string.level_yellow
         "red" -> R.string.level_red
