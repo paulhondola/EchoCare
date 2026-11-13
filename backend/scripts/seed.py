@@ -38,6 +38,7 @@ number from ringing.
 
 import argparse
 import asyncio
+import math
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -85,6 +86,7 @@ from app.models import (
     User,
     WarningLevel,
     WatchCondition,
+    WatchReading,
     WatchState,
     WelcomeOutcome,
 )
@@ -545,16 +547,38 @@ class History:
         pulse: int | None = None,
         worn: bool | None = True,
     ) -> None:
+        senior_id = self.seniors[senior].id
+        resting = pulse - 6 if pulse else None
         self.rows.append(
             WatchState(
-                senior_id=self.seniors[senior].id,
+                senior_id=senior_id,
                 state=state,
                 last_check_in_at=self.ago(minutes_ago),
                 battery=battery,
                 worn=worn,
                 last_pulse=pulse,
+                resting_pulse=resting,
+                steps_today=1840 if pulse else None,
+                minutes_without_steps=12 if pulse else None,
             )
         )
+        # A day of readings up to the last check-in, every 5 minutes (ADR-006): a slow
+        # wave around the latest pulse, the battery draining towards the latest value
+        for i in range(288):
+            back = minutes_ago + 5 * i
+            if back > 24 * 60:
+                break
+            self.rows.append(
+                WatchReading(
+                    senior_id=senior_id,
+                    measured_at=self.ago(back),
+                    pulse=round(pulse + 8 * math.sin(i / 12)) if pulse else None,
+                    resting_pulse=resting,
+                    steps_today=max(0, 1840 - 7 * i) if pulse else None,
+                    battery=min(100, battery + i // 6),
+                    worn=worn,
+                )
+            )
 
     def event(
         self,
@@ -2400,7 +2424,7 @@ async def remove(session: AsyncSession) -> None:
     )
     for table in (CallTurn, Answer, StatusReport):
         await session.execute(delete(table).where(table.call_id.in_(calls)))
-    for table in (Incident, SeniorStatus, WatchState, Consent, Event):
+    for table in (Incident, SeniorStatus, WatchState, WatchReading, Consent, Event):
         await session.execute(delete(table).where(table.senior_id.in_(seniors)))
     await session.execute(delete(Call).where(Call.senior_id.in_(seniors)))
     await session.execute(delete(Senior).where(SEEDED))

@@ -609,7 +609,7 @@ Taking and resolving record what DAS did; neither changes the code.
 |---|---|
 | Caregiver | Their senior's code, the reason in a sentence, short call history, the watch's state, the home node's state and latest room reading |
 | Medic | A panel of all their patients with codes, yellow and red highlighted; per patient: registration details, enrollment and consent state, call history, full transcripts, the watch's state, the home node's state and latest room reading |
-| DAS employee, dashboard | All active seniors, red first; incidents by status; enrollment requests; staff and who is on duty; the campaign button; per senior: code, reason, call history, full transcripts, address and access details |
+| DAS employee, dashboard | All active seniors, red first; incidents by status; enrollment requests; staff and who is on duty; the campaign button; per senior: code, reason, call history, full transcripts, address and access details, the watch's state and its last 24 hours of pulse ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)) |
 | DAS employee, Android app | Red incidents only, open and in progress first, each with its status and who took it; per incident: full senior data, address and access details, location, the call and its transcript, "Deschide în Hărți", call buttons |
 
 Open Android screens update when a refresh arrives, with a slow timed re-read as the backstop. The dashboard re-reads every few seconds. A call that is ringing or live shows a "call in progress" badge.

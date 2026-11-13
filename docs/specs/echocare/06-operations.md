@@ -61,13 +61,14 @@ flowchart TD
     TASK --> SLEEP
 ```
 
-Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the watch's silence step and the summary step. The home node's silence and inactivity steps are proposed with the node (P20).
+Built so far (#47): the lock, the lapsed warnings, the dialer, the sweep, the watch's silence step, the watch readings' pruning and the summary step. The home node's silence and inactivity steps are proposed with the node (P20).
 
 - **The lock** is a Postgres advisory lock held for the whole tick, so during a deploy one copy works. A step that fails is logged and the others still run. A tick logs a line only when a step did something.
 - **Lapsed warnings** (04 §2): the queued calls of a campaign whose warning has passed are canceled, undialed ones only.
 - **The dialer** hands due calls to Twilio up to the free lines, in this order, and in id order within each group: a watch or "Sunați-mă" call, then a redial (a senior already not reached), then a campaign's first attempt, then a welcome call. The order matters only when more calls are due than there are lines, as during a campaign. It uses no risk score and no medical data (03 §11). A call is stamped `dialed_at` and committed before Twilio is asked, so it is dialed once at most (05 §1). It dials only numbers on `DIAL_ALLOWLIST`: empty, the default, dials nobody in every environment, production included, and `*` dials everyone. A call it will not dial stays queued, so the mock card keeps working. Without the Twilio variables it does nothing.
 - **The sweep** settles a dialed call still live after the ring time, the call length limit and a minute (section 3). It asks Twilio for the call, hangs up if Twilio still has it live, and applies Twilio's final status as a status callback would (04 §4.2). A call with no Twilio id, whose dial timed out and which no callback reached, becomes `failed`. A machine that answered, per Twilio's record, ends the call `unanswered`, as voicemail detection would. A Twilio id Twilio no longer knows (after a change of region or account) ends the call `failed`, or `dropped` if it was answered. Each call it settles is logged at warning level.
 - **The watch's silence** (UC-13): a watch in `ok` or `not_worn` whose last check-in is older than the silence limit (section 3) becomes `offline`. No alert; its next check-in (04 §3) brings it back.
+- **Watch readings' pruning** (05 §5, ADR-006): readings measured more than 24 hours ago are deleted.
 - **Summaries** (design 2026-11-08 §4): a wellbeing call (`campaign`, `watch`, `manual`) that ended `completed`, `handed_over` or `dropped` in the last 24 hours, for an `active` senior, with no summary yet and newer than the call behind the senior's latest version. Per senior it takes the oldest such call, and a handed-over call waits until its newest turn is 2 minutes old. The step only starts one asyncio task per call and returns, so the lock never waits on the model. One task per senior at a time; a failed task is logged (call id and error type) and retried on later ticks, at most 3 times per process.
 
 "A free line" is the limit on calls in progress at once. It keeps a campaign from opening more conversations than the model provider and the Twilio account allow. It is a cap in our code, not a number of Twilio numbers.
@@ -137,7 +138,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Consent | The senior's own, given on the welcome call by key or voice, against a versioned text; a signature is optional when present. A withdrawal is recorded by the medic or DAS in the MVP |
 | Minimum per role | The caregiver sees the code, a reason and the address, not the transcript ([01-architecture.md](01-architecture.md) section 6) |
 | No audio stored | Speech stays inside Twilio; FastAPI handles text only. The hand-over's conversation with DAS reaches it as Twilio's live transcription, never as a recording |
-| Minimal watch data | Only the latest check-in is kept; there is no pulse history |
+| Minimal watch data | The latest check-in, plus readings deleted after 24 hours (ADR-006) |
 | Minimal home data | Only the latest room reading is kept; there is no history of temperature or motion. The node has no camera and no microphone |
 | Location only with events | The phone attaches its last known location when it sends an event; there is no tracking |
 | Push carries no health details | Generic text and an id (P18) |

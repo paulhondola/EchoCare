@@ -240,8 +240,8 @@ class SeniorView(SeniorDetail):
     # True while one of her calls rings or is live, for the badge (UC-12). Set by
     # GET /seniors/{id} only; null on the other answers that carry the senior.
     call_in_progress: bool | None = None
-    # `ok`, `not_worn` or `offline`, for her caregivers, her medic, and the senior herself
-    # on her own page (UC-03, UC-12). Null before the first check-in or for DAS.
+    # `ok`, `not_worn` or `offline`, for her caregivers, her medic, DAS (ADR-006), and the
+    # senior herself on her own page (UC-03, UC-12). Null before the first check-in.
     watch_state: WatchCondition | None = None
     # The watch's latest pulse, alongside `watch_state` (UC-03). Null before the first
     # check-in that carried one, or for callers who can't see the watch.
@@ -258,6 +258,33 @@ class CheckInForm(BaseModel):
     battery: int | None = Field(None, ge=0, le=100)
     worn: bool | None = None
     last_pulse: int | None = Field(None, ge=0, le=300)
+    # Added by ADR-006; an older phone leaves them out
+    resting_pulse: int | None = Field(None, ge=0, le=300)
+    steps_today: int | None = Field(None, ge=0, le=100_000)
+    minutes_without_steps: int | None = Field(None, ge=0)
+
+
+class WatchView(BaseModel):
+    """GET /seniors/{id}/watch (04 §1): the latest check-in (UC-13, ADR-006)."""
+
+    state: WatchCondition
+    last_check_in_at: datetime
+    battery: int | None
+    worn: bool | None
+    last_pulse: int | None
+    resting_pulse: int | None
+    steps_today: int | None
+    minutes_without_steps: int | None
+
+
+class WatchReadingView(BaseModel):
+    """One 5-minute bucket of GET /seniors/{id}/watch/readings (04 §1, ADR-006)."""
+
+    at: datetime
+    pulse: int | None
+    battery: int | None
+    worn: bool | None
+    steps_today: int | None
 
 
 class Citation(BaseModel):

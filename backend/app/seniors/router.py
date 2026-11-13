@@ -23,6 +23,8 @@ from app.seniors.schemas import (
     SeniorView,
     SignatureForm,
     SummaryVersionView,
+    WatchReadingView,
+    WatchView,
 )
 from app.seniors.service import (
     accept,
@@ -41,7 +43,9 @@ from app.seniors.service import (
     senior_view,
     submit,
     summary_for,
+    watch_readings,
     watch_state,
+    watch_view,
     withdraw_consent,
 )
 from app.voice.service import call_in_progress
@@ -72,6 +76,33 @@ async def get_senior(
     view.call_in_progress = await call_in_progress(session, senior_id)
     view.watch_state, view.last_pulse = await watch_state(session, caller, senior)
     return view
+
+
+@router.get(
+    "/seniors/{senior_id}/watch",
+    response_model=WatchView,
+    responses={204: {"description": "No check-in yet, or the watch is not shown"}},
+)
+async def get_watch(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The watch's latest check-in (04 §1, ADR-006)."""
+    senior = await reach_senior(session, caller, senior_id)
+    view = await watch_view(session, caller, senior)
+    return view if view else Response(status_code=204)
+
+
+@router.get("/seniors/{senior_id}/watch/readings")
+async def get_watch_readings(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[WatchReadingView]:
+    """The last 24 hours of check-ins, in 5-minute buckets (04 §1, ADR-006)."""
+    senior = await reach_senior(session, caller, senior_id)
+    return await watch_readings(session, caller, senior, datetime.now(UTC))
 
 
 @router.post("/seniors", status_code=201)

@@ -142,7 +142,7 @@ Phone numbers are normalized to the international format (+40…) on every write
 | Full transcript | No | Yes | Yes |
 | Address and access details | Yes | Yes | Yes |
 | Location attached to an event **(proposed)** | Yes | No | Yes |
-| Watch state (worn, battery, last check-in) | Yes | Yes | No |
+| Watch state (worn, battery, last check-in, pulse, steps) and its last 24 hours ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)) | Yes | Yes | Yes |
 | Home node state and latest room reading (temperature, humidity, last motion) **(proposed)** | Yes | Yes | Yes |
 | Consent record | No | Yes | Yes |
 
