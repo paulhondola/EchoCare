@@ -25,6 +25,7 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import java.io.File
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -79,6 +80,11 @@ class MonitoringService :
     private var lastStepAtMs = -1L
     private var startedAtMs = 0L
 
+    // For the check-in (ADR-006). Stays true on a watch without an off-body sensor, as before
+    private var worn = true
+    private var stepsAtDayStart = -1f
+    private var stepDay: LocalDate? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -127,7 +133,11 @@ class MonitoringService :
         sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
             sensorManager.registerListener(this, it, ACCELEROMETER_PERIOD_US, handler)
         }
-        listOf(Sensor.TYPE_HEART_RATE, Sensor.TYPE_STEP_COUNTER)
+        listOf(
+            Sensor.TYPE_HEART_RATE,
+            Sensor.TYPE_STEP_COUNTER,
+            Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT
+        )
             .mapNotNull(sensorManager::getDefaultSensor)
             .forEach {
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
@@ -176,8 +186,20 @@ class MonitoringService :
                     onHeartRate(bpm)
                 }
             }
+            Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT -> {
+                // 1.0 on the wrist, 0.0 off it
+                worn = event.values[0] == 1f
+                log("worn=$worn")
+            }
             Sensor.TYPE_STEP_COUNTER -> {
                 if (stepsAtMinuteStart < 0) stepsAtMinuteStart = event.values[0]
+                // shortcut: counts from the service's first reading of the day, so a restart loses the
+                // morning's steps; Health Services' STEPS_DAILY if the exact daily total matters
+                val today = LocalDate.now()
+                if (stepDay != today) {
+                    stepDay = today
+                    stepsAtDayStart = event.values[0]
+                }
                 // Only treat it as a step if the counter actually advanced (not the first reading)
                 if (lastStepCount >= 0 && event.values[0] > lastStepCount) {
                     lastStepAtMs = System.currentTimeMillis()
@@ -226,18 +248,23 @@ class MonitoringService :
         return lastStepAtMs > 0 && nowMs - lastStepAtMs < MOVING_WINDOW_MS
     }
 
+    private fun minutesWithoutSteps(nowMs: Long): Int =
+        ((nowMs - if (lastStepAtMs < 0) startedAtMs else lastStepAtMs) / 60_000L).toInt()
+
+    /** Null without a step counter; 0 on a new day before its first step. */
+    private fun stepsToday(): Int? = when {
+        stepsAtDayStart < 0 -> null
+        stepDay != LocalDate.now() -> 0
+        else -> (lastStepCount - stepsAtDayStart).toInt()
+    }
+
     private fun snapshot(): EventSnapshot {
         val nowMs = System.currentTimeMillis()
-        val minutesIdle = if (lastStepAtMs < 0) {
-            ((nowMs - startedAtMs) / 60_000L).toInt()
-        } else {
-            ((nowMs - lastStepAtMs) / 60_000L).toInt()
-        }
         return EventSnapshot(
             pulse = if (lastHeartRate > 0) lastHeartRate else null,
             restingBaseline = restingBaseline.value(nowMs),
             moving = isMoving(nowMs),
-            minutesWithoutSteps = minutesIdle,
+            minutesWithoutSteps = minutesWithoutSteps(nowMs),
             battery = battery()
         )
     }
@@ -319,11 +346,15 @@ class MonitoringService :
     }
 
     private fun sendCheckIn() {
+        val nowMs = System.currentTimeMillis()
         val msg = CheckInMessage(
             measuredAt = Instant.now().toString(),
             battery = battery(),
-            worn = true,
-            lastPulse = if (lastHeartRate > 0) lastHeartRate else null
+            worn = worn,
+            lastPulse = if (lastHeartRate > 0) lastHeartRate else null,
+            restingPulse = restingBaseline.measured(nowMs),
+            stepsToday = stepsToday(),
+            minutesWithoutSteps = minutesWithoutSteps(nowMs)
         )
         Wearable.getNodeClient(this).connectedNodes
             .addOnSuccessListener { nodes ->

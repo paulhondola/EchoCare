@@ -6,13 +6,20 @@ data class CheckInMessage(
     val measuredAt: String,
     val battery: Int?,
     val worn: Boolean,
-    val lastPulse: Int?
+    val lastPulse: Int?,
+    // Added by ADR-006; an older watch leaves them out, an older phone ignores them
+    val restingPulse: Int? = null,
+    val stepsToday: Int? = null,
+    val minutesWithoutSteps: Int? = null
 ) {
     fun toBytes(): ByteArray = buildString {
         append("{\"measured_at\":\"$measuredAt\"")
         battery?.let { append(",\"battery\":$it") }
         append(",\"worn\":$worn")
         lastPulse?.let { append(",\"last_pulse\":$it") }
+        restingPulse?.let { append(",\"resting_pulse\":$it") }
+        stepsToday?.let { append(",\"steps_today\":$it") }
+        minutesWithoutSteps?.let { append(",\"minutes_without_steps\":$it") }
         append("}")
     }.encodeToByteArray()
 
@@ -23,7 +30,10 @@ data class CheckInMessage(
                 measuredAt = json.jsonString("measured_at") ?: "",
                 battery = json.jsonInt("battery"),
                 worn = json.jsonBoolean("worn") ?: true,
-                lastPulse = json.jsonInt("last_pulse")
+                lastPulse = json.jsonInt("last_pulse"),
+                restingPulse = json.jsonInt("resting_pulse"),
+                stepsToday = json.jsonInt("steps_today"),
+                minutesWithoutSteps = json.jsonInt("minutes_without_steps")
             )
         }
     }

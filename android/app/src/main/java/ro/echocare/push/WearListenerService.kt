@@ -52,7 +52,10 @@ internal fun CheckInMessage.toCheckInForm(): CheckInForm = CheckInForm(
     measuredAt = measuredAt,
     battery = battery,
     worn = worn,
-    lastPulse = lastPulse
+    lastPulse = lastPulse,
+    restingPulse = restingPulse,
+    stepsToday = stepsToday,
+    minutesWithoutSteps = minutesWithoutSteps
 )
 
 /**

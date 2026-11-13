@@ -10,10 +10,21 @@ class WearMessageTest {
             measuredAt = "2026-11-07T19:45:00Z",
             battery = 73,
             worn = true,
-            lastPulse = 88
+            lastPulse = 88,
+            restingPulse = 66,
+            stepsToday = 2450,
+            minutesWithoutSteps = 14
         )
         val decoded = CheckInMessage.fromBytes(original.toBytes())
         assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `a check-in from an older watch decodes the added fields as null`() {
+        val old = """{"measured_at":"2026-11-07T19:45:00Z",""" +
+            """"battery":73,"worn":true,"last_pulse":88}"""
+        val decoded = CheckInMessage.fromBytes(old.encodeToByteArray())
+        assertEquals(CheckInMessage("2026-11-07T19:45:00Z", 73, true, 88), decoded)
     }
 
     @Test

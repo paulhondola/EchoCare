@@ -45,12 +45,18 @@ class WearListenerServiceTest {
             measuredAt = "2026-11-12T19:00:00Z",
             battery = 42,
             worn = false,
-            lastPulse = 88
+            lastPulse = 88,
+            restingPulse = 64,
+            stepsToday = 900,
+            minutesWithoutSteps = 3
         )
         val form = msg.toCheckInForm()
         assertEquals("2026-11-12T19:00:00Z", form.measuredAt)
         assertEquals(42, form.battery)
         assertEquals(false, form.worn)
         assertEquals(88, form.lastPulse)
+        assertEquals(64, form.restingPulse)
+        assertEquals(900, form.stepsToday)
+        assertEquals(3, form.minutesWithoutSteps)
     }
 }
