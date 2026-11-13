@@ -45,6 +45,11 @@ from app.voice.service import (
 )
 
 INCOMPLETE_REASON = "Nu a răspuns la toate întrebările"
+# The code's reason when a watch or „Sunați-mă” call is not answered the first time (03 §6)
+NOT_REACHED = {
+    CallTrigger.watch: "Nu a răspuns după semnalul ceasului",
+    CallTrigger.manual: "Nu a răspuns după cererea de apel",
+}
 LINE_LOST_SUMMARY = "Convorbirea s-a întrerupt."
 # Sources that hand a call over red; any other hand-over is yellow (03 §6, 04 §4.4).
 RED_SOURCES = frozenset(
@@ -121,6 +126,23 @@ async def call_reason(session: AsyncSession, call: Call, answers: CallAnswers) -
     return campaign_reason(worrying, kind or CampaignKind.cold)
 
 
+async def code_now(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> tuple[Severity | None, bool]:
+    """The senior's current code, and whether an incident of hers is unresolved."""
+    current = await session.scalar(
+        select(SeniorStatus.code).where(SeniorStatus.senior_id == senior_id)
+    )
+    unresolved = await session.scalar(
+        select(
+            exists().where(
+                Incident.senior_id == senior_id, Incident.status.in_(UNRESOLVED)
+            )
+        )
+    )
+    return current, bool(unresolved)
+
+
 async def conclude(
     session: AsyncSession,
     call: Call,
@@ -158,6 +180,21 @@ async def conclude(
             call.starting_severity,
             "Nu a răspuns la prima încercare",
         )
+        # A trigger's yellow acts on the first unanswered attempt; a campaign's green
+        # waits for the redial (03 §6)
+        if call.trigger in NOT_REACHED:
+            current, unresolved = await code_now(session, call.senior_id)
+            if next_code(current, unresolved, call.starting_severity) is (
+                call.starting_severity
+            ):
+                await set_code(
+                    session,
+                    call.senior_id,
+                    call.id,
+                    call.starting_severity,
+                    NOT_REACHED[call.trigger],
+                    now,
+                )
         queue_redial(session, call, now + redial_delay())
         return None
     else:
@@ -177,17 +214,7 @@ async def conclude(
     )
     add_report(session, call.id, source, result, reason, certainty=certainty)
 
-    current = await session.scalar(
-        select(SeniorStatus.code).where(SeniorStatus.senior_id == call.senior_id)
-    )
-    unresolved = await session.scalar(
-        select(
-            exists().where(
-                Incident.senior_id == call.senior_id,
-                Incident.status.in_(UNRESOLVED),
-            )
-        )
-    )
+    current, unresolved = await code_now(session, call.senior_id)
     # A red whose incident is unresolved stays as it is (03 §8, P9).
     if next_code(current, unresolved, result) is result:
         await set_code(session, call.senior_id, call.id, result, reason, now)

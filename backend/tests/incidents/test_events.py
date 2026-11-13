@@ -88,6 +88,17 @@ async def test_a_request_queues_a_yellow_manual_call(client, db, senior):
     )
 
 
+@pytest.mark.parametrize(
+    ("source", "trigger"),
+    [("watch", CallTrigger.watch), ("phone", CallTrigger.manual)],
+)
+async def test_a_watch_event_queues_a_watch_call(client, db, senior, source, trigger):
+    """The call says why it rings: the watch's own trigger for its events (04 §3)."""
+    await request(client, type="high_pulse_at_rest", source=source)
+    [call] = await calls(db)
+    assert call.trigger is trigger
+
+
 async def test_a_second_tap_attaches_to_the_same_call(client, db, senior):
     first = (await request(client)).json()
     second = (await request(client)).json()
