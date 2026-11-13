@@ -255,6 +255,9 @@
     <string name="alert_text">O persoană pe care o urmăriți are nevoie de atenție.</string>
     <string name="alerts_channel">Alerte</string>
     <string name="alerts_channel_description">Când o persoană pe care o urmăriți are nevoie de atenție</string>
+    <string name="notice_text">O fișă medicală e gata de verificat.</string>
+    <string name="notice_channel">Actualizări</string>
+    <string name="notice_channel_description">Fișe medicale gata de verificat</string>
     <string name="notifications_off">Notificările sunt oprite. Porniți-le ca să aflați imediat când o persoană pe care o urmăriți are nevoie de atenție.</string>
     <string name="notifications_on">Pornește notificările</string>
     <!-- One senior's page: the short call history (UC-12) -->

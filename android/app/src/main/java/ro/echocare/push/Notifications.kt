@@ -23,6 +23,16 @@ fun createAlertChannel(context: Context) {
     context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 }
 
+/** The notices channel, default importance: it shows, without taking over the screen. */
+fun createNoticeChannel(context: Context) {
+    val channel = NotificationChannel(
+        NOTICE_CHANNEL,
+        context.getString(R.string.notice_channel),
+        NotificationManager.IMPORTANCE_DEFAULT
+    ).apply { description = context.getString(R.string.notice_channel_description) }
+    context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+}
+
 fun notificationsAllowed(context: Context): Boolean = ContextCompat.checkSelfPermission(
     context,
     Manifest.permission.POST_NOTIFICATIONS
@@ -32,7 +42,27 @@ fun notificationsAllowed(context: Context): Boolean = ContextCompat.checkSelfPer
  * An alert that arrived while the app was in front, where Firebase hands it to the app instead of
  * the tray. It looks like the tray's own and opens the app with the same extras (04 §6).
  */
-fun showAlert(context: Context, data: Map<String, String>) {
+fun showAlert(context: Context, data: Map<String, String>) =
+    show(context, data, ALERT_CHANNEL, R.string.alert_text, NotificationCompat.PRIORITY_HIGH, 1)
+
+/** A "profile ready" notice that arrived while the app was in front; built like [showAlert]. */
+fun showNotice(context: Context, data: Map<String, String>) = show(
+    context,
+    data,
+    NOTICE_CHANNEL,
+    R.string.notice_text,
+    NotificationCompat.PRIORITY_DEFAULT,
+    2
+)
+
+private fun show(
+    context: Context,
+    data: Map<String, String>,
+    channel: String,
+    text: Int,
+    priority: Int,
+    id: Int
+) {
     if (!notificationsAllowed(context)) return
     val extras = data.filterKeys { it in PUSH_KEYS }
     val intent = Intent(context, MainActivity::class.java).apply {
@@ -46,18 +76,18 @@ fun showAlert(context: Context, data: Map<String, String>) {
         intent,
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
-    val notification = NotificationCompat.Builder(context, ALERT_CHANNEL)
+    val notification = NotificationCompat.Builder(context, channel)
         .setSmallIcon(R.drawable.ic_notification)
         .setContentTitle(context.getString(R.string.alert_title))
-        .setContentText(context.getString(R.string.alert_text))
-        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setContentText(context.getString(text))
+        .setPriority(priority)
         .setCategory(NotificationCompat.CATEGORY_MESSAGE)
         .setAutoCancel(true)
         .setContentIntent(open)
         .build()
     try {
-        // Tagged by senior: a later alert about the same senior replaces the earlier one
-        NotificationManagerCompat.from(context).notify(extras["senior_id"], 1, notification)
+        // Tagged by senior: a later one of the same kind about the same senior replaces the earlier one
+        NotificationManagerCompat.from(context).notify(extras["senior_id"], id, notification)
     } catch (e: SecurityException) {
         // The permission was taken back between the check and the post
     }

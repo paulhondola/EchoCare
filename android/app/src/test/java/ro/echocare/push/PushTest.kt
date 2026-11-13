@@ -34,6 +34,19 @@ class PushTest {
     }
 
     @Test
+    fun aMedicalRecordNoticeNamesItsSenior() {
+        assertEquals(
+            Push.Notice("s1"),
+            pushFrom(mapOf("type" to "medical_record", "senior_id" to "s1"))
+        )
+    }
+
+    @Test
+    fun aMedicalRecordNoticeWithoutASeniorIsARefresh() {
+        assertEquals(Push.Refresh, pushFrom(mapOf("type" to "medical_record")))
+    }
+
+    @Test
     fun aRefreshIsARefresh() {
         assertEquals(
             Push.Refresh,
