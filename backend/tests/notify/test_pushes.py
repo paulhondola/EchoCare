@@ -43,6 +43,7 @@ from app.notify.service import (
     drain,
     incident_alert,
     incidents_refresh,
+    medical_notice,
     message,
     per_device,
     pushes_for,
@@ -526,3 +527,17 @@ async def test_a_burst_of_commits_delivers_a_few_at_a_time(db, cast, monkeypatch
     await asyncio.wait_for(drain(), timeout=10)
     assert len(slow.sent) == DELIVERIES * 3
     assert slow.most <= DELIVERIES
+
+
+def test_a_ready_record_notifies_the_medic_only():
+    assert pushes_for(Change(ChangeKind.medical_record, S)) == [
+        (Audience.medic, medical_notice(S))
+    ]
+
+
+def test_a_notice_is_visible_on_the_updates_channel():
+    m = message("t", medical_notice(S))
+    assert m.notification.body == "O fișă medicală e gata de verificat."
+    assert m.android.priority == "normal"
+    assert m.android.notification.channel_id == "updates"
+    assert dict(m.data) == {"type": "medical_record", "senior_id": str(S)}

@@ -294,6 +294,7 @@ Pushes go to Android devices only. The dashboard re-reads on a timer and receive
 | Incident taken or resolved | Nobody | Every DAS employee's phone |
 | Code into green, a call starting or ending, a watch or home node state change | Nobody | The senior's caregivers, the medic, the senior |
 | A caregiver grant made or removed | Nobody | The medic |
+| A medical record's analysis is ready for review | Nobody (a notice, below) | n/a |
 
 A message goes to every device token stored for each recipient. A token that Firebase reports as invalid is removed.
 
@@ -304,6 +305,7 @@ How the API applies the table (`backend/app/notify/`):
 - **Every incident that opens alerts DAS,** a yellow hand-over's included (UC-07): each one waits for a dispatcher. A red that joins an unresolved incident opens none (G16) but alerts DAS as well, unless the code was red already, with the same `incident` message.
 - **One message per device and change.** An alert stands in for a refresh about the same senior or incident to the same device.
 - **The alert channel** is `alerts`, created by the app at start. An alert is a high-priority notification message; a refresh is a data-only message at normal priority that Firebase does not keep for a device it cannot reach: past 100 messages waiting for one device it discards them all, alerts included. A closed app that gets one has no screen to update.
+- **A medical record's notice** goes to the registering medic only, once the analysis reaches `review`: a visible notification with the text „O fișă medicală e gata de verificat.” at normal priority on the `updates` channel, and data of type `medical_record` and the senior's id. Like every push it carries no name, no condition and no text from the record (P18).
 - **Test calls tell nobody.** A scripted test call (05 §1) moves without a refresh.
 - **A watch state change** is one that changes `state`: a watch checking in as before sends nothing.
 - **The credential** is `FIREBASE_PUSH_CREDENTIALS`, the JSON of a Google credential allowed to send Cloud Messaging. Without it, as locally, no push is sent and screens rely on the timed re-read.

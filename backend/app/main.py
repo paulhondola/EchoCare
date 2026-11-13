@@ -12,6 +12,7 @@ from app.campaigns.router import router as campaigns_router
 from app.core.settings import check_environment, cors_origins, get_settings
 from app.incidents.router import router as incidents_router
 from app.medical.router import router as medical_router
+from app.medical.service import stop_analyses
 from app.memory.service import stop_summaries
 from app.notify.service import drain, install, sender_from
 from app.scheduler.loop import run
@@ -46,6 +47,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         with contextlib.suppress(asyncio.CancelledError):
             await task
     await stop_summaries()  # a summary under way is redone by the next copy
+    await stop_analyses()  # likewise: the next copy redoes it
     await drain()  # the pushes already under way
 
 

@@ -1,13 +1,22 @@
+import asyncio
 import logging
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from pydantic_ai.models import Model
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
-from app.core.storage import StorageError, StorageService
+from app.core.changes import Change, ChangeKind, note
+from app.core.db import Session
+from app.core.llm import deepinfra_model
+from app.core.settings import get_settings
+from app.core.storage import StorageError, StorageService, get_storage
+from app.medical.analyzer import analyzer_agent, prompt
+from app.medical.extract import Ocr, deepinfra_ocr, extract_text
 from app.medical.models import MedicalRecord, MedicalRecordState
 from app.medical.schemas import MedicalConfirmForm, MedicalItem, MedicalRecordView
 from app.seniors.models import EnrollmentState, Senior
@@ -18,6 +27,12 @@ log = logging.getLogger("echocare.medical")
 MAX_BYTES = 10 * 1024 * 1024
 URL_SECONDS = 600
 ANALYZABLE = {EnrollmentState.accepted, EnrollmentState.active}
+ATTEMPTS = 3
+
+# Per process, as the summaries' (design §5.3): a restart forgets the failures.
+_running: dict[uuid.UUID, asyncio.Task] = {}  # by record id
+_failures: Counter[uuid.UUID] = Counter()  # by record id
+_marking: set[asyncio.Task] = set()  # kept so a task is not collected before it ends
 
 
 def storage_key(senior_id: uuid.UUID, record_id: uuid.UUID) -> str:
@@ -208,3 +223,119 @@ async def confirmed_checks(
         return []
     items = [MedicalItem.model_validate(i) for i in record.items or []]
     return [(i.question, i.worrying) for i in items if i.included]
+
+
+async def due_records(session: AsyncSession) -> list[uuid.UUID]:
+    """Pending records of seniors who can be analyzed, oldest upload first."""
+    rows = await session.scalars(
+        select(MedicalRecord.id)
+        .join(Senior, Senior.id == MedicalRecord.senior_id)
+        .where(
+            MedicalRecord.state == MedicalRecordState.pending,
+            Senior.enrollment_state.in_(ANALYZABLE),
+        )
+        .order_by(MedicalRecord.uploaded_at, MedicalRecord.id)
+    )
+    return [i for i in rows if i not in _running and _failures[i] < ATTEMPTS]
+
+
+async def analyze(
+    record_id: uuid.UUID, *, storage: StorageService, ocr: Ocr, model: Model
+) -> None:
+    """Read the PDF's text, run the analyzer, store the profile for review. Owns its
+    sessions, holding none while the PDF, OCR or the model work (design §5.3)."""
+    async with Session() as session:
+        record = await session.get(MedicalRecord, record_id)
+        if record is None or record.state is not MedicalRecordState.pending:
+            log.info("record %s is gone or not pending, skipped", record_id)
+            return
+        senior_id, key, text = record.senior_id, record.storage_key, record.source_text
+    if text is None:
+        text = await extract_text(await storage.download(key), ocr)
+        async with Session() as session:
+            await session.execute(
+                update(MedicalRecord)
+                .where(
+                    MedicalRecord.id == record_id,
+                    MedicalRecord.state == MedicalRecordState.pending,
+                )
+                .values(source_text=text)
+            )
+            await session.commit()
+    profile = (await analyzer_agent(model).run(prompt(text), deps=text)).output
+    async with Session() as session:
+        record = await session.scalar(
+            select(MedicalRecord)
+            .where(
+                MedicalRecord.id == record_id,
+                MedicalRecord.state == MedicalRecordState.pending,
+            )
+            .with_for_update()
+        )
+        if record is None:
+            log.info("record %s changed while analyzing, result dropped", record_id)
+            return
+        record.items = [
+            i.model_copy(update={"included": True}).model_dump(mode="json")
+            for i in profile.items
+        ]
+        record.model = model.model_name
+        record.analyzed_at = datetime.now(UTC)
+        record.state = MedicalRecordState.review
+        note(session, Change(ChangeKind.medical_record, senior_id))
+        await session.commit()
+    log.info("record %s analyzed, %d items", record_id, len(profile.items))
+
+
+async def mark_failed(record_id: uuid.UUID) -> None:
+    async with Session() as session:
+        await session.execute(
+            update(MedicalRecord)
+            .where(
+                MedicalRecord.id == record_id,
+                MedicalRecord.state == MedicalRecordState.pending,
+            )
+            .values(state=MedicalRecordState.failed)
+        )
+        await session.commit()
+    log.error("record %s failed after %d attempts", record_id, ATTEMPTS)
+
+
+def _finished(record_id: uuid.UUID, task: asyncio.Task) -> None:
+    _running.pop(record_id, None)
+    if task.cancelled():
+        return
+    if e := task.exception():
+        _failures[record_id] += 1
+        log.error("analysis failed, record %s: %s", record_id, type(e).__name__)
+        if _failures[record_id] >= ATTEMPTS:
+            marking = asyncio.create_task(mark_failed(record_id))
+            _marking.add(marking)
+            marking.add_done_callback(_marking.discard)
+
+
+async def start_analyses(now: datetime) -> int:
+    """The scheduler step: start one task per due record and return; never awaits one."""
+    settings = get_settings()
+    storage = get_storage()
+    if not settings.deepinfra_api_key or not storage.is_configured:
+        return 0
+    async with Session() as session:
+        due = await due_records(session)
+    model = deepinfra_model(settings.deepinfra_api_key, settings.summary_model)
+    ocr = deepinfra_ocr(settings.deepinfra_api_key, settings.ocr_model)
+    for record_id in due:
+        task = asyncio.create_task(
+            analyze(record_id, storage=storage, ocr=ocr, model=model)
+        )
+        _running[record_id] = task
+        task.add_done_callback(lambda t, r=record_id: _finished(r, t))
+    return len(due)
+
+
+async def stop_analyses() -> None:
+    """On shutdown: cancel the tasks under way; the next copy redoes their records."""
+    tasks = [*_running.values(), *_marking]
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
