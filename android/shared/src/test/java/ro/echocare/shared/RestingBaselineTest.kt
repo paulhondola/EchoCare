@@ -12,6 +12,15 @@ class RestingBaselineTest {
     }
 
     @Test
+    fun `measured is null until enough still readings land, then the mean`() {
+        val b = RestingBaseline(minSamples = 10, defaultBpm = 70)
+        repeat(9) { b.onReading(it * 1_000L, bpm = 62, moving = false) }
+        assertEquals(null, b.measured(9_000L))
+        b.onReading(9_000L, bpm = 62, moving = false)
+        assertEquals(62, b.measured(10_000L))
+    }
+
+    @Test
     fun `averages still readings once the window has enough`() {
         val b = RestingBaseline(minSamples = 10, defaultBpm = 70)
         repeat(10) { b.onReading(it * 1_000L, bpm = 60, moving = false) }

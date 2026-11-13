@@ -41,6 +41,7 @@ import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.das.Transcript
 import ro.echocare.enroll.ConsentSection
+import ro.echocare.push.BackgroundPrompt
 import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
 import ro.echocare.ui.Chip
@@ -103,6 +104,8 @@ fun PatientPane(
         if (id == null && vm.warning) {
             Banner(stringResource(R.string.warning_active), Tone.Galben)
         }
+        // The senior's home only: her phone relays the watch, so it must not be put to sleep (G5)
+        if (id == null) BackgroundPrompt()
         val medic = if (id != null && !vm.notHers) onEdit else null
         if (medic != null) CommandBanners(vm.notice, vm.numberChanged)
         Column(

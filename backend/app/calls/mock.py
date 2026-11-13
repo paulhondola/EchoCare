@@ -25,16 +25,23 @@ from app.seniors.service import reach
 from app.status.engine import Answer as RuleAnswer
 from app.status.engine import CallAnswers, Question, Severity
 from app.voice.calls import CallState
-from app.voice.dialogue import CARD_CONSENT_TEXT, CARD_CONSENT_VERSION
+from app.voice.dialogue import (
+    CARD_CONSENT_TEXT,
+    CARD_CONSENT_VERSION,
+    wellbeing_greeting,
+)
 from app.voice.models import Call, CallTrigger, Speaker, TurnKind
 from app.voice.service import add_turn, advance_call, record_answer
 
 log = logging.getLogger("echocare.calls")
 
 # The state a senior must be in for a call of each trigger to be offered (design §4.2).
+# Watch and manual calls too, so an event reaches a code with no phone line (UC-09, UC-10)
 REQUIRES = {
     CallTrigger.campaign: EnrollmentState.active,
     CallTrigger.welcome: EnrollmentState.accepted,
+    CallTrigger.watch: EnrollmentState.active,
+    CallTrigger.manual: EnrollmentState.active,
 }
 
 SIMULATED = "Apel simulat din aplicație, fără linie telefonică."
@@ -134,8 +141,8 @@ async def answer_mock_call(
         log.info("refused already_done: user %s, call %s", caller.user.id, call_id)
         raise refuse(409, "already_done")
     now = datetime.now(UTC)
-    # A trigger with no entry (watch, manual, test) is never answered here: the senior's
-    # state is never None.
+    # A trigger with no entry (test) is never answered here: the senior's state is never
+    # None.
     if (
         call.state is not CallState.queued
         or call.dialed_at is not None
@@ -180,7 +187,12 @@ async def answer_mock_call(
             CallAnswers({q: RuleAnswer(values[q], True, said[q]) for q in Question}),
         )
         lines += [
-            (Speaker.agent, greeting(address, kind, level)),
+            (
+                Speaker.agent,
+                greeting(address, kind, level)
+                if call.trigger is CallTrigger.campaign
+                else wellbeing_greeting(address, call.trigger),
+            ),
             (Speaker.senior, said[Question.feeling]),
             (Speaker.agent, "Ce zi este azi?"),
             (Speaker.senior, said[Question.orientation]),

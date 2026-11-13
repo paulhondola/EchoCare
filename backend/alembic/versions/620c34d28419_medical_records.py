@@ -1,7 +1,7 @@
 """medical records
 
 Revision ID: 620c34d28419
-Revises: d8c1a2e4f7a0
+Revises: 15cc782d0752
 Create Date: 2026-11-13 19:05:26.289244
 
 """
@@ -15,7 +15,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "620c34d28419"
-down_revision: str | Sequence[str] | None = "d8c1a2e4f7a0"
+down_revision: str | Sequence[str] | None = "15cc782d0752"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

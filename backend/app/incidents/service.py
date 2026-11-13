@@ -84,7 +84,10 @@ async def record_event(
             await queue_calls(
                 session,
                 Senior.id == senior_id,
-                trigger=CallTrigger.manual,
+                # The watch's own trigger, so the call says why it rings (04 §4.2)
+                trigger=(
+                    CallTrigger.watch if form.source == "watch" else CallTrigger.manual
+                ),
                 due_at=now,
                 starting_severity=Severity.yellow,
             )

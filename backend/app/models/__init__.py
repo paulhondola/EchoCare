@@ -34,6 +34,7 @@ from app.seniors.models import (
     Senior,
     SummaryVersion,
     WatchCondition,
+    WatchReading,
     WatchState,
 )
 from app.voice.models import (
@@ -83,6 +84,7 @@ __all__ = [
     "User",
     "WarningLevel",
     "WatchCondition",
+    "WatchReading",
     "WatchState",
     "WelcomeOutcome",
     "enum_type",

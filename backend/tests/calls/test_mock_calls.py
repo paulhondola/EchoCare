@@ -362,10 +362,67 @@ async def test_no_mock_in_production(client, db, queued, monkeypatch):  # Q10
     assert state == CallState.queued
 
 
-@pytest.mark.parametrize("trigger", [t for t in CallTrigger if t not in mock.REQUIRES])
-async def test_only_campaign_and_welcome_calls_are_answered(
-    client, db, add_active_senior, trigger
+@pytest.fixture
+async def watch_card(client, add_user, add_active_senior):
+    """An active senior's watch event, sent through the API; returns the card it shows."""
+    await add_user(DAS, Role.das)
+    await add_active_senior(SENIOR)
+    r = await client.post(
+        "/api/me/events",
+        json={
+            "id": str(uuid.uuid4()),
+            "type": "high_pulse_at_rest",
+            "measured_at": datetime.now(UTC).isoformat(),
+            "source": "watch",
+        },
+        headers=signed_in(SENIOR),
+    )
+    assert r.status_code == 200 and r.json()["queued"]
+    return (await card(client)).json()
+
+
+async def test_a_watch_event_is_answered_on_the_card_and_a_red_opens_an_incident(
+    client, watch_card
 ):
+    """UC-09 with no phone line: the event's call shows on the card, and its answers go
+    through the same rules as any call."""
+    shown = watch_card
+    assert (shown["trigger"], shown["campaign_kind"]) == ("watch", None)
+    body = {"feeling": "unwell", "day": "unknown", "shelter": "yes"}
+    assert (await answer(client, shown["call_id"], body)).status_code == 204
+    t = (
+        await client.get(
+            f"/api/calls/{shown['call_id']}/transcript", headers=signed_in(DAS)
+        )
+    ).json()
+    assert t["final_severity"] == "red"
+    assert "ceasul a semnalat ceva neobișnuit" in t["turns"][1]["content"]
+    incidents = (await client.get("/api/incidents", headers=signed_in(DAS))).json()
+    assert len(incidents) == 1
+
+
+async def test_a_watch_call_not_answered_turns_the_code_yellow_at_once(
+    client, db, watch_card
+):
+    """03 §6: a trigger's yellow acts on the first unanswered attempt, then redials."""
+    r = await answer(client, watch_card["call_id"], {"declined": True})
+    assert r.status_code == 204
+    [row] = (await client.get("/api/seniors?role=das", headers=signed_in(DAS))).json()
+    assert (row["code"], row["reason"]) == (
+        "yellow",
+        "Nu a răspuns după semnalul ceasului",
+    )
+    assert (await client.get("/api/incidents", headers=signed_in(DAS))).json() == []
+    queued = await db.scalar(
+        select(func.count())
+        .select_from(Call)
+        .where(Call.state == CallState.queued, Call.attempt == 2)
+    )
+    assert queued == 1
+
+
+@pytest.mark.parametrize("trigger", [t for t in CallTrigger if t not in mock.REQUIRES])
+async def test_a_test_call_is_never_answered(client, db, add_active_senior, trigger):
     senior = await add_active_senior(SENIOR)
     call = Call(
         senior_id=senior.id,

@@ -4,11 +4,14 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
+    Identity,
     Integer,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -99,7 +102,7 @@ class Consent(Base):
 
 
 class WatchState(Base):
-    """The latest check-in only; no history of readings (05 §4, §5)."""
+    """The latest check-in; the last 24 hours live in `WatchReading` (05 §4, ADR-006)."""
 
     __tablename__ = "watch_states"
 
@@ -111,6 +114,26 @@ class WatchState(Base):
     battery: Mapped[int | None] = mapped_column(Integer)
     worn: Mapped[bool | None] = mapped_column(Boolean)
     last_pulse: Mapped[int | None] = mapped_column(Integer)
+    resting_pulse: Mapped[int | None] = mapped_column(Integer)
+    steps_today: Mapped[int | None] = mapped_column(Integer)
+    minutes_without_steps: Mapped[int | None] = mapped_column(Integer)
+
+
+class WatchReading(Base):
+    """One check-in, kept 24 hours for the dashboard's pulse line (05 §4, ADR-006)."""
+
+    __tablename__ = "watch_readings"
+    # The phone may relay the same check-in twice
+    __table_args__ = (UniqueConstraint("senior_id", "measured_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    senior_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seniors.id"))
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    pulse: Mapped[int | None] = mapped_column(Integer)
+    resting_pulse: Mapped[int | None] = mapped_column(Integer)
+    steps_today: Mapped[int | None] = mapped_column(Integer)
+    battery: Mapped[int | None] = mapped_column(Integer)
+    worn: Mapped[bool | None] = mapped_column(Boolean)
 
 
 class SummaryVersion(Base):

@@ -31,6 +31,7 @@
   import CallTranscript from "../calls/CallTranscript.svelte";
   import Briefing from "./Briefing.svelte";
   import MedicalRecord from "./MedicalRecord.svelte";
+  import WatchHealth from "./WatchHealth.svelte";
 
   let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
 
@@ -349,6 +350,10 @@
           {:else if medical.kind === "ok"}
             <div class="pt-4"><MedicalRecord record={medical.data} /></div>
           {/if}
+
+          <div class="pt-4">
+            <WatchHealth id={s.id} />
+          </div>
 
           <div class="sn-label pt-4 pb-2">Aparținători înregistrați</div>
           {#each s.caregivers as c (c.user_id)}

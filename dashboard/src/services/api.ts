@@ -339,6 +339,7 @@ export type SeniorView = IncidentDetail["senior"] & {
   // True while one of her calls rings or is live (UC-12); only GET /seniors/{id} sets it
   call_in_progress?: boolean | null;
   watch_state?: string | null;
+  last_pulse?: number | null;
   medic: { display_name: string; practice: string | null };
   caregivers: {
     user_id: string;
@@ -366,6 +367,47 @@ export async function fetchSenior(id: string, signal?: AbortSignal): Promise<Sen
   const r = await apiFetch(`/api/seniors/${id}`, { signal });
   if (!r.ok) throw await refused(r);
   return (await r.json()) as SeniorView;
+}
+
+// GET /seniors/{id}/watch (04 §1, ADR-006). Mirrors WatchView in backend/app/seniors/schemas.py.
+// The state stays a string: the server may add states later.
+export interface WatchView {
+  state: string;
+  last_check_in_at: string;
+  battery: number | null;
+  worn: boolean | null;
+  last_pulse: number | null;
+  resting_pulse: number | null;
+  steps_today: number | null;
+  minutes_without_steps: number | null;
+}
+
+// One 5-minute bucket of GET /seniors/{id}/watch/readings (04 §1, ADR-006).
+// Mirrors WatchReadingView in backend/app/seniors/schemas.py.
+export interface WatchReading {
+  at: string;
+  pulse: number | null;
+  battery: number | null;
+  worn: boolean | null;
+  steps_today: number | null;
+}
+
+/** The watch's latest check-in; null before the first one (204). */
+export async function fetchWatch(id: string, signal?: AbortSignal): Promise<WatchView | null> {
+  const r = await apiFetch(`/api/seniors/${id}/watch`, { signal });
+  if (r.status === 204) return null;
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as WatchView;
+}
+
+/** The last 24 hours of check-ins, oldest first. */
+export async function fetchWatchReadings(
+  id: string,
+  signal?: AbortSignal,
+): Promise<WatchReading[]> {
+  const r = await apiFetch(`/api/seniors/${id}/watch/readings`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as WatchReading[];
 }
 
 /** Acceptă: submitted → accepted (04 §2). A second accept: `already_done`. */

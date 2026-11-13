@@ -16,6 +16,7 @@ erDiagram
     SENIOR ||--o{ CONSENT : "gives or refuses"
     SENIOR ||--o| WATCH_STATE : "wears"
     SENIOR ||--o| MEDICAL_RECORD : "has"
+    SENIOR ||--o{ WATCH_READING : "checked in, last 24 h"
     SENIOR ||--o| HOME_NODE_STATE : "has at home"
     SENIOR ||--o| SENIOR_STATUS : "has current, once active"
     SENIOR ||--o{ INCIDENT : "has, one per red"
@@ -100,6 +101,19 @@ erDiagram
         int battery
         boolean worn
         int last_pulse
+        int resting_pulse
+        int steps_today "since local midnight on the watch"
+        int minutes_without_steps
+    }
+    WATCH_READING {
+        bigint id PK
+        uuid senior_id FK
+        datetime measured_at "unique with senior_id"
+        int pulse
+        int resting_pulse
+        int steps_today
+        int battery
+        boolean worn
     }
     HOME_NODE_STATE {
         uuid senior_id PK
@@ -237,6 +251,7 @@ erDiagram
 | SeniorSummary | One version of what the summary agent knows about a senior, written after each answered call from that call and the version before it. Never updated or deleted by the app; the newest is the latest (design `2026-11-08-senior-summary-agents` §4) |
 | MedicalRecord | A senior's medical record PDF and the check questions drawn from it, one current row per senior; a new upload replaces its content and resets `state` (`pending`, `review`, `confirmed`, `failed`). `items` is a JSONB list of `{condition, question, worrying, evidence, included}`; `source_text` is the extracted text, kept for re-analysis and never logged or served (design `2026-11-13-medical-record-profile` §5.1) |
 | WatchState | The watch's latest check-in, one row per senior |
+| WatchReading | One check-in, kept 24 hours for the dashboard's pulse line (ADR-006) |
 | HomeNodeState | The home node's latest room reading and when the room went out of range, one row per senior with a node **(P20, proposed)** |
 | Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
 | Campaign | One press of the weather-warning button, and the active-warning period it opens: 24 hours from the press, cut short when DAS ends the campaign |
@@ -286,7 +301,7 @@ Several rules from the other files are enforced by the database itself, so they 
 
 **Consent is a history, not a field.** A withdrawal is a new row, and the text version shows exactly what was agreed to.
 
-**Only the latest check-in is kept (proposed).** There is no history of pulse readings; the system stores the minimum health data that serves its purpose. The same holds for the home node: only the latest room reading is kept, and a room event keeps the reading that caused it as its snapshot.
+**The latest check-in, plus 24 hours of readings.** The watch state holds the latest check-in; `watch_readings` keeps each check-in for 24 hours, so DAS can see the pulse trend behind an alert ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)), and the scheduler deletes older ones. Nothing older is kept; the system stores the minimum health data that serves its purpose. The home node keeps only its latest room reading, and a room event keeps the reading that caused it as its snapshot.
 
 **Location is stored only with an event.** There is no location history apart from the moments the senior's phone reported an event.
 
@@ -303,7 +318,8 @@ Several rules from the other files are enforced by the database itself, so they 
 | Consent records | Kept | Proof of what was agreed and when |
 | Incidents | Kept | What DAS did about each red, by whom, and the outcome |
 | Events, with any location | Kept | They explain why a call was placed and where the senior was |
-| Check-ins and room readings | Latest only | Data minimisation |
+| Check-ins | Latest, plus 24 hours of readings (ADR-006) | Data minimisation |
+| Room readings | Latest only | Data minimisation |
 | Grants | Removed when revoked | A removed caregiver loses access at once |
 
 The demo uses fictitious people only. Retention periods for a real pilot are out of scope here and need a decision with DAS as data controller.
