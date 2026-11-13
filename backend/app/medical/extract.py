@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import io
+import threading
 from collections.abc import Awaitable, Callable
 
 import openai
@@ -13,6 +14,10 @@ from app.core.llm import BASE_URL
 MAX_PAGES = 10
 MIN_CHARS = 50
 DPI = 150
+MAX_SIDE = 2500  # px; a huge MediaBox must not become a gigabyte bitmap
+
+# pdfium is not thread-safe and several analyses run in to_thread at once.
+_PDFIUM = threading.Lock()
 
 type Ocr = Callable[[bytes], Awaitable[str]]
 
@@ -30,6 +35,11 @@ def _open(pdf: bytes) -> pdfium.PdfDocument:
 
 def page_texts(pdf: bytes) -> list[str]:
     """The text layers of the first MAX_PAGES pages."""
+    with _PDFIUM:
+        return _page_texts(pdf)
+
+
+def _page_texts(pdf: bytes) -> list[str]:
     doc = _open(pdf)
     try:
         texts = []
@@ -51,11 +61,18 @@ def page_texts(pdf: bytes) -> list[str]:
 
 
 def page_png(pdf: bytes, index: int) -> bytes:
+    with _PDFIUM:
+        return _page_png(pdf, index)
+
+
+def _page_png(pdf: bytes, index: int) -> bytes:
     doc = _open(pdf)
     try:
         page = doc[index]
         try:
-            image = page.render(scale=DPI / 72).to_pil()
+            width, height = page.get_size()
+            scale = min(DPI / 72, MAX_SIDE / max(width, height))
+            image = page.render(scale=scale).to_pil()
         finally:
             page.close()
         out = io.BytesIO()

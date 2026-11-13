@@ -3,7 +3,7 @@ import io
 import pytest
 from PIL import Image
 
-from app.medical.extract import extract_text, page_texts
+from app.medical.extract import MAX_SIDE, extract_text, page_png, page_texts
 
 
 def text_pdf(lines: list[str]) -> bytes:
@@ -64,3 +64,11 @@ async def test_a_scanned_page_goes_to_ocr():
 def test_unreadable_pdf_raises():
     with pytest.raises(ValueError):
         page_texts(b"%PDF-broken")
+
+
+def test_a_huge_page_renders_within_the_pixel_cap():
+    out = io.BytesIO()
+    # 600x800 px at 1 dpi is a 43200x57600 pt page.
+    Image.new("RGB", (600, 800), "white").save(out, format="PDF", resolution=1.0)
+    size = Image.open(io.BytesIO(page_png(out.getvalue(), 0))).size
+    assert max(size) <= MAX_SIDE
