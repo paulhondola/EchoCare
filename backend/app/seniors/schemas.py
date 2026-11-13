@@ -198,6 +198,10 @@ class SeniorSummary(BaseModel):
     # For her medic and caregivers only, null for anyone else and before the first
     # check-in (UC-12, 04 §1). Answers that build a row without the join leave it null.
     watch_state: WatchCondition | None = None
+    # The medical record's state, for the senior's registering medic only; null for anyone
+    # else and when no record is attached (04 §1, design 2026-11-13). A plain string:
+    # `seniors` sits below `medical` and may not import its enum (ADR-005).
+    medical_record_state: str | None = None
 
 
 class CaregiverView(CaregiverSummary):

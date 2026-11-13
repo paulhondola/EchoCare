@@ -122,6 +122,7 @@ async def test_one_row(client, seniors):
             "submitted_at": None,
             "accepted_at": None,
             "watch_state": None,
+            "medical_record_state": None,
         }
     ]
 

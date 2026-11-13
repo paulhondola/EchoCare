@@ -124,6 +124,7 @@ async def senior_summaries(
         "reason",
         "since",
         "watch_state",
+        "medical_record_state",
     }
     return [
         SeniorSummary(

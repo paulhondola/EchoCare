@@ -173,6 +173,21 @@ async def record_for(
     return await view_of(record, storage, full=registering)
 
 
+async def record_states(
+    session: AsyncSession, caller: Caller
+) -> dict[uuid.UUID, MedicalRecordState]:
+    """The state of each record of a senior this caller registered, for the medic home's
+    tasks on GET /seniors rows (04 §1, design 2026-11-13). Nobody else's, as on the record."""
+    if Role.medic not in caller.roles:
+        return {}
+    rows = await session.execute(
+        select(MedicalRecord.senior_id, MedicalRecord.state)
+        .join(Senior, Senior.id == MedicalRecord.senior_id)
+        .where(Senior.medic_id == caller.user.id)
+    )
+    return dict(rows.tuples().all())
+
+
 async def analyzable_record(
     session: AsyncSession,
     caller: Caller,

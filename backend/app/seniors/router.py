@@ -13,6 +13,7 @@ from app.calls.service import (
     welcome_call_pending,
 )
 from app.core.db import get_session
+from app.medical.service import record_states
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -61,7 +62,12 @@ async def list_seniors(
 ) -> list[SeniorSummary]:
     """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6). `role`
     narrows the list to one role's reach, for that role's home (seniors SE6)."""
-    return await senior_summaries(session, caller, role)
+    rows = await senior_summaries(session, caller, role)
+    # `seniors` can't import `medical` (ADR-005); the router composes them
+    states = await record_states(session, caller)
+    for row in rows:
+        row.medical_record_state = states.get(row.id)
+    return rows
 
 
 @router.get("/seniors/{senior_id}")
