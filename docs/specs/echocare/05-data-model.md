@@ -335,6 +335,7 @@ Several rules from the other files are enforced by the database itself, so they 
 | Incidents | Kept until the senior is erased | What DAS did about each red, by whom, and the outcome |
 | Events, with any location | Kept until the senior is erased | They explain why a call was placed and where the senior was |
 | Check-ins | Latest, plus 24 hours of readings (ADR-006) | Data minimisation |
+| Apple Health readings (SpO2, ECG) | 24 hours (ADR-008) | Data minimisation |
 | Room readings | Latest only | Data minimisation |
 | Grants | Removed when revoked | A removed caregiver loses access at once |
 
