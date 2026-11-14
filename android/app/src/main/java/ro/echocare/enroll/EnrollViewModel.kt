@@ -49,6 +49,16 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
     var saved by mutableStateOf(emptyMap<Field, String>())
         private set
 
+    /**
+     * „Echipamente”: the ticked boxes. Empty on a new form; null for a saved senior whose
+     * equipment is not stated, which the form leaves alone until a box is ticked (design
+     * 2026-11-14).
+     */
+    var equipment by mutableStateOf<Set<String>?>(emptySet())
+        private set
+
+    private var savedEquipment: Set<String>? = emptySet()
+
     var state by mutableStateOf("draft")
         private set
 
@@ -114,9 +124,14 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         errors -= field
     }
 
+    fun tick(item: String, on: Boolean) {
+        val now = equipment.orEmpty()
+        equipment = if (on) now + item else now - item
+    }
+
     /** „Continuă”: steps 1 and 2 save first; step 3 sends nothing (seniors §9.2). */
     fun next() {
-        when (val save = saveFor(step, id, values)) {
+        when (val save = saveFor(step, id, values, equipment)) {
             is Save.Create -> command(Action.Save, { api.createSenior(save.body) }, ::savedAndNext)
             is Save.Update -> command(
                 Action.Save,
@@ -133,6 +148,7 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         if (busy) return true
         if (step == Step.Senior) return false
         values = saved
+        equipment = savedEquipment
         adding = emptyMap()
         go(step.previous)
         return true
@@ -224,6 +240,8 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         caregivers = page.caregivers
         saved = valuesOf(page)
         values = saved
+        savedEquipment = equipmentIn(page)
+        equipment = savedEquipment
     }
 
     /** One request at a time (SE14). A refusal becomes what seniors §9.3 shows for it. */

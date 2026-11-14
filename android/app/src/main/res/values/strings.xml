@@ -191,6 +191,17 @@
     <string name="watch_ok_pulse">Ceas conectat · %1$d bpm</string>
     <string name="watch_not_worn">Ceasul nu este purtat</string>
     <string name="watch_offline">Ceasul nu transmite</string>
+    <!-- A declared device that has never reported (UC-13, design 2026-11-14) -->
+    <string name="device_watch_never">Ceas înregistrat, nu a trimis date</string>
+    <string name="device_node_never">Senzor din casă înregistrat, nu a trimis date</string>
+    <string name="device_app_never">Pacientul nu a deschis aplicația</string>
+    <!-- „Echipamente” on step 1 of „Pacient nou” (UC-01, design 2026-11-14) -->
+    <string name="equipment_title">Echipamente</string>
+    <string name="equipment_smartphone">Telefon cu aplicația EchoCare</string>
+    <string name="equipment_watch">Ceas</string>
+    <string name="equipment_home_node">Senzor din casă</string>
+    <string name="equipment_unstated">Nespecificat</string>
+    <string name="equipment_landline">Un telefon fix nu poate avea aplicația.</string>
     <string name="section_access">Adresă și acces</string>
     <string name="open_in_maps">Deschide în Hărți</string>
     <string name="section_event">Eveniment</string>

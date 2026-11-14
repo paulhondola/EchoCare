@@ -51,5 +51,23 @@ fun watchChip(state: String?): Pair<Int, Tone>? = when (state) {
     else -> null
 }
 
+/** Whether the page shows the watch at all: unless the medic declared none (design 2026-11-14). */
+fun showsWatch(senior: SeniorPage): Boolean = senior.equipment?.contains("watch") ?: true
+
+/**
+ * The device warnings for a declared device that has never reported (UC-13, design 2026-11-14).
+ * None while the equipment is not stated, before DAS accepts, or for the senior herself; an older
+ * API's null `appSignedIn` warns about nothing.
+ */
+fun deviceWarnings(senior: SeniorPage, forSenior: Boolean): List<Int> {
+    val kit = senior.equipment
+    if (kit == null || forSenior || senior.state !in setOf("accepted", "active")) return emptyList()
+    return listOfNotNull(
+        R.string.device_watch_never.takeIf { "watch" in kit && senior.watchState == null },
+        R.string.device_node_never.takeIf { "home_node" in kit },
+        R.string.device_app_never.takeIf { "smartphone" in kit && senior.appSignedIn == false }
+    )
+}
+
 /** The "call in progress" badge (UC-12); an older API that does not say shows none. */
 fun showsCallBadge(senior: SeniorPage): Boolean = senior.callInProgress == true

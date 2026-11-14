@@ -111,8 +111,26 @@ private fun Map<Field, String>.text(field: Field) = get(field).orEmpty().trim()
 
 private fun Map<Field, String>.optional(field: Field) = text(field).ifEmpty { null }
 
+/** „Echipamente” (UC-01, design 2026-11-14), in the order the server stores them. */
+val EQUIPMENT = listOf("smartphone", "watch", "home_node")
+
+/** What to send for the ticked boxes: a watch or a home node talks only to the phone's app. */
+fun equipmentOf(ticked: Set<String>): List<String> {
+    val needsApp = "watch" in ticked || "home_node" in ticked
+    return EQUIPMENT.filter { it in ticked || (it == "smartphone" && needsApp) }
+}
+
+/** The saved boxes; null while the equipment is not stated, which the form leaves as it is. */
+fun equipmentIn(page: SeniorPage): Set<String>? = page.equipment?.toSet()
+
+/**
+ * Whether the number can have the phone app: it signs in by SMS. shortcut: Romanian numbers
+ * only, as the form takes; the server's 422 has the last word.
+ */
+fun isMobile(raw: String): Boolean = toE164(raw.trim()).startsWith("+407")
+
 /** The registration as POST and PUT take it: trimmed, empty as null, the number as E.164. */
-fun bodyOf(values: Map<Field, String>) = SeniorForm(
+fun bodyOf(values: Map<Field, String>, equipment: Set<String>? = null) = SeniorForm(
     fullName = values.text(Field.FullName),
     formOfAddress = values.text(Field.FormOfAddress),
     phone = toE164(values.text(Field.Phone)),
@@ -125,7 +143,11 @@ fun bodyOf(values: Map<Field, String>) = SeniorForm(
     apartment = values.optional(Field.Apartment),
     intercomCode = values.optional(Field.Intercom),
     keyHolder = values.optional(Field.KeyHolder),
-    landmark = values.optional(Field.Landmark)
+    landmark = values.optional(Field.Landmark),
+    // A landline has no app, so none of the devices that talk to it (UC-01)
+    equipment = equipment?.let {
+        if (isMobile(values.text(Field.Phone))) equipmentOf(it) else emptyList()
+    }
 )
 
 fun caregiverOf(values: Map<Field, String>) = CaregiverForm(
@@ -164,11 +186,16 @@ sealed interface Save {
  * Steps 1 and 2 save: POST the first time, then PUT, so a second tap never makes a second draft
  * (SE14). Step 3's buttons call the API at once, so its „Continuă” sends nothing.
  */
-fun saveFor(step: Step, id: String?, values: Map<Field, String>): Save = when (step) {
+fun saveFor(
+    step: Step,
+    id: String?,
+    values: Map<Field, String>,
+    equipment: Set<String>? = null
+): Save = when (step) {
     Step.Senior, Step.Address -> if (id == null) {
-        Save.Create(bodyOf(values))
+        Save.Create(bodyOf(values, equipment))
     } else {
-        Save.Update(id, bodyOf(values))
+        Save.Update(id, bodyOf(values, equipment))
     }
 
     Step.Caregivers, Step.Review -> Save.None
