@@ -23,7 +23,9 @@ def test_briefing_without_quote():
         "doamna Maria", "Maria Popescu", None, "A cerut un operator (tasta 9)", None
     )
 
+    # No words to quote: DAS still hears why (spec §6, "else the reason itself")
     assert "A spus" not in said
+    assert "Motiv: A cerut un operator (tasta 9)." in said
 
 
 def test_briefing_with_nothing_but_a_name():

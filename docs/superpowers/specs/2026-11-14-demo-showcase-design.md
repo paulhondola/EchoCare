@@ -61,7 +61,7 @@ The user chose A.
 
 **Backend: `GET /calls/live`** (calls module, DAS only, 403 for others like the other DAS reads)
 
-Returns the calls in `CallState.ringing` or `in_progress`, plus `handed_over` calls whose newest turn is under 30 seconds old, for seniors the DAS caller reaches, newest first. `queued` is excluded: nothing is happening yet. *Builder's call, settled in review:* `begin_handover` sets `ended_at` the moment the hand-over starts (`calls/ending.py`, `finish()`), but the DAS leg keeps adding `das` turns through `/voice/handoff-transcript`. A recency window on turns keeps the hand-over on screen with no migration and no write on the call path.
+Returns the calls in `CallState.ringing` or `in_progress`, plus `handed_over` calls whose newest turn is under 90 seconds old (30 at first; raised in review: briefing, ring and DAS's first sentence can pass a minute), for seniors the DAS caller reaches, newest first. `queued` is excluded: nothing is happening yet. *Builder's call, settled in review:* `begin_handover` sets `ended_at` the moment the hand-over starts (`calls/ending.py`, `finish()`), but the DAS leg keeps adding `das` turns through `/voice/handoff-transcript`. A recency window on turns keeps the hand-over on screen with no migration and no write on the call path.
 
 ```json
 [{ "id": "…", "senior_id": "…", "senior_name": "Maria Popescu", "trigger": "campaign",

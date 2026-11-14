@@ -81,10 +81,11 @@ async def test_ringing_and_in_progress_calls_are_live(
 
 async def test_a_hand_over_stays_live_while_das_talks(client, db, maria):
     ended = datetime.now(UTC)
+    # Briefing, ring and DAS's first sentence can leave a minute without a turn
     talking = await add_call(db, maria, CallState.handed_over, ended_at=ended)
-    await add_turn(db, talking, seconds_ago=10)
+    await add_turn(db, talking, seconds_ago=60)
     quiet = await add_call(db, maria, CallState.handed_over, ended_at=ended)
-    await add_turn(db, quiet, seconds_ago=40)
+    await add_turn(db, quiet, seconds_ago=120)
     await add_call(db, maria, CallState.handed_over, ended_at=ended)
 
     assert await live_ids(client) == [str(talking.id)]

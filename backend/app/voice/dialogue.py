@@ -96,13 +96,16 @@ def briefing(
     reason: str | None,
     narrative: str | None,
 ) -> str:
-    """What the on-duty phone hears before a hand-over connects: who, where, her words,
-    the summary's first sentence (design 2026-11-14 §6). Missing parts are skipped."""
+    """What the on-duty phone hears before a hand-over connects: who, where, her words
+    (else the reason), the summary's first sentence (design 2026-11-14 §6). Missing parts
+    are skipped."""
     parts = ["Predare EchoCare.", f"{form_of_address}, {full_name}"]
     parts[-1] += f", {address}." if address else "."
     words = re.search(r"«([^»]+)»", reason or "")
     if words:
         parts.append(f"A spus: «{words[1]}».")
+    elif reason:
+        parts.append(f"Motiv: {reason.rstrip('.')}.")
     if narrative:
         first = re.split(r"(?<=[.!?])\s", narrative.strip(), maxsplit=1)[0]
         parts.append("Pe scurt: " + " ".join(first.split()[:BRIEFING_SUMMARY_WORDS]))

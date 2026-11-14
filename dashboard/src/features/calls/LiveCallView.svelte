@@ -63,9 +63,11 @@
     };
   });
 
-  // Keep the newest line in view
+  // Keep the newest line in view. Only a new line scrolls: each poll replaces `call`,
+  // and depending on it directly would yank the reader back down every second.
+  const turnCount = $derived(call?.turns.length ?? 0);
   $effect(() => {
-    void call?.turns.length;
+    void turnCount;
     void tick().then(() => scroller?.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }));
   });
 

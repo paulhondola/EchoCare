@@ -382,8 +382,9 @@ async def handoff_answered(
             log.info("hand-over for call %s: no open incident to take", call)
         await session.commit()
     except SQLAlchemyError, OSError:
-        # Still connect them: DAS is on the line.
+        # Still connect them: DAS is on the line, and the database is not asked again
         log.exception("hand-over answer for call %s: database unavailable", call)
+        return twiml("")
     # The briefing is never worth a failed connect; its text is health data, never logged
     try:
         text = await handover_briefing(session, call)
