@@ -433,6 +433,7 @@
 			baseConfigurationReference = EC000000000000000000E210 /* Base.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/EchoCare.entitlements;
+				DEVELOPMENT_TEAM = 9Q9ZGJ4A55;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/EchoCare-Info.plist";
@@ -468,6 +469,7 @@
 			baseConfigurationReference = EC000000000000000000E210 /* Base.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/EchoCare.entitlements;
+				DEVELOPMENT_TEAM = 9Q9ZGJ4A55;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/EchoCare-Info.plist";
@@ -503,6 +505,7 @@
 			baseConfigurationReference = EC000000000000000000E210 /* Base.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/EchoCareWatch.entitlements;
+				DEVELOPMENT_TEAM = 9Q9ZGJ4A55;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/EchoCareWatch-Info.plist";
@@ -530,6 +533,7 @@
 			baseConfigurationReference = EC000000000000000000E210 /* Base.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Config/EchoCareWatch.entitlements;
+				DEVELOPMENT_TEAM = 9Q9ZGJ4A55;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/EchoCareWatch-Info.plist";
