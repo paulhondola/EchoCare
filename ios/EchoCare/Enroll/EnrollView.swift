@@ -65,7 +65,10 @@ private struct Steps: View {
                 VStack(alignment: .leading, spacing: 16) {
                     StepHeader(step: model.step, wide: wide).id("top")
                     switch model.step {
-                    case .senior, .address:
+                    case .senior:
+                        Fields(model: model, fields: model.step.fields, values: model.values)
+                        EquipmentSection(model: model)
+                    case .address:
                         Fields(model: model, fields: model.step.fields, values: model.values)
                     case .caregivers: CaregiversStep(model: model)
                     case .review:
@@ -133,6 +136,54 @@ private struct StepName: View {
 }
 
 /// Text fields. A field over its limit says so; the server's refusals say the rest (§9.3).
+/// „Echipamente” (UC-01, design 2026-11-14). The phone is ticked and locked while a watch or a
+/// home node is, as both talk only to it; a landline can have none of them.
+private struct EquipmentSection: View {
+    let model: EnrollModel
+
+    private static let labels = [
+        "smartphone": "equipment_smartphone", "watch": "equipment_watch",
+        "home_node": "equipment_home_node",
+    ]
+
+    var body: some View {
+        let mobile = isMobile(model.values[.phone] ?? "")
+        let ticked = model.equipment ?? []
+        let needsApp = ticked.contains("watch") || ticked.contains("home_node")
+        VStack(alignment: .leading, spacing: 4) {
+            SectionLabel("equipment_title")
+            if model.equipment == nil {
+                Text("equipment_unstated").textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgMuted)
+            }
+            ForEach(EQUIPMENT, id: \.self) { item in
+                let locked = item == "smartphone" && needsApp
+                let on = mobile && (ticked.contains(item) || locked)
+                Button {
+                    model.tick(item, !on)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: on ? "checkmark.square.fill" : "square")
+                            .font(.system(size: 20))
+                            .foregroundStyle(on ? Theme.link : Theme.fgMuted)
+                            .frame(width: 48, height: 48)
+                        Text(LocalizedStringKey(Self.labels[item] ?? item)).textStyle(
+                            Theme.bodyLarge
+                        ).foregroundStyle(Theme.fg)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!mobile || locked)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            if !mobile {
+                Text("equipment_landline").textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgMuted)
+            }
+        }
+    }
+}
+
 private struct Fields: View {
     let model: EnrollModel
     let fields: [Field]

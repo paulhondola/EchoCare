@@ -145,6 +145,47 @@ struct FormTests {
         #expect(saveFor(.senior, id: "s1", step1) == .update(id: "s1", bodyOf(step1)))
     }
 
+    // „Echipamente” (UC-01, design 2026-11-14)
+    private var mobile: [Field: String] { step1.merging([.phone: "0722 111 222"]) { $1 } }
+
+    @Test func `a watch or a home node brings the phone app in order`() {
+        #expect(equipmentOf(["watch"]) == ["smartphone", "watch"])
+        #expect(equipmentOf(["home_node", "watch"]) == ["smartphone", "watch", "home_node"])
+        #expect(equipmentOf(["smartphone"]) == ["smartphone"])
+        #expect(equipmentOf([]) == [])
+    }
+
+    @Test func `the equipment travels in the body only once stated`() {
+        #expect(bodyOf(mobile).equipment == nil)
+        #expect(bodyOf(mobile, equipment: []).equipment == [])
+        #expect(bodyOf(mobile, equipment: ["watch"]).equipment == ["smartphone", "watch"])
+        #expect(
+            saveFor(.senior, id: nil, mobile, equipment: ["watch"])
+                == .create(bodyOf(mobile, equipment: ["watch"])))
+    }
+
+    @Test func `a landline sends no equipment the server would refuse`() {
+        #expect(bodyOf(step1, equipment: ["watch"]).equipment == [])
+        #expect(isMobile("0722 111 222"))
+        #expect(!isMobile("0256 123 456"))
+    }
+
+    @Test func `equipment not stated is left out so the server keeps it`() throws {
+        let unstated = try ApiClient.makeEncoder().encode(bodyOf(mobile))
+        let json = try #require(try JSONSerialization.jsonObject(with: unstated) as? [String: Any])
+        #expect(json["equipment"] == nil)
+        let ticked = try ApiClient.makeEncoder().encode(bodyOf(mobile, equipment: ["watch"]))
+        let sent = try #require(try JSONSerialization.jsonObject(with: ticked) as? [String: Any])
+        #expect(sent["equipment"] as? [String] == ["smartphone", "watch"])
+    }
+
+    @Test func `a saved seniors equipment fills the form`() {
+        #expect(equipmentIn(page) == nil)
+        var declared = page
+        declared.equipment = ["smartphone", "watch"]
+        #expect(equipmentIn(declared) == ["smartphone", "watch"])
+    }
+
     @Test func `step 2 sends the whole registration`() {
         #expect(saveFor(.address, id: "s1", all) == .update(id: "s1", body))
     }

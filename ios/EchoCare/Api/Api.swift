@@ -99,6 +99,10 @@ struct SeniorPage: Codable, Equatable, Sendable {
     // The watch's state and latest pulse (UC-03, UC-12). Nil before the first check-in or for DAS.
     var watchState: String?
     var lastPulse: Int?
+    // What the medic declared, nil when not stated, and whether her own phone's app has ever
+    // signed in; both nil from an older API (UC-13, design 2026-11-14).
+    var equipment: [String]?
+    var appSignedIn: Bool?
     // The timeline of the registration and of her consent (04 §1, G7); all nil from an older API.
     var createdAt: String?
     var submittedAt: String?
@@ -115,7 +119,7 @@ struct SeniorPage: Codable, Equatable, Sendable {
         case code, reason, since, street, streetNumber, block, staircase, floor, apartment
         case intercomCode, keyHolder, landmark, callWindow, medic, caregivers, callInProgress
         case watchState, lastPulse, createdAt, submittedAt, acceptedAt, consent, consentGivenAt
-        case signedAt
+        case signedAt, equipment, appSignedIn
     }
 
     init(
@@ -193,6 +197,8 @@ struct SeniorPage: Codable, Equatable, Sendable {
         consent = try c.decodeIfPresent(ConsentState.self, forKey: .consent)
         consentGivenAt = try c.decodeIfPresent(String.self, forKey: .consentGivenAt)
         signedAt = try c.decodeIfPresent(String.self, forKey: .signedAt)
+        equipment = try c.decodeIfPresent([String].self, forKey: .equipment)
+        appSignedIn = try c.decodeIfPresent(Bool.self, forKey: .appSignedIn)
     }
 }
 
@@ -255,10 +261,13 @@ struct SeniorForm: Codable, Equatable, Sendable {
     var intercomCode: String?
     var keyHolder: String?
     var landmark: String?
+    // smartphone, watch, home_node as the medic ticked them; nil is left out, so the server keeps
+    // what it holds (design 2026-11-14)
+    var equipment: [String]? = nil
 
     enum CodingKeys: String, CodingKey {
         case fullName, formOfAddress, phone, callWindow, street, streetNumber, block, staircase
-        case floor, apartment, intercomCode, keyHolder, landmark
+        case floor, apartment, intercomCode, keyHolder, landmark, equipment
     }
 
     func encode(to encoder: Encoder) throws {
@@ -277,6 +286,7 @@ struct SeniorForm: Codable, Equatable, Sendable {
         try c.encode(intercomCode, forKey: .intercomCode)
         try c.encode(keyHolder, forKey: .keyHolder)
         try c.encode(landmark, forKey: .landmark)
+        try c.encodeIfPresent(equipment, forKey: .equipment)
     }
 }
 
