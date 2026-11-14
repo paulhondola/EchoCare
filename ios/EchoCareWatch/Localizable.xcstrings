@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ro",
   "strings" : {
+    "all_good" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Totul e în regulă"
+          }
+        }
+      }
+    },
     "app_name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -67,17 +78,6 @@
         }
       }
     },
-    "call_me_sending" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se trimite…"
-          }
-        }
-      }
-    },
     "force_fall" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -125,13 +125,13 @@
         }
       }
     },
-    "heart_rate" : {
+    "heart_rate_plain" : {
       "extractionState" : "manual",
       "localizations" : {
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Puls: %1$lld bpm"
+            "value" : "Puls %1$lld"
           }
         }
       }
@@ -143,17 +143,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Puls: se măsoară…"
-          }
-        }
-      }
-    },
-    "monitor_active" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Monitorizare activă"
           }
         }
       }
