@@ -1,5 +1,7 @@
 package ro.echocare.home
 
+import ro.echocare.RoomInfo
+
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -49,6 +51,16 @@ fun watchChip(state: String?): Pair<Int, Tone>? = when (state) {
     "not_worn" -> R.string.watch_not_worn to Tone.Galben
     "offline" -> R.string.watch_offline to Tone.Galben
     else -> null
+}
+
+/**
+ * The room chip on the senior's page (P20, P26): its tone, and whether the sensor is offline.
+ * Past a limit is yellow, like every sensor trigger (03 §2); about to be, or in range, is muted.
+ */
+fun roomTone(room: RoomInfo): Tone = when {
+    room.state == "offline" -> Tone.Galben
+    room.roomState == "cold" || room.roomState == "hot" -> Tone.Galben
+    else -> Tone.Muted
 }
 
 /** The "call in progress" badge (UC-12); an older API that does not say shows none. */

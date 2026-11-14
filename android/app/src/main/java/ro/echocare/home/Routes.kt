@@ -30,6 +30,10 @@ data object ProfileRoute
 @Serializable
 data object OwnRoute
 
+/** The senior's home node: connect it, see the room, forget it (UC-15). */
+@Serializable
+data object NodeRoute
+
 /** The DAS home: open and in-progress incidents (UC-12). */
 @Serializable
 data object IncidentsRoute
@@ -132,6 +136,7 @@ val TRIGGER_LABELS = mapOf(
     "campaign" to R.string.trigger_campaign,
     "watch" to R.string.trigger_watch,
     "manual" to R.string.trigger_manual,
+    "home_node" to R.string.trigger_home_node,
     "welcome" to R.string.trigger_welcome
 )
 
@@ -141,7 +146,9 @@ val EVENT_LABELS = mapOf(
     "fall" to R.string.event_fall,
     "high_pulse_at_rest" to R.string.event_high_pulse_at_rest,
     "inactivity" to R.string.event_inactivity,
-    "manual_request" to R.string.event_manual_request
+    "manual_request" to R.string.event_manual_request,
+    "room_cold" to R.string.event_room_cold,
+    "room_heat" to R.string.event_room_heat
 )
 
 /** A call's state (05 §1), for a call with no final code yet. Unknown: shown as it is. */

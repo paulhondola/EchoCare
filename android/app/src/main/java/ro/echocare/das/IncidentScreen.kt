@@ -1,5 +1,7 @@
 package ro.echocare.das
 
+import java.util.Locale
+
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.compose.foundation.background
@@ -297,8 +299,29 @@ private fun Event(event: ro.echocare.TriggerEvent) {
             Value(EVENT_LABELS[event.type]?.let { stringResource(it) } ?: event.type)
         }
         val place = location(event)
-        FieldRow(stringResource(R.string.event_measured_at), last = place == null) {
+        val spot = floorSpot(event)
+        FieldRow(
+            stringResource(R.string.event_measured_at),
+            last = place == null && spot == null
+        ) {
             Text(local(event.measuredAt, dated), style = Mono)
+        }
+        spot?.let {
+            FieldRow(stringResource(R.string.event_where), last = place == null) {
+                Value(
+                    stringResource(
+                        R.string.event_floor,
+                        String.format(Locale.forLanguageTag("ro"), "%.1f", it.metres),
+                        stringResource(
+                            when (it.side) {
+                                Side.Left -> R.string.side_left
+                                Side.Front -> R.string.side_front
+                                Side.Right -> R.string.side_right
+                            }
+                        )
+                    )
+                )
+            }
         }
         place?.let {
             FieldRow(stringResource(R.string.event_location), last = true) {

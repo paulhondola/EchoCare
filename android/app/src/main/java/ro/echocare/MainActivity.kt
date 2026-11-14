@@ -1,5 +1,7 @@
 package ro.echocare
 
+import ro.echocare.homenode.NodeService
+
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -77,6 +79,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The home node's relay, when this phone has one (UC-15); started while in front
+        NodeService.start(this)
         // Not again after a rotation, once opened: its page is on the back stack already
         if (savedInstanceState?.getBoolean(ALERT_OPENED) != true) opening = alertIn(intent)
         // One dark theme (spec 07 §2.1): light status and navigation icons whatever the system uses

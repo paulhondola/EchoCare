@@ -1,5 +1,7 @@
 package ro.echocare.home
 
+import ro.echocare.homenode.NodeScreen
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -109,8 +111,12 @@ fun HomeNav(
                         // By route, as EnrollRoute: a second tap never pops the home
                         onBack = { nav.popBackStack<ProfileRoute>(inclusive = true) },
                         onPickRole = onPickRole,
-                        onSignOut = onSignOut
+                        onSignOut = onSignOut,
+                        onOpenNode = { nav.navigate(NodeRoute) }
                     )
+                }
+                composable<NodeRoute> {
+                    NodeScreen(onBack = { nav.popBackStack<NodeRoute>(inclusive = true) })
                 }
                 composable<OwnRoute> {
                     SeniorScreen(id = null, onBack = null, menu = menu, onSessionEnd = onSessionEnd)

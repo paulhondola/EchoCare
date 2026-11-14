@@ -1,5 +1,8 @@
 package ro.echocare.home
 
+import java.util.Locale
+import ro.echocare.homenode.ROOM_STATE_LABELS
+
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -389,6 +392,19 @@ fun SeniorDetails(
                         stringResource(label)
                     }
                     Chip(text, tone)
+                }
+                senior.room?.let { room ->
+                    val text = if (room.state == "offline") {
+                        stringResource(R.string.room_chip_offline)
+                    } else {
+                        stringResource(
+                            R.string.room_chip,
+                            String.format(Locale.forLanguageTag("ro"), "%.1f", room.temperature),
+                            ROOM_STATE_LABELS[room.roomState]?.let { stringResource(it) }
+                                ?: room.roomState
+                        )
+                    }
+                    Chip(text, roomTone(room))
                 }
             }
         }

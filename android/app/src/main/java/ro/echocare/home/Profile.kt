@@ -64,7 +64,8 @@ fun ProfileScreen(
     phone: String?,
     onBack: () -> Unit,
     onPickRole: (String) -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onOpenNode: (() -> Unit)? = null
 ) {
     // Its own square would open this page again
     CompositionLocalProvider(LocalOpenProfile provides null) {
@@ -85,6 +86,15 @@ fun ProfileScreen(
                 }
                 SectionLabel(stringResource(R.string.notifications), Modifier.padding(top = 16.dp))
                 Alerts()
+                // The home node is the senior's (UC-15): only her phone relays it
+                if (onOpenNode != null && "senior" in home.roles) {
+                    SectionLabel(stringResource(R.string.node_title), Modifier.padding(top = 16.dp))
+                    SnButton(
+                        stringResource(R.string.node_connect),
+                        onOpenNode,
+                        Modifier.fillMaxWidth()
+                    )
+                }
                 SnButton(
                     stringResource(R.string.sign_out),
                     onSignOut,
