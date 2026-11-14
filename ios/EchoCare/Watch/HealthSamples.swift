@@ -4,6 +4,9 @@ import HealthKit
 // Conversions from the watch's Apple Health readings to the API's units (04 §3, ADR-008). Pure
 // functions: the HealthKit queries live elsewhere.
 
+/// The most points the API accepts in one trace (04 §3).
+private let maxTracePoints = 1_280
+
 /// HealthKit's blood oxygen is a fraction (0.97); the API wants whole percent.
 func spo2Percent(_ fraction: Double) -> Int {
     Int((fraction * 100).rounded())
@@ -24,7 +27,7 @@ func classificationName(_ c: HKElectrocardiogram.Classification) -> String {
 }
 
 /// The first `seconds` of an ECG, averaged down to about `targetHz` and in microvolts (clamped to
-/// ±10 mV), so the trace stays small enough to post. Nil when there is nothing to send.
+/// ±10 mV), at most `maxTracePoints` long so the API takes it. Nil when there is nothing to send.
 func shortenTrace(
     volts: [Double], hz: Double, seconds: Double = 10, targetHz: Double = 128
 ) -> (trace: [Int], hz: Int)? {
@@ -35,7 +38,7 @@ func shortenTrace(
         let mean = head.dropFirst(start).prefix(factor).reduce(0, +) / Double(factor)
         return Int(max(-10_000, min(10_000, (mean * 1_000_000).rounded())))
     }
-    return (trace, Int((hz / Double(factor)).rounded()))
+    return (Array(trace.prefix(maxTracePoints)), Int((hz / Double(factor)).rounded()))
 }
 
 /// ISO-8601 with fractional seconds, as the watch's events carry.

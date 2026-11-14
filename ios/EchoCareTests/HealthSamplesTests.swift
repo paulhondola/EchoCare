@@ -44,6 +44,11 @@ struct HealthSamplesTests {
         #expect(r.trace.count == 1_280)
     }
 
+    @Test func capsAt1280Points() {
+        let r = shortenTrace(volts: Array(repeating: 0, count: 3_000), hz: 300)!
+        #expect(r.trace.count == 1_280)
+    }
+
     @Test func emptyVoltagesGiveNoTrace() {
         #expect(shortenTrace(volts: [], hz: 512) == nil)
     }
