@@ -49,7 +49,7 @@ from typing import Any
 # Run as a file, Python puts scripts/ on the path, not the folder that holds app/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -343,6 +343,8 @@ EQUIPMENT: dict[str, list[str]] = {
     "teodor": [],
     "silvia": ["smartphone"],
 }
+# Their app never signed in: „Pacientul nu a deschis aplicația”
+NEVER_OPENED = {seed_id("senior", key) for key in ("aurelia", "silvia")}
 
 
 def people() -> list[Person]:
@@ -2414,6 +2416,19 @@ async def save(session: AsyncSession, history: History) -> None:
             landline=senior.phone_is_landline,
             granted_by=senior.medic_id,
         )
+    # A watch reaches us only through her phone's app (G5), so a senior with the app has
+    # signed in, except the two that show the warning; a real sign-in already there stays
+    # (design 2026-11-14)
+    for senior in history.seniors.values():
+        kit = senior.equipment or []
+        if "smartphone" in kit and senior.id not in NEVER_OPENED:
+            await session.execute(
+                update(User)
+                .where(
+                    User.phone_e164 == senior.phone_e164, User.firebase_uid.is_(None)
+                )
+                .values(firebase_uid=f"seed-{senior.id}")
+            )
     # A mobile already another senior's gets no grant of its own (AL7).
     seniors = {s.id: s for s in history.seniors.values()}
     granted = set(
