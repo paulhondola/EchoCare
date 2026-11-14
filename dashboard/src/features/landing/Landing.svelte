@@ -207,6 +207,27 @@
       </figure>
     </section>
 
+    <!-- 60/h = 3 calls at once × one call per ~3 minutes (06 §3); 275/15 from the hackathon brief -->
+    <section aria-labelledby="impact-title" class="border-t border-line">
+      <h2 id="impact-title" class="sr-only">Azi și cu EchoCare</h2>
+      <div class="mx-auto grid max-w-[1200px] md:grid-cols-2">
+        <div class="border-line px-4 py-8 sm:px-7 md:border-r">
+          <span class="sn-label">Azi</span>
+          <p class="mt-2 text-[28px] leading-tight font-extrabold tracking-[-0.015em] text-fg-soft">
+            15 voluntari · 275 de seniori pe săptămână
+          </p>
+          <p class="mt-2 text-[13px] text-fg-muted">Telefonul Vârstnicului, 2025</p>
+        </div>
+        <div class="border-t border-line px-4 py-8 sm:px-7 md:border-t-0">
+          <span class="sn-label text-rosu-fg">Cu EchoCare</span>
+          <p class="mt-2 text-[28px] leading-tight font-extrabold tracking-[-0.015em]">
+            3 linii · până la 60 de apeluri pe oră
+          </p>
+          <p class="mt-2 text-[13px] text-fg-muted">în timpul unui cod roșu</p>
+        </div>
+      </div>
+    </section>
+
     <section aria-labelledby="does-title" class="border-t border-line">
       <h2 id="does-title" class="sr-only">Ce face EchoCare singur</h2>
       <div class="mx-auto grid max-w-[1200px] sm:grid-cols-2 lg:grid-cols-4">
