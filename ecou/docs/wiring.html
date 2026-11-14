@@ -102,7 +102,7 @@ line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dh
 <div class="wrap">
   <header>
     <h1>Cablaj Ecou</h1>
-    <p>Un Arduino UNO Q, un HC-SR04, un DHT11, un servo SG90 și afișajul 5641AS. Pinii sunt cei din <span class="mono">ecou/app/sketch/sketch.ino</span>. Verifică numele pinilor pe serigrafia plăcii înainte să legi.</p>
+    <p>Un Arduino UNO Q, un HC-SR04, un DHT11, două servo-uri SG90 și afișajul 5641AS. Pinii sunt cei din <span class="mono">ecou/app/sketch/sketch.ino</span>. Verifică numele pinilor pe serigrafia plăcii înainte să legi.</p>
   </header>
 
   <section>
@@ -129,12 +129,12 @@ line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dh
 <rect x="241" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
 <text x="250" y="134" class="pinname" text-anchor="middle">D11</text>
 <text x="250" y="92" class="pinlabel l-disp" transform="rotate(-55 250 92)">Seg D</text>
-<rect x="271" y="99" width="18" height="18" rx="2" class="pin k-later"/>
+<rect x="271" y="99" width="18" height="18" rx="2" class="pin k-servo"/>
 <text x="280" y="134" class="pinname" text-anchor="middle">D10</text>
-<text x="280" y="92" class="pinlabel l-later" transform="rotate(-55 280 92)">Tilt</text>
+<text x="280" y="92" class="pinlabel l-servo" transform="rotate(-55 280 92)">Tilt</text>
 <rect x="301" y="99" width="18" height="18" rx="2" class="pin k-servo"/>
 <text x="310" y="134" class="pinname" text-anchor="middle">D9</text>
-<text x="310" y="92" class="pinlabel l-servo" transform="rotate(-55 310 92)">Servo</text>
+<text x="310" y="92" class="pinlabel l-servo" transform="rotate(-55 310 92)">Pan</text>
 <rect x="331" y="99" width="18" height="18" rx="2" class="pin k-us"/>
 <text x="340" y="134" class="pinname" text-anchor="middle">D8</text>
 <text x="340" y="92" class="pinlabel l-us" transform="rotate(-55 340 92)">Echo ÷</text>
@@ -171,7 +171,7 @@ line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dh
 <text x="220" y="256" class="pinlabel l-p3" transform="rotate(55 220 256)">DHT11</text>
 <rect x="241" y="223" width="18" height="18" rx="2" class="pin k-p5"/>
 <text x="250" y="215" class="pinname" text-anchor="middle">5V</text>
-<text x="250" y="256" class="pinlabel l-p5" transform="rotate(55 250 256)">US, servo</text>
+<text x="250" y="256" class="pinlabel l-p5" transform="rotate(55 250 256)">US, servo-uri</text>
 <rect x="271" y="223" width="18" height="18" rx="2" class="pin k-gnd"/>
 <text x="280" y="215" class="pinname" text-anchor="middle">GND</text>
 <rect x="301" y="223" width="18" height="18" rx="2" class="pin k-gnd"/>
@@ -205,7 +205,7 @@ line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dh
       <span><i style="background:var(--w5v)"></i>5V</span>
       <span><i style="background:var(--w3v3)"></i>3V3</span>
       <span><i style="background:var(--wgnd)"></i>GND</span>
-      <span><i style="background:var(--wlater);"></i>Pentru servo-uri de mai târziu</span>
+      <span><i style="background:var(--wlater);"></i>Pentru brațul de mai târziu</span>
       <span><i style="background:var(--wavoid)"></i>Liberi, dar nu-i folosi</span>
     </div>
   </section>
@@ -274,26 +274,31 @@ line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dh
 </svg>
       </article>
       <article class="card">
-        <h3>SG90, gâtul</h3>
-        <p>Un singur servo merge de la 5V-ul plăcii. Pune un condensator de 100–470 µF între 5V și GND lângă servo, dacă ai, ca placa să nu se reseteze când pornește motorul.</p>
-        <svg viewBox="0 0 640 154" class="card-svg" role="img" aria-label="SG90 (pan)">
-<rect x="16" y="14" width="150" height="126" rx="6" class="part"/>
-<text x="28" y="34" class="parttitle">SG90 (pan)</text>
-<text x="152" y="67.0" class="pp" text-anchor="end">roșu</text>
+        <h3>Două SG90, gâtul</h3>
+        <p>Pan (stânga-dreapta) pe D9, tilt (sus-jos) pe D10. Firele roșii și maro ale ambelor merg împreună pe 5V și GND. Pune un condensator de 100–470 µF între 5V și GND lângă ele, dacă ai. Dacă placa se resetează când se mișcă amândouă, servo-urile trec pe o sursă de 5 V separată, cu GND-ul legat la GND-ul plăcii.</p>
+        <svg viewBox="0 0 640 192" class="card-svg" role="img" aria-label="2 × SG90">
+<rect x="16" y="14" width="150" height="164" rx="6" class="part"/>
+<text x="28" y="34" class="parttitle">2 × SG90</text>
+<text x="152" y="67.0" class="pp" text-anchor="end">roșu, ambele</text>
 <circle cx="166" cy="63.0" r="3.5" class="dot w-5v"/>
 <line x1="166" y1="63.0" x2="486" y2="63.0" class="wire w-5v"/>
 <rect x="486" y="51.0" width="120" height="24" rx="4" class="bpin w-5v-b"/>
 <text x="546" y="68.0" class="bp" text-anchor="middle">5V</text>
-<text x="152" y="105.0" class="pp" text-anchor="end">portocaliu</text>
+<text x="152" y="105.0" class="pp" text-anchor="end">portocaliu, pan</text>
 <circle cx="166" cy="101.0" r="3.5" class="dot w-servo"/>
 <line x1="166" y1="101.0" x2="486" y2="101.0" class="wire w-servo"/>
 <rect x="486" y="89.0" width="120" height="24" rx="4" class="bpin w-servo-b"/>
 <text x="546" y="106.0" class="bp" text-anchor="middle">D9</text>
-<text x="152" y="143.0" class="pp" text-anchor="end">maro</text>
-<circle cx="166" cy="139.0" r="3.5" class="dot w-gnd"/>
-<line x1="166" y1="139.0" x2="486" y2="139.0" class="wire w-gnd"/>
-<rect x="486" y="127.0" width="120" height="24" rx="4" class="bpin w-gnd-b"/>
-<text x="546" y="144.0" class="bp" text-anchor="middle">GND</text>
+<text x="152" y="143.0" class="pp" text-anchor="end">portocaliu, tilt</text>
+<circle cx="166" cy="139.0" r="3.5" class="dot w-servo"/>
+<line x1="166" y1="139.0" x2="486" y2="139.0" class="wire w-servo"/>
+<rect x="486" y="127.0" width="120" height="24" rx="4" class="bpin w-servo-b"/>
+<text x="546" y="144.0" class="bp" text-anchor="middle">D10</text>
+<text x="152" y="181.0" class="pp" text-anchor="end">maro, ambele</text>
+<circle cx="166" cy="177.0" r="3.5" class="dot w-gnd"/>
+<line x1="166" y1="177.0" x2="486" y2="177.0" class="wire w-gnd"/>
+<rect x="486" y="165.0" width="120" height="24" rx="4" class="bpin w-gnd-b"/>
+<text x="546" y="182.0" class="bp" text-anchor="middle">GND</text>
 </svg>
       </article>
       <article class="card wide">
@@ -459,7 +464,7 @@ line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dh
     <ol class="checks">
       <li><div><b>Fără alimentare, pe continuitate:</b> fiecare fir de la pinul piesei la pinul plăcii. Între 5V și GND nu trebuie să sune.</div></li>
       <li><div><b>Divizorul, fără alimentare:</b> între Echo și firul care merge la D8 măsori ~1 kΩ, iar între acel fir și GND ~2 kΩ. Dacă sunt inversate, pe D8 ajung peste 3,3 V.</div></li>
-      <li><div><b>Cu servo-ul:</b> tensiunea pe 5V cât timp se mișcă. Sub ~4,5 V placa se poate reseta; atunci servo-ul trece pe o sursă separată, cu GND comun.</div></li>
+      <li><div><b>Cu servo-urile:</b> tensiunea pe 5V cât timp se mișcă amândouă. Sub ~4,5 V placa se poate reseta; atunci servo-ul trece pe o sursă separată, cu GND comun.</div></li>
       <li><div><b>Afișajul:</b> pe modul diodă, + pe pinul 11 (A) și − pe pinul 12 (cifra 1) aprinde segmentul A al primei cifre. Dacă nu, verifică orientarea.</div></li>
       <li><div><b>Apoi testul de pornire</b> din App Lab, și trimite ce scrie în consolă.</div></li>
     </ol>

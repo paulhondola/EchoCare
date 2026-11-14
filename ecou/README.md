@@ -7,12 +7,12 @@ The home node built as a small robot on an Arduino UNO Q, for the hackathon. The
 | `app/` | The App Lab app: `sketch/` runs on the UNO Q's STM32, `python/` on its Linux side. Today it is the bring-up test (08 §8, step 1) |
 | `spikes/s14_ble_node.py` | Spike S14: the UNO Q's Linux side as the home node's BLE GATT server |
 | `docs/wiring.html` | The wiring diagram: pin map, one schematic per part, the multimeter checks. Open it in a browser |
-| `docs/assembly.html` | How the robot goes together: front, side and top views, and the build steps for the one-servo build |
+| `docs/assembly.html` | How the robot goes together: front, side and top views, and the build steps for the pan and tilt build |
 
 ## Bring-up test
 
 1. Wire the parts as in [docs/wiring.html](docs/wiring.html) (08 §1 in words). One servo can take the board's 5V. With two or three, power them from their own 5 V supply and join its GND to the board's GND.
-2. The pins are set at the top of `app/sketch/sketch.ino`. `PIN_TILT` and `PIN_ARM` stay `-1` until those servos are fitted.
+2. The pins are set at the top of `app/sketch/sketch.ino`. The tilt servo is on D10; `PIN_ARM` stays `-1` until the arm is fitted, and `PIN_TILT` goes back to `-1` for the one-servo build.
 3. In App Lab, create an app and copy `app.yaml`, `sketch/` and `python/` into it. The sketch needs the Servo library 1.3.0 or later, the first release with Zephyr support. `sketch.yaml` asks for it.
 4. Run it. The console prints each step, what you should see on the robot, and the measurements:
    - **Matrix**: every face for a second.

@@ -83,7 +83,7 @@ svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
 <div class="wrap">
   <header>
     <h1>Asamblare Ecou</h1>
-    <p>Varianta cu un singur servo: o cutie de carton ca trup, Arduino UNO Q pe față cu matricea pe post de chip, ultrasonicul pe servo pe post de cap. Cablajul e în <span class="mono">ecou/docs/wiring.html</span>. Cotele sunt orientative.</p>
+    <p>Varianta cu două servo-uri: o cutie de carton ca trup, Arduino UNO Q pe față cu matricea pe post de chip, iar ultrasonicul pe un gât din două servo-uri pe post de cap. Primul servo rotește stânga-dreapta (pan), al doilea înclină capul sus-jos (tilt). Cablajul e în <span class="mono">ecou/docs/wiring.html</span>. Cotele sunt orientative.</p>
   </header>
 
   <section>
@@ -122,18 +122,24 @@ svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
           <line x1="310" y1="262" x2="326" y2="262" class="cable"/>
           <rect x="326" y="246" width="20" height="30" rx="2" class="dht"/>
           <line x1="330" y1="252" x2="342" y2="252" class="dht-grid"/><line x1="330" y1="258" x2="342" y2="258" class="dht-grid"/><line x1="330" y1="264" x2="342" y2="264" class="dht-grid"/><line x1="330" y1="270" x2="342" y2="270" class="dht-grid"/>
-          <!-- servo -->
+          <!-- pan servo in the lid -->
           <rect x="192" y="180" width="36" height="28" rx="2" class="servo"/>
           <rect x="184" y="196" width="52" height="5" rx="1" class="servo"/>
-          <rect x="203" y="172" width="14" height="9" class="horn"/>
+          <rect x="196" y="172" width="28" height="8" class="horn"/>
+          <!-- tilt servo lying on the pan horn, shaft to the right -->
+          <rect x="186" y="140" width="40" height="32" rx="2" class="servo"/>
+          <rect x="226" y="146" width="8" height="20" class="horn"/>
+          <!-- bracket from the tilt horn up to the head -->
+          <path d="M234 148 H242 V122 H236 V160 H234 Z" class="box"/>
           <!-- head: HC-SR04 -->
-          <rect x="150" y="118" width="120" height="54" rx="3" class="sensor"/>
-          <circle cx="180" cy="145" r="19" class="eye"/><circle cx="180" cy="145" r="12" class="eye-in"/>
-          <circle cx="240" cy="145" r="19" class="eye"/><circle cx="240" cy="145" r="12" class="eye-in"/>
-          <rect x="203" y="124" width="14" height="7" rx="1" class="usb"/>
+          <rect x="150" y="68" width="120" height="54" rx="3" class="sensor"/>
+          <circle cx="180" cy="95" r="19" class="eye"/><circle cx="180" cy="95" r="12" class="eye-in"/>
+          <circle cx="240" cy="95" r="19" class="eye"/><circle cx="240" cy="95" r="12" class="eye-in"/>
+          <rect x="203" y="74" width="14" height="7" rx="1" class="usb"/>
           <!-- labels -->
-          <path d="M150 145 H70" class="lead"/><text x="24" y="138" class="lbl">Capul</text><text x="24" y="152" class="sub">HC-SR04, „ochii”</text>
-          <path d="M192 194 H70" class="lead"/><text x="24" y="190" class="lbl">Gâtul</text><text x="24" y="204" class="sub">SG90, ax în sus</text>
+          <path d="M150 95 H70" class="lead"/><text x="24" y="88" class="lbl">Capul</text><text x="24" y="102" class="sub">HC-SR04, „ochii”</text>
+          <path d="M186 156 H70" class="lead"/><text x="24" y="150" class="lbl">Tilt</text><text x="24" y="164" class="sub">SG90 culcat, D10</text>
+          <path d="M192 194 H70" class="lead"/><text x="24" y="190" class="lbl">Pan</text><text x="24" y="204" class="sub">SG90, ax în sus, D9</text>
           <path d="M143 262 H70" class="lead"/><text x="24" y="256" class="lbl">Fața</text><text x="24" y="270" class="sub">UNO Q, matricea</text>
           <path d="M168 326 H70" class="lead"/><text x="24" y="320" class="lbl">Burta</text><text x="24" y="334" class="sub">5641AS</text>
           <path d="M346 261 H360" class="lead"/><text x="362" y="248" class="lbl">DHT11</text><text x="362" y="262" class="sub">la 5 cm</text><text x="362" y="275" class="sub">de placă</text>
@@ -146,10 +152,13 @@ svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
         <svg viewBox="0 0 420 380" role="img" aria-label="Ecou văzut din lateral, fața spre dreapta">
           <line x1="20" y1="350" x2="400" y2="350" class="ground"/>
           <g class="hatch"><line x1="40" y1="350" x2="30" y2="362"/><line x1="80" y1="350" x2="70" y2="362"/><line x1="120" y1="350" x2="110" y2="362"/><line x1="160" y1="350" x2="150" y2="362"/><line x1="200" y1="350" x2="190" y2="362"/><line x1="240" y1="350" x2="230" y2="362"/><line x1="280" y1="350" x2="270" y2="362"/><line x1="320" y1="350" x2="310" y2="362"/><line x1="360" y1="350" x2="350" y2="362"/><line x1="400" y1="350" x2="390" y2="362"/></g>
-          <!-- beam -->
-          <path d="M276 145 L410 127 L410 163 Z" class="beam-fill"/>
-          <path d="M276 145 L410 127 M276 145 L410 163" class="beam"/>
-          <text x="404" y="120" class="sub" text-anchor="end">fascicul ~15°</text>
+          <!-- beam: level when tracking, tilted down when searching the floor -->
+          <path d="M282 100 L410 84 L410 118 Z" class="beam-fill"/>
+          <path d="M282 100 L410 84 M282 100 L410 118" class="beam"/>
+          <path d="M282 104 L410 176 L410 210 Z" class="beam-fill"/>
+          <path d="M282 104 L410 176 M282 104 L410 210" class="beam"/>
+          <text x="404" y="78" class="sub" text-anchor="end">Look: drept</text>
+          <text x="404" y="228" class="sub" text-anchor="end">Search: spre podea</text>
           <!-- box, front on the right -->
           <rect x="120" y="208" width="140" height="142" rx="3" class="box"/>
           <line x1="120" y1="216" x2="260" y2="216" class="lid"/>
@@ -161,28 +170,29 @@ svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
           <!-- DHT11 at the back -->
           <line x1="120" y1="262" x2="104" y2="262" class="cable"/>
           <rect x="84" y="246" width="20" height="30" rx="2" class="dht"/>
-          <!-- servo near the front of the lid -->
+          <!-- pan servo near the front of the lid -->
           <rect x="208" y="176" width="40" height="32" rx="2" class="servo"/>
           <rect x="202" y="196" width="52" height="5" rx="1" class="servo"/>
           <line x1="236" y1="176" x2="236" y2="168" stroke="var(--ink)" stroke-width="3"/>
           <rect x="216" y="163" width="36" height="6" rx="2" class="horn"/>
-          <!-- L bracket: tab on the horn, plate up the front -->
-          <path d="M214 163 H258 V112 H252 V157 H214 Z" class="box"/>
+          <!-- tilt servo lying on the pan horn; its shaft points at you -->
+          <rect x="214" y="128" width="40" height="35" rx="2" class="servo"/>
+          <circle cx="242" cy="138" r="8" class="horn"/>
+          <!-- bracket from the tilt horn to the head -->
+          <path d="M242 132 H262 V72 H256 V138 H242 Z" class="box"/>
           <!-- sensor board on the plate, eyes forward -->
-          <rect x="258" y="118" width="6" height="54" class="sensor"/>
-          <rect x="264" y="126" width="14" height="38" rx="2" class="eye"/>
+          <rect x="262" y="76" width="6" height="54" class="sensor"/>
+          <rect x="268" y="84" width="14" height="38" rx="2" class="eye"/>
           <!-- cable loop from the sensor to the lid -->
-          <path d="M256 120 C 220 100, 170 120, 186 150 C 196 170, 150 180, 168 214" class="cable"/>
-          <!-- height dimension -->
-          <line x1="300" y1="145" x2="300" y2="350" class="dimline"/>
-          <line x1="294" y1="145" x2="306" y2="145" class="dimline"/>
-          <line x1="294" y1="350" x2="306" y2="350" class="dimline"/>
-          <text x="308" y="240" class="dimtext">20–30 cm</text>
-          <text x="308" y="254" class="sub">ochii până</text>
-          <text x="308" y="267" class="sub">la podea</text>
+          <path d="M260 78 C 220 58, 160 90, 182 128 C 196 160, 150 180, 168 214" class="cable"/>
+          <!-- tilt arrow -->
+          <path d="M290 60 A 40 40 0 0 1 300 130" class="lead" stroke-dasharray="3 3"/>
+          <text x="302" y="70" class="sub">tilt ±30°</text>
           <!-- labels -->
-          <path d="M214 160 H60 V96" class="lead"/><text x="24" y="80" class="lbl">Suport în L</text><text x="24" y="92" class="sub">carton, pe brațul servo-ului</text>
-          <path d="M170 132 H60" class="lead"/><text x="24" y="128" class="sub">buclă de cablu</text><text x="24" y="140" class="sub">~10 cm, pentru rotire</text>
+          <path d="M256 100 H60 V56" class="lead"/><text x="24" y="40" class="lbl">Suport în L</text><text x="24" y="52" class="sub">pe brațul servo-ului tilt</text>
+          <path d="M214 150 H60" class="lead"/><text x="24" y="144" class="lbl">Tilt</text><text x="24" y="158" class="sub">culcat pe brațul pan</text>
+          <path d="M176 110 H60" class="lead"/><text x="24" y="114" class="sub">buclă de cablu ~10 cm</text>
+          <text x="24" y="300" class="sub">Robotul stă pe un raft sau</text><text x="24" y="313" class="sub">pe o masă, la 80–120 cm;</text><text x="24" y="326" class="sub">capul se apleacă spre podea.</text>
           <text x="190" y="372" class="sub" text-anchor="middle">spate ← → față</text>
         </svg>
       </figure>
@@ -214,7 +224,7 @@ svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
           <rect x="284" y="222" width="18" height="22" rx="2" class="dht"/>
           <text x="306" y="238" class="sub">DHT11</text>
           <path d="M224 220 C 260 230, 250 260, 222 254" class="cable"/>
-          <text x="140" y="298" class="sub">Pune servo-ul la 90° înainte să fixezi capul.</text>
+          <text x="120" y="298" class="sub">Pune ambele servo-uri la 90° înainte să fixezi brațele.</text>
         </svg>
       </figure>
     </div>
@@ -237,19 +247,20 @@ svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
     <h2>Pașii</h2>
     <ol class="steps">
       <li><div><b>Gaura pentru servo</b><p>În capac, aproape de marginea din față și centrat, decupează un dreptunghi de 23 × 12 mm. Bagă servo-ul de sus, cu axul în sus și urechile pe capac. Prinde urechile cu bandă dublă sau cu șuruburile din pungă.</p></div></li>
-      <li><div><b>Servo-ul la 90°</b><p>Pornește testul de pornire o dată, sau doar comanda <span class="mono">look(90, 90)</span>, și oprește-l cu servo-ul la mijloc. Abia apoi pune brațul servo-ului, paralel cu fața cutiei, și strânge șurubul. Așa, la 90°, capul privește drept înainte.</p></div></li>
-      <li><div><b>Suportul în L</b><p>Taie o fâșie de carton de 40 × 90 mm și îndoaie-o la 90° la 40 mm de un capăt. Partea scurtă se lipește pe brațul servo-ului, partea lungă stă vertical, spre față.</p></div></li>
+      <li><div><b>Ambele servo-uri la 90°</b><p>Leagă-le pe D9 și D10, pornește testul de pornire și oprește-l când capul e la mijloc (testul pornește cu <span class="mono">look(90, 90)</span>). Abia apoi pune brațele: la pan, paralel cu fața cutiei; la tilt, orizontal. Strânge șuruburile.</p></div></li>
+      <li><div><b>Tilt-ul pe pan</b><p>Lipește al doilea servo culcat pe brațul primului, cu bandă dublă groasă sau un colier, cu axul spre lateral. Așa se rotește cu tot cu cap stânga-dreapta și înclină capul sus-jos.</p></div></li>
+      <li><div><b>Suportul în L</b><p>Taie o fâșie de carton de 40 × 90 mm și îndoaie-o la 90° la 40 mm de un capăt. Partea scurtă se lipește pe brațul servo-ului tilt, partea lungă stă vertical, spre față.</p></div></li>
       <li><div><b>Capul</b><p>Lipește HC-SR04 pe partea verticală a suportului, cu „ochii” spre față și pinii în jos. Nu acoperi cilindrii: orice bandă pe ei strică ecoul.</p></div></li>
       <li><div><b>Fața</b><p>Prinde UNO Q pe fața cutiei, cu matricea spre exterior și USB-C în lateral, cu bandă dublă pe colțuri sau cu elastice. Nu pune bandă peste cipuri și nici lipici pe placă.</p></div></li>
       <li><div><b>Burta</b><p>Breadboard-ul mic cu 5641AS și rezistențele merge pe fața cutiei, sub placă. Firele trec în cutie printr-o fantă.</p></div></li>
       <li><div><b>Temperatura</b><p>DHT11 merge pe peretele lateral sau pe spate, pe un fir de 5 cm, cu grila spre exterior. Placa se încălzește; lipit de ea, senzorul ar arăta cu câteva grade mai mult.</p></div></li>
-      <li><div><b>Cablurile</b><p>Lasă cablului ultrasonicului o buclă liberă de ~10 cm, ca să poată merge cu capul de la 0° la 180° fără să tragă. Prinde restul firelor de capac cu bandă.</p></div></li>
-      <li><div><b>Înălțimea</b><p>Pune robotul pe ceva (două cărți, un taburet), ca ochii să fie la 20–30 cm de podea. La înălțimea asta vede picioarele cuiva care merge și pe cineva întins pe jos. Pe masa de demo, masa e podeaua.</p></div></li>
-      <li><div><b>Proba</b><p>Pornește testul de pornire din App Lab. La pasul cu rotirea, capul trebuie să meargă dintr-o parte în alta fără să agațe cablul.</p></div></li>
+      <li><div><b>Cablurile</b><p>Lasă cablului ultrasonicului și cablului servo-ului tilt câte o buclă liberă de ~10 cm, ca să poată merge cu capul de la 0° la 180° și în sus și în jos fără să tragă. Prinde restul firelor de capac cu bandă.</p></div></li>
+      <li><div><b>Locul</b><p>Pune robotul pe un raft sau pe o masă, la 80–120 cm, cu fața spre cameră. Când urmărește pe cineva, se uită drept; când caută pe podea, apleacă capul și fasciculul atinge podeaua la 1,5–2,5 m. Pe masa de demo, masa e podeaua.</p></div></li>
+      <li><div><b>Proba</b><p>Pornește testul de pornire din App Lab. La pasul „Neck and arm” capul trebuie să se uite stânga, dreapta, sus și jos, iar la rotire să meargă dintr-o parte în alta fără să agațe cablurile. Dacă placa se resetează, servo-urile trec pe o sursă separată.</p></div></li>
     </ol>
   </section>
 
-  <p class="note">Cu un al doilea servo, între brațul servo-ului de jos și suportul în L intră un al doilea servo culcat, pentru sus-jos (pinul D10). Atunci robotul poate sta pe un raft și se uită în jos spre podea.</p>
+  <p class="note">Cu un singur servo: fără tilt, suportul în L se lipește direct pe brațul servo-ului pan, iar robotul stă jos, cu ochii la 20–30 cm de podea. În sketch, <span class="mono">PIN_TILT</span> devine <span class="mono">-1</span>.</p>
 </div>
 
 </html>

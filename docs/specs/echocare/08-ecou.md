@@ -15,7 +15,7 @@ Ecou has no camera and no microphone. Only distances, a temperature and gestures
 
 ## 1. Hardware
 
-The team has: one Arduino UNO Q, one Arduino UNO R4 WiFi, one HC-SR04, one DHT11, one SG90 servo and a 5641AS 4-digit display. Nothing is ordered. The full build below needs two more servos and a second HC-SR04. Without them Ecou is built low (§1.1).
+The team has: one Arduino UNO Q, one Arduino UNO R4 WiFi, one HC-SR04, one DHT11, two SG90 servos and a 5641AS 4-digit display. Nothing is ordered. The two servos make the neck, pan and tilt; the arm and Puiul's HC-SR04 are missing, so heat and a red code show only on the face, and Puiul has only its foil pad. With one servo, Ecou is built low (§1.1).
 
 | Part | Board | Job |
 |---|---|---|
@@ -38,7 +38,7 @@ The team has: one Arduino UNO Q, one Arduino UNO R4 WiFi, one HC-SR04, one DHT11
 | | Trig | D7 |
 | | Echo | D8, through a divider (1 kΩ from Echo, 2 kΩ to GND). The UNO Q's pins are 3.3 V |
 | Pan, tilt, arm servos | signal | D9, D10, D6 (the sketch's `PIN_TILT` and `PIN_ARM` are `-1` until fitted) |
-| | VCC, GND | One servo: the board's 5V and GND, with 100–470 µF across them if there is one. Two or three: the separate 5 V supply, **its GND joined to the board's GND** |
+| | VCC, GND | One or two servos: the board's 5V and GND, with 100–470 µF across them if there is one; if the board resets when they move (S17), the separate 5 V supply. Three: always the separate supply, **its GND joined to the board's GND** |
 | DHT11 or DHT22 | data, VCC, GND | D4, 3V3, GND |
 | 5641AS segments A, B, C, D, E, F, G | display pins 11, 7, 4, 2, 1, 10, 5, each through 1 kΩ | D2, D3, D5, D11, D12, D13, A0 |
 | 5641AS digits 1 to 4 | display pins 12, 9, 8, 6 | A1, A2, A3, A4 |

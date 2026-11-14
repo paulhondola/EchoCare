@@ -42,7 +42,7 @@ const int PIN_ARM = -1;   // -1: not fitted. The arm servo goes on D6
 const int PIN_US_TRIG = 7;
 const int PIN_US_ECHO = 8;  // through a 1k/2k divider: HC-SR04 echo is 5 V, the UNO Q is 3.3 V
 const int PIN_PAN = 9;
-const int PIN_TILT = -1;  // -1: not fitted. The tilt servo goes on D10
+const int PIN_TILT = 10;  // -1 when not fitted
 
 // 5641AS, 4 digits, common cathode. Its pins, face up with the decimal points at the
 // bottom, pin 1 bottom left: A 11, B 7, C 4, D 2, E 1, F 10, G 5, DP 3 (not used);
