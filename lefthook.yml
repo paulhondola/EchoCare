@@ -35,6 +35,10 @@ pre-commit:
       run: ./gradlew -q ktlintFormat
       stage_fixed: true
 
+    - name: ios
+      glob: "ios/Shared/**"
+      run: swift test --package-path ios/Shared
+
 pre-push:
   jobs:
     - name: android

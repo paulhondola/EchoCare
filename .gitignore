@@ -28,3 +28,9 @@ lefthook-local.yml
 
 # IDE settings opened at the repository root; android/.idea keeps its few shared files
 /.idea/
+
+# iOS: local signing config, Xcode user state and build output
+ios/Config/Local.xcconfig
+ios/**/xcuserdata/
+ios/build/
+ios/Shared/.build/
