@@ -213,11 +213,16 @@ export async function fetchCalls(seniorId: string, signal?: AbortSignal): Promis
 }
 
 // GET /calls/{id}/transcript (04 §1): the call as on the incident page, every turn in order
-export async function fetchTranscript(id: string, signal?: AbortSignal): Promise<IncidentCall> {
+export async function fetchTranscript(id: string, signal?: AbortSignal): Promise<TranscriptCall> {
   const r = await apiFetch(`/api/calls/${id}/transcript`, { signal });
   if (!r.ok) throw await refused(r);
-  return (await r.json()) as IncidentCall;
+  return (await r.json()) as TranscriptCall;
 }
+
+/** The transcript's call, plus what the model heard for each question (05 §2) */
+export type TranscriptCall = IncidentCall & {
+  answers: { field: string; value: string; clear: boolean; quote: string; at: string }[];
+};
 
 // GET /calls/live (04 §1, design 2026-11-14 §4), DAS only: the calls ringing or talking now
 export interface LiveCall {
