@@ -92,6 +92,8 @@ The node is a GATT server with one EchoCare service; the phone app is the client
 | Motion | Node → phone, notify when motion starts | Nothing more; the phone uses it to refresh its own view. FastAPI learns motion from the next room reading |
 | SOS press | Node → phone, notify | Press id generated on the node, seconds since the press. Resent after every reconnection until acknowledged |
 | Acknowledge | Phone → node, write | The press id, once FastAPI has recorded the event. The node beeps twice and forgets the press |
+
+The phone sends a node's SOS press to `POST /me/events` as `manual_request` with `source` `home_node`, the event id being the press id, as the watch's button does; a fall (P24) as `fall` with the node's snapshot. Times are the phone's clock minus the ages the node reports.
 | Light | Phone → node, write | `green`, `yellow`, `red`, or `call` (blue, while a call is ringing or live). The phone writes it whenever it reads the senior's code |
 
 The node's clock is not set. It reports ages in seconds; the phone turns them into times measured before forwarding.

@@ -211,6 +211,12 @@ Each is a small experiment whose answer changes the plan. They are ordered by ho
 | S11 | How does the project's Romanian number appear on Orange, Vodafone and Digi phones, and is it flagged as spam? | Call a team phone in the demo, as v3 §12.5 already plans |
 | S12 | Does the phone app keep its Bluetooth connection to the home node, and relay readings, while it is in the background for an hour? | Keep the phone app in the foreground on the demo phone; a foreground service in the app |
 | S13 | Can the Wear OS app read the accelerometer fast enough (about 50 readings a second) in the background to see a fall, and what does it cost in battery? | Fall detection only while the monitoring screen is open; the hidden "force fall" action for the demo. Screen on: yes, 50 a second, and 45 trials set the thresholds ([spike-results.md](spike-results.md)). Background: open |
+| S14 | **(P23)** Can the UNO Q's Linux side be a BLE GATT server, with encryption and pairing, that an Android phone bonds with, while App Lab's Bridge runs? Script: `ecou/spikes/s14_ble_node.py` | Puiul (R4 WiFi) becomes the BLE node with `ArduinoBLE`; or `ECOU_PAIRING=0` on the demo table only |
+| S15 | **(P25)** How often do the gesture rules, then the Edge Impulse model, confuse wave, palm, pass and none, with people who did not record the training samples? | The rules alone |
+| S16 | **(P24)** Does the floor search see a person, or a rolled-up duvet, at 1.5–2.5 m on the venue's floor, and how often does an empty floor look like something? | On the table: the head tilted to a fixed spot, a box as the person |
+| S17 | **(P23)** Do two or three SG90s on the board's 5V reset the UNO Q when they start together or stall? | A separate 5 V supply; one servo moves at a time |
+| S18 | **(P27)** Can the UNO Q serve a hotspot for Puiul and keep the BLE link to the phone at the same time? What is the UDP delay? | Both join the senior's phone hotspot or the venue's Wi-Fi |
+| S19 | **(P26)** With an ice pack, how far is the one-hour forecast from what the room reaches? | A straight line through the last 10 minutes |
 
 **S1 and S8, how to answer them.** The telephony edge for both is built (#15): `scripts/place_call.py <number>` dials a registered senior's number with a scripted ConversationRelay call that repeats what it hears and ends on key 0. Run it on staging through `railway ssh -s api -e staging` with the Twilio variables set (the script follows `DIAL_ALLOWLIST` too), then write here. The same call answers the two IE1 questions of section 4:
 

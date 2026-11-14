@@ -275,6 +275,8 @@ Sixty seconds on the table, with the dashboard on the big screen and the caregiv
 
 ## 8. Build order
 
+Status on branch `ecou-home-node` (2026-11-14): every step has code; none has run on the board yet. Steps 1, 2 and 6 wait on the bring-up test and spikes S14 and S16.
+
 Each step leaves something that can be demonstrated, so the team can stop at any of them.
 
 1. The sketch: pings, servos, matrix faces, display, temperature, all called through the Bridge from a Python test script.
@@ -285,3 +287,84 @@ Each step leaves something that can be demonstrated, so the team can stop at any
 6. Floor search, Ask, the fall event (S16).
 7. Puiul (S18).
 8. The dashboard's half circle.
+
+## 9. Work still open
+
+Each item can be taken alone, by anyone on the team. „Done when” is the check to run before the pull request. Items W1–W4 need no hardware.
+
+### W1. Demo data without the robot
+
+**Why.** The dashboard's room map and the room on every screen should be visible at the demo even if Ecou is not on the table.
+
+**What.** `backend/scripts/seed.py` adds, for two seniors:
+- a `home_node_states` row: one in range (21°C), one cold (14°C);
+- for the cold one, a home node `fall` event with a 37-point `scan`, an object at 105° and 2.1 m, its call ended red, and an open incident.
+
+**Done when.** After `uv run python scripts/seed.py --reset`, the dashboard's seniors list shows „Cameră 14°C”, and that incident's „Eveniment” tab draws the half circle with the spot marked. `uv run pytest tests/tooling` passes.
+
+### W2. The room map on the DAS phone
+
+**Why.** The on-duty DAS employee answers from the Android app (UC-11). Today the app writes „pe jos, la 2,1 m, în stânga senzorului” but draws nothing.
+
+**What.** In `android/app/.../das/IncidentScreen.kt`, under „Unde”, draw the half circle from `TriggerEvent.scan` with a Compose `Canvas`. It is the same drawing as `dashboard/src/features/incidents/RoomMap.svelte`: Ecou at the bottom centre, 0° to its right, rings each metre, the outline from the sweep, the object in `Palette.Rosu`. Show `IncidentPage.room` too („Camera acum”). The geometry goes in a pure function in `das/Incidents.kt`, tested on the JVM like `floorSpot`.
+
+**Done when.** `./gradlew ktlintCheck :app:testDebugUnitTest` passes. A screenshot of the seeded incident (W1) on the emulator shows the map.
+
+### W3. iOS shows the room
+
+**Why.** The iOS apps are demo clients (ADR-007) and should not look emptier than Android.
+
+**What.**
+- In `ios/EchoCare/Api/Api.swift`: `room` on the senior page and on the incident, and `source`, `object_angle_deg`, `object_distance_m` and `scan` on the trigger event, all optional.
+- On the senior page, a room chip like Android's (`roomTone` in `android/app/.../home/Calls.kt`).
+- On the incident, „Unde” in words.
+- New strings in `Localizable.xcstrings`, in Romanian.
+
+**Done when.** `swift test --package-path ios/Shared` and the iOS CI pass. The seeded senior (W1) shows „În cameră 14,0 °C, prea rece” on an iPhone simulator.
+
+### W4. Keep the relay alive on the senior's phone
+
+**Why.** S12: Android may stop the node's relay in the background.
+
+**What.** On the node screen (`android/app/.../homenode/NodeScreen.kt`), once a node is saved, ask for the battery optimisation exemption with the same prompt as the watch (`push/BackgroundPrompt.kt`). If Bluetooth permission is revoked later, show a banner with „Permite” again.
+
+**Done when.** On a real phone with Ecou, readings keep reaching FastAPI for an hour with the screen off. Note the result under S12 in [spike-results.md](spike-results.md).
+
+### W5. Run the spikes S14–S19
+
+**What.** One evening with the built robot, following 08 §6 and `ecou/README.md`:
+1. **S14** first: `s14_ble_node.py` with nRF Connect, pairing included, then with the App Lab app running.
+2. **S17** during the bring-up test.
+3. **S16**: a rolled-up duvet on the floor, 20 tries per distance (1.5, 2, 2.5 m), and 20 empty sweeps.
+4. **S18**: Puiul on Ecou's hotspot while the phone is paired.
+5. **S19**: an ice pack on the DHT11 for 10 minutes, forecast against reality every minute.
+
+**Done when.** Each spike has a dated row in [spike-results.md](spike-results.md) with its numbers, and the fallback taken where it failed.
+
+### W6. Train the gesture model (S15)
+
+**What.**
+1. Record: `ECOU_RUN=record` on the robot. Every team member records 20 samples of each class (wave, palm, pass, none) at different distances and angles.
+2. Train: upload `data/gestures.csv` to an Edge Impulse project with the CSV Wizard, one row per sample, 40 values at 20 Hz. Train a small classifier (a dense network on the raw values or on spectral features).
+3. Test: on samples from someone who recorded none.
+4. Deploy: export „Linux (AARCH64)” as `.eim` to `ecou/app/python/models/gestures.eim`, and add `edge_impulse_linux` to the app's requirements.
+
+**Done when.** The confusion matrix is in spike-results.md under S15. On the robot, the model's log line says it loaded. The model beats the rules (`sensing.classify`) on the held-out person, or the rules stay.
+
+### W7. Calibrate the floor tilt
+
+**What.** An `ECOU_RUN=calibrate` mode in `ecou/app/python/`. With Ecou on its shelf and the floor empty, it sweeps straight ahead at tilts from 90° to 150° in 5° steps and prints the floor distance at each. It then proposes the `TILT_FLOOR` that meets the floor at 1.5–2.5 m. Today this is set by hand in `robot.py`.
+
+**Done when.** On the robot, the proposed value makes the floor search find a duvet at 2 m (S16's setup).
+
+### W8. Rehearse the demo
+
+**What.** A checklist in `ecou/README.md`:
+- the hotspot is up and `ECOU_PUIUL_KEY` matches on both boards;
+- the phone is paired and signed in as the demo senior;
+- `ECOU_DEMO=1`, and the backend is in demo mode;
+- an ice pack, the rolled-up jacket and the dashboard on the big screen are ready.
+
+Then run the 60 seconds of §7 three times and note what failed.
+
+**Done when.** Three runs in a row with no restart.

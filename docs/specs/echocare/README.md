@@ -46,7 +46,7 @@ flowchart LR
 | File | Contents |
 |---|---|
 | [01-architecture.md](01-architecture.md) | Parts, channels, identity and grants, live updates, inside the FastAPI service, hosting |
-| [02-use-cases.md](02-use-cases.md) | Actors, fourteen use cases, sequence diagrams |
+| [02-use-cases.md](02-use-cases.md) | Actors, the use cases, sequence diagrams |
 | [03-status-model.md](03-status-model.md) | Codes, the answers and the rules, alarm phrases, the matrix, combining rules, lifecycles |
 | [04-interfaces.md](04-interfaces.md) | Every interface between parts: endpoints, callbacks, messages, agent tools |
 | [05-data-model.md](05-data-model.md) | Entities, relationships, constraints, retention |
