@@ -10,7 +10,10 @@ dependencies = [
     "firebase-admin>=7.7.0",
     "httpx>=0.28.1",
     "phonenumbers>=9.0.41",
+    "pillow>=13.0.0",
+    "pydantic-ai-slim[openai]>=2.66.0",
     "pydantic-settings>=2.15.0",
+    "pypdfium2>=5.15.2",
     "sqlalchemy[asyncio]>=2.1.4",
     "uvicorn[standard]>=0.54.0",
 ]
@@ -29,6 +32,7 @@ dev = [
     "httpx2>=2.13.1",
     "import-linter>=2.15",
     "moto[s3]>=5.2.4",
+    "pydantic-evals>=2.66.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
@@ -74,9 +78,13 @@ forbidden_modules = [
     "fastapi",
     "firebase_admin",
     "httpx",
+    "openai",
     "phonenumbers",
+    "PIL",
     "pydantic",
+    "pydantic_ai",
     "pydantic_settings",
+    "pypdfium2",
     "sqlalchemy",
     "uvicorn",
     "app.*",
@@ -88,9 +96,39 @@ type = "forbidden"
 source_modules = ["app.*"]
 forbidden_modules = ["app.models"]
 
+# Every package has a layer and imports only from layers below its own; `|` siblings may
+# not import each other. A new package fails until it is placed (ADR-005). Routers sit
+# above them all: they compose the packages.
 [[tool.importlinter.contracts]]
-name = "No import cycles between packages; routers sit above them all"
-type = "acyclic_siblings"
-ancestors = ["app"]
-depth = 0
+name = "Packages sit in layers; a new package must be placed (ADR-005)"
+type = "layers"
+containers = ["app"]
+layers = [
+    "scheduler | notify",
+    "calls | agent | system | memory | erasure | export",
+    "homenode",
+    "campaigns | medical",
+    "incidents",
+    "voice",
+    "seniors",
+    "auth | codes",
+    "core | status",
+]
+exhaustive = true
+exhaustive_ignores = ["main", "models"]
 ignore_imports = ["app.**.router -> app.**"]
+
+# The call session may leave the process first (ADR-004), so what it imports from voice
+# is that split's interface. No core: it holds no database session.
+[[tool.importlinter.contracts]]
+name = "The agent talks only to voice (ADR-004, ADR-005)"
+type = "forbidden"
+source_modules = ["app.agent"]
+forbidden_modules = ["app.*"]
+ignore_imports = [
+    "app.agent.** -> app.agent.**",
+    "app.agent.** -> app.voice.**",
+    "app.agent.** -> app.status.**",
+]
+allow_indirect_imports = true
+unmatched_ignore_imports_alerting = "none"

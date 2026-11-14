@@ -20,23 +20,20 @@ from app.status.engine import Certainty, Question, Severity
 from app.voice.calls import LIVE, CallState
 
 
-class CampaignKind(StrEnum):
-    heat = "heat"
-    cold = "cold"
-
-
-class WarningLevel(StrEnum):
-    yellow = "yellow"
-    red = "red"
-
-
 class CallTrigger(StrEnum):
     campaign = "campaign"
     watch = "watch"
     manual = "manual"
+    home_node = "home_node"  # the home node's room, inactivity, fall or SOS (UC-16)
     welcome = "welcome"
     # scripts/place_call.py's scripted calls, which no rule or call history counts (05 §1)
     test = "test"
+
+
+# The calls that check on the senior's wellbeing, which notes and summaries cover (design §4).
+WELLBEING = frozenset(
+    {CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual, CallTrigger.home_node}
+)
 
 
 class WelcomeOutcome(StrEnum):
@@ -50,33 +47,13 @@ class Speaker(StrEnum):
     senior = "senior"
     agent = "agent"
     system = "system"
+    # The DAS employee, once a hand-over connects them (04 §4.4).
+    das = "das"
 
 
 class TurnKind(StrEnum):
     speech = "speech"
     keys = "keys"
-
-
-class ReportSource(StrEnum):
-    rules = "rules"
-    raise_concern = "raise_concern"
-    alarm_tier1 = "alarm_tier1"
-    alarm_tier2 = "alarm_tier2"
-    request_human = "request_human"
-    trigger = "trigger"
-    unanswered = "unanswered"
-
-
-class Campaign(Base):
-    __tablename__ = "campaigns"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    kind: Mapped[CampaignKind] = mapped_column(enum_type(CampaignKind))
-    level: Mapped[WarningLevel] = mapped_column(enum_type(WarningLevel))
-    started_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    started_at: Mapped[datetime] = timestamp_now()
-    # End of the active warning; watch inactivity counts only before it (G14).
-    warning_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Call(Base):
@@ -118,6 +95,9 @@ class Call(Base):
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Twilio's CallSid; status callbacks find the call by it.
     twilio_call_id: Mapped[str | None] = mapped_column(String(64))
+    # Set, and committed, before Twilio is asked to dial: the call is then out of our
+    # hands, and only its status callback settles it.
+    dialed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     final_severity: Mapped[Severity | None] = mapped_column(enum_type(Severity))
@@ -160,20 +140,4 @@ class Answer(Base):
     value: Mapped[str] = mapped_column(String(60))
     clear: Mapped[bool] = mapped_column(Boolean)
     quote: Mapped[str] = mapped_column(Text)
-    at: Mapped[datetime] = timestamp_now()
-
-
-class StatusReport(Base):
-    """Every severity reached during a call: the audit trail behind a code (05 §2)."""
-
-    __tablename__ = "status_reports"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    call_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("calls.id"), index=True)
-    source: Mapped[ReportSource] = mapped_column(enum_type(ReportSource))
-    severity: Mapped[Severity] = mapped_column(enum_type(Severity))
-    # Certainty exists only for an answered call (D7).
-    certainty: Mapped[Certainty | None] = mapped_column(enum_type(Certainty))
-    reason: Mapped[str] = mapped_column(String(200))
-    quote: Mapped[str | None] = mapped_column(Text)
     at: Mapped[datetime] = timestamp_now()

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    fetchCalls,
     fetchIncident,
     fetchSenior,
     resolveIncident,
     takeIncident,
+    type CallSummary,
     type Incident,
     type IncidentDetail,
     type IncidentOutcome,
@@ -13,9 +15,21 @@
   import CopyButton from "../../ui/CopyButton.svelte";
   import Icon from "../../ui/Icon.svelte";
   import { shortId, since, type DossierTab } from "../../utils/incidents";
-  import { address, clock, OUTCOMES, time } from "../../utils/labels";
+  import {
+    address,
+    CALL_STATES,
+    callLength,
+    clock,
+    OUTCOMES,
+    time,
+    TRIGGERS,
+  } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
+  import CallTranscript from "../calls/CallTranscript.svelte";
+  import Briefing from "../seniors/Briefing.svelte";
+  import RoomMap from "./RoomMap.svelte";
   import { refusalMessage } from "./commands";
+  import WhyRed from "./WhyRed.svelte";
 
   let {
     incident,
@@ -41,34 +55,35 @@
   ];
 
   // Romanian labels for the stored values (05 §1); an unknown value shows as it is
-  const TRIGGERS: Record<string, string> = {
-    campaign: "Campanie",
-    watch: "Ceas",
-    manual: "Cerere „Sunați-mă”",
-    welcome: "Apel de bun venit",
-  };
   const EVENTS: Record<string, string> = {
     high_pulse_at_rest: "Puls ridicat în repaus",
     inactivity: "Inactivitate",
     sos_button: "Buton SOS",
     manual_request: "„Sunați-mă”",
     fall: "Cădere detectată",
+    room_cold: "Cameră prea rece",
+    room_heat: "Cameră prea caldă",
   };
-  const STATES: Record<string, string> = {
-    queued: "în așteptare",
-    ringing: "sună",
-    in_progress: "în curs",
-    unanswered: "nepreluat",
-    failed: "eșuat",
-    completed: "încheiat",
-    handed_over: "transferat la DAS",
-    dropped: "întrerupt",
+
+  // Where an event came from (04 §3); an unknown value shows as it is
+  const SOURCES: Record<string, string> = {
+    watch: "Ceas",
+    phone: "Telefon",
+    home_node: "Senzor din casă",
   };
-  const SEVERITY: Record<string, { label: string; text: string }> = {
-    red: { label: "Cod Roșu", text: "text-rosu-fg" },
-    yellow: { label: "Cod Galben", text: "text-galben-fg" },
-    green: { label: "Cod Verde", text: "text-verde-fg" },
+
+  // The room as FastAPI last judged it (P26)
+  const ROOM_STATES: Record<string, string> = {
+    ok: "în limite",
+    cold_soon: "se răcește",
+    cold: "prea rece",
+    hot_soon: "se încălzește",
+    hot: "prea caldă",
   };
+
+  function degrees(c: number): string {
+    return `${c.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}°C`;
+  }
 
   type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
 
@@ -76,6 +91,8 @@
   let tab = $state<DossierTab>(initialTab);
   let load = $state<Load<IncidentDetail>>({ kind: "loading" });
   let senior = $state<SeniorView | null>(null);
+  // All the senior's calls, to date the briefing's citations; `d.calls` holds only the incident's
+  let seniorCalls = $state<Load<CallSummary[]>>({ kind: "loading" });
   let dialogEl: HTMLDialogElement | undefined = $state();
   let outcome = $state<IncidentOutcome | "">("");
   let note = $state("");
@@ -119,6 +136,25 @@
     return () => ctrl.abort();
   });
 
+  // Only when there is a briefing to date
+  const briefedId = $derived(load.kind === "ok" && load.data.summary ? load.data.senior.id : null);
+  $effect(() => {
+    if (!briefedId) return;
+    const ctrl = new AbortController();
+    fetchCalls(briefedId, ctrl.signal)
+      .then((data) => {
+        seniorCalls = { kind: "ok", data };
+      })
+      .catch((e: unknown) => {
+        if (!ctrl.signal.aborted)
+          seniorCalls = {
+            kind: "error",
+            message: `Nu am putut citi apelurile seniorului (${e instanceof Error ? e.message : String(e)}).`,
+          };
+      });
+    return () => ctrl.abort();
+  });
+
   function send(action: "take" | "resolve", command: () => Promise<Incident>) {
     busy = true;
     error = null;
@@ -148,12 +184,6 @@
 
   const at = (iso: string | null) => (iso ? time.format(Date.parse(iso)) : "—");
   const tel = (e164: string) => `tel:${e164}`;
-
-  function duration(start: string | null, end: string | null): string | null {
-    if (!start || !end) return null;
-    const s = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
-    return `${Math.floor(s / 60)}m ${s % 60}s`;
-  }
 
   const STATUS = $derived(
     incident.status === "open"
@@ -291,7 +321,7 @@
           ]}
           onclick={() => (tab = t.key)}
         >
-          <span class="font-mono text-[11px] font-medium text-fg-subtle">{t.n}</span>{t.label}
+          <span class="font-mono text-[11px] font-medium text-fg-muted">{t.n}</span>{t.label}
         </button>
       {/each}
     </div>
@@ -308,6 +338,7 @@
         {@const s = d.senior}
 
         {#if tab === "access"}
+          <WhyRed detail={d} events={EVENTS} />
           <div class="flex flex-col">
             <div
               class="grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line pb-3.5"
@@ -361,6 +392,18 @@
                 {/if}
               </div>
             {/if}
+
+            {#if d.summary}
+              <div class="pt-4">
+                {#if seniorCalls.kind === "error"}
+                  <p role="alert" class="pb-2 text-rosu-fg">{seniorCalls.message}</p>
+                {/if}
+                <Briefing
+                  summary={d.summary}
+                  calls={seniorCalls.kind === "ok" ? seniorCalls.data : d.calls}
+                />
+              </div>
+            {/if}
           </div>
         {:else if tab === "transcript"}
           {#if d.calls.length === 0}
@@ -368,7 +411,7 @@
           {/if}
           <div class="flex flex-col gap-8">
             {#each d.calls as c (c.id)}
-              {@const length = duration(c.started_at, c.ended_at)}
+              {@const length = callLength(c.started_at, c.ended_at)}
               <section class="flex flex-col gap-3.5">
                 <div
                   class="flex flex-wrap gap-x-[18px] gap-y-1.5 border-b-2 border-line pb-3 text-xs text-fg-muted"
@@ -383,73 +426,10 @@
                   {#if length}
                     <span>durată <span class="font-mono text-fg">{length}</span></span>
                   {/if}
-                  <span>{STATES[c.state] ?? c.state}</span>
+                  <span>{CALL_STATES[c.state] ?? c.state}</span>
                 </div>
 
-                {#if c.summary}
-                  <p class="text-fg-soft">{c.summary}</p>
-                {/if}
-
-                {#each c.turns as t, n (n)}
-                  <div class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1">
-                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-subtle">
-                      {clock.format(Date.parse(t.at))}
-                    </span>
-                    <div class="flex flex-col gap-0.5">
-                      <span
-                        class={["sn-label", t.speaker === "senior" ? "text-fg-muted" : "text-link"]}
-                      >
-                        {t.speaker === "senior"
-                          ? "Senior"
-                          : t.speaker === "agent"
-                            ? "Sistem AI"
-                            : "Sistem"}
-                      </span>
-                      <span>{t.kind === "keys" ? `tasta ${t.content}` : `„${t.content}”`}</span>
-                    </div>
-                  </div>
-                {/each}
-
-                {#each c.reports as r, n (n)}
-                  <div
-                    class="-mx-5 grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1 border-y border-line bg-card px-5 py-2.5"
-                  >
-                    <span class="pt-0.5 font-mono text-xs font-medium text-fg-subtle">
-                      {clock.format(Date.parse(r.at))}
-                    </span>
-                    <div class="flex flex-col gap-0.5">
-                      <span class={["sn-label", SEVERITY[r.severity]?.text ?? "text-fg-muted"]}>
-                        {SEVERITY[r.severity]?.label ?? r.severity} · semnalat
-                      </span>
-                      {#if r.quote}<span class="text-sm">„{r.quote}”</span>{/if}
-                      <span class="text-fg-soft">{r.reason}</span>
-                    </div>
-                  </div>
-                {/each}
-
-                {#if c.final_severity}
-                  <div
-                    class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-t-2 border-line pt-3.5"
-                  >
-                    <span class="sn-label">Severitate finală</span>
-                    <span class={["font-semibold", SEVERITY[c.final_severity]?.text]}>
-                      {SEVERITY[c.final_severity]?.label ?? c.final_severity}
-                    </span>
-                  </div>
-                {/if}
-                {#if c.handover_answered !== null}
-                  <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3">
-                    <span class="sn-label">Predare audio</span>
-                    {#if c.handover_answered}
-                      <span class="inline-flex items-center gap-1.5 font-semibold text-verde-fg">
-                        <Icon name="check" size={13} stroke={2.4} />
-                        Transferat cu succes la telefonul de serviciu DAS
-                      </span>
-                    {:else}
-                      <span class="font-semibold text-rosu-fg">Transferul nu a fost preluat</span>
-                    {/if}
-                  </div>
-                {/if}
+                <CallTranscript call={c} />
               </section>
             {/each}
           </div>
@@ -462,7 +442,20 @@
           {:else}
             <div class="flex flex-col">
               {@render row("Tip", EVENTS[e.type] ?? e.type)}
+              {#if e.source}
+                {@render row("Sursa", SOURCES[e.source] ?? e.source)}
+              {/if}
               {@render row("Măsurat la", at(e.measured_at))}
+              {#if e.scan && e.scan.length > 1}
+                <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-b border-line py-3.5">
+                  <span class="sn-label">Unde</span>
+                  <RoomMap
+                    scan={e.scan}
+                    angleDeg={e.object_angle_deg ?? null}
+                    distanceM={e.object_distance_m ?? null}
+                  />
+                </div>
+              {/if}
               {#if e.latitude !== null && e.longitude !== null}
                 <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-b border-line py-3.5">
                   <span class="sn-label">Locație</span>
@@ -485,6 +478,20 @@
               {:else}
                 {@render row("Locație", "Fără locație în eveniment")}
               {/if}
+            </div>
+          {/if}
+          {#if d.room}
+            <div class="mt-4 flex flex-col">
+              {@render row(
+                "Camera acum",
+                `${degrees(d.room.temperature)} · ${ROOM_STATES[d.room.room_state] ?? d.room.room_state}` +
+                  (d.room.state === "offline" ? " · senzor deconectat" : ""),
+              )}
+              {@render row("Citit la", at(d.room.reading_at))}
+              {@render row(
+                "Ultima mișcare",
+                d.room.last_motion_at ? at(d.room.last_motion_at) : null,
+              )}
             </div>
           {/if}
         {:else if tab === "resolve"}
@@ -529,7 +536,7 @@
                       ]}
                     ></span>
                     {o.label}
-                    <span class="ml-auto font-mono text-[11px] text-fg-subtle">{o.value}</span>
+                    <span class="ml-auto font-mono text-[11px] text-fg-muted">{o.value}</span>
                   </label>
                 {/each}
               </div>

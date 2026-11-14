@@ -45,6 +45,7 @@ flowchart LR
         UC09("UC-09 Watch anomaly starts a call")
         UC10("UC-10 Senior asks to be checked on")
         UC16("UC-16 Home node starts a call")
+        UC17("UC-17 Ecou finds someone on the floor")
     end
 
     subgraph FOLLOW["Following and responding"]
@@ -160,7 +161,7 @@ A DAS employee's phone number is also their hand-over number when they are on du
 | Before | The medic is signed in |
 | After | A senior exists in state `submitted`, with caregiver grants, waiting for DAS |
 
-1. The medic enters the senior's name, form of address („doamna Maria”), phone number and preferred call window. Whether the number is a landline is worked out from the number itself.
+1. The medic enters the senior's name, form of address („doamna Maria”), phone number and preferred call window. Whether the number is a landline is worked out from the number itself. Under „Echipamente” the medic ticks what the senior uses: „Telefon cu aplicația EchoCare”, „Ceas”, „Senzor din casă”. The phone means the EchoCare app on the senior's own phone; an old phone that cannot install apps is not ticked, and that senior only takes the calls. A watch or a home node ticks the phone too, as both talk only to it, and a landline cannot have it. Nothing ticked is a complete answer (design 2026-11-14).
 2. The medic enters the address with access details: street and number, block, staircase, floor, apartment, intercom code, who has a key, and a landmark (G13).
 3. The medic enters one or two caregivers: name, relation, phone number. Each number becomes a caregiver grant for this senior. If the senior's own number is a mobile, it becomes the senior's grant.
 4. If a caregiver is present, they sign in on the spot (UC-02); seeing doamna Maria on their phone confirms the number. Otherwise FastAPI sends a short notice SMS to the number **(proposed)**, so that a wrong number is noticed.
@@ -169,6 +170,7 @@ A DAS employee's phone number is also their hand-over number when they are on du
 
 Variations:
 - **The senior cannot come to the practice.** A caregiver comes alone, or the medic fills the form on a home visit. Nothing changes: consent is the senior's own, given on the welcome call.
+- **The medic attaches the fișa medicală (optional).** While registering, or later from the senior's page, the medic may attach it as a PDF. It is analyzed after DAS accepts the senior, and the medic reviews and confirms the questions it suggests before any call uses them (design 2026-11-13).
 - **Form left unfinished.** The draft is saved. DAS cannot see it until it is submitted; the medic sees it, and so do the caregivers and the senior whose numbers it already grants (step 4).
 
 Nothing rings and no code exists yet.
@@ -245,21 +247,25 @@ There are no pairing codes typed by the medic and no device tokens, as for the w
 
 1. The DAS employee reviews the registration and presses "Acceptă". The senior becomes `accepted` and the welcome call is queued.
 2. **Identity.** „Bună ziua. Sunt asistentul automat al DAS Timișoara. Vorbesc cu doamna Maria Popescu? Dacă da, apăsați 1 sau spuneți «da». Dacă doamna nu poate veni acum la telefon, apăsați 2. Dacă ați primit acest apel din greșeală, apăsați 3.”
-3. **Consent.** A fixed text, approved by DAS and versioned: what the calls are for, who sees what is said (medic, family, DAS), that the senior can stop at any time. „Dacă sunteți de acord, apăsați 1 sau spuneți «da». Dacă nu, apăsați 2 sau spuneți «nu». Ca să ascultați din nou, apăsați 0.”
+3. **Consent.** A fixed text, approved by DAS and versioned: what the calls are for, who sees what is said (medic, family, DAS), that a medical record the medic has added shapes the questions, and that the senior can stop at any time („Dacă medicul a adăugat fișa medicală, o folosim ca să vă punem întrebări potrivite. Puteți renunța oricând.”). „Dacă sunteți de acord, apăsați 1 sau spuneți «da». Dacă nu, apăsați 2 sau spuneți «nu». Ca să ascultați din nou, apăsați 0.”
 4. **Anti-scam close.** „Vă rugăm să salvați acest număr. Nu vă vom cere niciodată bani sau date.”
 
 | Answer | Result |
 |---|---|
 | Identity 1, consent 1 | Consent given, senior `active`, code green |
 | Identity 1, consent 2 | Consent refused, senior `refused`; the medic sees it |
-| Identity 1, consent unclear twice | One more welcome call later; if still unclear, `unreachable` and the medic follows up in person |
-| Identity 2 (not available now) | One more welcome call after the redial delay |
-| Identity 3 (wrong number) | Senior `wrong_number`; the medic corrects the number and presses "Sună din nou" |
-| Not answered, or silent twice | One redial; if still unanswered, `unreachable` |
+| Identity 1, consent unclear twice | One more welcome call later; if still unclear, `unreachable`: the medic follows up in person, or presses „Sună din nou” |
+| Identity 2 (not available now) | One more welcome call after the redial delay; if the second ends the same way, `unreachable`, as above |
+| Identity 3 (wrong number) | Senior `wrong_number`; the medic checks the number, corrects it if needed, and presses „Sună din nou” |
+| Not answered, or silent twice, or hung up partway through | One redial; if still unanswered, `unreachable`, as above |
+
+„Sună din nou” ([04-interfaces.md](04-interfaces.md) section 2) works from `wrong_number` and `unreachable`: the senior goes back to `accepted`, a new welcome call is queued and the retries start over. The number is not checked, so a correct number can come back `wrong_number` again.
 
 The call is a fixed script whose answers are keys or short spoken words (G7). If a dedicated agent runs it instead, the server still records consent only on key 1 or an exact „da” / „sunt de acord” in the transcript.
 
 A welcome call never changes a code; the code is created when consent is given.
+
+**The scheduler dials the call when the senior's number is on `DIAL_ALLOWLIST`; otherwise the mock card answers it.** Step 1 queues the welcome call. A dialed call runs the steps above (#48). Each question takes one key or speech in `ro-RO`, and is asked once more, opened by „Nu v-am auzit.”, after silence or an unclear answer. Speech counts only as a whole answer once punctuation and diacritics are removed: „da” for identity; „da”, „sunt de acord” or „da, sunt de acord” for consent, „nu” or „nu sunt de acord” for a refusal. The consent is recorded with method `call`, text version `v2`, and the key or the words with Twilio's confidence. Every ending says a Romanian goodbye, then hangs up. The rows that retry apply to the first attempt; a second attempt that ends the same way makes the senior `unreachable`. A call that is not answered, fails, reaches voicemail or is hung up before consent counts as not answered. A senior DAS withdrew during the call is left as they are. A call the scheduler does not dial shows in the senior's own app as a card with the consent text (version `v2-app`, which leaves out the key instructions) and „Da” / „Nu”. „Da” stores the consent with method `app`, makes the senior `active` and starts the code green; „Nu” stores a refusal and makes the senior `refused`. The identity question, `wrong_number`, `not_available` and the retries are not part of the mock. A landline senior has no app, so their call is placed only if the number is on the allowlist (and Twilio is set up); otherwise it waits. The card is refused in production ([06-operations.md](06-operations.md) section 3).
 
 A senior who later withdraws consent becomes `withdrawn`. The medic or DAS records it; the senior leaves the campaigns and gets no more calls. There is no way back yet.
 
@@ -316,11 +322,13 @@ sequenceDiagram
 2. The dialer places a few calls at a time.
 3. When the senior answers, Twilio connects the call to the agent. The greeting names the senior and the warning: „…azi e cod roșu de ger”.
 4. Each thing the senior says arrives as text. FastAPI checks it for alarm phrases, then passes the conversation to the model, and streams the reply back to be spoken.
-5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer.
+5. The agent covers the three questions: how they feel, what day of the week it is, whether they have water and a warm place (cold) or a cool place (heat). After each, the model records the answer. If the senior has a summary of past calls, the agent also asks its first follow-up question once, after the feeling answer and before the last question; that reply counts as an answer only for what the senior says now.
 6. The rules give green with high certainty. FastAPI writes the code.
 7. The agent closes the call with a short piece of advice.
 
 The other endings are UC-06, UC-07 and UC-08.
+
+**The scheduler dials each call whose senior's number is on `DIAL_ALLOWLIST`; otherwise the mock card answers it.** Step 1 queues the calls and the dialer places them at step 2, only to allowlisted numbers and with Twilio set up. For a call the scheduler does not dial, the senior's own app shows it as a card: the greeting that names the warning, then the three questions as buttons. The answers go through the same rules and the same ending step as a real call (steps 5 to 7), so a code is set and a red opens an incident. „Nu acum” counts as unanswered (UC-08): the redial comes after the redial delay. A landline senior has no app, so their call is placed only if the number is on the allowlist (and Twilio is set up); otherwise it waits until the campaign ends or its warning lapses, and is then canceled. The card is refused in production ([06-operations.md](06-operations.md) section 3).
 
 ### UC-06 Call ends yellow
 
@@ -331,7 +339,7 @@ The other endings are UC-06, UC-07 and UC-08.
 | After | Code yellow; caregiver notified; medic sees a warning |
 
 1. The rules give yellow (one worrying answer), or green without high certainty, or the model raises a yellow concern.
-2. If certainty is not high and the re-ask has not been used, the agent re-asks the question whose answer was unclear, once.
+2. If certainty is not high and fewer than two re-asks have been used for the question whose answer was unclear, the agent asks it again, up to twice (#49).
 3. FastAPI writes code yellow with the reason and the senior's words. For a worrying answer this happens when it is recorded; for an uncertain green it happens when the call ends.
 4. The notifier sends an alert to the caregivers' devices. The medic's app shows a warning on that patient, with no alert.
 5. The call continues to its normal close.
@@ -390,10 +398,12 @@ sequenceDiagram
 **A tier 2 phrase** („am leșinat”, „mi-e rău de tot”, „tremur tot”) does not act at once. The server, not the model, asks a fixed question naming what was said: „Ați spus că v-ați simțit leșinată. Aveți nevoie de ajutor acum? Spuneți «da» sau apăsați 1. Dacă nu, spuneți «nu» sau apăsați 2.” Yes, silence, an unclear answer or a hang-up means red and the steps above. A clear no returns the conversation to the model, with the phrase stored for review.
 
 Variations:
-- **Senior asks for a person, or presses 9.** Same hand-over; the code becomes at least yellow.
+- **Senior asks for a person, or presses 9.** Same hand-over; the code becomes at least yellow, and an incident opens as for a red (G16).
 - **On-duty phone not answered.** The senior hears that someone will call back. The incident stays open at the top of the dashboard, with its audible cue, until someone takes it.
 - **Nobody is on duty.** No dial is attempted; same message to the senior; the dashboard shows the open incident with a "nobody on duty" warning.
 - **Red with no call left to hand over.** Happens if the line drops between the red and the hand-over. The incident opens as usual and DAS phones the senior.
+
+**Hand-over triggers (#48, #49).** Key 9 and a tier 1 phrase start the hand-over at any point in a wellbeing call. Before the session closes, one step writes the status report, the code, the incident (or joins the senior's unresolved one) and the call's `handed_over`, so a line lost at step 3 keeps them. A second 9 changes nothing. A confirmed or unanswered tier 2 phrase, the rules' red, the model's red concern and a request for a person (or the agent judging the conversation cannot go on) start it too (04 §4.3, §5). The on-duty number is dialed only if it is on `DIAL_ALLOWLIST`; otherwise the senior hears the call-back message. An incident someone took from the dashboard before the phone was answered stays theirs. No push alerts are sent yet. Test calls (`place_call.py`) never hand over.
 
 ### UC-08 Nobody answers
 
@@ -471,7 +481,7 @@ sequenceDiagram
 ```
 
 1. The watch compares the pulse with the wearer's own resting level and with movement. A high pulse during a walk is ignored. It also counts steps; a long stretch without any is an inactivity anomaly.
-2. The watch also watches the accelerometer for a fall **(P19, proposed)**: free fall (the total acceleration below 0.4 g for a few tens of milliseconds), then an impact above 2.5 g within a second, then 10 to 20 seconds with almost no movement. Sitting down hard, walking and climbing stairs must not match; the false-alarm rate is measured ([06-operations.md](06-operations.md) section 5).
+2. The watch also watches the accelerometer for a fall **(P19, proposed)**: an impact above 2 g, then at least 7 seconds with almost no movement (within 0.1 g of 1 g). Free fall is not required: at the wrist it is often missing in a real fall and present in ordinary movement. Walking, climbing stairs, slapping a table and sudden gestures do not match; sitting down hard or lying down quickly can, and the wrist prompt catches those. Measured in [spike-results.md](spike-results.md), S13.
 3. The watch vibrates and asks „Sunteți bine?” with Da and Nu. After a fall the prompt times out sooner and also beeps.
 4. Da ends it. Nu, or no reply before the prompt times out, sends an anomaly event to the phone app.
 5. The "Nu mă simt bine" button skips the prompt and sends the event at once.
@@ -559,6 +569,10 @@ Variations:
 
 The node never places a call and never reaches the internet. It tells the phone app, the phone app tells FastAPI, and FastAPI decides.
 
+### UC-17 Ecou finds someone on the floor
+
+**(P24, proposed)** With Ecou, the home node built as a robot ([08-ecou.md](08-ecou.md)): when it has lost track of everyone for the search delay, it sweeps the floor; an object lying still for the lying hold time makes it ask „BINE?” with a countdown. A wave cancels; a palm or no answer sends a `fall` with the sweep, which queues a yellow call with trigger `home_node`, and DAS sees where on a map. Steps, variations and the sequence diagram are in [08-ecou.md](08-ecou.md) §4.
+
 ## 5. Following and responding
 
 ### UC-11 Handle a red incident
@@ -601,7 +615,7 @@ Taking and resolving record what DAS did; neither changes the code.
 |---|---|
 | Caregiver | Their senior's code, the reason in a sentence, short call history, the watch's state, the home node's state and latest room reading |
 | Medic | A panel of all their patients with codes, yellow and red highlighted; per patient: registration details, enrollment and consent state, call history, full transcripts, the watch's state, the home node's state and latest room reading |
-| DAS employee, dashboard | All active seniors, red first; incidents by status; enrollment requests; staff and who is on duty; the campaign button; per senior: code, reason, call history, full transcripts, address and access details |
+| DAS employee, dashboard | All active seniors, red first; incidents by status; enrollment requests; staff and who is on duty; the campaign button; per senior: code, reason, call history, full transcripts, address and access details, the watch's state and its last 24 hours of pulse ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)) |
 | DAS employee, Android app | Red incidents only, open and in progress first, each with its status and who took it; per incident: full senior data, address and access details, location, the call and its transcript, "Deschide în Hărți", call buttons |
 
 Open Android screens update when a refresh arrives, with a slow timed re-read as the backstop. The dashboard re-reads every few seconds. A call that is ringing or live shows a "call in progress" badge.
@@ -618,5 +632,6 @@ Open Android screens update when a refresh arrives, with a slow timed re-read as
 2. The caregiver and the medic see a device warning beside the senior. There is no alert and the code does not change.
 3. The next normal check-in sets the state back to `ok`.
 4. A home node with no room reading past its silence limit is marked `offline` the same way, and the next reading sets it back to `ok`. An offline node's last reading is not used on calls (P22).
+5. A device declared at registration (UC-01) that has never reported gets the same kind of device warning: „Ceas înregistrat, nu a trimis date”, „Senzor din casă înregistrat, nu a trimis date”, and, for the phone, „Pacientul nu a deschis aplicația” until the senior's own number first signs in. It shows once the senior is `accepted` or `active`, to the medic, the caregivers and DAS, never to the senior. A device not declared shows nothing; a senior whose equipment is not stated shows the watch as before (design 2026-11-14).
 
 A silent watch or node is not evidence about the senior; it is evidence about the device. Weather campaigns still reach that senior by phone.

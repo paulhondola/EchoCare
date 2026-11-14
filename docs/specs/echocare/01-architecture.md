@@ -20,6 +20,8 @@ flowchart TB
         CA["Android app<br/>caregiver role"]
         MA["Android app<br/>medic role, tablet"]
         DA["Android app<br/>DAS role, red incidents"]
+        IA["iPhone and iPad app, demo only<br/>all four roles (ADR-007)"]
+        IW["watchOS app, demo only<br/>senior, optional"]
         WD["Web dashboard<br/>DAS desk, Svelte"]
         DP["On-duty DAS phone<br/>also runs the DAS role"]
     end
@@ -39,9 +41,10 @@ flowchart TB
     LLM["Model provider"]
 
     W <-->|"1 events, check-ins"| SA
+    IW <-->|"1 events, check-ins"| IA
     HN <-->|"12 readings, button, light"| SA
-    SA & CA & MA & DA & WD -->|"2 sign in"| AUTH
-    SA & CA & MA & DA & WD <-->|"3 HTTPS, JSON"| API
+    SA & CA & MA & DA & IA & WD -->|"2 sign in"| AUTH
+    SA & CA & MA & DA & IA & WD <-->|"3 HTTPS, JSON"| API
     API --> CORE
     CORE -->|"4 alert, refresh"| FCM
     FCM --> SA & CA & MA & DA
@@ -66,15 +69,17 @@ flowchart TB
 | Android app | One app, four roles | The roles granted to the signed-in number decide which screens appear. The medic layout targets a tablet and also works on a phone. The DAS role shows only red incidents (G15) |
 | Web dashboard | DAS at the desk | Svelte 5 and SvelteKit 3 (ADR-003), built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
+| iPhone and iPad app **(demo only, ADR-007)** | The same four roles as the Android app | SwiftUI, in `ios/`. Signed with a free Personal Team and installed from Xcode. Receives no pushes: screens re-read on a timer |
+| watchOS app **(demo only, ADR-007)** | Senior's Apple Watch | Same behaviour as the Wear OS app. Monitors inside a workout session, about an hour at a time. Talks only to the senior's iPhone app |
 | Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
-| Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over, sends the caregiver notice SMS |
-| Model provider | The language model behind the agent | Not yet chosen; see [04-interfaces.md](04-interfaces.md) section 5 |
+| Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over and transcribes it live, sends the caregiver notice SMS |
+| Model provider | The language model behind the agent and the summary agent | DeepInfra, an OpenAI-compatible endpoint (S4); see [04-interfaces.md](04-interfaces.md) section 5 |
 
 ## 4. Channels
 
 | # | From → to | Means | Carries | Caller proves identity with |
 |---|---|---|---|---|
-| 1 | Watch ↔ senior's phone app | Wear OS Data Layer messages | Anomaly events, check-ins, acknowledgements | Same app, same signing key, paired devices |
+| 1 | Watch ↔ senior's phone app | Wear OS Data Layer messages; on Apple devices (ADR-007), WatchConnectivity | Anomaly events, check-ins, acknowledgements | Same app, same signing key, paired devices |
 | 2 | Apps and dashboard → Firebase sign-in | Firebase sign-in library, phone provider (with reCAPTCHA in the browser) | Phone number, SMS code, token renewal | The SMS code |
 | 3 | Apps and dashboard → FastAPI | Web requests, JSON over HTTPS. The API accepts browser requests only from the dashboard's own address | Reads, data entry, commands, the senior's events and check-ins | Firebase identity token |
 | 4 | FastAPI → Firebase push → Android app | Firebase server library for Python | Alert or refresh, with a senior id | Service credentials |
@@ -142,9 +147,10 @@ Phone numbers are normalized to the international format (+40…) on every write
 | Full transcript | No | Yes | Yes |
 | Address and access details | Yes | Yes | Yes |
 | Location attached to an event **(proposed)** | Yes | No | Yes |
-| Watch state (worn, battery, last check-in) | Yes | Yes | No |
+| Watch state (worn, battery, last check-in, pulse, steps) and its last 24 hours ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)) | Yes | Yes | Yes |
 | Home node state and latest room reading (temperature, humidity, last motion) **(proposed)** | Yes | Yes | Yes |
 | Consent record | No | Yes | Yes |
+| Medical record and its profile (design 2026-11-13) | No | Registering medic only | Once the medic confirms it |
 
 ## 7. Live updates and push (G4)
 
@@ -230,22 +236,23 @@ flowchart LR
     ENG -->|"redial"| SCHED
 ```
 
-| Module | Job | Depends on |
-|---|---|---|
-| Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store |
-| Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store |
-| Senior event intake | Receives events, check-ins and room readings forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule; turns a room reading that stays out of range into an event (P21) | Store |
-| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick | Store |
-| Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store |
-| Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store |
-| Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider |
-| Rules and status engine | Turns answers into severity and certainty, checks the shelter answer against the latest room reading (P22), applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing |
-| Notifier | Sends alerts and refreshes through Firebase push; the caregiver notice SMS through Twilio | Firebase push, Twilio |
-| Store | All reads and writes to PostgreSQL, asynchronous | PostgreSQL |
+| Module | Job | Depends on | Owns (package: tables) |
+|---|---|---|---|
+| Identity | Verifies the Firebase identity token, normalizes the phone number, loads the caller's grants, attaches the Firebase account at first sign-in | Firebase sign-in, Store | `auth`: `users`, `grants`, `push_tokens` |
+| Reads, data entry, commands | The endpoints in [04-interfaces.md](04-interfaces.md) sections 1 and 2; checks grants on each | Store | `seniors`: `seniors`, `consents`, `watch_states`; `incidents`: `incidents`, `events`; `campaigns`: `campaigns` |
+| Senior event intake | Receives events, check-ins and room readings forwarded by the senior's phone app; drops duplicates; applies the cooldown and the active-warning rule; turns a room reading that stays out of range into an event (P21) | Store | nothing; writes events and watch states through `incidents` and `seniors` |
+| Scheduler | On a short tick: finds calls that are due, marks silent watches and home nodes, and records an inactivity event for a home node with no motion past the limit during a warning. All timers are rows with a due time, so a restart loses nothing. Each tick first takes a database lock, so a second running copy of the service skips the tick. A summary step starts one background task per answered call and returns; it never waits on the model (06 §2) | Store, Summary agent | nothing; queues and moves calls through `voice` |
+| Summary agent | After a wellbeing call, updates a short Romanian summary of the senior (follow-ups, how to talk, trend notes, a narrative) from the call and earlier ones; checks that every quote is the senior's own words. Pure and model-agnostic; the scheduler's summary step runs it. Never feeds the rules (design 2026-11-08 §3) | Model provider | nothing; through `seniors` (`senior_summaries`) |
+| Dialer | Places a call through Twilio and tracks its lifecycle from the status callbacks | Twilio, Store | `voice`: `calls`, `call_turns`, `answers` |
+| Welcome call | Answers the welcome call's callbacks with fixed questions and records identity and consent | Store | nothing; through `seniors` and `voice` |
+| Call session | One per live wellbeing call. Holds the WebSocket, matches alarm phrases, asks the confirmation question, runs the conversation with the model, executes hand-over | Twilio, model provider | nothing; `agent` reads and writes the call through `voice` only |
+| Rules and status engine | Turns answers into severity and certainty, checks the shelter answer against the latest room reading (P22), applies the matrix, decides the code and the actions. Pure logic with no outside calls | Nothing | `codes`: `senior_statuses`, `status_reports`; the engine itself (`status`) is pure |
+| Notifier | Sends alerts and refreshes through Firebase push; the caregiver notice SMS through Twilio | Firebase push, Twilio | nothing |
+| Store | All reads and writes to PostgreSQL, asynchronous | PostgreSQL | each table's owning package (ADR-005) |
 
 The rules and status engine has no dependencies on purpose: every rule and every cell of the matrix can be tested without a phone, a model or a database.
 
-**The agent loop is written directly against the model provider's library (proposed)**, not inside an agent framework. The server refuses tool calls, matches alarm phrases before the model sees a sentence, and cuts the model's reply short on an interruption; a framework's own loop would be in the way.
+**Pydantic AI at the model layer; the turn control stays ours.** The live call loop asks Pydantic AI for one streamed model round at a time (`model_request_stream`), with its message types and tool schemas built from Pydantic models, and never runs an agent graph (`Agent.iter()`, `run_stream()`). The server refuses tool calls, matches alarm phrases before the model sees a sentence, cuts the model's reply short on an interruption, caps a turn at three rounds and keeps a red hand-over through a cancel; a framework's own loop would be in the way. The summary agent, which has no live constraints, is an ordinary Pydantic AI `Agent`.
 
 **Everything in the request path is asynchronous.** One blocking database call or web request in this process would pause every live conversation.
 
@@ -257,6 +264,7 @@ The rules and status engine has no dependencies on purpose: every rule and every
 | PostgreSQL | Railway, same project and region | Reached over the private network |
 | Web dashboard | Railway, a separate static-site service in the same project | Its own service, so that changing the dashboard never redeploys FastAPI and drops live calls. The API allows browser requests from this address only |
 | Android and Wear OS apps | Installed directly on the demo devices | n/a |
+| iPhone, iPad and watchOS apps | Installed from Xcode on the demo devices, demo only (ADR-007) | A free Personal Team: installs expire after 7 days |
 
 A new deploy starts before the old one stops, so for a few seconds two copies run. The scheduler's database lock keeps one of them idle. Calls live on the old copy drop, so nothing is deployed after the Sunday-morning freeze.
 
@@ -310,3 +318,5 @@ The PIR needs 30 to 60 seconds to settle after power-on; its jumper is set to re
 - Lights the LED in the colour the phone writes: the senior's code, blue while a call is in progress. A slow white blink means "not connected to the phone".
 
 The node decides nothing. The thresholds, the hold time and the inactivity limit live in FastAPI (P21), so changing them needs no firmware update.
+
+**Ecou (P23, proposed).** For the hackathon the node is built from the boards the team has: an Arduino UNO Q as a small robot head, with an UNO R4 WiFi in the kitchen. Same role and same link to the phone; it adds a floor search, gestures and a room state shown by its body. Parts, wiring and interfaces are in [08-ecou.md](08-ecou.md).

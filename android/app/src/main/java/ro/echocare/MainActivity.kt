@@ -1,19 +1,26 @@
 package ro.echocare
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +33,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -39,9 +50,15 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import ro.echocare.auth.AuthViewModel
+import ro.echocare.auth.Landing
+import ro.echocare.auth.ROLE_LABELS
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
+import ro.echocare.homenode.NodeService
+import ro.echocare.push.PUSH_KEYS
+import ro.echocare.push.Push
+import ro.echocare.push.tappedFrom
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SnButton
@@ -49,12 +66,22 @@ import ro.echocare.ui.SnTextField
 import ro.echocare.ui.theme.EchoCareTheme
 import ro.echocare.ui.theme.Palette
 
+/** Saved across a rotation: no alert is waiting to open. */
+private const val ALERT_OPENED = "alert_opened"
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var auth: FirebaseAuth
 
+    /** A tapped alert to open once the role's home is shown (04 §6); null when there is none. */
+    private var opening by mutableStateOf<Push.Alert?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The home node's relay, when this phone has one (UC-15); started while in front
+        NodeService.start(this)
+        // Not again after a rotation, once opened: its page is on the back stack already
+        if (savedInstanceState?.getBoolean(ALERT_OPENED) != true) opening = alertIn(intent)
         // One dark theme (spec 07 §2.1): light status and navigation icons whatever the system uses
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -67,25 +94,57 @@ class MainActivity : ComponentActivity() {
                     // Signed in: the role's home and what opens from it (seniors §8.2).
                     is Screen.Home -> HomeNav(
                         screen,
-                        onSwitchRole = vm::switchRole,
+                        phone = auth.currentUser?.phoneNumber,
+                        onPickRole = vm::pickRole,
                         onSignOut = vm::signOut,
-                        onSessionEnd = vm::sessionEnded
+                        onSessionEnd = vm::sessionEnded,
+                        opening = opening,
+                        onOpened = { opening = null }
                     )
 
                     else -> Scaffold(
                         modifier = Modifier.fillMaxSize(),
                         containerColor = Palette.Canvas
                     ) { innerPadding ->
+                        if (screen == Screen.Landing) {
+                            Landing(vm::openSignIn, Modifier.padding(innerPadding))
+                            return@Scaffold
+                        }
                         SignIn(
                             vm,
                             onSendCode = { sendCode(vm, it, null) },
                             onResend = { sendCode(vm, vm.phone, vm.resendToken) },
-                            modifier = Modifier.padding(innerPadding)
+                            // The keyboard must not cover the code field or its button
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .consumeWindowInsets(innerPadding)
+                                .imePadding()
                         )
                     }
                 }
             }
         }
+    }
+
+    /** A tap on an alert while the app is open: singleTop brings it here (04 §6). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        alertIn(intent)?.let {
+            opening = it
+            // So a rotation before it opens, while the sign-in loads, still finds it
+            setIntent(intent)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(ALERT_OPENED, opening == null)
+    }
+
+    /** What a notification tap opens, from the tray or shown in front (04 §6, design §5.6). */
+    private fun alertIn(intent: Intent?): Push.Alert? {
+        val extras = intent?.extras ?: return null
+        return tappedFrom(PUSH_KEYS.associateWith { extras.getString(it) })
     }
 
     // PhoneAuthOptions needs an Activity for the reCAPTCHA fallback, so verification starts here
@@ -95,7 +154,10 @@ class MainActivity : ComponentActivity() {
         phone: String,
         resend: PhoneAuthProvider.ForceResendingToken?
     ) {
-        vm.sending(phone)
+        val attempt = vm.sending(phone)
+
+        // Late callbacks from an attempt left with Înapoi, or replaced by a resend, change nothing
+        fun current() = attempt == vm.attempt
         val options = PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(phone)
             .setTimeout(60L, TimeUnit.SECONDS)
@@ -103,29 +165,26 @@ class MainActivity : ComponentActivity() {
             .setCallbacks(
                 object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                     // Automatic SMS reading: sign in straight away.
-                    override fun onVerificationCompleted(credential: PhoneAuthCredential) =
-                        vm.signIn(credential)
+                    override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                        if (current()) vm.signIn(credential)
+                    }
 
-                    override fun onVerificationFailed(e: FirebaseException) =
-                        vm.verificationFailed(e)
+                    override fun onVerificationFailed(e: FirebaseException) {
+                        if (current()) vm.verificationFailed(e)
+                    }
 
                     override fun onCodeSent(
                         id: String,
                         token: PhoneAuthProvider.ForceResendingToken
-                    ) = vm.codeSent(id, token)
+                    ) {
+                        if (current()) vm.codeSent(id, token)
+                    }
                 }
             )
         resend?.let(options::setForceResendingToken)
         PhoneAuthProvider.verifyPhoneNumber(options.build())
     }
 }
-
-private val ROLE_LABELS = mapOf(
-    "das" to R.string.role_das,
-    "medic" to R.string.role_medic,
-    "caregiver" to R.string.role_caregiver,
-    "senior" to R.string.role_senior
-)
 
 @Composable
 fun SignIn(
@@ -140,6 +199,12 @@ fun SignIn(
             // Shown by HomeNav in MainActivity, not here.
             is Screen.Home -> {}
             else -> Panel {
+                // Before anyone is signed in, back returns to the landing page
+                val beforeSignIn =
+                    screen is Screen.Phone ||
+                        screen is Screen.Code ||
+                        screen == Screen.NotRegistered
+                BackHandler(enabled = beforeSignIn, onBack = vm::backToLanding)
                 when (screen) {
                     is Screen.Phone -> PhoneForm(screen.error, onSendCode)
                     // Signed out already: the phone form, under the not-registered text (auth-layer §3.2).
@@ -172,6 +237,14 @@ fun SignIn(
                     }
                     else -> {}
                 }
+                if (beforeSignIn) {
+                    SnButton(
+                        stringResource(R.string.back),
+                        vm::backToLanding,
+                        Modifier.fillMaxWidth(),
+                        kind = Kind.Outline
+                    )
+                }
             }
         }
     }
@@ -189,10 +262,20 @@ private fun Panel(content: @Composable () -> Unit) {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            stringResource(R.string.app_name).uppercase(),
-            style = MaterialTheme.typography.titleLarge
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painterResource(R.drawable.ic_brand),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp)
+            )
+            Text(
+                stringResource(R.string.app_name).uppercase(),
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
         Rule()
         content()
     }
@@ -205,7 +288,12 @@ private fun Title(text: Int) {
 
 @Composable
 private fun ErrorText(text: Int) {
-    Text(stringResource(text), color = Palette.RosuFg, style = MaterialTheme.typography.bodyMedium)
+    Text(
+        stringResource(text),
+        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        color = Palette.RosuFg,
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
 
 @Composable

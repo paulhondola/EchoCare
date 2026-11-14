@@ -46,12 +46,14 @@ flowchart LR
 | File | Contents |
 |---|---|
 | [01-architecture.md](01-architecture.md) | Parts, channels, identity and grants, live updates, inside the FastAPI service, hosting |
-| [02-use-cases.md](02-use-cases.md) | Actors, fourteen use cases, sequence diagrams |
+| [02-use-cases.md](02-use-cases.md) | Actors, the use cases, sequence diagrams |
 | [03-status-model.md](03-status-model.md) | Codes, the answers and the rules, alarm phrases, the matrix, combining rules, lifecycles |
 | [04-interfaces.md](04-interfaces.md) | Every interface between parts: endpoints, callbacks, messages, agent tools |
 | [05-data-model.md](05-data-model.md) | Entities, relationships, constraints, retention |
 | [06-operations.md](06-operations.md) | Failure handling, timers and demo mode, security and privacy, testing, spikes to run before the hackathon |
+| [spike-results.md](spike-results.md) | What the spikes found on real hardware, with the raw numbers |
 | [07-dashboard-stitch-spec.md](07-dashboard-stitch-spec.md) | DAS web dashboard, design system (GitHub Projects Kanban style), and Google Stitch prompt package |
+| [08-ecou.md](08-ecou.md) | Ecou, the home node built as a small robot on an Arduino UNO Q, with its kitchen companion on an UNO R4 WiFi (P23–P27, proposed) |
 
 ## What changed from v3
 
@@ -92,7 +94,13 @@ flowchart LR
 | G13 | Location for DAS: a structured address with access details, a landline badge, the phone app's last known location attached to events, and the live hand-over. An "open in maps" button. No continuous tracking | n/a |
 | G14 | Both seasons. Watch signals: inactivity during an active warning, high pulse at rest, the "Nu mă simt bine" button. The demo leads with cold | P12 (extended) |
 | G15 | DAS has two surfaces. A React web dashboard at the desk does everything: all seniors and codes, incidents, enrollment requests, campaigns, staff and on duty. The DAS role in the Android app, on the on-duty phone, shows only red incidents and their details, with take, resolve, call and "open in maps". The dashboard is another client of the same API and re-reads every few seconds | G3 (DAS part) |
-| G16 | Every red opens an incident: `open`, then `in_progress` when someone takes it (answering the hand-over takes it automatically), then `resolved` with an outcome and a note. Taking replaces acknowledging. Resolving does not change the code; campaigns skip seniors with an open or in-progress incident | P9 (acknowledge), open question 3 |
+| G16 | Every red, and every hand-over to DAS, opens an incident, or joins the senior's unresolved one (#48): `open`, then `in_progress` when someone takes it (answering the hand-over takes it automatically), then `resolved` with an outcome and a note. Taking replaces acknowledging. Resolving does not change the code; campaigns skip seniors with an open or in-progress incident | P9 (acknowledge), open question 3 |
+
+### Decided in the summary agents design (2026-11-08)
+
+| ID | Decision | Supersedes |
+|---|---|---|
+| G17 | After each answered wellbeing call a summary agent (Pydantic AI, DeepInfra, `SUMMARY_MODEL`) updates a short Romanian summary of the senior: follow-up topics, how to talk, trend notes and a narrative, each citing the senior's own words. The next call's agent gets at most one follow-up question; DAS and the registering medic can read it. It never feeds the status engine and never replaces one of the three questions. Every version is kept with its call. Evals run by hand (`backend/evals/`) | Deferred "Day-over-day trend detection" (as notes for people, not as rules) |
 
 ### Decided in the design session
 
@@ -136,10 +144,15 @@ Each is marked **(proposed)** where it is specified.
 | P16 | A campaign is one round of calls, started immediately | Kept |
 | P17 | FastAPI is hosted on Google Cloud Run | Replaced by G9 |
 | P18 | Push messages carry generic text and a senior id, no health details | Kept |
-| P19 | The watch also detects falls: free fall, impact, then stillness, followed by the wrist prompt. A fall is one more watch event type | Proposed |
+| P19 | The watch also detects falls: an impact above 2 g, then at least 7 seconds of stillness, followed by the wrist prompt. A fall is one more watch event type | Proposed; thresholds from spike S13 ([spike-results.md](spike-results.md)) |
 | P20 | An optional home node (ESP32 with a room temperature sensor, a motion sensor and an SOS button) talks over Bluetooth Low Energy to the senior's phone app only, never to FastAPI directly. Like the watch, it has no identity of its own. It serves the two courses that require a mobile app using hardware sensors (G1) | Proposed |
 | P21 | FastAPI owns the room temperature thresholds. A room reading that stays out of range for the hold time, no movement in the house during an active warning, or the node's SOS button starts a wellbeing call with starting severity yellow | Proposed |
 | P22 | A fresh room reading out of range overrides a "yes" to the shelter question: the server records the shelter answer as worrying. Sensors can only raise the level, like the model | Proposed |
+| P23 | Ecou: the home node built as a robot head on an Arduino UNO Q, ultrasonic eyes on a pan and tilt mount, a face on the LED matrix. Same role as P20: only the phone app, no identity, no camera or microphone ([08-ecou.md](08-ecou.md)) | Proposed, for the hackathon |
+| P24 | Ecou searches the floor when it loses track of the senior. Something lying still is asked about, like the wrist prompt, then reported as a `fall` with source `home_node` and the sweep that found it, which DAS sees as a map | Proposed |
+| P25 | Gestures to Ecou: a wave answers „sunt bine” to its prompt; a palm held still for 3 seconds is an SOS, sent as the node's SOS press | Proposed |
+| P26 | FastAPI answers each room reading with a room state, including `cold_soon` and `hot_soon` from the node's one-hour forecast. A forecast starts no call and changes no code; Ecou shows it by shivering or fanning itself | Proposed |
+| P27 | A second board in the kitchen (UNO R4 WiFi) talks only to Ecou, over local Wi-Fi: doorway passes count as motion, a foil pad is an SOS | Proposed |
 
 ## Deferred past the MVP
 
@@ -161,7 +174,7 @@ Each is marked **(proposed)** where it is specified.
 1. **Watch anomaly and two unanswered calls.** The matrix leaves this at yellow. Two independent signals agree, which argues for red. Default: yellow.
 2. **Yellow without a timer (P5).** A caregiver who misses the push is not chased. Acceptable for the MVP?
 3. ~~**Sticky red (P9).**~~ Resolved by G16: a red is cleared by resolving its incident, which also returns the senior to campaigns.
-4. **Model provider.** Not chosen; spike S4 decides on a real Romanian call, including whether an EU or a US region gives acceptable latency.
+4. ~~**Model provider.**~~ Resolved by S4 (2026-11-08): DeepInfra, DeepSeek-V4-Pro.
 5. **Medical depth for the Medical Renaissance track.** Options: (a) six risk checkboxes the medic ticks (cardiovascular disease, medicines that affect temperature regulation, reduced mobility, known cognitive decline, top floor without air conditioning, advanced age), used to call the most vulnerable first and shown to the medic and DAS; (b) keep risk deferred; (c) v3 in full, with document extraction and a weighted score. To be discussed.
 6. **Caregivers on an iPhone** have no channel. An automated call to the caregiver on a red would reuse the welcome-call script.
 7. **Spoken consent.** Whether a recorded spoken "da" counts as explicit consent for health data is for DAS, as data controller, to confirm before a pilot.
@@ -171,6 +184,8 @@ Each is marked **(proposed)** where it is specified.
 11. **Room temperature thresholds (P21, P22).** The proposed limits (below 16°C, above 30°C) are orientative and have no medical value. A medical mentor should set them, and say whether an extreme room (below 12°C, above 34°C) should go straight to red. Default: yellow, like every other sensor trigger.
 12. **A detected fall, or the home SOS button, and an unanswered call.** Like question 1: both argue for red. Default: yellow.
 13. ~~**Editing an active senior's registration.**~~ Resolved by the CRUD completion (2026-10-16): the address, access details and phone number are editable in every state, by the registering medic or by DAS for seniors it reaches as DAS. A changed number moves the senior grant and queues no welcome call.
+14. **Consent that covers remembering across calls.** Today's consent texts (`v1`, `v1-app`, `v1-semnatura`) say who sees what is said, not that it is remembered. A pilot needs a new consent version for the summary (GDPR Art. 4(4) and Art. 9), and DAS, as data controller, must confirm the basis (06 §4). Not needed for the demo.
+15. **A fall found by Ecou and an unanswered call (P24).** Like question 12. Ecou cannot tell a person from a coat as well as a watch can tell a fall, which argues for keeping yellow. Default: yellow.
 
 ## Glossary
 
@@ -185,6 +200,8 @@ Each is marked **(proposed)** where it is specified.
 | Starting severity | The severity a trigger carries before anyone has spoken: green for campaign, yellow for watch, home node and manual |
 | Active warning | The period a campaign marks as under a heat or cold warning. Inactivity, from the watch or the home node, counts only during one |
 | Home node | Optional sensor box in the senior's home: room temperature and humidity, motion, an SOS button, a status light. Talks only to the senior's phone app, over Bluetooth Low Energy (P20) |
+| Ecou | The home node built as a small robot that follows the senior with its eyes and shows the room with its body (P23) |
+| Room state | FastAPI's answer to a room reading: `ok`, `cold_soon`, `cold`, `hot_soon` or `hot`. Drives Ecou's body, never a call by itself (P26) |
 | Room reading | The home node's periodic report (temperature, humidity, last motion), relayed by the phone. Only the latest is kept |
 | Wellbeing call | An agent call that checks on the senior. Every call except the welcome call |
 | Welcome call | The first call after DAS accepts a senior: confirms identity and records consent |

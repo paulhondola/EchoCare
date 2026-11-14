@@ -1,19 +1,68 @@
 import logging
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
-from app.calls.schemas import AnswerView, CallSummary, TranscriptDetail
+from app.calls.schemas import AnswerView, CallSummary, LiveCall, TranscriptDetail
+from app.campaigns.models import Campaign, CampaignKind
+from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
 from app.incidents.service import call_detail
+from app.medical.service import confirmed_checks
 from app.seniors.models import Senior
-from app.seniors.service import reach, reach_senior
-from app.voice.models import Answer, Call, CallTrigger, CallTurn, StatusReport
+from app.seniors.service import latest_summary, reach, reach_senior, read_content
+from app.voice.calls import ANSWERED, ENDED, CallState
+from app.voice.dialogue import wellbeing_greeting
+from app.voice.models import WELLBEING, Answer, Call, CallTrigger, CallTurn
+from app.voice.service import cancel_queued, queue_calls
 
 log = logging.getLogger("echocare.calls")
+
+# A hand-over ends the senior's call (`ended_at` is set) while DAS is still talking with
+# her; it stays live while its newest turn is this fresh: the briefing, the ring and DAS's
+# first sentence can pass a minute without a turn (design 2026-11-14 §4).
+HANDOVER_LIVE = timedelta(seconds=90)
+
+
+async def live_calls(session: AsyncSession) -> list[LiveCall]:
+    """Calls ringing or in progress, and hand-overs still talking, newest first; test
+    calls left out. For DAS, who reaches every senior a call exists for (04 §1)."""
+    newest_turn = (
+        select(func.max(CallTurn.at))
+        .where(CallTurn.call_id == Call.id)
+        .scalar_subquery()
+    )
+    rows = await session.execute(
+        select(Call, Senior.full_name)
+        .join(Senior, Senior.id == Call.senior_id)
+        .where(
+            Call.trigger != CallTrigger.test,
+            or_(
+                Call.state.in_([CallState.ringing, CallState.in_progress]),
+                (Call.state == CallState.handed_over)
+                & (newest_turn >= datetime.now(UTC) - HANDOVER_LIVE),
+            ),
+        )
+        .order_by(Call.due_at.desc(), Call.id.desc())
+    )
+    return [
+        LiveCall(
+            id=call.id,
+            senior_id=call.senior_id,
+            senior_name=name,
+            trigger=call.trigger,
+            state=call.state,
+            starting_severity=call.starting_severity.name,
+            started_at=call.started_at,
+            due_at=call.due_at,
+        )
+        for call, name in rows
+    ]
 
 
 async def call_history(
@@ -72,3 +121,132 @@ async def transcript(
     ]
     detail = call_detail(call, reports, turns)
     return TranscriptDetail(**detail.model_dump(), answers=answers)
+
+
+async def queue_welcome_call(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """The welcome call an accepted senior answers from the app's card (Q11, 04 §2).
+
+    A senior with a live call already (`uq_calls_live_senior`, 05 §3) gets none. Doesn't
+    commit: `accept` does, with the move.
+    """
+    await queue_calls(
+        session,
+        Senior.id == senior_id,
+        trigger=CallTrigger.welcome,
+        due_at=datetime.now(UTC),
+    )
+
+
+async def welcome_call_pending(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """The senior has a welcome call still to be answered: queued, ringing or in
+    progress (UC-04, 04 §2)."""
+    return (
+        await session.scalar(
+            select(
+                exists().where(
+                    Call.senior_id == senior_id,
+                    Call.trigger == CallTrigger.welcome,
+                    Call.state.in_(
+                        (CallState.queued, CallState.ringing, CallState.in_progress)
+                    ),
+                )
+            )
+        )
+        is True
+    )
+
+
+async def cancel_queued_calls(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """A withdrawn senior gets no more calls (UC-04): her queued ones are canceled.
+
+    Doesn't commit: `withdraw_consent` does, with the move.
+    """
+    await cancel_queued(session, Call.senior_id == senior_id, now=datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class AnswerContext:
+    """What a picked-up call is answered with (04 §4.2)."""
+
+    trigger: CallTrigger
+    form_of_address: str
+    greeting: str
+    heat: bool = False
+    # The latest summary's first follow-up and its notes; wellbeing calls only (design §5 A).
+    follow_up: str | None = None
+    how_to_talk: tuple[str, ...] = ()
+    # One confirmed medical check, rotating per answered wellbeing call (design §5.5).
+    medical_check: tuple[str, str] | None = None
+
+
+async def answer_context(
+    session: AsyncSession, call_id: uuid.UUID, *, notes: bool = False
+) -> AnswerContext | None:
+    """The call's trigger and its greeting, with the campaign's warning for a campaign
+    call; None for an unknown call. `notes` also reads the senior's summary, which only
+    the relay needs: the answer to Twilio must not wait for it (design §5 A)."""
+    row = (
+        await session.execute(
+            select(
+                Call.trigger,
+                Senior.id,
+                Senior.form_of_address,
+                Campaign.kind,
+                Campaign.level,
+            )
+            .join(Senior, Senior.id == Call.senior_id)
+            .outerjoin(Campaign, Campaign.id == Call.campaign_id)
+            .where(Call.id == call_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    # A welcome call speaks its own script (UC-04), no greeting.
+    said = (
+        ""
+        if row.trigger is CallTrigger.welcome
+        else wellbeing_greeting(row.form_of_address, row.trigger, row.kind, row.level)
+    )
+    follow_up, how_to_talk, medical_check = None, (), None
+    if notes and row.trigger in WELLBEING:
+        # The call goes ahead without the notes if they cannot be read (design §5 A).
+        # Each read in its own savepoint: a failed one must not abort the other's
+        # transaction (design §5.5).
+        try:
+            async with session.begin_nested():
+                version = await latest_summary(session, row.id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("summary read failed, call %s: %s", call_id, type(e).__name__)
+            version = None
+        # Its own guard: a failure here costs the check, not the summary (design §5.5).
+        try:
+            async with session.begin_nested():
+                checks = await confirmed_checks(session, row.id)
+                if checks:
+                    done = await session.scalar(
+                        select(func.count())
+                        .select_from(Call)
+                        .where(
+                            Call.senior_id == row.id,
+                            Call.trigger.in_(WELLBEING),
+                            Call.state.in_(ANSWERED & ENDED),
+                        )
+                    )
+                    medical_check = checks[(done or 0) % len(checks)]
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "medical check read failed, call %s: %s", call_id, type(e).__name__
+            )
+        content = read_content(version) if version else None
+        if content:
+            follow_up = content.follow_ups[0].question if content.follow_ups else None
+            how_to_talk = tuple(content.how_to_talk)
+    return AnswerContext(
+        row.trigger,
+        row.form_of_address,
+        said,
+        heat=row.kind is CampaignKind.heat,
+        follow_up=follow_up,
+        how_to_talk=how_to_talk,
+        medical_check=medical_check,
+    )

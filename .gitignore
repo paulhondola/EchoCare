@@ -3,6 +3,8 @@ Icon?
 
 # local environment
 .env
+# the demo cast: real people's names and numbers (#48); cast.example.json is the shape
+backend/cast.json
 .venv/
 __pycache__/
 .pytest_cache/
@@ -15,8 +17,20 @@ dist/
 .remember/
 .superpowers/
 
+# Impeccable: personal settings; design.json and config.json are shared
+.impeccable/config.local.json
+
 # lefthook: personal overrides, such as rc: for a Git GUI's PATH (ADR-002)
 lefthook-local.yml
 
 # SvelteKit
 .svelte-kit/
+
+# IDE settings opened at the repository root; android/.idea keeps its few shared files
+/.idea/
+
+# iOS: local signing config, Xcode user state and build output
+ios/Config/Local.xcconfig
+ios/**/xcuserdata/
+ios/build/
+ios/Shared/.build/

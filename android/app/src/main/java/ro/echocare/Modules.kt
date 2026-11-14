@@ -3,6 +3,7 @@ package ro.echocare
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,9 +25,20 @@ object FirebaseModule {
     @Singleton
     fun firebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance().apply {
         // Affects only Firebase's test numbers: emulators sign in before the SHA fingerprints
-        // are registered (auth-layer §8.2, §9 step 1).
-        if (BuildConfig.DEBUG) firebaseAuthSettings.setAppVerificationDisabledForTesting(true)
+        // are registered (auth-layer §8.2, §9 step 1). Real numbers need verification on, so
+        // echocare.realSms=true in local.properties leaves it on in a debug build, which then
+        // verifies with the web reCAPTCHA: Play Integrity refused it with 17028 on an emulator.
+        if (!BuildConfig.REAL_SMS) {
+            firebaseAuthSettings.setAppVerificationDisabledForTesting(true)
+        } else if (BuildConfig.DEBUG) {
+            firebaseAuthSettings.forceRecaptchaFlowForTesting(true)
+        }
     }
+
+    /** This device's push token (04 §6). */
+    @Provides
+    @Singleton
+    fun firebaseMessaging(): FirebaseMessaging = FirebaseMessaging.getInstance()
 }
 
 @Module

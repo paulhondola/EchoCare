@@ -1,0 +1,240 @@
+{
+  "sourceLanguage" : "ro",
+  "strings" : {
+    "all_good" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Totul e în regulă"
+          }
+        }
+      }
+    },
+    "app_name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EchoCare"
+          }
+        }
+      }
+    },
+    "are_you_ok_no" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu, ajutor!"
+          }
+        }
+      }
+    },
+    "are_you_ok_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunteți bine?"
+          }
+        }
+      }
+    },
+    "are_you_ok_yes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Da, sunt bine"
+          }
+        }
+      }
+    },
+    "call_me" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu mă simt bine"
+          }
+        }
+      }
+    },
+    "force_fall" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug: cădere"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "force_high_pulse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug: puls mare"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "force_inactivity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug: inactivitate"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "grant_permission" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite accesul"
+          }
+        }
+      }
+    },
+    "heart_rate_plain" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puls %1$lld"
+          }
+        }
+      }
+    },
+    "heart_rate_waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puls: se măsoară…"
+          }
+        }
+      }
+    },
+    "help_answer_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vă sunăm imediat. Răspundeți la telefon."
+          }
+        }
+      }
+    },
+    "help_keep_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Țineți telefonul aproape"
+          }
+        }
+      }
+    },
+    "help_received" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echipa a fost anunțată"
+          }
+        }
+      }
+    },
+    "help_retrying" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încercăm din nou…"
+          }
+        }
+      }
+    },
+    "help_sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anunțăm echipa…"
+          }
+        }
+      }
+    },
+    "monitor_off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitorizare oprită"
+          }
+        }
+      }
+    },
+    "permission_needed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EchoCare are nevoie de acces la puls și la activitate."
+          }
+        }
+      }
+    },
+    "start_monitoring" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pornește monitorizarea"
+          }
+        }
+      }
+    },
+    "stop_monitoring" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oprește monitorizarea"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

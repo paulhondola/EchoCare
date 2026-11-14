@@ -54,6 +54,7 @@ echocare.apiUrl=http://10.0.2.2:8000
 | `echocare.keystore` | Absolute path to the shared keystore |
 | `echocare.keystore.password`, `echocare.key.password` | The same password twice: the keystore is PKCS12, which has one password |
 | `echocare.apiUrl` | Optional. Overrides the API address of **debug** builds. `http://10.0.2.2:8000` is your laptop's Compose stack as seen from an emulator. Leave it out to use staging |
+| `echocare.realSms` | Optional. `true` signs in with real numbers and real SMS on a **debug** build, on an emulator or a phone. The code goes to the real phone that owns the number, so type it in by hand: an emulator never reads it. The emulator needs a Google Play image (`Medium_Phone` and `Medium_Tablet` have one) and Chrome for the reCAPTCHA step. Leave it out to sign in with Firebase's test numbers. Release builds always use real SMS. Real SMS needs the shared keystore's SHA-1 and SHA-256 registered in Firebase for `ro.echocare` ([auth-layer.md](../docs/specs/auth-layer.md) §9) |
 
 **3. Open `android/` in Android Studio, not the repository root.** The Gradle build starts in this folder. Studio still finds Git one level up, through the committed `.idea/vcs.xml`.
 

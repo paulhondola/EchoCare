@@ -2,7 +2,7 @@
 
 **Status:** approved design · 2026-10-12 · branch `auth-layer`
 **Issues:** #16 (parent), #17, #18, #19, #21.
-**Implements:** UC-01 (register a senior), UC-04 step 1 (accept, without the welcome call), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](echocare/04-interfaces.md).
+**Implements:** UC-01 (register a senior), UC-04 step 1 (accept; the welcome call it queues came later, with [the campaigns and mock calls design](../superpowers/specs/2026-10-17-campaigns-and-mock-calls-design.md)), UC-14 (the „Personal” screen), the per-role homes of UC-02 and UC-12 on Android, [auth-layer.md](auth-layer.md) §3.6 and the seniors and staff rows of its §10, [04 §1 and §2](echocare/04-interfaces.md).
 **Read with:** the system spec in [echocare/](echocare/README.md) and [auth-layer.md](auth-layer.md). Where either disagrees with this file about the endpoints defined here, this file wins, and slice 1 brings them in line (§6.6).
 
 **Since the merge with `main` (2026-10-13):** the backend follows `main`'s domain packages (`app/seniors/`, `app/staff/`, `app/auth/`), and for the commands [04 §2](echocare/04-interfaces.md) wins over this file. That replaces SE4 (submitting also needs a caregiver), SE13 (a repeat is `already_done`) and SE16 (the routes are in `app/seniors/router.py`). SE9 and SE10 are in force again (CRUD completion, 2026-10-16): the registering medic and DAS edit a registration and its caregivers in any state, and a second senior on one mobile is refused with `phone_taken`. `missing_fields` is `incomplete` with `missing`, removing a caregiver twice answers 204, the list is by name, and submit and accept answer one row. The reads are as written here: `?role=` (SE6), the row with its number, and one page with the medic for every role (SE7).
@@ -128,6 +128,8 @@ Existing reasons, as these endpoints use them:
 ]
 ```
 
+Since the campaigns and mock calls work ([04 §1](echocare/04-interfaces.md)), each row and the senior's page also carry `code`, `reason` and `since`: null until the senior's first result, and for any senior who is not `active`.
+
 **`GET /seniors/{id}`.** Any caller who reaches the senior. The row above, plus:
 
 ```json
@@ -187,7 +189,7 @@ Caregivers are sorted by name. This object is called **the senior's page** below
 | `POST /seniors/{id}/caregivers` | Medic or DAS, in reach | Makes the caregiver grant | 201, the caregiver as in the page | 409 `already_done` |
 | `DELETE /seniors/{id}/caregivers/{user_id}` | Medic or DAS, in reach | Deletes that caregiver grant | 204 | 404 `not_found` |
 | `POST /seniors/{id}/submit` | Medic, in reach | `draft` → `submitted` | 200, the page | 409 `wrong_state`, 422 `missing_fields` |
-| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`. Queues nothing yet | 200, the page | 409 `wrong_state` |
+| `POST /seniors/{id}/accept` | DAS, in reach | `submitted` → `accepted`, and queues the welcome call in the same step ([04 §2](echocare/04-interfaces.md)); the scheduler dials it if the number is on `DIAL_ALLOWLIST`, otherwise a mobile senior's app answers it as a mock card and a landline's call stays queued | 200, the page | 409 `wrong_state` |
 
 A refused command changes nothing: its transaction rolls back.
 
@@ -252,7 +254,7 @@ Auth-layer §5 listed four before this work, which adds two, configured by a per
 | `+40700000004` | `444444` | A caregiver |
 | `+40700000005` | `555555` | A senior |
 
-A test number is enough for a senior here, because nothing dials it yet. When calls arrive, a senior with a test number must not be dialled (auth-layer §5).
+A test number is enough for a senior here, because the scheduler dials only numbers on `DIAL_ALLOWLIST`, which is empty by default. A senior with a test number must not be dialled (auth-layer §5): keep such a number off the list, and never set it to `*` while one is active.
 
 ## 6. Slice 1: Backend
 
@@ -380,7 +382,7 @@ Open the PR only when the person who dispatched you asks for it.
 |---|---|
 | `docs/specs/echocare/04-interfaces.md` §0 | The reasons `missing_fields` and `phone_taken`; `POST /seniors` as the exception to repeat-safe |
 | same file, §1 | The seniors rows match §3.3 and say which fields arrive later; `GET /enrollments`; `GET /staff` returns roles, with on duty to come |
-| same file, §2 | The senior, caregiver, submit and accept rows match §3.4 and SE9; the notice SMS and the welcome call are marked as not built |
+| same file, §2 | The senior, caregiver, submit and accept rows match §3.4 and SE9; the notice SMS and the welcome call are marked as not built (the welcome call has since been built, see 04 §2) |
 | `docs/specs/echocare/01-architecture.md` §6 | DAS may add and remove caregivers and edit a registration (SE9); one mobile, one senior (SE10) |
 | `docs/specs/echocare/02-use-cases.md` UC-01 | Step 6 names what a submit needs (SE4) |
 | `docs/specs/echocare/05-data-model.md` §3 | The one-senior-grant row matches SE10 |
@@ -481,7 +483,7 @@ If Navigation cannot build under AGP 9.4.1 and Kotlin 2.2.10, stop and report th
 
 - **Sign-in stays as it is.** `AuthViewModel` and its `Screen` states are unchanged up to `Screen.Home`.
 - **`Screen.Home` hosts a `NavHost`** in place of the placeholder. Its start destination is the role's home, and it is rebuilt when the role changes.
-- **Every home has a menu** with „Schimbă rolul”, when there are several roles, and „Ieșire”.
+- **Every home has a menu** with „Schimbă rolul”, when there are several roles, and „Ieșire”. Superseded by design 2026-11-13 medic home: there is no menu; the profile page, opened from the person's square in the top bar, lists the roles to switch to in one tap and holds „Ieșire”.
 
 | Role | Home | Reads |
 |---|---|---|
@@ -642,8 +644,9 @@ Each slice is one folder, so a red Android build never holds back an API deploy 
 | Item | Belongs to |
 |---|---|
 | The notice SMS to a new caregiver | Spike S10 |
-| The code, reason, calls, consent, watch and home node fields on the senior reads | Their features; each is an optional addition |
-| The welcome call on accept, and every state after `accepted` | UC-04 |
+| `code`, `reason` and `since` on `GET /seniors` and `GET /seniors/{id}` | Built by [the campaigns and mock calls design](../superpowers/specs/2026-10-17-campaigns-and-mock-calls-design.md): null until the first result and for any senior who is not `active` |
+| The calls, consent, watch and home node fields on the senior reads | Their features; each is an optional addition |
+| The Twilio welcome call, its retries, and the states `wrong_number` and `unreachable` | UC-04. Accept already queues the welcome call, and the mock card in the senior's app answers it until then, making the senior `active` or `refused` |
 | „Cereri de înrolare” and the senior screens on the dashboard, where DAS would use its edit right | The dashboard work |
 | On duty: `PUT /staff/on-duty`, the flag in `GET /staff` | Built by [the CRUD completion](../superpowers/specs/2026-10-16-crud-completion-design.md) |
 | A refresh push when a caregiver is added or removed | The push work (G4) |

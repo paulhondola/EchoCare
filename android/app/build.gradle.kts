@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId = "ro.echocare"
-        minSdk = 37
+        minSdk = 36
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -52,6 +52,9 @@ android {
             // How often an open screen re-reads (06 §3). echocare.rereadSeconds=10 for a demo.
             val reread = localProps.getProperty("echocare.rereadSeconds") ?: "30"
             buildConfigField("int", "REREAD_SECONDS", reread)
+            // echocare.realSms=true keeps Firebase's app verification on, for real numbers (auth-layer §9).
+            val realSms = localProps.getProperty("echocare.realSms") == "true"
+            buildConfigField("boolean", "REAL_SMS", "$realSms")
         }
         release {
             signingConfig = signingConfigs.getByName("shared")
@@ -61,6 +64,7 @@ android {
                 "\"https://echocare-api-prod.up.railway.app\""
             )
             buildConfigField("int", "REREAD_SECONDS", "30")
+            buildConfigField("boolean", "REAL_SMS", "true")
             optimization {
                 enable = true
             }
@@ -91,7 +95,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.play.services.wearable)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)

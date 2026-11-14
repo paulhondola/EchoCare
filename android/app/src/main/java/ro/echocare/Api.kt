@@ -2,6 +2,7 @@ package ro.echocare
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -12,13 +13,19 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 // GET /me (auth-layer §3.3). Only the fields the app reads; roles stay strings (ADR-001 §2.3).
+// [warningActive]: a weather warning is in force, shown on the senior's home (Q5).
 @Serializable
-data class Me(@SerialName("display_name") val displayName: String, val grants: List<Grant>)
+data class Me(
+    @SerialName("display_name") val displayName: String,
+    val grants: List<Grant>,
+    @SerialName("warning_active") val warningActive: Boolean = false
+)
 
 @Serializable
 data class Grant(val role: String)
 
 // One row of GET /seniors (seniors §3.3). The state stays a string: a later server may add one.
+// [code], [reason] and [since] are the latest result of an active senior, else null (03 §8).
 @Serializable
 data class SeniorRow(
     val id: String,
@@ -26,7 +33,20 @@ data class SeniorRow(
     @SerialName("form_of_address") val formOfAddress: String,
     @SerialName("phone_e164") val phone: String,
     @SerialName("phone_is_landline") val landline: Boolean,
-    @SerialName("enrollment_state") val state: String
+    @SerialName("enrollment_state") val state: String,
+    val code: String? = null,
+    val reason: String? = null,
+    val since: String? = null,
+    // When the registration was made, sent to DAS and accepted (04 §1); null while it has not
+    // happened, or from an older API. [watchState] is ok, not_worn or offline, a string for a
+    // later server's value (UC-12, ADR-001 §2.3).
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("submitted_at") val submittedAt: String? = null,
+    @SerialName("accepted_at") val acceptedAt: String? = null,
+    @SerialName("watch_state") val watchState: String? = null,
+    // The medical record's state for the registering medic (pending, review, confirmed, failed),
+    // null for anyone else; a string for a later server's value (design 2026-11-13, ADR-001 §2.3).
+    @SerialName("medical_record_state") val medicalRecordState: String? = null
 )
 
 // GET /seniors/{id} (seniors §3.3): the row, the address with its access details (G13), the
@@ -39,6 +59,9 @@ data class SeniorPage(
     @SerialName("phone_e164") val phone: String,
     @SerialName("phone_is_landline") val landline: Boolean,
     @SerialName("enrollment_state") val state: String,
+    val code: String? = null,
+    val reason: String? = null,
+    val since: String? = null,
     val street: String? = null,
     @SerialName("street_number") val streetNumber: String? = null,
     val block: String? = null,
@@ -50,7 +73,67 @@ data class SeniorPage(
     val landmark: String? = null,
     @SerialName("call_window") val callWindow: String? = null,
     val medic: Medic,
-    val caregivers: List<Caregiver> = emptyList()
+    val caregivers: List<Caregiver> = emptyList(),
+    // One of her calls is ringing or live: the "call in progress" badge (UC-12). Null from an
+    // older API, which reads as no.
+    @SerialName("call_in_progress") val callInProgress: Boolean? = null,
+    // The watch's state and latest pulse, for her caregivers, her medic and the senior
+    // herself on her own page (UC-03, UC-12). Null before the first check-in or for DAS.
+    @SerialName("watch_state") val watchState: String? = null,
+    @SerialName("last_pulse") val lastPulse: Int? = null,
+    // What the medic declared, null when not stated, and whether her own phone's app has ever
+    // signed in; both null from an older API (UC-13, design 2026-11-14).
+    val equipment: List<String>? = null,
+    @SerialName("app_signed_in") val appSignedIn: Boolean? = null,
+    // The home node's latest reading, for every role; null without a node or from an older API
+    // (04 §1, P20)
+    val room: RoomInfo? = null,
+    // The timeline of the registration and of her consent (04 §1, G7); all null from an older API.
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("submitted_at") val submittedAt: String? = null,
+    @SerialName("accepted_at") val acceptedAt: String? = null,
+    val consent: ConsentState? = null,
+    @SerialName("consent_given_at") val consentGivenAt: String? = null,
+    @SerialName("signed_at") val signedAt: String? = null
+)
+
+// The home node's latest reading (04 §1, P20). [state] is ok or offline, [roomState] as
+// POST /me/room-readings answers it; both strings, since the server may add values.
+@Serializable
+data class RoomInfo(
+    val state: String = "ok",
+    val temperature: Double,
+    val humidity: Double? = null,
+    @SerialName("reading_at") val readingAt: String? = null,
+    @SerialName("last_motion_at") val lastMotionAt: String? = null,
+    @SerialName("room_state") val roomState: String = "ok"
+)
+
+// Her latest consent decision (04 §1). Decision and method stay strings: a later server may add
+// one (ADR-001 §2.3). [at] is ISO-8601.
+@Serializable
+data class ConsentState(val decision: String, val method: String, val at: String)
+
+// POST /seniors/{id}/signature's body (04 §2): the consent text's version and the strokes of the
+// signature, each a list of [x, y] points.
+@Serializable
+data class SignatureForm(
+    @SerialName("text_version") val textVersion: String,
+    val strokes: List<List<List<Float>>>
+)
+
+// One row of GET /seniors/{id}/calls (04 §1), newest first. What a caregiver may see: no turns,
+// no transcript (01 §6). [trigger] and [state] stay strings (ADR-001 §2.3).
+@Serializable
+data class CallRow(
+    val id: String,
+    val trigger: String,
+    val state: String,
+    @SerialName("due_at") val dueAt: String,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("ended_at") val endedAt: String? = null,
+    @SerialName("final_severity") val finalSeverity: String? = null,
+    val reason: String? = null
 )
 
 @Serializable
@@ -80,7 +163,10 @@ data class SeniorForm(
     val apartment: String?,
     @SerialName("intercom_code") val intercomCode: String?,
     @SerialName("key_holder") val keyHolder: String?,
-    val landmark: String?
+    val landmark: String?,
+    // smartphone, watch, home_node as the medic ticked them; null keeps what the server holds
+    // (design 2026-11-14)
+    val equipment: List<String>? = null
 )
 
 // POST /seniors/{id}/caregivers's body (seniors §3.5). The phone must be a mobile: caregivers
@@ -91,6 +177,249 @@ data class CaregiverForm(
     val relation: String,
     val phone: String
 )
+
+// The medical record (design §5.7): [state] stays a string (ADR-001 §2.3). [items] is null until
+// analysed; [pdfUrl] is presigned for 10 minutes.
+@Serializable
+data class MedicalItem(
+    val condition: String,
+    val question: String,
+    val worrying: String,
+    val evidence: String = "",
+    val included: Boolean = true
+)
+
+@Serializable
+data class MedicalRecord(
+    val state: String,
+    @SerialName("uploaded_at") val uploadedAt: String,
+    @SerialName("analyzed_at") val analyzedAt: String? = null,
+    @SerialName("confirmed_at") val confirmedAt: String? = null,
+    val items: List<MedicalItem>? = null,
+    @SerialName("pdf_url") val pdfUrl: String? = null
+)
+
+// [worrying] null keeps the stored one; [analyzedAt] is the profile the medic reviewed.
+@Serializable
+data class ConfirmItem(val included: Boolean, val question: String, val worrying: String? = null)
+
+@Serializable
+data class MedicalConfirmForm(
+    val items: List<ConfirmItem>,
+    @SerialName("analyzed_at") val analyzedAt: String? = null
+)
+
+// GET /profile/mock-call (design §4.2): the senior's due call, which the card answers in place of a
+// phone. [trigger] stays a string (ADR-001 §2.3). [kind] and [level] are a campaign's, [consentText]
+// a welcome call's, shown as the server sent it.
+@Serializable
+data class MockCall(
+    @SerialName("call_id") val callId: String,
+    val trigger: String,
+    @SerialName("campaign_kind") val kind: String? = null,
+    @SerialName("campaign_level") val level: String? = null,
+    @SerialName("consent_text") val consentText: String? = null
+)
+
+// POST /calls/{id}/mock-answer's body (design §4.2), one shape per trigger. The defaults are not
+// sent: a campaign answer is the three choices or [declined], a welcome answer is [consent].
+@Serializable
+data class MockAnswer(
+    val feeling: String? = null,
+    val day: String? = null,
+    val shelter: String? = null,
+    val declined: Boolean = false,
+    val consent: Boolean? = null
+)
+
+// POST /me/check-ins' body (04 §3, UC-13). The watch sends this every minute; the server keeps only
+// the latest check-in per senior. 204, no body.
+@Serializable
+data class CheckInForm(
+    @SerialName("measured_at") val measuredAt: String,
+    val battery: Int? = null,
+    val worn: Boolean? = null,
+    @SerialName("last_pulse") val lastPulse: Int? = null,
+    @SerialName("resting_pulse") val restingPulse: Int? = null,
+    @SerialName("steps_today") val stepsToday: Int? = null,
+    @SerialName("minutes_without_steps") val minutesWithoutSteps: Int? = null
+)
+
+// POST /me/events' body (04 §3). [type] is one of manual_request, fall, high_pulse_at_rest,
+// inactivity; [measuredAt] is ISO-8601 with an offset; [id] is the device's, so a resend is a
+// duplicate. [source] is watch, phone or home_node. [snapshot] and the location fields are
+// optional.
+@Serializable
+data class EventForm(
+    val id: String,
+    val type: String,
+    @SerialName("measured_at") val measuredAt: String,
+    val source: String? = null,
+    val snapshot: EventSnapshotForm? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerialName("location_accuracy_m") val locationAccuracyM: Double? = null
+)
+
+@Serializable
+data class EventSnapshotForm(
+    val pulse: Int? = null,
+    @SerialName("resting_baseline") val restingBaseline: Int? = null,
+    val moving: Boolean? = null,
+    @SerialName("minutes_without_steps") val minutesWithoutSteps: Int? = null,
+    val battery: Int? = null,
+    // A fall found by the home node's floor search (P24, 08-ecou.md §3.2)
+    @SerialName("object_angle_deg") val objectAngleDeg: Double? = null,
+    @SerialName("object_distance_m") val objectDistanceM: Double? = null,
+    @SerialName("seconds_still") val secondsStill: Double? = null,
+    val scan: List<Double>? = null
+)
+
+// POST /me/room-readings' body (04 §3, P21, P26): the home node's reading, timed by the phone.
+@Serializable
+data class RoomReadingForm(
+    @SerialName("measured_at") val measuredAt: String,
+    val temperature: Double,
+    val humidity: Double? = null,
+    @SerialName("last_motion_at") val lastMotionAt: String? = null,
+    @SerialName("forecast_60m") val forecast60m: Double? = null
+)
+
+// POST /me/room-readings' answer: the room state to write back to the node (P26), and whether
+// the reading queued a call. [roomState] stays a string: the server may add states later.
+@Serializable
+data class RoomReadingResult(
+    @SerialName("room_state") val roomState: String = "ok",
+    val queued: Boolean = false,
+    @SerialName("call_id") val callId: String? = null
+)
+
+// POST /me/events' answer: [queued] when this event queued a call, [callId] the call it started or
+// joined, null when no call was queued (a stale event, or a senior who is not active).
+@Serializable
+data class EventResult(
+    val queued: Boolean = false,
+    @SerialName("call_id") val callId: String? = null
+)
+
+// One row of GET /incidents (04 §1). [status] stays a string: a later server may add one.
+@Serializable
+data class IncidentRow(
+    val id: String,
+    @SerialName("senior_full_name") val seniorName: String,
+    @SerialName("senior_form_of_address") val formOfAddress: String,
+    val status: String,
+    val reason: String,
+    @SerialName("opened_at") val openedAt: String,
+    @SerialName("taken_by_name") val takenByName: String? = null,
+    @SerialName("taken_at") val takenAt: String? = null,
+    @SerialName("handover_answered") val handoverAnswered: Boolean = false
+)
+
+// GET /incidents/{id} (04 §1): the senior with access details, the caregivers, the triggering
+// event and every call from the first attempt until the incident was resolved.
+@Serializable
+data class IncidentPage(
+    val id: String,
+    val status: String,
+    val reason: String,
+    @SerialName("opened_at") val openedAt: String,
+    @SerialName("taken_by_name") val takenByName: String? = null,
+    @SerialName("handover_answered") val handoverAnswered: Boolean = false,
+    val senior: IncidentSenior,
+    val caregivers: List<IncidentCaregiver> = emptyList(),
+    val event: TriggerEvent? = null,
+    val calls: List<IncidentCall> = emptyList(),
+    // The home node's latest reading, if the senior has one (04 §1, P20)
+    val room: RoomInfo? = null
+)
+
+@Serializable
+data class IncidentSenior(
+    val id: String,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("form_of_address") val formOfAddress: String,
+    @SerialName("phone_e164") val phone: String,
+    @SerialName("phone_is_landline") val landline: Boolean,
+    val street: String? = null,
+    @SerialName("street_number") val streetNumber: String? = null,
+    val block: String? = null,
+    val staircase: String? = null,
+    val floor: String? = null,
+    val apartment: String? = null,
+    @SerialName("intercom_code") val intercomCode: String? = null,
+    @SerialName("key_holder") val keyHolder: String? = null,
+    val landmark: String? = null
+)
+
+// No user id here, unlike GET /seniors/{id}'s Caregiver.
+@Serializable
+data class IncidentCaregiver(
+    @SerialName("display_name") val displayName: String,
+    @SerialName("phone_e164") val phone: String,
+    val relation: String? = null
+)
+
+@Serializable
+data class TriggerEvent(
+    val type: String,
+    @SerialName("measured_at") val measuredAt: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerialName("location_accuracy_m") val accuracy: Double? = null,
+    // A fall found by the home node: where it lay, from the robot (P24); null otherwise
+    val source: String? = null,
+    @SerialName("object_angle_deg") val objectAngleDeg: Double? = null,
+    @SerialName("object_distance_m") val objectDistanceM: Double? = null,
+    val scan: List<Double>? = null
+)
+
+// [handoverAnswered] is null when no hand-over was tried on this call.
+@Serializable
+data class IncidentCall(
+    val id: String,
+    val trigger: String,
+    val attempt: Int,
+    val state: String,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("final_severity") val finalSeverity: String? = null,
+    @SerialName("handover_answered") val handoverAnswered: Boolean? = null,
+    val reports: List<CallReport> = emptyList(),
+    val turns: List<CallTurn> = emptyList(),
+    // GET /calls/{id}/transcript only (04 §1); none on the incident page or from an older server
+    val answers: List<CallAnswer> = emptyList()
+)
+
+// One answer the call heard (05 §2): [field] stays a string, so a question added later decodes.
+@Serializable
+data class CallAnswer(
+    val field: String,
+    val value: String,
+    val clear: Boolean,
+    val quote: String,
+    val at: String
+)
+
+@Serializable
+data class CallReport(
+    val severity: String,
+    val reason: String,
+    val quote: String? = null,
+    val at: String
+)
+
+// [kind] is `speech` or `keys`, a key press whose [content] is the key.
+@Serializable
+data class CallTurn(
+    val speaker: String,
+    val content: String,
+    val at: String,
+    val kind: String = "speech"
+)
+
+// POST /incidents/{id}/resolve's body (04 §2): both required, the note 1 to 1000 characters.
+@Serializable
+data class Resolution(val outcome: String, val note: String)
 
 // The FastAPI contract (04-interfaces.md). One function per endpoint, added as features need them.
 // Built in NetworkModule.
@@ -105,11 +434,15 @@ interface EchoCareApi {
     @GET("seniors/{id}")
     suspend fun senior(@Path("id") id: String): SeniorPage
 
+    /** The senior's calls, newest first, queued ones included (04 §1). */
+    @GET("seniors/{id}/calls")
+    suspend fun calls(@Path("id") id: String): List<CallRow>
+
     /** A new senior in `draft`, registered by the calling medic (04 §2). Not repeat-safe (SE14). */
     @POST("seniors")
     suspend fun createSenior(@Body body: SeniorForm): SeniorPage
 
-    /** The whole registration again, while `draft` or `submitted` (04 §2). */
+    /** The whole registration again, in any state (04 §2, SE9). */
     @PUT("seniors/{id}")
     suspend fun updateSenior(@Path("id") id: String, @Body body: SeniorForm): SeniorPage
 
@@ -126,4 +459,80 @@ interface EchoCareApi {
     /** `draft` → `submitted`: DAS sees the senior from now on (04 §2). Answers one row. */
     @POST("seniors/{id}/submit")
     suspend fun submit(@Path("id") id: String): SeniorRow
+
+    /** Queues the welcome call again; answers the senior's row (04 §2, UC-04). */
+    @POST("seniors/{id}/welcome-call")
+    suspend fun callAgain(@Path("id") id: String): SeniorRow
+
+    /** Records that the senior withdrew her consent by phone; answers her row (04 §2). */
+    @POST("seniors/{id}/consent-withdrawn")
+    suspend fun withdraw(@Path("id") id: String): SeniorRow
+
+    /** Stores the signed consent, 204 (04 §2). A Response, because a 204 has no body. */
+    @POST("seniors/{id}/signature")
+    suspend fun sign(@Path("id") id: String, @Body body: SignatureForm): Response<Unit>
+
+    /** 200 with the record, 204 with none (design §5.7). A 204 has no body. */
+    @GET("seniors/{id}/medical-record")
+    suspend fun medicalRecord(@Path("id") id: String): Response<MedicalRecord>
+
+    /** The raw PDF, `application/pdf`, at most 10 MB (design §5.7). */
+    @PUT("seniors/{id}/medical-record")
+    suspend fun uploadMedicalRecord(@Path("id") id: String, @Body pdf: RequestBody): MedicalRecord
+
+    @POST("seniors/{id}/medical-record/confirm")
+    suspend fun confirmMedicalRecord(
+        @Path("id") id: String,
+        @Body body: MedicalConfirmForm
+    ): MedicalRecord
+
+    @POST("seniors/{id}/medical-record/reanalyze")
+    suspend fun reanalyzeMedicalRecord(@Path("id") id: String): MedicalRecord
+
+    /** 200 with the due call, 204 with none, 404 on production (design §4.2). A 204 has no body. */
+    @GET("profile/mock-call")
+    suspend fun mockCall(): Response<MockCall>
+
+    /** 204; a 409 means the call is no longer due (design §4.2). */
+    @POST("calls/{id}/mock-answer")
+    suspend fun mockAnswer(@Path("id") id: String, @Body body: MockAnswer): Response<Unit>
+
+    /** Senior only. 204, also on a repeat (04 §3). A Response, because a 204 has no body. */
+    @POST("me/check-ins")
+    suspend fun checkIn(@Body body: CheckInForm): Response<Unit>
+
+    /** Senior only. 200 also for a duplicate; [EventResult.callId] is null when no call was queued (04 §3). */
+    /** The home node's room reading, relayed (04 §3, P21); answers with the room state (P26). */
+    @POST("me/room-readings")
+    suspend fun sendRoomReading(@Body body: RoomReadingForm): RoomReadingResult
+
+    @POST("me/events")
+    suspend fun sendEvent(@Body body: EventForm): EventResult
+
+    /** This device's push token, now the caller's (04 §6, Q19). 204, also on a repeat. */
+    @PUT("profile/push-tokens/{token}")
+    suspend fun savePushToken(@Path("token") token: String): Response<Unit>
+
+    /** Forgets the caller's own token before signing out (Q19). 204 whether or not it was there. */
+    @DELETE("profile/push-tokens/{token}")
+    suspend fun dropPushToken(@Path("token") token: String): Response<Unit>
+
+    /** DAS only. [status] is comma-separated; the DAS app asks for `open,in_progress` (04 §1). */
+    @GET("incidents")
+    suspend fun incidents(@Query("status") status: String): List<IncidentRow>
+
+    @GET("incidents/{id}")
+    suspend fun incident(@Path("id") id: String): IncidentPage
+
+    /** One call's turns (04 §1): the incident page's call; its `answers` are ignored. */
+    @GET("calls/{id}/transcript")
+    suspend fun transcript(@Path("id") id: String): IncidentCall
+
+    /** `open` → `in_progress` (UC-11). 409 `already_done` names who has it in `taken_by_name`. */
+    @POST("incidents/{id}/take")
+    suspend fun take(@Path("id") id: String): IncidentRow
+
+    /** `in_progress` → `resolved`, by any DAS employee (UC-11). 409 `wrong_state` while open. */
+    @POST("incidents/{id}/resolve")
+    suspend fun resolve(@Path("id") id: String, @Body body: Resolution): IncidentRow
 }

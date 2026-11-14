@@ -14,3 +14,13 @@ fun formatPhone(e164: String): String {
         "${n.take(4)} ${n.substring(4, 7)} ${n.substring(7)}"
     }
 }
+
+/**
+ * The letters for a person's square in the top bar (UC-12, 04 §1 `/profile`): the first letters of
+ * the first and last word, capitalised, titles such as "Dr." left out. One word gives one letter.
+ */
+fun initials(name: String): String {
+    val words = name.split(Regex("\\s+")).filter { it.isNotEmpty() && !it.endsWith('.') }
+    return listOfNotNull(words.firstOrNull(), words.takeIf { it.size > 1 }?.last())
+        .joinToString("") { it.first().uppercase() }
+}

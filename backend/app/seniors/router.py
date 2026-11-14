@@ -1,37 +1,62 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, current_caller, require_roles
+from app.calls.service import (
+    cancel_queued_calls,
+    queue_welcome_call,
+    welcome_call_pending,
+)
 from app.core.db import get_session
+from app.core.storage import StorageService, get_storage
+from app.homenode.service import room_for, rooms_for
+from app.medical.service import forget, record_key, record_states
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
     CaregiverView,
+    CheckInForm,
+    HealthReadingForm,
     SeniorForm,
     SeniorSummary,
     SeniorView,
     SignatureForm,
+    SummaryVersionView,
+    WatchHealthView,
+    WatchReadingView,
+    WatchView,
 )
 from app.seniors.service import (
     accept,
+    app_signed_in,
+    call_again,
     delete_draft,
     edit,
     edit_caregiver,
     enrollments_query,
     grant_caregiver,
     reach_senior,
+    record_check_in,
+    record_health_reading,
     register,
     revoke_caregiver,
     save_signature,
+    senior_summaries,
     senior_view,
-    seniors_query,
     submit,
+    summary_for,
+    watch_health,
+    watch_readings,
+    watch_state,
+    watch_view,
     withdraw_consent,
 )
+from app.voice.service import call_in_progress
 
 router = APIRouter()
 
@@ -44,8 +69,17 @@ async def list_seniors(
 ) -> list[SeniorSummary]:
     """The seniors in the caller's reach, by name (04 §1, auth-layer §3.6). `role`
     narrows the list to one role's reach, for that role's home (seniors SE6)."""
-    seniors = await session.scalars(seniors_query(caller, role))
-    return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
+    rows = await senior_summaries(session, caller, role)
+    # `seniors` can't import `medical` (ADR-005); the router composes them
+    states = await record_states(session, caller)
+    # Nor `homenode`, which sits above it
+    nodes = await rooms_for(session, [row.id for row in rows])
+    for row in rows:
+        row.medical_record_state = states.get(row.id)
+        if (node := nodes.get(row.id)) is not None:
+            row.home_node_state = node.state
+            row.room_temperature = node.temperature_c
+    return rows
 
 
 @router.get("/seniors/{senior_id}")
@@ -54,7 +88,59 @@ async def get_senior(
     caller: Annotated[Caller, Depends(current_caller)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorView:
-    return await senior_view(session, await reach_senior(session, caller, senior_id))
+    senior = await reach_senior(session, caller, senior_id)
+    view = await senior_view(session, senior)
+    # `seniors` can't import `voice` (ADR-005); the router composes them
+    view.call_in_progress = await call_in_progress(session, senior_id)
+    view.watch_state, view.last_pulse = await watch_state(session, caller, senior)
+    view.app_signed_in = await app_signed_in(session, caller, senior)
+    view.room = await room_for(session, senior_id)
+    return view
+
+
+@router.get(
+    "/seniors/{senior_id}/watch",
+    response_model=WatchView,
+    responses={204: {"description": "No check-in yet, or the watch is not shown"}},
+)
+async def get_watch(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The watch's latest check-in (04 §1, ADR-006)."""
+    senior = await reach_senior(session, caller, senior_id)
+    view = await watch_view(session, caller, senior)
+    return view if view else Response(status_code=204)
+
+
+@router.get(
+    "/seniors/{senior_id}/watch/health",
+    response_model=WatchHealthView,
+    responses={
+        204: {"description": "No reading in the last day, or the watch is not shown"}
+    },
+)
+async def get_watch_health(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The last day of Apple Health blood oxygen and ECG readings."""
+    senior = await reach_senior(session, caller, senior_id)
+    view = await watch_health(session, caller, senior, datetime.now(UTC))
+    return view if view else Response(status_code=204)
+
+
+@router.get("/seniors/{senior_id}/watch/readings")
+async def get_watch_readings(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[WatchReadingView]:
+    """The last 24 hours of check-ins, in 5-minute buckets (04 §1, ADR-006)."""
+    senior = await reach_senior(session, caller, senior_id)
+    return await watch_readings(session, caller, senior, datetime.now(UTC))
 
 
 @router.post("/seniors", status_code=201)
@@ -85,11 +171,16 @@ async def delete_senior(
     senior_id: uuid.UUID,
     caller: Annotated[Caller, Depends(require_roles(Role.medic))],
     session: Annotated[AsyncSession, Depends(get_session)],
+    storage: Annotated[StorageService, Depends(get_storage)],
+    background: BackgroundTasks,
 ) -> Response:
-    """Deletes a draft with its consents and grants, by its registering medic (Q10).
-    Past draft, or once a call refers to the senior, it is 409 `wrong_state`. A repeat
-    is 404, the row being gone."""
-    await delete_draft(session, caller, senior_id)
+    """Deletes a draft with its consents and grants, by its registering medic (Q10),
+    and its medical record PDF (design 2026-11-14). Past draft, or once a call refers
+    to the senior, it is 409 `wrong_state`. A repeat is 404, the row being gone."""
+    # The record cascades with the senior; its key is read under the senior's lock
+    key = await delete_draft(session, caller, senior_id, read_first=record_key)
+    if key:
+        background.add_task(forget, storage, key)  # after the 204
     return Response(status_code=204)
 
 
@@ -154,9 +245,27 @@ async def accept_senior(
     caller: Annotated[Caller, Depends(require_roles(Role.das))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorSummary:
-    """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is not queued
-    yet; until it exists, `accepted` is the last state a senior reaches."""
-    return await accept(session, caller, senior_id)
+    """Acceptă: submitted -> accepted (UC-04 step 1). The welcome call is queued now, in
+    the same transaction (04 §2); the senior answers it from the app's card."""
+    return await accept(session, caller, senior_id, then=queue_welcome_call)
+
+
+@router.post("/seniors/{senior_id}/welcome-call")
+async def welcome_call_again(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(require_roles(Role.medic))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeniorSummary:
+    """Sună din nou: `wrong_number` or `unreachable` -> `accepted`, and a new welcome
+    call queued in the same transaction (UC-04, 04 §2). A repeat answers the same and
+    queues nothing; any other state is `wrong_state`."""
+    return await call_again(
+        session,
+        caller,
+        senior_id,
+        then=queue_welcome_call,
+        pending=welcome_call_pending,
+    )
 
 
 @router.post("/seniors/{senior_id}/consent-withdrawn")
@@ -166,9 +275,9 @@ async def withdraw_senior_consent(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SeniorSummary:
     """active -> withdrawn, recorded by the registering medic or DAS (Q15). Adds a
-    `withdrawn` consent row in the same transaction. Already withdrawn is
-    `already_done`; any other state, `wrong_state`."""
-    return await withdraw_consent(session, caller, senior_id)
+    `withdrawn` consent row and cancels the senior's queued calls in the same
+    transaction. Already withdrawn is `already_done`; any other state, `wrong_state`."""
+    return await withdraw_consent(session, caller, senior_id, then=cancel_queued_calls)
 
 
 @router.post("/seniors/{senior_id}/signature", status_code=204)
@@ -193,3 +302,42 @@ async def list_enrollments(
     """Cereri de înrolare: the seniors in `submitted`, oldest first (04 §1)."""
     seniors = await session.scalars(enrollments_query())
     return [SeniorSummary.model_validate(s, from_attributes=True) for s in seniors]
+
+
+@router.post("/me/check-ins", status_code=204)
+async def check_in(
+    body: CheckInForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.senior))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """The watch's latest reading, relayed by the senior's phone (UC-13). Keeps only
+    the latest; an older one than the stored is ignored."""
+    senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
+    await record_check_in(session, senior_id, body, datetime.now(UTC))
+
+
+@router.post("/me/health-readings", status_code=204)
+async def health_reading(
+    body: HealthReadingForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.senior))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """One Apple Health blood oxygen or ECG sample, relayed by the senior's phone. A
+    re-sent sample answers 204 and changes nothing."""
+    senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
+    await record_health_reading(session, senior_id, body, datetime.now(UTC))
+
+
+@router.get(
+    "/seniors/{senior_id}/summary",
+    response_model=SummaryVersionView,
+    responses={204: {"description": "No summary yet"}},
+)
+async def get_summary(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The DAS briefing: the latest summary, for her medic and DAS (04 §1, design §5 B)."""
+    view = await summary_for(session, caller, senior_id)
+    return view if view is not None else Response(status_code=204)

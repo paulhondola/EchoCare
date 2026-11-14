@@ -10,12 +10,16 @@ import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import ro.echocare.Caregiver
 import ro.echocare.EchoCareApi
+import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.home.Answer
 import ro.echocare.home.EnrollRoute
 import ro.echocare.home.Load
+import ro.echocare.home.MAX_PDF_BYTES
 import ro.echocare.home.after
 import ro.echocare.home.answer
 
@@ -45,6 +49,16 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
     var saved by mutableStateOf(emptyMap<Field, String>())
         private set
 
+    /**
+     * „Echipamente”: the ticked boxes. Empty on a new form; null for a saved senior whose
+     * equipment is not stated, which the form leaves alone until a box is ticked (design
+     * 2026-11-14).
+     */
+    var equipment by mutableStateOf<Set<String>?>(emptySet())
+        private set
+
+    private var savedEquipment: Set<String>? = emptySet()
+
     var state by mutableStateOf("draft")
         private set
 
@@ -68,6 +82,16 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         private set
 
     var notice by mutableStateOf<Notice?>(null)
+        private set
+
+    /** The optional medical record PDF: sending, sent, and the line for a refusal (design §5.7). */
+    var uploading by mutableStateOf(false)
+        private set
+
+    var medicalSent by mutableStateOf(false)
+        private set
+
+    var medicalNotice by mutableStateOf<Int?>(null)
         private set
 
     var submitted by mutableStateOf(false)
@@ -100,9 +124,14 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         errors -= field
     }
 
+    fun tick(item: String, on: Boolean) {
+        val now = equipment.orEmpty()
+        equipment = if (on) now + item else now - item
+    }
+
     /** „Continuă”: steps 1 and 2 save first; step 3 sends nothing (seniors §9.2). */
     fun next() {
-        when (val save = saveFor(step, id, values)) {
+        when (val save = saveFor(step, id, values, equipment)) {
             is Save.Create -> command(Action.Save, { api.createSenior(save.body) }, ::savedAndNext)
             is Save.Update -> command(
                 Action.Save,
@@ -119,6 +148,7 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         if (busy) return true
         if (step == Step.Senior) return false
         values = saved
+        equipment = savedEquipment
         adding = emptyMap()
         go(step.previous)
         return true
@@ -139,10 +169,45 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         }
     }
 
+    /** The PDF of step 4. A failure shows a line and never blocks „Trimite la DAS”. */
+    fun uploadPdf(bytes: ByteArray?) {
+        val id = id ?: return
+        if (uploading) return
+        medicalNotice = null
+        if (bytes == null || bytes.size > MAX_PDF_BYTES) {
+            medicalNotice = if (bytes == null) {
+                R.string.medical_upload_failed
+            } else {
+                R.string.medical_too_large
+            }
+            return
+        }
+        uploading = true
+        viewModelScope.launch {
+            val body = bytes.toRequestBody("application/pdf".toMediaType())
+            when (send { api.uploadMedicalRecord(id, body) }) {
+                is Sent.Ok -> medicalSent = true
+                is Sent.No -> medicalNotice = R.string.medical_upload_failed
+            }
+            uploading = false
+        }
+    }
+
     /** „Trimite la DAS”: `draft` → `submitted`; the screen then returns to the home. */
     fun submit() {
         val id = id ?: return
         command(Action.Submit, { api.submit(id) }) { submitted = true }
+    }
+
+    /**
+     * „Salvează semnătura” on step 4 (G7, UC-01 step 5). The summary is read again on success, so
+     * the pad gives way to the date; a refusal shows its line and the pad keeps the drawing.
+     */
+    fun sign(strokes: List<List<Point>>, width: Float, height: Float) {
+        val id = id ?: return
+        command(Action.Sign, { ensure(api.sign(id, signatureForm(strokes, width, height))) }) {
+            reread()
+        }
     }
 
     /** Step 4's summary: GET seniors/{id}, which also refreshes the other steps. */
@@ -175,6 +240,8 @@ class EnrollViewModel @Inject constructor(private val api: EchoCareApi, handle: 
         caregivers = page.caregivers
         saved = valuesOf(page)
         values = saved
+        savedEquipment = equipmentIn(page)
+        equipment = savedEquipment
     }
 
     /** One request at a time (SE14). A refusal becomes what seniors §9.3 shows for it. */

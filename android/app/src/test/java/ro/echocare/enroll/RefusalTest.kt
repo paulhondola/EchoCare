@@ -53,7 +53,7 @@ class RefusalTest {
             refusalOf(422, """{"detail": {"reason": "incomplete"}}""")
         )
         assertEquals(
-            Refusal.AlreadyDone,
+            Refusal.AlreadyDone(),
             refusalOf(409, """{"detail": {"reason": "already_done"}}""")
         )
         assertEquals(
@@ -135,7 +135,7 @@ class RefusalTest {
         )
         assertEquals(
             Then.Show(Notice.Says(R.string.already_caregiver)),
-            thenAfter(Action.Add, Refusal.AlreadyDone)
+            thenAfter(Action.Add, Refusal.AlreadyDone())
         )
         // Past draft the last caregiver stays (04 §2).
         assertEquals(
@@ -152,7 +152,7 @@ class RefusalTest {
         )
         // Already submitted, or past it: step 4 shows the state the senior is in.
         assertEquals(Then.Reread, thenAfter(Action.Submit, Refusal.WrongState))
-        assertEquals(Then.Reread, thenAfter(Action.Submit, Refusal.AlreadyDone))
+        assertEquals(Then.Reread, thenAfter(Action.Submit, Refusal.AlreadyDone()))
     }
 
     @Test
@@ -194,5 +194,21 @@ class RefusalTest {
             )
         }
         assertEquals(Sent.No(Refusal.Incomplete(listOf("caregiver"))), refused)
+    }
+
+    // UC-11: "Preiau" refused because someone else took it names them (04 §2).
+    @Test
+    fun alreadyDoneCarriesWhoTookIt() {
+        assertEquals(
+            Refusal.AlreadyDone("Cristian Pavel"),
+            refusalOf(
+                409,
+                """{"detail":{"reason":"already_done","taken_by_name":"Cristian Pavel"}}"""
+            )
+        )
+        assertEquals(
+            Refusal.AlreadyDone(null),
+            refusalOf(409, """{"detail":{"reason":"already_done"}}""")
+        )
     }
 }

@@ -24,7 +24,12 @@
     | "navigation"
     | "phone"
     | "arrow-right"
-    | "alert";
+    | "alert"
+    | "watch"
+    | "scale"
+    | "headset"
+    | "menu"
+    | "trash-2";
 </script>
 
 <script lang="ts">
@@ -49,7 +54,13 @@
   class={["flex-none", className]}
   aria-hidden="true"
 >
-  {#if name === "siren"}
+  {#if name === "trash-2"}
+    <path d="M3 6h18" />
+    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    <line x1="10" x2="10" y1="11" y2="17" />
+    <line x1="14" x2="14" y1="11" y2="17" />
+  {:else if name === "siren"}
     <path d="M7 18v-6a5 5 0 1 1 10 0v6" />
     <path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z" />
     <path d="M21 12h1" />
@@ -152,5 +163,25 @@
     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
     <path d="M12 9v4" />
     <path d="M12 17h.01" />
+  {:else if name === "watch"}
+    <circle cx="12" cy="12" r="6" />
+    <polyline points="12 10 12 12 13 13" />
+    <path d="m16.13 7.66-.81-4.05a2 2 0 0 0-2-1.61h-2.68a2 2 0 0 0-2 1.61l-.78 4.05" />
+    <path d="m7.88 16.36.8 4a2 2 0 0 0 2 1.61h2.72a2 2 0 0 0 2-1.61l.81-4.05" />
+  {:else if name === "scale"}
+    <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+    <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+    <path d="M7 21h10" />
+    <path d="M12 3v18" />
+    <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+  {:else if name === "headset"}
+    <path
+      d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm0 0a9 9 0 1 1 18 0m0 0v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"
+    />
+    <path d="M21 16v2a4 4 0 0 1-4 4h-5" />
+  {:else if name === "menu"}
+    <path d="M4 6h16" />
+    <path d="M4 12h16" />
+    <path d="M4 18h16" />
   {/if}
 </svg>

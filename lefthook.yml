@@ -35,9 +35,28 @@ pre-commit:
       run: ./gradlew -q ktlintFormat
       stage_fixed: true
 
+    - name: ios
+      root: ios/
+      glob: "*.swift"
+      group:
+        piped: true
+        jobs:
+          - run: swift format format --in-place --configuration .swift-format {staged_files}
+            stage_fixed: true
+          - run: swift format lint --strict --configuration .swift-format {staged_files}
+          - run: swift test --package-path Shared
+
 pre-push:
   jobs:
     - name: android
       root: android/
       glob: "*.{kt,kts,xml,toml,properties,pro}"
       run: ./gradlew ktlintCheck lint testDebugUnitTest :shared:test
+
+    - name: ios
+      glob: "ios/**"
+      run: >-
+        swift format lint --strict --parallel --recursive --configuration ios/.swift-format ios/EchoCare ios/EchoCareWatch ios/EchoCareTests ios/Shared &&
+        swift test --package-path ios/Shared &&
+        xcodebuild build-for-testing -project ios/EchoCare.xcodeproj -scheme EchoCare -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet &&
+        xcodebuild build -project ios/EchoCare.xcodeproj -scheme EchoCareWatch -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet

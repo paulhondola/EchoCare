@@ -8,6 +8,7 @@ from app.voice.calls import (
     InvalidTransition,
     advance,
     ended_certainty,
+    reachable,
     was_answered,
 )
 
@@ -75,3 +76,12 @@ def test_was_answered_refuses_a_live_call():
 def test_dropped_counts_as_low_certainty():
     assert ended_certainty(CallState.dropped, Certainty.high) is Certainty.low
     assert ended_certainty(CallState.completed, Certainty.high) is Certainty.high
+
+
+def test_a_queued_call_can_be_canceled_and_stays_canceled():
+    assert advance(CallState.queued, CallState.canceled) is CallState.canceled
+    assert CallState.canceled in ENDED
+    assert not was_answered(CallState.canceled)
+    assert not reachable(
+        CallState.ringing, CallState.canceled
+    )  # only from queued (03 §9)

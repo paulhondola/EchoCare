@@ -1,6 +1,5 @@
 package ro.echocare.home
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,58 +21,36 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.delay
 import ro.echocare.R
 import ro.echocare.SeniorRow
-import ro.echocare.ui.Banner
+import ro.echocare.push.NotificationsPrompt
 import ro.echocare.ui.Chip
-import ro.echocare.ui.Kind
 import ro.echocare.ui.PhoneNumber
-import ro.echocare.ui.SnButton
 import ro.echocare.ui.Tone
 import ro.echocare.ui.theme.Palette
 
 /**
- * The medic's and the caregiver's home: their seniors as cards (seniors §8.2, SE20). [onNew] is the
- * medic's „Pacient nou” (§9.1); [sent] shows „Trimis la DAS.” after the form submits.
+ * The caregiver's home: their seniors as cards (seniors §8.2, SE20). The medic
+ * has their own home now (MedicHome.kt, UC-12).
  */
 @Composable
 fun SeniorsScreen(
-    @StringRes title: Int,
     menu: @Composable () -> Unit,
     onOpen: (SeniorRow) -> Unit,
     onSessionEnd: (Failure) -> Unit,
-    onNew: (() -> Unit)? = null,
-    sent: Boolean = false,
-    onSentShown: () -> Unit = {},
     vm: SeniorsViewModel = hiltViewModel()
 ) {
     RereadWhileShown(vm::reread)
-    LaunchedEffect(sent) {
-        if (sent) {
-            delay(5.seconds)
-            onSentShown()
-        }
-    }
-    HomeScaffold(stringResource(title), onBack = null, menu = menu) {
+    HomeScaffold(stringResource(R.string.caregiver_home), onBack = null, menu = menu) {
         LoadBody(vm.seniors, onRetry = vm::reread, onSessionEnd = onSessionEnd) { seniors ->
-            if (sent) Banner(stringResource(R.string.sent), Tone.Verde)
-            onNew?.let {
-                SnButton(
-                    stringResource(R.string.new_patient),
-                    it,
-                    Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    kind = Kind.Link
-                )
-            }
+            // The caregiver's alerts (04 §6), asked for where they land
+            NotificationsPrompt()
             if (seniors.isEmpty()) {
                 Message(stringResource(R.string.no_seniors))
             } else {
@@ -94,10 +71,10 @@ fun SeniorsScreen(
     }
 }
 
-/** The dashboard's card: a bar in the state's colour down the left edge. */
+/** The dashboard's card: a bar down the left edge in the code's colour, else the state's. */
 @Composable
 private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
-    val tone = STATE_TONES[senior.state] ?: Tone.Muted
+    val tone = CODE_TONES[senior.code] ?: STATE_TONES[senior.state] ?: Tone.Muted
     Row(
         Modifier
             .fillMaxWidth()
@@ -129,6 +106,7 @@ private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
                 PhoneNumber(senior.phone, senior.landline)
             }
             StateLabel(senior.state)
+            CodeLabel(senior.code, senior.reason)
         }
     }
 }
@@ -138,4 +116,19 @@ private fun SeniorCard(senior: SeniorRow, onClick: () -> Unit) {
 fun StateLabel(state: String) {
     val label = STATE_LABELS[state] ?: return
     Chip(stringResource(label), STATE_TONES[state] ?: Tone.Muted)
+}
+
+/** The code as a tinted chip with its reason; nothing for a code this build does not know (Q17). */
+@Composable
+fun CodeLabel(code: String?, reason: String?) {
+    val label = CODE_LABELS[code] ?: return
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Chip(stringResource(label), CODE_TONES[code] ?: Tone.Muted)
+        reason?.let {
+            Text(it, color = Palette.FgMuted, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
 }

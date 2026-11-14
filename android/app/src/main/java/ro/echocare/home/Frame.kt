@@ -1,13 +1,21 @@
 package ro.echocare.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -17,11 +25,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,8 +43,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import ro.echocare.BuildConfig
 import ro.echocare.R
+import ro.echocare.push.Refreshes
 import ro.echocare.ui.Banner
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
@@ -39,6 +54,7 @@ import ro.echocare.ui.SectionLabel
 import ro.echocare.ui.SnButton
 import ro.echocare.ui.SquareIconButton
 import ro.echocare.ui.Tone
+import ro.echocare.ui.initials
 import ro.echocare.ui.theme.Palette
 
 // What every signed-in screen is built from (seniors §8.2).
@@ -56,56 +72,92 @@ fun HomeScaffold(
         containerColor = Palette.Canvas,
         topBar = { TopBar(title, onBack, menu) }
     ) { innerPadding ->
-        Box(Modifier.fillMaxSize().padding(innerPadding)) { content() }
+        // Edge to edge, adjustResize no longer makes room for the keyboard: the content does
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
+        ) { content() }
     }
 }
+
+/** The signed-in person's name, for the top bar on every screen (UC-12, 04 §1 `/profile`). */
+val LocalSignedIn = staticCompositionLocalOf<String?> { null }
+
+/**
+ * Opens the profile page from the person's square in the top bar (design 2026-11-13 medic home);
+ * null on the profile page itself and outside the signed-in app.
+ */
+val LocalOpenProfile = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 /** The dashboard's header on a phone: brand over the title, square buttons, a 2dp rule. */
 @Composable
 private fun TopBar(title: String, onBack: (() -> Unit)?, menu: @Composable () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(Palette.Subtle)
-            .statusBarsPadding()
-    ) {
-        Row(
+    BoxWithConstraints {
+        val wide = maxWidth >= 600.dp
+        Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(Palette.Subtle)
+                .statusBarsPadding()
         ) {
-            if (onBack != null) {
-                SquareIconButton(
-                    painterResource(R.drawable.ic_arrow_back),
-                    stringResource(R.string.back),
-                    onBack
-                )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onBack != null) {
+                    SquareIconButton(
+                        painterResource(R.drawable.ic_arrow_back),
+                        stringResource(R.string.back),
+                        onBack
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painterResource(R.drawable.ic_brand),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        SectionLabel(stringResource(R.string.app_name))
+                    }
+                    Text(
+                        title,
+                        Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                val name = LocalSignedIn.current.orEmpty()
+                val openProfile = LocalOpenProfile.current
+                if (openProfile != null || name.isNotBlank()) SignedIn(name, wide, openProfile)
+                menu()
             }
-            Column(Modifier.weight(1f)) {
-                SectionLabel(stringResource(R.string.app_name))
-                Text(
-                    title,
-                    Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            menu()
+            Rule()
         }
-        Rule()
     }
 }
 
-/** Reads when the screen appears, then every REREAD_SECONDS while it is in front (06 §3). */
+/**
+ * Reads when the screen appears, on every push refresh while it is in front (04 §6), and every
+ * REREAD_SECONDS as the backstop for a lost push (06 §3).
+ */
 @Composable
 fun RereadWhileShown(reread: () -> Unit) {
     val owner = LocalLifecycleOwner.current
     val latest by rememberUpdatedState(reread)
     LaunchedEffect(owner) {
         owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            launch { Refreshes.events.collect { latest() } }
             while (true) {
                 latest()
                 delay(BuildConfig.REREAD_SECONDS.seconds)
@@ -159,7 +211,66 @@ fun Message(text: String, action: @Composable () -> Unit = {}) {
             .padding(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(text, color = Palette.FgMuted, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text,
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            color = Palette.FgMuted,
+            style = MaterialTheme.typography.bodyLarge
+        )
         action()
+    }
+}
+
+/**
+ * The person's square, and their name on a wide screen. With [onOpen] it is the button to the
+ * profile page; a name with no letters, such as "Dr.", gets an icon there so the page stays reachable.
+ */
+@Composable
+private fun SignedIn(name: String, wide: Boolean, onOpen: (() -> Unit)?) {
+    val letters = initials(name)
+    if (letters.isEmpty() && onOpen != null) {
+        SquareIconButton(
+            painterResource(R.drawable.ic_more_vert),
+            stringResource(R.string.profile),
+            onOpen
+        )
+        return
+    }
+    val description = stringResource(R.string.profile)
+    Row(
+        Modifier.then(
+            if (onOpen == null) {
+                Modifier
+            } else {
+                Modifier
+                    .clickable(role = Role.Button, onClick = onOpen)
+                    .semantics(mergeDescendants = true) { contentDescription = description }
+                    // The only way to Ieșire and role switching: a full 48dp target, as ⋮ was
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            }
+        ),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // A name of titles only, such as "Dr.", has no letters: no empty square
+        if (letters.isNotEmpty()) {
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .background(Palette.Card)
+                    .border(1.dp, if (onOpen == null) Palette.LineStrong else Palette.Link),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(letters, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        if (wide) {
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

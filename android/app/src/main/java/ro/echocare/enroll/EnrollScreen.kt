@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +39,8 @@ import ro.echocare.home.HomeScaffold
 import ro.echocare.home.Load
 import ro.echocare.home.LoadBody
 import ro.echocare.home.SeniorDetails
+import ro.echocare.home.rememberPdfPicker
+import ro.echocare.home.showsConsent
 import ro.echocare.ui.Kind
 import ro.echocare.ui.Rule
 import ro.echocare.ui.SectionLabel
@@ -87,7 +91,12 @@ private fun Steps(vm: EnrollViewModel, onDone: (String) -> Unit, onSessionEnd: (
         ) {
             StepHeader(vm.step, wide)
             when (vm.step) {
-                Step.Senior, Step.Address -> Fields(vm, vm.step.fields, vm.values)
+                Step.Senior -> {
+                    Fields(vm, vm.step.fields, vm.values)
+                    EquipmentSection(vm)
+                }
+
+                Step.Address -> Fields(vm, vm.step.fields, vm.values)
                 Step.Caregivers -> CaregiversStep(vm)
                 Step.Review -> ReviewStep(vm, onSessionEnd)
             }
@@ -163,6 +172,43 @@ private fun Fields(vm: EnrollViewModel, fields: List<Field>, values: Map<Field, 
     }
 }
 
+/**
+ * „Echipamente” (UC-01, design 2026-11-14). The phone is ticked and locked while a watch or a home
+ * node is, as both talk only to it; a landline can have none of them.
+ */
+@Composable
+private fun EquipmentSection(vm: EnrollViewModel) {
+    val mobile = isMobile(vm.values[Field.Phone].orEmpty())
+    val ticked = vm.equipment.orEmpty()
+    val needsApp = "watch" in ticked || "home_node" in ticked
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SectionLabel(stringResource(R.string.equipment_title))
+        if (vm.equipment ==
+            null
+        ) {
+            Text(stringResource(R.string.equipment_unstated), color = Palette.FgMuted)
+        }
+        EQUIPMENT.forEach { item ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    mobile && (item in ticked || (item == "smartphone" && needsApp)),
+                    { vm.tick(item, it) },
+                    enabled = mobile && !(item == "smartphone" && needsApp),
+                    colors = CheckboxDefaults.colors(checkedColor = Palette.Link)
+                )
+                Text(stringResource(EQUIPMENT_LABELS.getValue(item)))
+            }
+        }
+        if (!mobile) Text(stringResource(R.string.equipment_landline), color = Palette.FgMuted)
+    }
+}
+
+private val EQUIPMENT_LABELS = mapOf(
+    "smartphone" to R.string.equipment_smartphone,
+    "watch" to R.string.equipment_watch,
+    "home_node" to R.string.equipment_home_node
+)
+
 /** Step 3: the caregivers so far, and a row to add one. Each button calls the API at once. */
 @Composable
 private fun CaregiversStep(vm: EnrollViewModel) {
@@ -224,7 +270,30 @@ private fun ReviewStep(vm: EnrollViewModel, onSessionEnd: (Failure) -> Unit) {
                 NoticeLine(Notice.Missing(missing))
             }
             SeniorDetails(senior, callSenior = false, calls = false)
+            MedicalUpload(vm)
+            if (showsConsent(senior)) {
+                ConsentSection(senior.signedAt, vm.busy) { strokes, w, h -> vm.sign(strokes, w, h) }
+            }
         }
+    }
+}
+
+/** The optional PDF (design §5.7): analysed once DAS accepts the patient. */
+@Composable
+private fun MedicalUpload(vm: EnrollViewModel) {
+    val pick = rememberPdfPicker(vm::uploadPdf)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel(stringResource(R.string.medical_section))
+        if (vm.medicalSent) Text(stringResource(R.string.medical_waiting), color = Palette.FgSoft)
+        vm.medicalNotice?.let { Text(stringResource(it), color = Palette.GalbenFg) }
+        SnButton(
+            stringResource(
+                if (vm.medicalSent) R.string.medical_replace else R.string.medical_upload
+            ),
+            pick,
+            kind = Kind.Outline,
+            enabled = !vm.uploading
+        )
     }
 }
 
@@ -272,7 +341,10 @@ private fun Buttons(vm: EnrollViewModel, onDone: (String) -> Unit) {
                 stringResource(R.string.submit),
                 vm::submit,
                 kind = Kind.Success,
-                enabled = !vm.busy && missingOf(senior).isEmpty() && vm.notice !is Notice.Missing
+                enabled = !vm.busy &&
+                    !vm.uploading &&
+                    missingOf(senior).isEmpty() &&
+                    vm.notice !is Notice.Missing
             )
         } else {
             SnButton(stringResource(R.string.done), { onDone(senior.id) }, kind = Kind.Link)

@@ -11,13 +11,15 @@ EchoCare checks on seniors living alone with automated phone calls in Romanian, 
 | `backend/` | FastAPI service, the only part that touches the database | Python 3.14, uv, SQLAlchemy, Alembic | [backend/AGENTS.md](backend/AGENTS.md) |
 | `dashboard/` | DAS web dashboard | Svelte 5, SvelteKit 3, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
 | `android/` | Phone app `:app`, watch app `:wear`, plain-Kotlin `:shared` | Kotlin, Compose, Gradle | [android/AGENTS.md](android/AGENTS.md) |
+| `ios/` | SwiftUI iPhone and iPad app, watchOS app, `Shared` package; demo only ([ADR-007](docs/adr/ADR-007-ios-demo-clients.md)) | Swift 6, Xcode 27.2, SPM | [ios/AGENTS.md](ios/AGENTS.md) |
+| `ecou/` | Ecou, the home node as a robot on an Arduino UNO Q, for the hackathon ([08-ecou.md](docs/specs/echocare/08-ecou.md), proposed) | Arduino App Lab (Zephyr sketch, Python), no CI | [ecou/README.md](ecou/README.md) |
 | `.railway/` | Railway settings as code, staging and production | TypeScript, Railway CLI | [.railway/AGENTS.md](.railway/AGENTS.md) |
 | `docs/specs/echocare/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
 | `docs/adr/` | Architecture decisions | Markdown | |
 | `docs/specs/esti-bine-specificatii-v3.md`, `unihack.md` | The earlier v3 spec and the hackathon brief, in Romanian. History, not the current design | Markdown | |
 | `.github/workflows/` | One CI workflow per folder, path-filtered | GitHub Actions | |
-| `compose.yaml` | Local stack: Postgres 18, API, dashboard | Docker Compose | |
-| `lefthook.yml` | Git hooks: each folder's checks on commit, Android's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
+| `compose.yaml` | Local stack: Postgres 18, API, dashboard, optional ngrok tunnel | Docker Compose | |
+| `lefthook.yml` | Git hooks: each folder's checks on commit (`ios/Shared` tests included), Android's and iOS's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
 
 Run each toolchain from its own folder. There is no root `package.json`, Makefile or task runner.
 
@@ -31,8 +33,9 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 
 | Task | Command |
 |---|---|
-| Create the local env files, once | `cp backend/.env.example backend/.env && cp dashboard/.env.example dashboard/.env` |
+| Create the local env files, once | `cp .env.example .env && cp backend/.env.example backend/.env && cp dashboard/.env.example dashboard/.env` |
 | Start the whole stack, reloading on save | `docker compose up --watch` |
+| Same, with the ngrok tunnel for Twilio | `docker compose --profile tunnel up --watch` |
 | Postgres and dashboard only, to run the API on the host | `docker compose up --watch db dashboard` |
 | Check the stack is up | `curl localhost:8000/api/health` → `{"status":"ok","env":"local"}` |
 | Fill the local database with mock data ([backend/README.md](backend/README.md#mock-data)) | `cd backend && uv run python scripts/seed.py` (`--reset` for fresh times) |
@@ -45,6 +48,7 @@ From the repository root. Each folder's AGENTS.md has its own build, test and li
 | http://localhost:8000/api/docs | API and its OpenAPI docs |
 | http://localhost:5173 | Dashboard |
 | localhost:5432 | Postgres; user, password and database `echocare`; tests use `echocare_test` |
+| http://localhost:4040 | ngrok request inspector, with the tunnel profile |
 
 ## How changes ship
 
@@ -53,7 +57,7 @@ branch → CI for the folders it touches → main → Railway staging
 PR main → release, merged with a merge commit → Railway production
 ```
 
-- CI is path-filtered: `backend.yml`, `dashboard.yml`, `android.yml`. Run the same check locally before you push; each folder's AGENTS.md names it. With `lefthook install`, the hooks run it for you.
+- CI is path-filtered: `backend.yml`, `dashboard.yml`, `android.yml`, `ios.yml`. Run the same check locally before you push; each folder's AGENTS.md names it. With `lefthook install`, the hooks run it for you.
 - **Commit with the hooks on.** When a hook fails, fix the cause; don't pass `--no-verify` or `LEFTHOOK=0` unless the user asks. Formatters restage what they fix, so check `git diff` after committing part of a file.
 - Railway's Wait for CI waits for every workflow on a commit, so a red Android build also holds back an API deploy. Prefer one component per change.
 - Railway redeploys a service on any change under its folder (`/backend/**`, `/dashboard/**`), Markdown included. Redeploying `api` drops live calls.
@@ -64,5 +68,5 @@ PR main → release, merged with a merge commit → Railway production
 - **Never commit secrets.** `.env` files, `android/local.properties` and `*.jks` are git-ignored; keep them that way. The Firebase web config is public and is written in plain text on purpose.
 - **Leave cloud environments alone.** Don't migrate, apply Railway config, set variables or deploy unless the user asks. `alembic` and the API refuse some of this from a laptop by design; never work around those checks.
 - **Old clients talk to new servers.** Installed APKs lag the API, and old and new API copies overlap during a deploy. API changes and migrations only add: new fields optional, nothing renamed or dropped in the same change (ADR-001 §2.3).
-- **Contract changes move together.** When an endpoint changes, update `04-interfaces.md`, the backend and the clients that call it (`android/app/.../Api.kt`, `dashboard/src/`) in one change.
+- **Contract changes move together.** When an endpoint changes, update `04-interfaces.md`, the backend and the clients that call it (`android/app/.../Api.kt`, `ios/EchoCare/Api/Api.swift` and `ApiClient.swift`, `dashboard/src/`) in one change.
 - **User-facing text is Romanian.** New phone and watch UI strings and the call script are written in Romanian; code, comments and docs stay in English.

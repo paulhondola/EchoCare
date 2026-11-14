@@ -1,0 +1,31 @@
+// Build settings shared by every target (design, Layout). Plays the part of android/app's
+// build.gradle.kts defaults; Local.xcconfig, included last, overrides any of them.
+// A bare // starts a comment here, so URLs are written https:/$()/… (the empty $() splits it).
+
+// Install identity. The watch's is always $(BUNDLE_ID).watchkitapp, the tests' $(BUNDLE_ID).tests.
+// A bundle ID belongs to the team that registered it: another signer overrides it in Local.xcconfig.
+BUNDLE_ID = ro.echocare.ios
+
+IPHONEOS_DEPLOYMENT_TARGET = 26.0
+WATCHOS_DEPLOYMENT_TARGET = 26.0
+SWIFT_VERSION = 6.0
+SWIFT_TREAT_WARNINGS_AS_ERRORS = YES
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Automatic signing. DEVELOPMENT_TEAM is set only in the git-ignored Local.xcconfig.
+CODE_SIGN_STYLE = Automatic
+
+// Android's BuildConfig fields, read at run time from Info.plist (EchoCare-Info.plist, AppConfig).
+// Every route is under $(API_URL)/api/. REAL_SMS = NO signs in with Firebase test numbers.
+API_URL = https:/$()/echocare-api-staging.up.railway.app
+REREAD_SECONDS = 30
+REAL_SMS = NO
+
+// The logo (dashboard/static/favicon.svg) from each app target's Assets.xcassets.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+
+// Debug builds are demo builds, with the Wear OS demo timings (BuildConfig.DEMO); Release is not.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug] = $(inherited) DEMO
+
+#include? "Local.xcconfig"

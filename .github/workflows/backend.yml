@@ -44,3 +44,8 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run lint-imports
       - run: uv run pytest
+      # Known vulnerabilities in the locked runtime dependencies. Reports only: Railway waits
+      # for CI, so an advisory published on demo day must not hold back a fix (design 2026-11-14).
+      - name: Audit dependencies (report only)
+        continue-on-error: true
+        run: uv export --locked --no-dev --format requirements-txt --no-hashes | uvx pip-audit -r /dev/stdin --no-deps --disable-pip

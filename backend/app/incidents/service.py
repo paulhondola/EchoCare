@@ -1,17 +1,29 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
+from typing import Any
 
-from sqlalchemy import Select, func, or_, select, update
+from sqlalchemy import Select, delete, exists, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.auth.models import Grant, Role, User
+from app.auth.models import User
 from app.auth.service import refuse
+from app.codes.models import StatusReport
+from app.core.changes import Change, ChangeKind, note
 from app.core.db import engine
-from app.incidents.models import Event, Incident, IncidentStatus
+from app.incidents.models import (
+    UNRESOLVED,
+    Event,
+    EventType,
+    Incident,
+    IncidentStatus,
+)
 from app.incidents.schemas import (
     CallDetail,
+    EventForm,
+    EventView,
     IncidentDetail,
     IncidentSummary,
     ReportView,
@@ -19,12 +31,111 @@ from app.incidents.schemas import (
     TriggerEventView,
     TurnView,
 )
-from app.seniors.models import Senior
+from app.seniors.models import EnrollmentState, Senior
 from app.seniors.schemas import CaregiverSummary, SeniorDetail
+from app.seniors.service import caregivers_query, latest_summary, summary_view
 from app.status.engine import Severity
-from app.voice.models import Call, CallTurn, StatusReport
+from app.voice.models import Call, CallTrigger, CallTurn
+from app.voice.service import queue_calls, recent_call
 
 log = logging.getLogger("echocare.incidents")
+
+# The call an event queues, by the event's source (04 §3); the phone's is `manual`.
+TRIGGERS = {"watch": CallTrigger.watch, "home_node": CallTrigger.home_node}
+
+# An event measured longer ago than this starts no call (04 §3, 06 §3).
+STALE = timedelta(minutes=30)
+
+
+async def record_event(
+    session: AsyncSession, senior_id: uuid.UUID, form: EventForm, now: datetime
+) -> EventView:
+    """Stores an event the senior's phone sent: „Sunați-mă”, or one relayed from the
+    watch or the home node (UC-09, UC-10, UC-16, 04 §3), under the intake rules."""
+    view = await intake_event(
+        session,
+        senior_id,
+        event_id=form.id,
+        event_type=form.type,
+        measured_at=form.measured_at,
+        source=form.source,
+        snapshot=form.snapshot.model_dump(exclude_none=True) if form.snapshot else None,
+        now=now,
+        latitude=form.latitude,
+        longitude=form.longitude,
+        location_accuracy_m=form.location_accuracy_m,
+    )
+    await session.commit()
+    return view
+
+
+async def intake_event(
+    session: AsyncSession,
+    senior_id: uuid.UUID,
+    *,
+    event_id: uuid.UUID,
+    event_type: EventType,
+    measured_at: datetime,
+    source: str | None,
+    snapshot: dict[str, Any] | None,
+    now: datetime,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    location_accuracy_m: float | None = None,
+) -> EventView:
+    """The intake rules (04 §3): a resent id is ignored; a stale event, or one for a
+    senior who is not `active`, is recorded and starts no call; otherwise the event joins
+    the call queued, live or just ended, or queues a yellow one. Also for the events
+    FastAPI derives itself, such as a room out of range (P21). Doesn't commit (ADR-005).
+    """
+    stored = await session.scalar(
+        insert(Event)
+        .values(
+            id=event_id,
+            senior_id=senior_id,
+            type=event_type,
+            measured_at=measured_at,
+            source=source,
+            snapshot=snapshot,
+            latitude=latitude,
+            longitude=longitude,
+            location_accuracy_m=location_accuracy_m,
+            located_at=now if latitude is not None else None,
+        )
+        .on_conflict_do_nothing()
+        .returning(Event.id)
+    )
+    if stored is None:
+        call_id = await session.scalar(
+            select(Event.call_id).where(
+                Event.id == event_id, Event.senior_id == senior_id
+            )
+        )
+        return EventView(queued=False, call_id=call_id)
+
+    senior = await session.get(Senior, senior_id)
+    call_id, queued = None, False
+    if (
+        senior is not None
+        and senior.enrollment_state is EnrollmentState.active
+        and now - measured_at <= STALE
+    ):
+        call = await recent_call(session, senior_id, now)
+        if call is None:
+            await queue_calls(
+                session,
+                Senior.id == senior_id,
+                # The device's own trigger, so the call says why it rings (04 §4.2)
+                trigger=TRIGGERS.get(source, CallTrigger.manual),
+                due_at=now,
+                starting_severity=Severity.yellow,
+            )
+            call, queued = await recent_call(session, senior_id, now), True
+        call_id = call.id
+        await session.execute(
+            update(Event).where(Event.id == event_id).values(call_id=call_id)
+        )
+    return EventView(queued=queued, call_id=call_id)
 
 
 def opens_incident(result: Severity, unresolved: bool) -> bool:
@@ -33,6 +144,44 @@ def opens_incident(result: Severity, unresolved: bool) -> bool:
     A later red while one is open or in progress is added to that one, through the call.
     """
     return result is Severity.red and not unresolved
+
+
+def open_incident(
+    session: AsyncSession, senior_id: uuid.UUID, call_id: uuid.UUID, reason: str
+) -> None:
+    """The incident a call's red opens; `opens_incident` decides whether (G16).
+    Doesn't commit (ADR-005)."""
+    # Its id made here, not by the database, so the push can name it (04 §6)
+    incident_id = uuid.uuid7()
+    session.add(
+        Incident(
+            id=incident_id,
+            senior_id=senior_id,
+            status=IncidentStatus.open,
+            opened_by_call_id=call_id,
+            reason=reason,
+        )
+    )
+    note(session, Change(ChangeKind.incident_opened, senior_id, incident_id))
+
+
+async def note_red_added(
+    session: AsyncSession,
+    senior_id: uuid.UUID,
+    severity: Severity,
+    before: Severity | None,
+) -> None:
+    """A red added to the unresolved incident (G16) that was not red before: DAS hears of
+    it (04 §6). Red again adds nothing to say (P5). Doesn't commit (ADR-005)."""
+    if severity is not Severity.red or before is Severity.red:
+        return
+    incident_id = await session.scalar(
+        select(Incident.id).where(
+            Incident.senior_id == senior_id, Incident.status.in_(UNRESOLVED)
+        )
+    )
+    if incident_id is not None:
+        note(session, Change(ChangeKind.incident_raised, senior_id, incident_id))
 
 
 def take_refusal(
@@ -92,15 +241,6 @@ def calls_query(
     if until is not None:
         query = query.where(Call.created_at <= until)
     return query.order_by(Call.created_at, Call.attempt)
-
-
-def caregivers_query(senior_id: uuid.UUID) -> Select:
-    return (
-        select(User.display_name, User.phone_e164, Grant.relation)
-        .join(Grant, Grant.user_id == User.id)
-        .where(Grant.senior_id == senior_id, Grant.role == Role.caregiver)
-        .order_by(User.display_name)
-    )
 
 
 async def attempts_behind(session: AsyncSession, call_id: uuid.UUID) -> list[Call]:
@@ -183,9 +323,21 @@ async def load_incident(
         handover_answered=any(c.handover_answered for c in calls),
         senior=SeniorDetail.model_validate(senior, from_attributes=True),
         caregivers=[CaregiverSummary.model_validate(dict(c)) for c in caregivers],
-        event=event and TriggerEventView.model_validate(event, from_attributes=True),
+        event=event and trigger_event_view(event),
         calls=[call_detail(c, reports[c.id], turns[c.id]) for c in calls],
+        summary=summary_view(await latest_summary(session, senior.id)),
     )
+
+
+def trigger_event_view(event: Event) -> TriggerEventView:
+    """The opening event, with the room map when the home node found a fall (P24)."""
+    view = TriggerEventView.model_validate(event, from_attributes=True)
+    snapshot = event.snapshot or {}
+    if event.source == "home_node" and event.type is EventType.fall:
+        view.object_angle_deg = snapshot.get("object_angle_deg")
+        view.object_distance_m = snapshot.get("object_distance_m")
+        view.scan = snapshot.get("scan")
+    return view
 
 
 def call_detail(
@@ -283,9 +435,11 @@ async def take(
             taken_by=user_id,
             taken_at=func.now(),
         )
-        .returning(Incident.id)
+        .returning(Incident.senior_id)
     )
-    if taken.first() is None:
+    if (senior_id := taken.scalar()) is not None:
+        note(session, Change(ChangeKind.incident_moved, senior_id, incident_id))
+    else:
         incident = await current_incident(session, incident_id)
         reason = take_refusal(incident.status, incident.taken_by, user_id)
         if reason is not None:
@@ -299,6 +453,27 @@ async def take(
             )
     await session.commit()
     return await incident_summary(session, incident_id)
+
+
+async def take_for_handover(
+    session: AsyncSession, senior_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    """Answering the hand-over takes the senior's open incident for the on-duty
+    employee (G16, UC-07 step 5); False when none is open, as when someone took it from
+    the dashboard first. Never refuses: the call is already connecting. Doesn't commit.
+    """
+    taken = await session.execute(
+        update(Incident)
+        .where(Incident.senior_id == senior_id, Incident.status == IncidentStatus.open)
+        .values(
+            status=IncidentStatus.in_progress, taken_by=user_id, taken_at=func.now()
+        )
+        .returning(Incident.id)
+    )
+    if (incident_id := taken.scalar()) is None:
+        return False
+    note(session, Change(ChangeKind.incident_moved, senior_id, incident_id))
+    return True
 
 
 async def resolve(
@@ -322,9 +497,11 @@ async def resolve(
             outcome=form.outcome,
             note=form.note,
         )
-        .returning(Incident.id)
+        .returning(Incident.senior_id)
     )
-    if resolved.first() is None:
+    if (senior_id := resolved.scalar()) is not None:
+        note(session, Change(ChangeKind.incident_moved, senior_id, incident_id))
+    else:
         incident = await current_incident(session, incident_id)
         reason = resolve_refusal(
             incident.status,
@@ -336,3 +513,46 @@ async def resolve(
             raise refuse(409, reason)
     await session.commit()
     return await incident_summary(session, incident_id)
+
+
+async def incident_unresolved(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """Whether the senior has an `open` or `in_progress` incident, which stops an
+    erasure (design 2026-11-14)."""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Incident.senior_id == senior_id, Incident.status.in_(UNRESOLVED)
+                )
+            )
+        )
+    )
+
+
+async def erase_senior_incidents(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """The senior's events and incidents, for an erasure (design 2026-11-14). Doesn't
+    commit (ADR-005)."""
+    await session.execute(delete(Event).where(Event.senior_id == senior_id))
+    await session.execute(delete(Incident).where(Incident.senior_id == senior_id))
+
+
+async def export_senior_incidents(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> tuple[list[Event], list[Incident]]:
+    """The senior's events and incidents in order, for a GDPR export (04 §1, design
+    2026-11-14)."""
+    events = list(
+        await session.scalars(
+            select(Event)
+            .where(Event.senior_id == senior_id)
+            .order_by(Event.measured_at, Event.id)
+        )
+    )
+    incidents = list(
+        await session.scalars(
+            select(Incident)
+            .where(Incident.senior_id == senior_id)
+            .order_by(Incident.opened_at, Incident.id)
+        )
+    )
+    return events, incidents

@@ -29,7 +29,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | AL8 | A senior outside the caller's reach answers 404 `not_found` | Applies to later endpoints; shows a stranger and a revoked caregiver the same thing |
 | AL9 | The refusal contract in §3.2 | Extends 04 §0 |
 | AL10 | `firebase-admin`, verifying against Google's public keys. No revocation check. The `phone_number` claim is required. Any sign-in provider is accepted when the token carries `phone_number` | Grants give instant revocation |
-| AL11 | No service account key anywhere. The API starts the Admin SDK with the project id `sentinela-8f474` and a placeholder credential, because verifying needs nothing more. `dev_token.py` signs a test number in through Firebase's REST API with the public web key | The organisation policy `iam.disableServiceAccountKeyCreation` blocks keys, and a key is a secret that never expires |
+| AL11 | Signing in needs no service account key. The API starts the Admin SDK with the project id `echocare-app` and a placeholder credential, because verifying needs nothing more. `dev_token.py` signs a test number in through Firebase's REST API with the public web key. Sending pushes has the only key: the service account `echocare-push`, holding only `roles/firebasecloudmessaging.admin`, read from `FIREBASE_PUSH_CREDENTIALS` in Railway's variables or the local `backend/.env`. Without it the push sender sends nothing (04 §6) | Cloud Messaging needs a credential; verifying a token does not. A key is a secret that never expires, so the organisation policy `iam.disableServiceAccountKeyCreation` stays enforced and each key is an exception: a person lifts it on the project only to create one, then restores it. An existing key keeps working, and rotating it means doing this again |
 | AL12 | `phonenumbers` with region `RO`, stored as E.164. Staff numbers must be mobiles | Staff sign in by SMS |
 | AL13 | Every environment uses the real Firebase project and its test numbers. Pytest replaces the token verifier through a dependency override; production code has a single verification path | §5 |
 | AL14 | `grant_das.py` grants DAS only. Medics are granted through `POST /api/staff` | G6 |
@@ -42,7 +42,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 | Where | Change |
 |---|---|
 | 01 §6 and UC-02 step 5 | The picker chooses among roles (AL3) |
-| 04 §1 `/profile` | No warning flag and no senior names until the campaign and senior tables exist |
+| 04 §1 `/profile` | No warning flag and no senior names until the campaign and senior tables exist. Both have arrived (§3.3) |
 | 05 `users` | No `on_duty` until the on-duty feature |
 
 ## 3. Shared contract
@@ -56,7 +56,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 5. If the token's `uid` differs from `users.firebase_uid`, FastAPI writes the new value. It logs a warning when it replaces a value that was already set.
 6. The endpoint checks the caller's roles (AL2).
 
-`/api/health` and the OpenAPI docs at `/api/docs` stay open.
+`/api/health` and the OpenAPI docs at `/api/docs` stay open, locally and on staging; production serves no docs (06-operations §4).
 
 ### 3.2 Refusals
 
@@ -86,7 +86,8 @@ Any caller with at least one grant.
   "grants": [
     { "role": "das", "senior_id": null, "senior_form_of_address": null, "relation": null },
     { "role": "medic", "senior_id": null, "senior_form_of_address": null, "relation": null }
-  ]
+  ],
+  "warning_active": false
 }
 ```
 
@@ -94,7 +95,8 @@ Any caller with at least one grant.
 - **Zero grants** answer 403 `not_registered` (§3.2).
 - **Clients derive the distinct roles** themselves for the picker (AL3).
 - **Added with the seniors work:** `senior_form_of_address` and `relation` on each grant, null for das and medic grants.
-- **Fields that arrive later, each as an optional addition:** `id`, `practice`, `warning_active` (with campaigns).
+- **Added with the campaigns work:** `warning_active`, a boolean that is true while any campaign's warning has not ended, for every caller. It is `false` while no campaign is running.
+- **Fields that arrive later, each as an optional addition:** `id`, `practice`.
 
 ### 3.4 `POST /api/staff`
 
@@ -184,6 +186,7 @@ These are configured in the Firebase console under Authentication → Sign-in me
 | `+40700000003` | `333333` | DAS (`grant_das.py`) and medic (`POST /api/staff`): exercises the role picker |
 | `+40700000004` | `444444` | a caregiver (`POST /api/seniors/{id}/caregivers`) |
 | `+40700000005` | `555555` | a senior (`POST /api/seniors` with this number) |
+| `+40700000006` | `666666` | a second senior, for the welcome card (`POST /api/seniors` with this number) |
 | `+40700000009` | `999999` | nothing: exercises `not_registered` |
 
 Grants live in each environment's database (ADR-001), so each environment needs its own grants (§9).
@@ -415,7 +418,7 @@ If Hilt or KSP cannot build under AGP 9.4.1 even with matching versions, stop an
   - `onCodeSent` keeps the verification id and the resend token.
   - *Retrimite codul* becomes available after 30 seconds.
 - **The role choice is saved in `SharedPreferences`.** A saved role that is no longer among the grants is dropped. With one distinct role, `Home` opens directly.
-- **The menu** in `Home` holds *Ieșire*, and *Schimbă rolul* when there are several roles.
+- **The menu** in `Home` holds *Ieșire*, and *Schimbă rolul* when there are several roles. Superseded by design 2026-11-13 medic home: there is no menu; the profile page, opened from the person's square in the top bar, lists the roles to switch to in one tap and holds *Ieșire*.
 - **The skeleton health screen goes.**
 
 **What the app does with each answer from `/profile`**, as a pure function in `bia.sentinela.auth`, unit-tested on the JVM:
@@ -444,7 +447,7 @@ If Hilt or KSP cannot build under AGP 9.4.1 even with matching versions, stop an
 | Picker title | „Alegeți rolul” |
 | Role labels | `das` „Dispecerat DAS”, `medic` „Medic”, `caregiver` „Aparținător”, `senior` „Senior” |
 | Home | „Conectat ca %1$s · %2$s” |
-| Menu | „Schimbă rolul”, „Ieșire” |
+| Menu | „Schimbă rolul”, „Ieșire” (superseded by design 2026-11-13: „Profil”, „Rol”, „Activ”, „Ieșire”) |
 
 The phone field applies the same E.164 conversion as the dashboard (§7.1).
 
@@ -457,7 +460,7 @@ Slice 3 is done when all of these hold:
 - A release build installs and launches on an emulator, which checks R8 and Hilt.
 - On an emulator against an API where the test numbers are granted:
   - `+40700000001` reaches the DAS home.
-  - `+40700000003` sees the picker; the chosen role survives an app restart; *Schimbă rolul* returns to the picker.
+  - `+40700000003` sees the picker; the chosen role survives an app restart; *Schimbă rolul* returns to the picker (since design 2026-11-13, the profile page switches role directly).
   - `+40700000009` sees the not-registered text and is signed out.
   - *Ieșire* returns to the phone screen.
 
@@ -484,7 +487,7 @@ Steps marked *person* are done by a team member; agents leave cloud environments
 | Twilio request signatures on callbacks and the WebSocket | The Twilio work (spike S1, `PUBLIC_BASE_URL`) |
 | The `seniors` table; `seniors.medic_id`; the FK on `grants.senior_id`; the partial unique index for AL7 | Built with the data model, in migration `741f75a7dbe1` |
 | The senior-scoped helper for §3.6; `/profile`'s senior names | Built by [seniors-and-enrollment.md](seniors-and-enrollment.md) |
-| `warning_active` on `/profile` | The campaign work (UC-05) |
+| `warning_active` on `/profile` | Built by [the campaigns and mock calls design](../superpowers/specs/2026-10-17-campaigns-and-mock-calls-design.md) (UC-05) |
 | App Check, rate limits | Before a pilot |
 
 ## 11. Facts still to confirm

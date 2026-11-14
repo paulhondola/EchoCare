@@ -1,0 +1,623 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T19:38:11+00:00",
+  "title": "Design System: EchoCare DAS",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Night Canvas",
+        "canonical": "#0d1117",
+        "tonalRamp": [
+          "#080b11",
+          "#21252c",
+          "#3d424a",
+          "#5c6269",
+          "#7d838b",
+          "#a0a5ae",
+          "#c4cad2",
+          "#e9eff8"
+        ]
+      },
+      "subtle": {
+        "role": "neutral",
+        "displayName": "Panel Graphite",
+        "canonical": "#161b22",
+        "tonalRamp": [
+          "#070b12",
+          "#20252d",
+          "#3d424a",
+          "#5c626a",
+          "#7c838c",
+          "#9fa6af",
+          "#c3cad4",
+          "#e8eff9"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card Graphite",
+        "canonical": "#21262d",
+        "tonalRamp": [
+          "#070b11",
+          "#20252c",
+          "#3d424a",
+          "#5c626a",
+          "#7d838b",
+          "#9fa6af",
+          "#c3cad3",
+          "#e8eff9"
+        ]
+      },
+      "inset": {
+        "role": "neutral",
+        "displayName": "Deep Inset",
+        "canonical": "#010409",
+        "tonalRamp": [
+          "#050c13",
+          "#1e262e",
+          "#3a434c",
+          "#59626c",
+          "#7a848e",
+          "#9ca6b1",
+          "#c0cbd6",
+          "#e5f0fb"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Rule Grey",
+        "canonical": "#30363d",
+        "tonalRamp": [
+          "#070c11",
+          "#20262c",
+          "#3c434a",
+          "#5b626a",
+          "#7c838b",
+          "#9fa6ae",
+          "#c2cad3",
+          "#e8eff9"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "#6e7681",
+        "tonalRamp": [
+          "#060b13",
+          "#1f262f",
+          "#3b434d",
+          "#5a626d",
+          "#7b838e",
+          "#9da6b2",
+          "#c1cad6",
+          "#e6effc"
+        ]
+      },
+      "fg": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#f0f6fc",
+        "tonalRamp": [
+          "#080c0f",
+          "#21262a",
+          "#3e4347",
+          "#5d6267",
+          "#7e8388",
+          "#a0a6ab",
+          "#c4cad0",
+          "#e9eff5"
+        ]
+      },
+      "fg-soft": {
+        "role": "neutral",
+        "displayName": "Soft Text",
+        "canonical": "#c9d1d9",
+        "tonalRamp": [
+          "#070c11",
+          "#20262c",
+          "#3c4349",
+          "#5b6269",
+          "#7c838b",
+          "#9ea6ae",
+          "#c2cad2",
+          "#e7f0f8"
+        ]
+      },
+      "fg-muted": {
+        "role": "neutral",
+        "displayName": "Muted Text",
+        "canonical": "#8b949e",
+        "tonalRamp": [
+          "#060c13",
+          "#1f262e",
+          "#3b434c",
+          "#5a626b",
+          "#7b838d",
+          "#9da6b0",
+          "#c1cad5",
+          "#e6f0fb"
+        ]
+      },
+      "fg-subtle": {
+        "role": "neutral",
+        "displayName": "Faint Text",
+        "canonical": "#6e7681",
+        "tonalRamp": [
+          "#060b13",
+          "#1f262f",
+          "#3b434d",
+          "#5a626d",
+          "#7b838e",
+          "#9da6b2",
+          "#c1cad6",
+          "#e6effc"
+        ]
+      },
+      "off": {
+        "role": "neutral",
+        "displayName": "Off Grey",
+        "canonical": "#484f58",
+        "tonalRamp": [
+          "#060c12",
+          "#1f262e",
+          "#3c434b",
+          "#5b626b",
+          "#7b838d",
+          "#9ea6b0",
+          "#c2cad5",
+          "#e7effa"
+        ]
+      },
+      "link": {
+        "role": "primary",
+        "displayName": "Signal Blue",
+        "canonical": "#58a6ff",
+        "tonalRamp": [
+          "#000b1e",
+          "#00254b",
+          "#00427e",
+          "#0361b4",
+          "#3584da",
+          "#5fa8fd",
+          "#a4cdfe",
+          "#e4f0ff"
+        ]
+      },
+      "rosu": {
+        "role": "secondary",
+        "displayName": "Alarm Red",
+        "canonical": "#f85149",
+        "tonalRamp": [
+          "#1e0001",
+          "#4c0204",
+          "#7f050c",
+          "#b60e17",
+          "#e33c37",
+          "#fc766a",
+          "#ffb3aa",
+          "#fee9e6"
+        ]
+      },
+      "rosu-strong": {
+        "role": "secondary",
+        "displayName": "Alarm Red Strong",
+        "canonical": "#da3633",
+        "tonalRamp": [
+          "#1e0101",
+          "#4c0305",
+          "#7e090e",
+          "#b5141a",
+          "#e13e39",
+          "#ff7368",
+          "#feb3aa",
+          "#ffe9e6"
+        ]
+      },
+      "rosu-hover": {
+        "role": "secondary",
+        "displayName": "Alarm Red Hover",
+        "canonical": "#e5534b",
+        "tonalRamp": [
+          "#1e0001",
+          "#4c0205",
+          "#7f070e",
+          "#b21d1f",
+          "#da4942",
+          "#fb766b",
+          "#feb3aa",
+          "#ffe9e6"
+        ]
+      },
+      "rosu-fg": {
+        "role": "secondary",
+        "displayName": "Alarm Red Text",
+        "canonical": "#ff7b72",
+        "tonalRamp": [
+          "#1e0101",
+          "#4b0307",
+          "#7e0a12",
+          "#aa2d2c",
+          "#d2524c",
+          "#fa776e",
+          "#fdb3ac",
+          "#ffe9e6"
+        ]
+      },
+      "galben": {
+        "role": "tertiary",
+        "displayName": "Caution Amber",
+        "canonical": "#d29922",
+        "tonalRamp": [
+          "#120900",
+          "#322201",
+          "#573d04",
+          "#7e5a0c",
+          "#a87914",
+          "#d39a23",
+          "#f9be52",
+          "#ffeccd"
+        ]
+      },
+      "galben-fg": {
+        "role": "tertiary",
+        "displayName": "Caution Amber Text",
+        "canonical": "#e3b341",
+        "tonalRamp": [
+          "#110a00",
+          "#312301",
+          "#543e04",
+          "#7a5c0c",
+          "#a37c14",
+          "#cc9d23",
+          "#f2c252",
+          "#ffedc7"
+        ]
+      },
+      "verde": {
+        "role": "tertiary",
+        "displayName": "All-Clear Green",
+        "canonical": "#3fb950",
+        "tonalRamp": [
+          "#001002",
+          "#012e09",
+          "#045115",
+          "#0c7624",
+          "#159d33",
+          "#49c258",
+          "#71e77c",
+          "#cbfecd"
+        ]
+      },
+      "verde-strong": {
+        "role": "tertiary",
+        "displayName": "All-Clear Green Strong",
+        "canonical": "#238636",
+        "tonalRamp": [
+          "#001002",
+          "#002f09",
+          "#015117",
+          "#057626",
+          "#3a9948",
+          "#60bd6b",
+          "#85e38e",
+          "#cbfecd"
+        ]
+      },
+      "verde-hover": {
+        "role": "tertiary",
+        "displayName": "All-Clear Green Hover",
+        "canonical": "#2ea043",
+        "tonalRamp": [
+          "#001002",
+          "#022e0b",
+          "#075019",
+          "#117529",
+          "#289b3e",
+          "#53c062",
+          "#79e685",
+          "#caffcd"
+        ]
+      },
+      "verde-fg": {
+        "role": "tertiary",
+        "displayName": "All-Clear Green Text",
+        "canonical": "#56d364",
+        "tonalRamp": [
+          "#001002",
+          "#022e09",
+          "#075116",
+          "#107525",
+          "#019e2e",
+          "#43c254",
+          "#6de878",
+          "#caffcb"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The page title in the page header."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "An incident card's senior name."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Everything else; buttons take 800 at the same size."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase field labels and table column headers, in Muted Text."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Incident ids, times, phone numbers and counts, with tabular figures."
+      }
+    },
+    "shadows": [
+      {
+        "name": "slide-over-cast",
+        "value": "-24px 0 48px rgba(1,4,9,.55)",
+        "purpose": "The dossier panel only, cast to the left over the page."
+      },
+      {
+        "name": "health-glow",
+        "value": "0 0 8px rgba(63,185,80,.7)",
+        "purpose": "The green system-health dot when the API is up."
+      }
+    ],
+    "motion": [
+      {
+        "name": "alarm-pulse",
+        "value": "opacity 1 → 0.2 → 1, 1.1s ease-in-out infinite",
+        "purpose": "Red alarm dots: the Cod Roșu banner's while sound is on, the health dot while the API is down."
+      },
+      {
+        "name": "loading-delay",
+        "value": "opacity 0 until 75% of 200ms ease-in",
+        "purpose": "Spinners appear only if loading lasts past 150ms."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "768px",
+        "note": "Fallback only: desktop is the target (1280px+, holds at 1024px)."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "The default action: Card Graphite, ruled, heavy flush-left label.",
+      "html": "<button class=\"ds-btn\">Exportă CSV</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-line, #30363d); border-radius: 0; background: var(--color-card, #21262d); color: var(--color-fg, #f0f6fc); font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); white-space: nowrap; cursor: pointer; } .ds-btn:hover { border-color: var(--color-fg-muted, #8b949e); } .ds-btn:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.45; cursor: not-allowed; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Preiau: the one solid red action, taking an open Cod Roșu incident.",
+      "html": "<button class=\"ds-btn-danger\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\"/></svg>Preiau</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-rosu, #f85149); border-radius: 0; background: var(--color-rosu-strong, #da3633); color: #fff; font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); white-space: nowrap; cursor: pointer; } .ds-btn-danger:hover:enabled { background: var(--color-rosu-hover, #e5534b); } .ds-btn-danger:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }"
+    },
+    {
+      "name": "Success Button",
+      "kind": "button",
+      "refersTo": "button-success",
+      "description": "A confirming green action.",
+      "html": "<button class=\"ds-btn-success\">Acceptă</button>",
+      "css": ".ds-btn-success { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-verde, #3fb950); border-radius: 0; background: var(--color-verde-strong, #238636); color: #fff; font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); white-space: nowrap; cursor: pointer; } .ds-btn-success:hover:enabled { background: var(--color-verde-hover, #2ea043); } .ds-btn-success:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Link Button",
+      "kind": "button",
+      "refersTo": "button-link",
+      "description": "Rezolvă cazul, Apelează: a blue action that leads somewhere.",
+      "html": "<button class=\"ds-btn-link\">Rezolvă cazul</button>",
+      "css": ".ds-btn-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-line, #30363d); border-radius: 0; background: var(--color-card, #21262d); color: var(--color-link, #58a6ff); font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); white-space: nowrap; cursor: pointer; } .ds-btn-link:hover { border-color: var(--color-link, #58a6ff); background: color-mix(in srgb, #388bfd 15%, transparent); } .ds-btn-link:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Vezi dosar: a secondary action on a coloured surface.",
+      "html": "<button class=\"ds-btn-outline\">Vezi dosar</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--color-line-strong, #6e7681); border-radius: 0; background: transparent; color: var(--color-fg, #f0f6fc); font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); white-space: nowrap; cursor: pointer; } .ds-btn-outline:hover { border-color: var(--color-fg, #f0f6fc); } .ds-btn-outline:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The inset search field above the board and tables.",
+      "html": "<label class=\"ds-search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input placeholder=\"Caută după nume, telefon sau adresă\" aria-label=\"Caută\"></label>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 8px; height: 32px; width: 100%; max-width: 360px; padding: 0 10px; background: var(--color-inset, #010409); border: 1px solid var(--color-line, #30363d); border-radius: 0; color: var(--color-fg-muted, #8b949e); } .ds-search:focus-within { border-color: var(--color-link, #58a6ff); } .ds-search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--color-fg, #f0f6fc); font: 400 12px var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-search input::placeholder { color: var(--color-fg-muted, #8b949e); }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "The sidebar sections with mono count badges; Incidente turns red while anything is open.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Secțiuni\"><a href=\"#\" aria-current=\"page\" class=\"ds-nav-item ds-nav-on\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"ds-nav-icon-red\" aria-hidden=\"true\"><path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M12 12v6\"/></svg><span>Incidente</span><span class=\"ds-count ds-count-red\">3</span></a><a href=\"#\" class=\"ds-nav-item\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/></svg><span>Monitorizare seniori</span><span class=\"ds-count\">18</span></a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; width: 224px; padding: 10px 8px; background: var(--color-subtle, #161b22); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; color: var(--color-fg-soft, #c9d1d9); text-decoration: none; } .ds-nav-item svg { color: var(--color-fg-muted, #8b949e); } .ds-nav-item:hover { background: var(--color-card, #21262d); } .ds-nav-item:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-nav-on { background: var(--color-card, #21262d); border-color: var(--color-line, #30363d); color: var(--color-fg, #f0f6fc); font-weight: 600; } .ds-nav-on svg.ds-nav-icon-red { color: var(--color-rosu, #f85149); } .ds-count { margin-left: auto; padding: 1px 7px; background: var(--color-line, #30363d); color: var(--color-fg-soft, #c9d1d9); font: 500 11px/1.5 var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-count-red { background: var(--color-rosu-strong, #da3633); color: #fff; font-weight: 600; }"
+    },
+    {
+      "name": "Code Chip",
+      "kind": "chip",
+      "refersTo": "chip-code",
+      "description": "A code or state named in its tint: 15% fill behind the light text colour.",
+      "html": "<span class=\"ds-chip ds-chip-rosu\">Cod roșu</span> <span class=\"ds-chip ds-chip-galben\">Cod galben</span> <span class=\"ds-chip ds-chip-verde\">Cod verde</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 0; font: 600 11px/1.5 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-chip-rosu { background: color-mix(in srgb, var(--color-rosu, #f85149) 15%, transparent); color: var(--color-rosu-fg, #ff7b72); } .ds-chip-galben { background: color-mix(in srgb, var(--color-galben, #d29922) 15%, transparent); color: var(--color-galben-fg, #e3b341); } .ds-chip-verde { background: color-mix(in srgb, var(--color-verde, #3fb950) 15%, transparent); color: var(--color-verde-fg, #56d364); }"
+    },
+    {
+      "name": "Incident Card",
+      "kind": "card",
+      "refersTo": "card-incident",
+      "description": "The unit of the board: 3px state bar, mono id and time, senior, reason, one action.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-card-bar\"></div><div class=\"ds-card-body\"><div class=\"ds-card-meta\"><span class=\"ds-mono\">#a3f9c2</span><span>·</span><span>acum 3 min</span><span class=\"ds-card-state\">Nepreluat</span></div><h3 class=\"ds-card-title\">Maria Ionescu <span>· doamna Maria</span></h3><div class=\"ds-card-reason\">Temperatura în cameră 13°C</div><div class=\"ds-card-actions\"><button class=\"ds-card-take\">Preiau</button><span class=\"ds-card-who\">Nealocat</span></div></div></article>",
+      "css": ".ds-card { display: flex; max-width: 320px; background: var(--color-card, #21262d); border: 1px solid var(--color-line, #30363d); border-radius: 0; color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-card:hover { border-color: var(--color-link, #58a6ff); } .ds-card-bar { width: 3px; flex: none; background: var(--color-rosu, #f85149); } .ds-card-body { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; padding: 10px 12px 12px; } .ds-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--color-fg-muted, #8b949e); } .ds-mono { font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-card-state { margin-left: auto; padding: 2px 7px; background: color-mix(in srgb, var(--color-rosu, #f85149) 15%, transparent); color: var(--color-rosu-fg, #ff7b72); font-size: 11px; font-weight: 600; } .ds-card-title { margin: 0; font-size: 15px; line-height: 1.25; font-weight: 600; } .ds-card-title span { font-weight: 400; color: var(--color-fg-muted, #8b949e); } .ds-card-reason { font-weight: 600; color: var(--color-rosu-fg, #ff7b72); } .ds-card-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--color-line, #30363d); } .ds-card-take { padding: 6px 12px; border: 1px solid var(--color-rosu, #f85149); background: var(--color-rosu-strong, #da3633); color: #fff; font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); cursor: pointer; } .ds-card-take:hover { background: var(--color-rosu-hover, #e5534b); } .ds-card-take:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-card-who { margin-left: auto; font-size: 12px; color: var(--color-fg-muted, #8b949e); }"
+    },
+    {
+      "name": "Cod Roșu Banner",
+      "kind": "custom",
+      "refersTo": "banner-cod-rosu",
+      "description": "Above every page while an incident is open: red wash, pulsing dot, take and view.",
+      "html": "<section class=\"ds-alert\" aria-label=\"Cod Roșu\"><span class=\"ds-alert-dot\"></span><div class=\"ds-alert-text\"><strong>COD ROȘU</strong><span class=\"ds-alert-who\">Maria Ionescu — Temperatura în cameră 13°C</span><span class=\"ds-alert-since\">deschis acum 3 min</span></div><button class=\"ds-alert-take\">Preiau cazul</button><button class=\"ds-alert-view\">Vezi dosar</button></section>",
+      "css": ".ds-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 20px; background: color-mix(in srgb, var(--color-rosu-strong, #da3633) 20%, var(--color-canvas, #0d1117)); border-bottom: 2px solid var(--color-rosu, #f85149); color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-alert-dot { width: 10px; height: 10px; flex: none; background: var(--color-rosu, #f85149); animation: ds-pulse 1.1s ease-in-out infinite; } @keyframes ds-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } } .ds-alert-text { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; } .ds-alert-text strong { font-weight: 800; letter-spacing: 0.06em; color: var(--color-rosu-fg, #ff7b72); } .ds-alert-who { font-weight: 600; } .ds-alert-since { color: var(--color-fg-soft, #c9d1d9); } .ds-alert-take, .ds-alert-view { padding: 6px 12px; font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); cursor: pointer; color: #fff; } .ds-alert-take { border: 1px solid var(--color-rosu, #f85149); background: var(--color-rosu-strong, #da3633); } .ds-alert-take:hover { background: var(--color-rosu-hover, #e5534b); } .ds-alert-view { border: 1px solid var(--color-line-strong, #6e7681); background: transparent; } .ds-alert-view:hover { border-color: var(--color-fg, #f0f6fc); } .ds-alert-take:focus-visible, .ds-alert-view:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .ds-alert-dot { animation: none; } }"
+    },
+    {
+      "name": "Copy Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Copies the address, intercom code or GPS in the incident dossier; confirms in place.",
+      "html": "<button class=\"ds-btn-copy\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/></svg>Copiază adresa</button>",
+      "css": ".ds-btn-copy { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--color-line, #30363d); border-radius: 0; background: var(--color-card, #21262d); color: var(--color-fg-soft, #c9d1d9); font: 600 12px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); white-space: nowrap; cursor: pointer; } .ds-btn-copy:hover { border-color: var(--color-link, #58a6ff); color: var(--color-fg, #f0f6fc); } .ds-btn-copy:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Underline Tabs",
+      "kind": "nav",
+      "refersTo": "tabs",
+      "description": "Panou/Tabel, the seniors' enrollment filter and the dossier sections, on the header's 2px rule.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\" aria-label=\"Filtru stare\"><button role=\"tab\" aria-selected=\"true\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-muted\"></span>Toți<span class=\"ds-tab-n\">19</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-verde\"></span>Activi<span class=\"ds-tab-n\">15</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-link\"></span>În înrolare<span class=\"ds-tab-n\">3</span></button><button role=\"tab\" aria-selected=\"false\" class=\"ds-tab\"><span class=\"ds-tab-dot ds-dot-galben\"></span>Necesită atenție<span class=\"ds-tab-n\">1</span></button></div>",
+      "css": ".ds-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 2px solid var(--color-line, #30363d); font: 600 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; gap: 7px; margin-bottom: -2px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--color-fg-muted, #8b949e); font: inherit; cursor: pointer; } .ds-tab:hover { color: var(--color-fg, #f0f6fc); } .ds-tab[aria-selected=\"true\"] { border-bottom-color: var(--color-link, #58a6ff); color: var(--color-fg, #f0f6fc); } .ds-tab:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-tab-dot { width: 8px; height: 8px; } .ds-dot-muted { background: var(--color-fg-muted, #8b949e); } .ds-dot-link { background: var(--color-link, #58a6ff); } .ds-dot-galben { background: var(--color-galben, #d29922); } .ds-dot-verde { background: var(--color-verde, #3fb950); } .ds-tab-n { padding: 0 6px; background: var(--color-line, #30363d); color: var(--color-fg-soft, #c9d1d9); font: 500 11px/1.6 var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented",
+      "description": "Medic/DAS on Personal, heat/cold and yellow/red on Campanii: radios in one ruled box.",
+      "html": "<div class=\"ds-seg\" role=\"radiogroup\" aria-label=\"Tip avertizare\"><label class=\"ds-seg-opt\"><input type=\"radio\" name=\"kind\" checked>Caniculă</label><label class=\"ds-seg-opt\"><input type=\"radio\" name=\"kind\">Ger</label></div>",
+      "css": ".ds-seg { display: flex; max-width: 320px; border: 1px solid var(--color-line, #30363d); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-seg-opt { flex: 1; display: flex; align-items: center; padding: 7px 12px; color: var(--color-fg-soft, #c9d1d9); cursor: pointer; } .ds-seg-opt + .ds-seg-opt { border-left: 1px solid var(--color-line, #30363d); } .ds-seg-opt:hover { background: var(--color-card, #21262d); } .ds-seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; } .ds-seg-opt:has(input:checked) { background: color-mix(in srgb, var(--color-link, #58a6ff) 15%, transparent); color: var(--color-fg, #f0f6fc); font-weight: 600; } .ds-seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-link, #58a6ff); }"
+    },
+    {
+      "name": "Outcome List",
+      "kind": "custom",
+      "refersTo": "outcome-list",
+      "description": "The resolve form's outcome radios, each with its API value in mono.",
+      "html": "<div class=\"ds-outcomes\" role=\"radiogroup\" aria-label=\"Rezultat\"><label class=\"ds-outcome\"><input type=\"radio\" name=\"o\" checked><span class=\"ds-mark\"></span>Senior OK<span class=\"ds-val\">senior_ok</span></label><label class=\"ds-outcome\"><input type=\"radio\" name=\"o\"><span class=\"ds-mark\"></span>Echipaj trimis<span class=\"ds-val\">team_sent</span></label><label class=\"ds-outcome\"><input type=\"radio\" name=\"o\"><span class=\"ds-mark\"></span>Apelat 112<span class=\"ds-val\">called_112</span></label></div>",
+      "css": ".ds-outcomes { display: flex; flex-direction: column; max-width: 440px; border: 1px solid var(--color-line, #30363d); color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-outcome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--color-line, #30363d); cursor: pointer; } .ds-outcome:last-child { border-bottom: 0; } .ds-outcome:hover { background: var(--color-card, #21262d); } .ds-outcome input { position: absolute; opacity: 0; width: 1px; height: 1px; } .ds-mark { width: 14px; height: 14px; flex: none; border: 2px solid var(--color-line-strong, #6e7681); } .ds-outcome:has(input:checked) { background: color-mix(in srgb, var(--color-link, #58a6ff) 12%, transparent); } .ds-outcome:has(input:checked) .ds-mark { border-color: var(--color-link, #58a6ff); background: var(--color-link, #58a6ff); } .ds-outcome input:focus-visible + .ds-mark { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-val { margin-left: auto; color: var(--color-fg-muted, #8b949e); font: 400 11px var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); }"
+    },
+    {
+      "name": "Seniors Table Row",
+      "kind": "custom",
+      "refersTo": "table-header",
+      "description": "Monitorizare Seniori: sticky label header, then rows with line tag, mono phone, status chips and the dossier link.",
+      "html": "<div class=\"ds-table\" role=\"table\" aria-label=\"Seniori\"><div class=\"ds-tr ds-th\" role=\"row\"><div role=\"columnheader\"></div><div role=\"columnheader\">Senior</div><div role=\"columnheader\">Telefon</div><div role=\"columnheader\">Stare înrolare</div><div role=\"columnheader\">Acțiuni</div></div><div class=\"ds-tr\" role=\"row\"><div role=\"cell\" class=\"ds-n\">1</div><div role=\"cell\"><b>Maria Ionescu</b><small>doamna Maria</small></div><div role=\"cell\"><span class=\"ds-line\">fix</span><a href=\"#\" class=\"ds-tel\">0256 123 456</a></div><div role=\"cell\"><span class=\"ds-st ds-st-verde\"><i></i>Activ</span><span class=\"ds-st ds-st-rosu\"><i></i>Cod roșu</span></div><div role=\"cell\"><button class=\"ds-dosar\">Vezi dosar</button></div></div></div>",
+      "css": ".ds-table { overflow-x: auto; color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-tr { display: grid; grid-template-columns: 44px minmax(160px, 1.2fr) 190px minmax(200px, 1.5fr) 120px; border-bottom: 1px solid var(--color-line, #30363d); } .ds-tr:not(.ds-th):hover { background: var(--color-subtle, #161b22); } .ds-tr > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; padding: 8px 12px; border-right: 1px solid var(--color-card, #21262d); } .ds-tr > div:last-child { border-right: 0; } .ds-th { background: var(--color-subtle, #161b22); border-bottom: 2px solid var(--color-line, #30363d); color: var(--color-fg-muted, #8b949e); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; } .ds-th > div { padding: 9px 12px; } .ds-n { color: var(--color-fg-muted, #8b949e); font: 400 11px var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-tr b { display: block; width: 100%; font-size: 13.5px; font-weight: 600; line-height: 1.25; } .ds-tr small { font-size: 12px; color: var(--color-fg-muted, #8b949e); } .ds-line { padding: 0 5px; border: 1px solid var(--color-line, #30363d); color: var(--color-fg-muted, #8b949e); font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; line-height: 1.6; text-transform: uppercase; } .ds-tel { color: var(--color-fg-soft, #c9d1d9); font: 400 11.5px var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); text-decoration: none; } .ds-tel:hover { color: var(--color-link, #58a6ff); } .ds-st { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: 11.5px; font-weight: 700; } .ds-st i { width: 7px; height: 7px; } .ds-st-verde { background: color-mix(in srgb, var(--color-verde, #3fb950) 15%, transparent); color: var(--color-verde-fg, #56d364); } .ds-st-verde i { background: var(--color-verde, #3fb950); } .ds-st-rosu { background: color-mix(in srgb, var(--color-rosu, #f85149) 15%, transparent); color: var(--color-rosu-fg, #ff7b72); } .ds-st-rosu i { background: var(--color-rosu, #f85149); } .ds-dosar { padding: 5px 10px; border: 1px solid var(--color-line, #30363d); background: var(--color-card, #21262d); color: var(--color-link, #58a6ff); font: 800 12px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); cursor: pointer; } .ds-dosar:hover { border-color: var(--color-link, #58a6ff); } .ds-dosar:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Enrollment Request Card",
+      "kind": "card",
+      "refersTo": "card-incident",
+      "description": "Cereri de înrolare: a blue-barred card with Vezi cererea and Acceptă.",
+      "html": "<article class=\"ds-req\"><div class=\"ds-req-bar\"></div><div class=\"ds-req-body\"><div><h3>Ion Popa</h3><span>domnul Ion · <span class=\"ds-mono\">0723 456 789</span></span></div><div class=\"ds-req-actions\"><button class=\"ds-req-view\" aria-expanded=\"false\">Vezi cererea</button><button class=\"ds-req-accept\">Acceptă</button></div></div></article>",
+      "css": ".ds-req { display: flex; max-width: 640px; background: var(--color-card, #21262d); border: 1px solid var(--color-line, #30363d); color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-req-bar { width: 3px; flex: none; background: var(--color-link, #58a6ff); } .ds-req-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; flex: 1; padding: 10px 12px; } .ds-req h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.25; } .ds-req-body span { font-size: 12px; color: var(--color-fg-muted, #8b949e); } .ds-mono { font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-req-actions { display: flex; gap: 8px; margin-left: auto; } .ds-req-view, .ds-req-accept { padding: 6px 12px; font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); cursor: pointer; } .ds-req-view { border: 1px solid var(--color-line, #30363d); background: var(--color-card, #21262d); color: var(--color-link, #58a6ff); } .ds-req-view:hover { border-color: var(--color-link, #58a6ff); } .ds-req-accept { border: 1px solid var(--color-verde, #3fb950); background: var(--color-verde-strong, #238636); color: #fff; } .ds-req-accept:hover { background: var(--color-verde-hover, #2ea043); } .ds-req-view:focus-visible, .ds-req-accept:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Staff Row",
+      "kind": "custom",
+      "refersTo": "list-row",
+      "description": "Personal: initials square, name over mono phone and role tags, duty chip on the right.",
+      "html": "<div class=\"ds-staff\"><span class=\"ds-av\">AP</span><span class=\"ds-staff-who\"><b>Ana Pop</b><span><span class=\"ds-mono\">0722 123 456</span><span class=\"ds-role\">DAS</span></span></span><span class=\"ds-duty\"><i></i>De serviciu</span></div>",
+      "css": ".ds-staff { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; max-width: 560px; padding: 12px 20px; border-bottom: 1px solid var(--color-line, #30363d); color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-av { display: grid; place-items: center; width: 34px; height: 34px; background: var(--color-line, #30363d); font-size: 12px; font-weight: 800; } .ds-staff-who { display: flex; flex-direction: column; gap: 2px; line-height: 1.25; } .ds-staff-who b { font-size: 14px; font-weight: 600; } .ds-staff-who > span { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .ds-mono { font: 400 12px var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); color: var(--color-fg-muted, #8b949e); } .ds-role { padding: 0 6px; background: var(--color-line, #30363d); color: var(--color-fg-soft, #c9d1d9); font-size: 11px; font-weight: 600; } .ds-duty { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; background: color-mix(in srgb, var(--color-verde, #3fb950) 15%, transparent); color: var(--color-verde-fg, #56d364); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; } .ds-duty i { width: 6px; height: 6px; background: var(--color-verde, #3fb950); }"
+    },
+    {
+      "name": "Campaign Row",
+      "kind": "custom",
+      "refersTo": "list-row",
+      "description": "Campanii meteo: kind and level, state chip, Încheie, then progress count chips.",
+      "html": "<div class=\"ds-camp\"><div class=\"ds-camp-top\"><b>Ger, cod roșu</b><span class=\"ds-camp-on\">Activă</span><button class=\"ds-camp-end\">Încheie</button></div><span class=\"ds-camp-meta\">pornită de Ana Pop, <span class=\"ds-mono\">22 oct. 09:14</span> · Avertizare până la <span class=\"ds-mono\">24 oct. 20:00</span></span><div class=\"ds-camp-parts\"><span class=\"ds-camp-total\">Total <span class=\"ds-mono ds-fg\">18</span></span><span class=\"ds-part ds-p-muted\"><span class=\"ds-mono\">2</span> în așteptare</span><span class=\"ds-part ds-p-verde\"><span class=\"ds-mono\">12</span> verde</span><span class=\"ds-part ds-p-galben\"><span class=\"ds-mono\">3</span> galben</span><span class=\"ds-part ds-p-rosu\"><span class=\"ds-mono\">1</span> roșu</span></div></div>",
+      "css": ".ds-camp { display: flex; flex-direction: column; gap: 8px; max-width: 640px; padding: 12px 20px; border-bottom: 1px solid var(--color-line, #30363d); color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-camp-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; } .ds-camp-top b { font-size: 14px; font-weight: 600; } .ds-camp-on { padding: 2px 8px; background: color-mix(in srgb, var(--color-verde, #3fb950) 15%, transparent); color: var(--color-verde-fg, #56d364); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; } .ds-camp-end { margin-left: auto; padding: 5px 10px; border: 1px solid var(--color-rosu, #f85149); background: var(--color-rosu-strong, #da3633); color: #fff; font: 800 12px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); cursor: pointer; } .ds-camp-end:hover { background: var(--color-rosu-hover, #e5534b); } .ds-camp-end:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; } .ds-camp-meta, .ds-camp-total { font-size: 12px; color: var(--color-fg-muted, #8b949e); } .ds-mono { font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-fg { color: var(--color-fg, #f0f6fc); } .ds-camp-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .ds-part { padding: 2px 8px; font-size: 11.5px; font-weight: 600; } .ds-p-muted { background: var(--color-line, #30363d); color: var(--color-fg-soft, #c9d1d9); } .ds-p-verde { background: color-mix(in srgb, var(--color-verde, #3fb950) 15%, transparent); color: var(--color-verde-fg, #56d364); } .ds-p-galben { background: color-mix(in srgb, var(--color-galben, #d29922) 15%, transparent); color: var(--color-galben-fg, #e3b341); } .ds-p-rosu { background: color-mix(in srgb, var(--color-rosu, #f85149) 15%, transparent); color: var(--color-rosu-fg, #ff7b72); }"
+    },
+    {
+      "name": "Notices",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "Load failed (red), data stale after a failed re-read (amber), action succeeded (green).",
+      "html": "<div class=\"ds-notices\"><p role=\"alert\" class=\"ds-notice ds-n-rosu\">Nu am putut încărca incidentele.</p><p role=\"alert\" class=\"ds-notice ds-n-galben\">Datele pot fi vechi: ultima actualizare a eșuat.</p><p role=\"status\" class=\"ds-notice ds-n-verde\">Ion Popa a fost acceptat. Apelul de bun venit pornește.</p></div>",
+      "css": ".ds-notices { display: flex; flex-direction: column; gap: 8px; max-width: 560px; font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-notice { margin: 0; padding: 8px 16px; border: 1px solid; } .ds-n-rosu { padding: 12px 16px; border-color: var(--color-rosu, #f85149); background: color-mix(in srgb, var(--color-rosu, #f85149) 15%, transparent); color: var(--color-rosu-fg, #ff7b72); } .ds-n-galben { border-color: var(--color-galben, #d29922); background: color-mix(in srgb, var(--color-galben, #d29922) 15%, transparent); color: var(--color-galben-fg, #e3b341); } .ds-n-verde { border-color: var(--color-verde, #3fb950); background: color-mix(in srgb, var(--color-verde, #3fb950) 10%, transparent); color: var(--color-verde-fg, #56d364); }"
+    },
+    {
+      "name": "Sign-in Panel",
+      "kind": "custom",
+      "refersTo": "sign-in-card",
+      "description": "The signed-out page: brand, a 2px rule, the headline, one field and one button per step.",
+      "html": "<div class=\"ds-signin\"><div class=\"ds-brand\"><b>ECHOCARE</b><span>DAS · Dispecerat</span></div><section><h1>Intrați în cont</h1><label for=\"ds-phone\">Număr de telefon</label><input id=\"ds-phone\" type=\"tel\" placeholder=\"0722 123 456\"><button>Trimite codul</button></section></div>",
+      "css": ".ds-signin { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 384px; padding: 24px; border: 2px solid var(--color-line, #30363d); background: var(--color-subtle, #161b22); color: var(--color-fg, #f0f6fc); font: 400 13px/1.45 var(--font-sans, Archivo, system-ui, sans-serif); } .ds-brand { display: flex; flex-direction: column; gap: 4px; } .ds-brand b { font-size: 19px; font-weight: 800; line-height: 1; letter-spacing: -0.015em; } .ds-brand span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-fg-muted, #8b949e); } .ds-signin section { display: flex; flex-direction: column; gap: 12px; padding-top: 20px; border-top: 2px solid var(--color-line, #30363d); } .ds-signin h1 { margin: 0 0 4px; font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -0.015em; } .ds-signin label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-fg-muted, #8b949e); } .ds-signin input { height: 36px; padding: 0 10px; border: 1px solid var(--color-line, #30363d); background: var(--color-inset, #010409); color: var(--color-fg, #f0f6fc); font: 400 14px var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); } .ds-signin input::placeholder { color: var(--color-fg-muted, #8b949e); } .ds-signin input:focus { border-color: var(--color-link, #58a6ff); outline: none; } .ds-signin button { height: 36px; padding: 0 12px; text-align: left; border: 1px solid var(--color-line, #30363d); background: var(--color-card, #21262d); color: var(--color-link, #58a6ff); font: 800 13px/1.2 var(--font-sans, Archivo, system-ui, sans-serif); cursor: pointer; } .ds-signin button:hover { border-color: var(--color-link, #58a6ff); } .ds-signin button:focus-visible { outline: 2px solid var(--color-link, #58a6ff); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Signal Board",
+    "overview": "The dashboard is a board of cards and bars where colour means status and nothing else. Everything structural is graphite: near-black canvas, grey rules, grey type. Red, amber and green are the three codes, Cod Roșu, Cod Galben and Cod Verde, and the same three meanings everywhere else: alarm, caution, clear. A dispatcher scanning the board at hour ten reads colour as information, never as decoration. Blue is the one colour outside that scale; it marks what can be clicked, focused or chosen, and an enrollment still under way.\n\nThe structure is Modernist and compact: square corners everywhere, 2px rules between regions, 1px borders around things, flush-left heavy button labels, small 13px body text, and monospace for every id, time and count. Density is high on purpose: the board, the table and the dossier hold a whole shift's worth of incidents without scrolling hunts. The palette is GitHub's dark theme (spec 07 §2.1) on that square structure.\n\nOne theme only: dark. There is no light mode and no rounded variant.",
+    "keyCharacteristics": [
+      "Colour is reserved for status: red alarm, amber caution, green clear; blue is the only other accent.",
+      "Square corners (0px) on every element.",
+      "2px rules divide regions; 1px borders outline items.",
+      "Archivo for the interface, JetBrains Mono for ids, times and numbers.",
+      "Flat: depth comes from tonal layers, with one shadow for the slide-over.",
+      "Compact and exact: 13px body, tight padding, tabular figures."
+    ],
+    "rules": [
+      {
+        "name": "The Colour Is Status Rule",
+        "body": "Red means alarm or failure, amber means caution, green means clear or done, on every page, in that order of urgency. The three codes are the main case; incident states, notices, duty and actions follow the same meanings. Never use them for brand, emphasis or decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tint, Not Fill Rule",
+        "body": "Chips and notices use the status colour at 10–15% behind its light text tint (e.g. Alarm Red at 15% under Alarm Red Text). Solid fills are kept for buttons, the 3px state bar, the 6–10px dots and the sidebar's open-incident count.",
+        "section": "colors"
+      },
+      {
+        "name": "The Name Beside The Colour Rule",
+        "body": "Every status colour carries its word: \"COD ROȘU\", \"Preluat\", \"Rezolvat\", \"De serviciu\", \"Activă\". Colour alone never carries a state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Readable Grey Rule",
+        "body": "Text is never dimmer than Muted Text. Faint Text and Strong Rule are for borders, dots and icons only.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Means Data Rule",
+        "body": "Ids, times, phone numbers and counts are set in JetBrains Mono; words are never set in it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Heavy Label Rule",
+        "body": "Actions and titles carry weight through 800, not through size. The type scale stays small (11–22px).",
+        "section": "typography"
+      },
+      {
+        "name": "The Never Leave The Board Rule",
+        "body": "Details open in the slide-over above the current page; a dispatcher never navigates away from incidents to see one.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Shadow Rule",
+        "body": "Only the slide-over casts a shadow. Cards, buttons, menus and banners stay flat.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do take every colour from the tokens in `dashboard/src/styles.css`; use `rosu`, `galben` and `verde` only for status: alarm, caution, clear.",
+      "Do keep every corner square (0px) and every region divider 2px Rule Grey.",
+      "Do set ids, times, phone numbers and counts in JetBrains Mono.",
+      "Do use `sn-btn` and its variants for buttons, with the label flush left at 800.",
+      "Do write a code's name next to its colour wherever it appears.",
+      "Do open details in the 540px slide-over over the current page."
+    ],
+    "donts": [
+      "Don't round corners, even on pills, badges or avatars.",
+      "Don't use red, amber or green for anything that is not a status, and never swap their meanings: green is never a warning, red is never a success.",
+      "Don't add shadows outside the slide-over.",
+      "Don't add a light theme or a second accent colour.",
+      "Don't pulse or flash anything but a red alarm dot: the banner's (only while sound alerts are on) and the system-health dot when the API is down."
+    ]
+  }
+}

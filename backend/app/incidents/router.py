@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -7,11 +8,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Role
 from app.auth.service import Caller, refuse, require_roles
 from app.core.db import get_session
+from app.homenode.service import room_for
 from app.incidents.models import IncidentStatus
-from app.incidents.schemas import IncidentDetail, IncidentSummary, ResolutionForm
-from app.incidents.service import load_incident, resolve, shown_incidents, take
+from app.incidents.schemas import (
+    EventForm,
+    EventView,
+    IncidentDetail,
+    IncidentSummary,
+    ResolutionForm,
+)
+from app.incidents.service import (
+    load_incident,
+    record_event,
+    resolve,
+    shown_incidents,
+    take,
+)
 
 router = APIRouter()
+
+
+@router.post("/me/events")
+async def send_event(
+    body: EventForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.senior))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> EventView:
+    """„Sunați-mă”: queues a yellow wellbeing call, or joins the one already there
+    (UC-10, 04 §3)."""
+    senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
+    return await record_event(session, senior_id, body, datetime.now(UTC))
 
 
 def parse_statuses(status: str | None) -> set[IncidentStatus] | None:
@@ -42,6 +68,8 @@ async def get_incident(
     detail = await load_incident(session, incident_id)
     if detail is None:
         raise refuse(404, "not_found")
+    # `incidents` can't import `homenode`, which sits above it (ADR-005)
+    detail.room = await room_for(session, detail.senior.id)
     return detail
 
 

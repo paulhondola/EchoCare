@@ -1,4 +1,34 @@
 <resources>
     <string name="app_name">EchoCare</string>
-    <string name="hello_world">Hello, %1$s!</string>
+    <string name="trial_title">Încercarea %1$d</string>
+    <string name="permission_needed">Sentinela are nevoie de acces la puls și la activitate.</string>
+    <string name="grant_permission">Permite accesul</string>
+    <string name="heart_rate">Puls: %1$d bpm</string>
+    <string name="heart_rate_waiting">Puls: se măsoară…</string>
+    <string name="heart_rate_no_contact">Puls: ceasul nu e pe mână</string>
+    <string name="heart_rate_age">ultima valoare acum %1$d s</string>
+    <string name="steps">Pași: %1$d</string>
+    <string name="acceleration">Accelerație: %1$.2f g</string>
+    <string name="acceleration_min_max">min %1$.2f g · max %2$.2f g</string>
+    <string name="sample_rate">%1$.0f valori/s · până la %2$.0f g</string>
+    <string name="free_fall">cădere liberă: %1$d ms</string>
+    <string name="still_after_peak">nemișcat după impact: %1$.1f s</string>
+    <string name="falls_detected">căderi detectate: %1$d</string>
+    <string name="start_monitoring">Pornește monitorizarea</string>
+    <string name="stop_monitoring">Oprește monitorizarea</string>
+    <string name="monitoring_running">EchoCare monitorizează</string>
+    <string name="monitoring_channel">Monitorizare</string>
+    <string name="fall_channel">Cădere</string>
+    <string name="next_trial">Următoarea</string>
+    <string name="are_you_ok_title">Sunteți bine?</string>
+    <string name="are_you_ok_countdown">%1$d s</string>
+    <string name="are_you_ok_yes">Da, sunt bine</string>
+    <string name="are_you_ok_no">Nu, ajutor!</string>
+    <string name="monitor_active">Monitorizare activă</string>
+    <string name="monitor_off">Monitorizare oprită</string>
+    <string name="call_me">Nu mă simt bine</string>
+    <string name="call_me_sending">Se trimite…</string>
+    <string name="force_high_pulse" translatable="false">Debug: puls mare</string>
+    <string name="force_inactivity" translatable="false">Debug: inactivitate</string>
+    <string name="force_fall" translatable="false">Debug: cădere</string>
 </resources>

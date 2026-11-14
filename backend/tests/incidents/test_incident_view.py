@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.dialects import postgresql
 
-from app.incidents.service import calls_query, caregivers_query, incident_query
+from app.incidents.service import calls_query, incident_query
 from app.models import (
     Call,
     CallTurn,
@@ -15,6 +15,8 @@ from app.models import (
     Role,
     StatusReport,
 )
+from app.seniors.schemas import SummaryContent
+from app.seniors.service import add_summary, caregivers_query
 
 DAS, MEDIC, CAREGIVER = "+40700000001", "+40700000003", "+40700000004"
 
@@ -148,3 +150,63 @@ async def test_not_found_and_das_only(client, add_user):
     assert r.json() == {"detail": {"reason": "not_found"}}
     r = await client.get(missing, headers=signed_in(MEDIC))
     assert r.status_code == 403
+
+
+async def test_same_name_caregivers_come_in_id_order(client, db, add_user, add_senior):
+    # One query for both views, seniors' (ADR-005), which breaks a tie on the name by id.
+    await add_user(DAS, Role.das, name="Ana DAS")
+    senior = await add_senior("+40700000101")
+    anas = [await add_user(p, name="Ana Pop") for p in (CAREGIVER, "+40700000005")]
+    db.add_all(
+        Grant(user_id=u.id, role=Role.caregiver, senior_id=senior.id, relation="fiică")
+        for u in reversed(anas)  # stored against id order, so only a tie-break saves it
+    )
+    incident = Incident(senior_id=senior.id, status="open", reason="Test")
+    db.add(incident)
+    await db.commit()
+    r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
+    phones = [c["phone_e164"] for c in r.json()["caregivers"]]
+    assert phones == [u.phone_e164 for u in sorted(anas, key=lambda u: u.id)]
+
+
+async def open_incident(db, add_user, add_senior):
+    await add_user(DAS, Role.das)
+    senior = await add_senior("+40700000101")
+    call = Call(
+        senior_id=senior.id,
+        trigger="watch",
+        starting_severity="yellow",
+        state="handed_over",
+        due_at=datetime.now(UTC),
+    )
+    db.add(call)
+    await db.flush()
+    incident = Incident(senior_id=senior.id, opened_by_call_id=call.id, reason="x")
+    db.add(incident)
+    await db.commit()
+    return senior, call, incident
+
+
+async def test_incident_carries_the_summary(client, db, add_user, add_senior):
+    senior, call, incident = await open_incident(db, add_user, add_senior)
+    add_summary(
+        db,
+        senior_id=senior.id,
+        call_id=call.id,
+        previous_id=None,
+        content=SummaryContent(
+            follow_ups=[], how_to_talk=[], trends=[], narrative="Povestea."
+        ),
+        model="m",
+    )
+    await db.commit()
+    r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
+    assert r.json()["summary"]["content"]["narrative"] == "Povestea."
+    assert r.json()["summary"]["call_id"] == str(call.id)
+
+
+async def test_incident_without_summary_has_null(client, db, add_user, add_senior):
+    _, _, incident = await open_incident(db, add_user, add_senior)
+    r = await client.get(f"/api/incidents/{incident.id}", headers=signed_in(DAS))
+    assert r.status_code == 200
+    assert r.json()["summary"] is None

@@ -13,10 +13,10 @@ from pathlib import Path
 # Run as a file, Python puts scripts/ on the path, not the folder that holds app/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.auth.service import grant_staff
 from app.core.db import Session
 from app.core.phones import is_mobile, normalize
 from app.models import Role
-from app.staff.service import grant_staff
 
 
 async def grant_das(display_name: str, phone: str) -> str:

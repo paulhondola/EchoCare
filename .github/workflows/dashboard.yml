@@ -31,3 +31,8 @@ jobs:
       - run: npx svelte-check --tsgo --fail-on-warnings
       - run: npx vp build
       - run: npx vp test
+      # Known vulnerabilities in what ships to the browser. Reports only, never blocks a deploy
+      # (design 2026-11-14).
+      - name: Audit dependencies (report only)
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high

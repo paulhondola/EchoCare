@@ -8,7 +8,17 @@ import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.core.db import engine
-from app.models import Call, Consent, EnrollmentState, Grant, Role, Senior, User
+from app.models import (
+    Call,
+    Consent,
+    EnrollmentState,
+    Grant,
+    Role,
+    Senior,
+    SeniorStatus,
+    User,
+)
+from app.status.engine import Severity
 
 DAS = "+40700000001"
 MEDIC = "+40700000002"
@@ -84,7 +94,8 @@ async def test_the_medic_registers_a_draft(client, staff):
     assert maria["caregivers"] == []
     assert maria["medic"] == {"display_name": "Dr. Pop", "practice": None}
     r = await get(client, f"/api/seniors/{maria['id']}", MEDIC)
-    assert r.json() == maria
+    # Only the read says whether a call is live (04 §1)
+    assert r.json() == {**maria, "call_in_progress": False, "app_signed_in": False}
 
 
 async def test_a_mobile_senior_signs_in_as_herself(client, staff):
@@ -650,3 +661,151 @@ async def test_others_cannot_delete(client, db, staff, token):
     await add_caregiver(client, maria["id"])
     r = await client.delete(f"/api/seniors/{maria['id']}", headers=signed_in(token))
     assert refusal(r) == (NOT_FOUND if token == OTHER_MEDIC else NOT_ALLOWED)
+
+
+async def test_the_code_shows_for_an_active_senior_only(
+    client, db, add_user, add_active_senior
+):
+    """Q17: a withdrawn senior's old code must not read as being watched."""
+    await add_user(DAS, Role.das)
+    maria = await add_active_senior("+40700000101")
+    ion = await add_active_senior("+40700000102")
+    now = datetime.now(UTC)
+    db.add_all(
+        [
+            SeniorStatus(
+                senior_id=s.id,
+                code=Severity.yellow,
+                reason="Nu are căldură în casă",
+                since=now,
+            )
+            for s in (maria, ion)
+        ]
+    )
+    ion.enrollment_state = EnrollmentState.withdrawn
+    await db.commit()
+    r = await client.get("/api/seniors", headers=signed_in(DAS))
+    rows = {row["id"]: row for row in r.json()}
+    assert (rows[str(maria.id)]["code"], rows[str(maria.id)]["reason"]) == (
+        "yellow",
+        "Nu are căldură în casă",
+    )
+    assert (rows[str(ion.id)]["code"], rows[str(ion.id)]["since"]) == (None, None)
+    page = (await client.get(f"/api/seniors/{maria.id}", headers=signed_in(DAS))).json()
+    assert page["code"] == "yellow"
+    page = (await client.get(f"/api/seniors/{ion.id}", headers=signed_in(DAS))).json()
+    assert (page["code"], page["reason"], page["since"]) == (None, None, None)
+
+
+async def test_a_senior_with_no_result_has_no_code(client, add_user, add_active_senior):
+    await add_user(DAS, Role.das)
+    await add_active_senior("+40700000101")
+    row = (await client.get("/api/seniors", headers=signed_in(DAS))).json()[0]
+    assert (row["code"], row["reason"], row["since"]) == (None, None, None)
+
+
+# Equipment, declared at registration (UC-01, design 2026-11-14)
+
+LANDLINE = "0256 123 456"
+
+
+async def test_equipment_round_trips_ordered_and_deduplicated(client, staff):
+    s = await register(client, {**MARIA, "equipment": ["watch", "smartphone", "watch"]})
+    assert s["equipment"] == ["smartphone", "watch"]
+
+
+async def test_equipment_not_sent_is_not_stated(client, staff):
+    assert (await register(client))["equipment"] is None
+
+
+async def test_empty_equipment_is_none_declared(client, staff):
+    assert (await register(client, {**MARIA, "equipment": []}))["equipment"] == []
+
+
+@pytest.mark.parametrize("equipment", [["watch"], ["home_node"], ["tablet"]])
+async def test_equipment_refused(client, staff, equipment):
+    r = await client.post(
+        "/api/seniors", json={**MARIA, "equipment": equipment}, headers=signed_in(MEDIC)
+    )
+    assert r.status_code == 422
+
+
+async def test_smartphone_needs_a_mobile(client, staff):
+    body = {**MARIA, "phone": LANDLINE, "equipment": ["smartphone"]}
+    r = await client.post("/api/seniors", json=body, headers=signed_in(MEDIC))
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("sent", [{}, {"equipment": None}])
+async def test_put_without_equipment_keeps_it(client, staff, sent):
+    # Old APKs leave it out; Android writes an absent optional as null (ADR-001 §2.3)
+    s = await register(client, {**MARIA, "equipment": ["smartphone", "watch"]})
+    r = await client.put(
+        f"/api/seniors/{s['id']}", json={**MARIA, **sent}, headers=signed_in(MEDIC)
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["equipment"] == ["smartphone", "watch"]
+
+
+async def test_put_replaces_equipment(client, staff):
+    s = await register(client, {**MARIA, "equipment": ["smartphone", "watch"]})
+    r = await client.put(
+        f"/api/seniors/{s['id']}",
+        json={**MARIA, "equipment": []},
+        headers=signed_in(MEDIC),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["equipment"] == []
+
+
+async def test_landline_edit_without_equipment_keeps_the_list(client, staff):
+    s = await register(client, {**MARIA, "equipment": ["smartphone"]})
+    r = await client.put(
+        f"/api/seniors/{s['id']}",
+        json={**MARIA, "phone": LANDLINE},
+        headers=signed_in(MEDIC),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["equipment"] == ["smartphone"]
+
+
+async def page_of(client, senior_id, token=MEDIC) -> dict:
+    r = await client.get(f"/api/seniors/{senior_id}", headers=signed_in(token))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_app_signed_in_after_the_senior_signs_in(client, staff):
+    s = await register(client)
+    assert (await page_of(client, s["id"]))["app_signed_in"] is False
+    await client.get("/api/profile", headers=signed_in(SENIOR))  # sets firebase_uid
+    assert (await page_of(client, s["id"]))["app_signed_in"] is True
+
+
+async def test_app_signed_in_is_false_for_a_landline(client, staff):
+    s = await register(client, {**MARIA, "phone": LANDLINE})
+    assert (await page_of(client, s["id"]))["app_signed_in"] is False
+
+
+async def test_the_senior_sees_her_own_app_signed_in(client, staff):
+    s = await register(client)
+    await client.get("/api/profile", headers=signed_in(SENIOR))
+    # The senior on her own page sees it, as she sees her watch (UC-03)
+    assert (await page_of(client, s["id"], SENIOR))["app_signed_in"] is True
+
+
+async def test_the_list_carries_an_approximate_location(client, staff):
+    # For the dashboard's map, from the street table (design 2026-11-14 §7)
+    await register(client, {**MARIA, "street": "Calea Aradului"})
+    await register(
+        client, {**MARIA, "phone": "0700 000 006", "street": "Str. Florilor"}
+    )
+
+    r = await get(client, "/api/seniors", MEDIC)
+
+    by_street = {s["full_name"] + s["phone_e164"]: s for s in r.json()}
+    on_table = by_street["Maria Pop+40700000005"]
+    off_table = by_street["Maria Pop+40700000006"]
+    assert 45.76 < on_table["latitude"] < 45.78
+    assert 21.22 < on_table["longitude"] < 21.24
+    assert (off_table["latitude"], off_table["longitude"]) == (None, None)

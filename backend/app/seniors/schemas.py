@@ -1,8 +1,10 @@
 import uuid
-from typing import Annotated, Any, Self
+from datetime import datetime
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     BeforeValidator,
     Field,
@@ -12,6 +14,7 @@ from pydantic import (
 )
 
 from app.core.phones import is_mobile, normalize
+from app.seniors.models import EcgClassification, HealthReadingKind, WatchCondition
 
 
 class SeniorDetail(BaseModel):
@@ -59,6 +62,14 @@ def text(max_length: int, min_length: int = 0) -> Any:
 # Enrollment states read back as their names; an unknown one as the bare string.
 State = Annotated[str, BeforeValidator(lambda v: getattr(v, "value", v))]
 
+# A code reads back as its name ("green"): Severity is an IntEnum and would serialize as 0.
+Code = Annotated[str, BeforeValidator(lambda v: getattr(v, "name", v))]
+
+# What a senior uses, as the medic declares it (UC-01, design 2026-11-14), stored and
+# returned in this order.
+Equipment = Literal["smartphone", "watch", "home_node"]
+EQUIPMENT_ORDER: tuple[str, ...] = ("smartphone", "watch", "home_node")
+
 # The registration form's optional fields (UC-01 steps 1 and 2); empty means none.
 OPTIONAL = (
     "call_window",
@@ -90,6 +101,9 @@ class SeniorForm(BaseModel):
     intercom_code: text(40) | None = None
     key_holder: text(200) | None = None
     landmark: text(200) | None = None
+    # Null, or left out, keeps what is stored on PUT and stores null on POST (design
+    # 2026-11-14): old APKs send the form without it, Android writes it as null.
+    equipment: list[Equipment] | None = None
 
     @field_validator("phone")
     @classmethod
@@ -102,9 +116,26 @@ class SeniorForm(BaseModel):
         # A form's empty field stores nothing, not "".
         return value or None
 
+    @field_validator("equipment")
+    @classmethod
+    def ordered(cls, value: list[str] | None) -> list[str] | None:
+        return None if value is None else [e for e in EQUIPMENT_ORDER if e in value]
+
+    @model_validator(mode="after")
+    def equipment_rules(self) -> Self:
+        # The watch and the home node talk only to her phone's app (01 §12), which signs
+        # in by SMS: a landline has no senior grant (UC-01 step 3)
+        kit = self.equipment or []
+        if ("watch" in kit or "home_node" in kit) and "smartphone" not in kit:
+            raise ValueError("a watch or a home node needs the app on her phone")
+        if "smartphone" in kit and not is_mobile(self.phone):
+            raise ValueError("the app needs the senior's own number to be a mobile")
+        return self
+
     def columns(self) -> dict[str, Any]:
+        unstated = {"equipment"} if self.equipment is None else set()
         return {
-            **self.model_dump(exclude={"phone"}),
+            **self.model_dump(exclude={"phone", *unstated}),
             "phone_e164": self.phone,
             "phone_is_landline": not is_mobile(self.phone),
         }
@@ -135,6 +166,16 @@ class CaregiverEditForm(BaseModel):
 
 MAX_SIGNATURE_POINTS = 5000
 
+# The text signed on the medic's tablet: the welcome card's wording, closing on the
+# signature instead of the question (G7, 04 §2). The app carries a copy; a change to
+# either is a new version, which the server must learn before it accepts it.
+SIGNATURE_CONSENT_VERSION = "v1-semnatura"
+SIGNATURE_CONSENT_TEXT = (
+    "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. "
+    "Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. "
+    "Semnând mai jos, sunteți de acord."
+)
+
 # A point on the signature pad, as a share of its width and height.
 Coordinate = Annotated[float, Field(ge=0, le=1)]
 
@@ -147,6 +188,13 @@ class SignatureForm(BaseModel):
         list[Annotated[list[tuple[Coordinate, Coordinate]], Field(min_length=1)]],
         Field(min_length=1),
     ]
+
+    @field_validator("text_version")
+    @classmethod
+    def known_version(cls, version: str) -> str:
+        if version != SIGNATURE_CONSENT_VERSION:
+            raise ValueError(f"unknown consent text version {version!r}")
+        return version
 
     @model_validator(mode="after")
     def not_too_many_points(self) -> Self:
@@ -165,6 +213,41 @@ class SeniorSummary(BaseModel):
     phone_e164: str
     phone_is_landline: bool
     enrollment_state: State
+    # The current code (Q17), null until the first result and for a senior not `active`.
+    code: Code | None = None
+    reason: str | None = None
+    since: datetime | None = None
+    created_at: datetime | None = None
+    submitted_at: datetime | None = None
+    accepted_at: datetime | None = None
+    # For her medic and caregivers only, null for anyone else and before the first
+    # check-in (UC-12, 04 §1). Answers that build a row without the join leave it null.
+    watch_state: WatchCondition | None = None
+    # The medical record's state, for the senior's registering medic only; null for anyone
+    # else and when no record is attached (04 §1, design 2026-11-13). A plain string:
+    # `seniors` sits below `medical` and may not import its enum (ADR-005).
+    medical_record_state: str | None = None
+    # An approximate point on her street for the dashboard's map, null when the street is
+    # not in the table (design 2026-11-14 §7).
+    latitude: float | None = None
+    longitude: float | None = None
+    # The home node's state and the room's temperature, for every role; null without a
+    # node (P20, 04 §1). Set by GET /seniors only.
+    home_node_state: str | None = None
+    room_temperature: float | None = None
+
+
+class RoomView(BaseModel):
+    """The home node's latest reading (P20, 04 §1), for every role that reaches the
+    senior. Plain strings: `seniors` sits below `homenode` (ADR-005). `state` is `ok` or
+    `offline`; `room_state` as POST /me/room-readings answers it (P26)."""
+
+    state: str
+    temperature: float
+    humidity: float | None
+    reading_at: datetime
+    last_motion_at: datetime | None
+    room_state: str
 
 
 class CaregiverView(CaregiverSummary):
@@ -178,11 +261,183 @@ class MedicView(BaseModel):
     practice: str | None
 
 
+class ConsentView(BaseModel):
+    """The latest consent decision off the signature (04 §1, G7)."""
+
+    decision: State
+    method: State
+    at: datetime
+
+
 class SeniorView(SeniorDetail):
     """GET /seniors/{id} (04 §1): registration, address, medic and caregivers. One
     shape for every role (seniors SE7)."""
 
     call_window: str | None
+    # Declared at registration: null not stated, [] none (design 2026-11-14).
+    equipment: list[str] | None = None
     enrollment_state: State
+    code: Code | None = None
+    reason: str | None = None
+    since: datetime | None = None
+    created_at: datetime | None = None
+    submitted_at: datetime | None = None
+    accepted_at: datetime | None = None
+    # Set on every answer `senior_view` builds: GET, POST and PUT /seniors (04 §1).
+    # A signature is not a decision: it only sets `signed_at`, so `consent` stays
+    # null until the welcome call (G7).
+    consent: ConsentView | None = None
+    consent_given_at: datetime | None = None
+    signed_at: datetime | None = None
+    # True while one of her calls rings or is live, for the badge (UC-12). Set by
+    # GET /seniors/{id} only; null on the other answers that carry the senior.
+    call_in_progress: bool | None = None
+    # `ok`, `not_worn` or `offline`, for her caregivers, her medic, DAS (ADR-006), and the
+    # senior herself on her own page (UC-03, UC-12). Null before the first check-in.
+    watch_state: WatchCondition | None = None
+    # The watch's latest pulse, alongside `watch_state` (UC-03). Null before the first
+    # check-in that carried one, or for callers who can't see the watch.
+    last_pulse: int | None = Field(None, ge=0, le=300)
+    # Whether her own phone's app has ever signed in, for the device warning (design
+    # 2026-11-14). Set by GET /seniors/{id} only, for who sees the watch; else null.
+    app_signed_in: bool | None = None
+    # The home node's latest reading, for every role; null without a node (P20, 04 §1).
+    # Set by GET /seniors/{id} only.
+    room: RoomView | None = None
     medic: MedicView
     caregivers: list[CaregiverView]
+
+
+class CheckInForm(BaseModel):
+    """The watch's latest reading, relayed by the senior's phone (UC-13). `measured_at`
+    carries an offset: a naive time is 422."""
+
+    measured_at: AwareDatetime
+    battery: int | None = Field(None, ge=0, le=100)
+    worn: bool | None = None
+    last_pulse: int | None = Field(None, ge=0, le=300)
+    # Added by ADR-006; an older phone leaves them out
+    resting_pulse: int | None = Field(None, ge=0, le=300)
+    steps_today: int | None = Field(None, ge=0, le=100_000)
+    minutes_without_steps: int | None = Field(None, ge=0)
+
+
+class HealthReadingForm(BaseModel):
+    """One Apple Health blood oxygen or ECG sample, relayed by the senior's phone.
+    `id` is the HealthKit sample's UUID; `measured_at` carries an offset (design
+    2026-11-14)."""
+
+    id: uuid.UUID
+    kind: HealthReadingKind
+    measured_at: AwareDatetime
+    spo2: int | None = Field(None, ge=50, le=100)
+    ecg_classification: EcgClassification | None = None
+    ecg_heart_rate: int | None = Field(None, ge=0, le=300)
+    # Microvolts, shortened by the phone to at most 1,280 samples
+    ecg_trace: list[Annotated[int, Field(ge=-10_000, le=10_000)]] | None = Field(
+        None, max_length=1_280
+    )
+    ecg_trace_hz: int | None = Field(None, ge=1, le=512)
+
+    @model_validator(mode="after")
+    def fields_match_kind(self) -> Self:
+        ecg = (
+            self.ecg_classification,
+            self.ecg_heart_rate,
+            self.ecg_trace,
+            self.ecg_trace_hz,
+        )
+        if self.kind == HealthReadingKind.spo2:
+            if self.spo2 is None or any(v is not None for v in ecg):
+                raise ValueError("a blood oxygen reading carries spo2 and nothing else")
+        elif self.spo2 is not None or self.ecg_classification is None:
+            raise ValueError("an ECG carries a classification and no spo2")
+        if (self.ecg_trace is None) != (self.ecg_trace_hz is None):
+            raise ValueError("ecg_trace and ecg_trace_hz come together")
+        return self
+
+
+class WatchView(BaseModel):
+    """GET /seniors/{id}/watch (04 §1): the latest check-in (UC-13, ADR-006)."""
+
+    state: WatchCondition
+    last_check_in_at: datetime
+    battery: int | None
+    worn: bool | None
+    last_pulse: int | None
+    resting_pulse: int | None
+    steps_today: int | None
+    minutes_without_steps: int | None
+
+
+class WatchReadingView(BaseModel):
+    """One 5-minute bucket of GET /seniors/{id}/watch/readings (04 §1, ADR-006)."""
+
+    at: datetime
+    pulse: int | None
+    battery: int | None
+    worn: bool | None
+    steps_today: int | None
+
+
+class Spo2View(BaseModel):
+    value: int
+    measured_at: datetime
+
+
+class Spo2PointView(BaseModel):
+    at: datetime
+    value: int
+
+
+class EcgView(BaseModel):
+    classification: EcgClassification
+    heart_rate: int | None
+    measured_at: datetime
+    trace: list[int] | None
+    trace_hz: int | None
+
+
+class WatchHealthView(BaseModel):
+    """GET /seniors/{id}/watch/health: the last day of Apple Health readings."""
+
+    spo2: Spo2View | None
+    spo2_readings: list[Spo2PointView]
+    ecg: EcgView | None
+
+
+class Citation(BaseModel):
+    call_id: uuid.UUID
+    quote: Annotated[str, Field(max_length=200)]
+
+
+class FollowUp(BaseModel):
+    topic: Annotated[str, Field(max_length=120)]
+    question: Annotated[str, Field(max_length=200)]
+    call_id: uuid.UUID
+    quote: Annotated[str, Field(max_length=200)]
+
+
+class Trend(BaseModel):
+    note: Annotated[str, Field(max_length=200)]
+    direction: Literal["worse", "better", "steady"]
+    evidence: Annotated[list[Citation], Field(min_length=2, max_length=4)]
+
+
+class SummaryContent(BaseModel):
+    """What the summary agent writes, in Romanian (design §4 "What it holds")."""
+
+    follow_ups: Annotated[list[FollowUp], Field(max_length=3)]
+    how_to_talk: Annotated[
+        list[Annotated[str, Field(max_length=120)]], Field(max_length=3)
+    ]
+    trends: Annotated[list[Trend], Field(max_length=3)]
+    narrative: Annotated[str, Field(max_length=600)]
+
+
+class SummaryVersionView(BaseModel):
+    """GET /seniors/{id}/summary (design §5 B)."""
+
+    content: SummaryContent
+    call_id: uuid.UUID
+    created_at: datetime

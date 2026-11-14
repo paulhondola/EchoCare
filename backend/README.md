@@ -40,11 +40,34 @@ cp .env.example .env
 |---|---|---|
 | `APP_ENV` | `local` | `local`, `staging` or `production`; shown by `/api/health` |
 | `DATABASE_URL` | `postgresql://echocare:echocare@localhost:5432/echocare` | Compose overrides it to use its `db` service. `postgresql://` is rewritten to the asyncpg driver |
-| `PUBLIC_BASE_URL` | `http://localhost:8000` | The API's public address, for Twilio callbacks and signature checks |
-| `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard |
+| `PUBLIC_BASE_URL` | your ngrok domain | The API's public address, for Twilio callbacks and signature checks |
+| `ALLOWED_ORIGIN` | `http://localhost:5173` | The only browser origin allowed by CORS: the dashboard. With `APP_ENV=local` the API also allows `http://localhost:5173` and `http://127.0.0.1:5173`, the dev server under both names (real-SMS sign-in needs `127.0.0.1`) |
 | `SCHEDULER_ENABLED` | `true` | Must be `false` to point a laptop at a cloud database (see below) |
 | `DEMO_MODE` | `true` | Shortens timers for the demo (06 §3) |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | empty | The Twilio account and the project's number (Romanian, +40). Empty, the scheduler dials nothing and every callback is refused. See [Real calls locally](#real-calls-locally) |
+| `TWILIO_API_HOST` | `api.twilio.com` | The Voice API's host. The project runs in Ireland: `api.dublin.ie1.twilio.com`, with the IE1 auth token in `TWILIO_AUTH_TOKEN` (credentials are per region) |
+| `MAX_LIVE_CALLS` | `3` | How many calls the scheduler keeps live at once |
+| `DIAL_ALLOWLIST` | empty | Whom the scheduler and `place_call.py` may ring: comma-separated numbers, `*` for everyone. Empty dials nobody, in every environment; a call it will not dial stays queued and keeps its mock card |
 | `FIREBASE_WEB_API_KEY` | your Firebase web API key | Used by `dev_token.py` to sign in test numbers; same as dashboard's `VITE_FIREBASE_API_KEY` |
+
+## Real calls locally
+
+The scheduler ([06 §2](../docs/specs/echocare/06-operations.md)) runs inside the API and dials queued calls that are due: accepting a senior, or starting a campaign, rings their phone. With nothing set, it dials nothing and the mock card answers as before.
+
+1. **Twilio.** In `backend/.env`, set `TWILIO_ACCOUNT_SID`, `TWILIO_FROM_NUMBER`, and `TWILIO_AUTH_TOKEN` with `TWILIO_API_HOST=api.dublin.ie1.twilio.com`. Use the IE1 auth token, not the US one.
+2. **The tunnel.** Twilio calls the API back, so it must reach port 8000. Compose runs ngrok for it ([ADR-001](../docs/adr/ADR-001-monorepo-and-delivery.md)): put your ngrok authtoken in `NGROK_AUTHTOKEN` in the root `.env`, and your account's dev domain in `PUBLIC_BASE_URL`. From the repository root:
+
+   ```bash
+   docker compose --profile tunnel up --watch
+   ```
+
+   The domain stays the same across restarts; ngrok's request inspector at http://localhost:4040 shows it, with every callback Twilio sends. Compose reads `backend/.env` only when it creates the container, so **recreate the API after changing it** (`docker compose up -d --force-recreate api`). Without a tunnel the phone still rings, but no callback arrives, and the sweep settles the call about 4.5 minutes later.
+3. **A number to ring.** The seeded seniors' numbers are made up. Replace an active senior's number with your own by hand, then list it in `DIAL_ALLOWLIST` (a number off the list is never dialed). Before listing it, cancel or delete the old queued calls in your local database: welcome, manual and watch calls never lapse, so every old one for a listed senior is dialed at once.
+4. **Try it.** Accept a senior, or start a campaign, and your phone rings. The welcome call runs UC-04 ([02-use-cases.md](../docs/specs/echocare/02-use-cases.md)): press 1 for identity and 1 for consent, or say „da” twice, and the senior becomes `active` with code green. On a wellbeing call, pressing 9 or saying a tier 1 phrase („am căzut”) opens an incident and rings the on-duty DAS employee, whose number must be on `DIAL_ALLOWLIST` too. Answering takes the incident.
+
+`uv run python scripts/place_call.py <number>` places a scripted test call instead, and follows the allowlist too. Run once on a new Twilio setup, it also checks two things Twilio's docs do not confirm for IE1: that callbacks verify (a 403 on every callback says they do not) and that voicemail detection runs.
+
+Twilio's console webhook on the number is not used: every outbound call carries its own callback addresses.
 
 ## Test and lint
 
@@ -85,9 +108,10 @@ Every client signs in with a phone number ([auth-layer.md](../docs/specs/auth-la
 | `+40700000003` | `333333` | DAS and medic |
 | `+40700000004` | `444444` | a caregiver |
 | `+40700000005` | `555555` | a senior |
+| `+40700000006` | `666666` | a second senior, for the welcome card |
 | `+40700000009` | `999999` | nothing |
 
-The numbers `+40700000004` and `+40700000005` work once a person has added them in the Firebase console ([seniors-and-enrollment.md](../docs/specs/seniors-and-enrollment.md), §10 step 1).
+The numbers `+40700000004`, `+40700000005` and `+40700000006` work once a person has added them in the Firebase console ([seniors-and-enrollment.md](../docs/specs/seniors-and-enrollment.md), §10 step 1).
 
 Grants live in each environment's database. Locally, grant DAS with the setup script (on Railway, run the same inside `railway ssh -s api -e staging`):
 
@@ -113,30 +137,60 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
 
 ## Mock data
 
-[scripts/seed.py](scripts/seed.py) fills the local database with fictitious people and their history: twelve seniors in every enrollment state, their medics and caregivers, a cold-weather campaign, calls with transcripts, and incidents open, in progress and resolved. It grants `+40700000001` DAS and `+40700000002` medic, and makes `+40700000004` and `+40700000005` Maria Popescu's son and Maria Popescu, so each test number signs in to something. From `backend/`:
+[scripts/seed.py](scripts/seed.py) fills the local database with fictitious people and their history: twenty seniors in every enrollment state, their medics and caregivers, a cold-weather campaign, calls with transcripts, and fourteen incidents, open, in progress and resolved. It grants `+40700000001` DAS and `+40700000002` medic, and makes `+40700000004` and `+40700000005` Maria Popescu's son and Maria Popescu, so each test number signs in to something. From `backend/`:
 
 ```bash
 uv run python scripts/seed.py
 ```
 
-A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. It refuses any database but a local one.
+A second run adds nothing. Its times are relative to when it ran, and resolved incidents leave the dashboard after a day; `--reset` makes the seed's seniors again with fresh times. It deletes them first with everything about them, including calls, incidents, caregivers and edits made through the API or the apps since. Users, staff grants, the campaign and seniors made through the API stay. If `+40700000005` is already another senior's number, it keeps signing in to that senior (AL7) and the run says so. From a laptop it refuses any database but a local one.
 
 ```bash
 uv run python scripts/seed.py --reset
 ```
 
-**Staging and production: planned, not ready.** ADR-001 expects staging to hold the seed plus the team's test phones, and production the demo cast, seeded once before the freeze. Seeding stays a person's action, never part of a deploy: no pre-deploy command, no start-up hook. It would run inside the `api` container, as `grant_das.py` does, since a laptop cannot reach `postgres.railway.internal`:
-
-```bash
-railway ssh -s api -e staging
-```
-
-Two things must change before that:
-
-- **The guard.** The script refuses every database but a local one, including from inside Railway. It would follow `alembic/env.py`: allowed inside a Railway deployment, still refused from a laptop.
-- **The phone numbers.** The seeded seniors' numbers are made up and may belong to real people; two are Timișoara landlines. Locally nothing dials them, but with Twilio set up a campaign or `place_call.py` would. The active seniors need the team's own phones first.
+Its seniors' numbers are made up and may belong to real people; two are Timișoara landlines. So `seed.py` runs on staging only behind `DIAL_ALLOWLIST`, which keeps every seeded number from ringing, and never on production.
 
 On the day, run `--reset` shortly before the demo, so the open incident is minutes old and the resolved ones are still on the board. Never during a live demo: `--reset` deletes every incident and call attached to a seeded senior.
+
+### The same mock data on staging
+
+Staging holds the same fictional cast, for the dashboard, and the team's own people from the cast file below. From the laptop, inside the `api` container (either order works):
+
+```bash
+railway ssh -s api -e staging -- python scripts/seed.py --confirm staging
+railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging - < cast.json
+```
+
+Add `--reset` to the first for fresh times. It deletes only the seed's own seniors; the team's seniors, made by `seed_cast.py` through the API's steps, and their real calls stay. On a cloud database `seed.py` grants DAS to nobody, since the test numbers' codes are on this page, and writes its campaign already lapsed, so a campaign the team starts queues calls.
+
+Before an end-to-end run on real phones and watches:
+- `DEEPINFRA_API_KEY` is set on staging; without it no summaries are written.
+- `DIAL_ALLOWLIST` on staging holds exactly the team's four numbers. `seed.py` refuses a cloud database whose allowlist is `*`.
+- The four numbers are verified in Twilio, the on-duty DAS's too, since hand-overs ring it.
+- The team signs in with real SMS, not test numbers.
+- No one but the cast's DAS holds DAS on staging: check the staff list and revoke the rest by hand. The seed grants none, but deletes none either.
+- A campaign started on staging queues calls for every active fictional senior too. The allowlist keeps them silent; they wait in the campaign's progress until the warning lapses. „Sunați-mă” and the watch reach only the team's seniors.
+
+### The demo cast on staging and production
+
+ADR-001 has staging hold the team's phones and production the demo cast, seeded once before the freeze. [scripts/seed_cast.py](scripts/seed_cast.py) seeds people through the same steps the apps take:
+- `staff`: each with `roles` of `das`, `medic` or both. Exactly one DAS has `"on_duty": true`, so hand-overs ring them;
+- `seniors`: each registered by the staff member whose phone is their `medic`, with their `caregivers`. A caregiver may also be staff, and then holds both.
+
+Each senior is left `submitted`, so the demo starts with DAS pressing „Acceptă”, which rings the welcome call. A second run adds nothing. Staging and production use the same shape; a cast file written for the old four-slot shape (`medic`, `das`, `senior`, `caregiver`) needs rewriting once.
+
+The cast is real people, so it never enters Git (#48). Keep it in a JSON file outside the repository, or as `backend/cast.json`, which Git and Docker ignore. [cast.example.json](cast.example.json) shows its shape; every field is checked as the API checks it.
+
+Seeding stays a person's action, never part of a deploy. Run it inside the `api` container, since a laptop cannot reach `postgres.railway.internal`, and pipe the file in from the laptop. `--confirm` must name the environment, so production is never seeded by mistake:
+
+```bash
+railway ssh -s api -e staging -- python scripts/seed_cast.py --confirm staging - < cast.json
+```
+
+From a laptop the script refuses any database but a local one, as `alembic/env.py` does.
+
+For the seniors' calls to ring, put the seniors' and the on-duty DAS's numbers on that environment's `DIAL_ALLOWLIST`.
 
 ## Migrations
 

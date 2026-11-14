@@ -6,6 +6,8 @@ from app.auth.models import (
     Role,
     User,
 )
+from app.campaigns.models import Campaign, CampaignKind, WarningLevel
+from app.codes.models import ReportSource, SeniorStatus, StatusReport
 from app.core.db import (
     Base,
     StoredEnum,
@@ -14,6 +16,7 @@ from app.core.db import (
     timestamp_now,
     uuid_pk,
 )
+from app.homenode.models import HomeNodeState, NodeCondition, RoomState
 from app.incidents.models import (
     UNRESOLVED,
     Event,
@@ -23,14 +26,19 @@ from app.incidents.models import (
     IncidentOutcome,
     IncidentStatus,
 )
+from app.medical.models import MedicalRecord, MedicalRecordState
 from app.seniors.models import (
     Consent,
     ConsentDecision,
     ConsentMethod,
+    EcgClassification,
     EnrollmentState,
+    HealthReading,
+    HealthReadingKind,
     Senior,
-    SeniorStatus,
+    SummaryVersion,
     WatchCondition,
+    WatchReading,
     WatchState,
 )
 from app.voice.models import (
@@ -38,13 +46,8 @@ from app.voice.models import (
     Call,
     CallTrigger,
     CallTurn,
-    Campaign,
-    CampaignKind,
-    ReportSource,
     Speaker,
-    StatusReport,
     TurnKind,
-    WarningLevel,
     WelcomeOutcome,
 )
 
@@ -62,26 +65,36 @@ __all__ = [
     "Consent",
     "ConsentDecision",
     "ConsentMethod",
+    "EcgClassification",
     "EnrollmentState",
     "Event",
     "EventType",
     "Grant",
+    "HealthReading",
+    "HealthReadingKind",
+    "HomeNodeState",
     "Incident",
     "IncidentEvent",
     "IncidentOutcome",
     "IncidentStatus",
+    "MedicalRecord",
+    "MedicalRecordState",
+    "NodeCondition",
     "PushToken",
     "ReportSource",
     "Role",
+    "RoomState",
     "Senior",
     "SeniorStatus",
     "Speaker",
     "StatusReport",
     "StoredEnum",
+    "SummaryVersion",
     "TurnKind",
     "User",
     "WarningLevel",
     "WatchCondition",
+    "WatchReading",
     "WatchState",
     "WelcomeOutcome",
     "enum_type",

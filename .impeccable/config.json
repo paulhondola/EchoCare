@@ -1,0 +1,134 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/19360-1793827525/content/medic-screens-v2.html"
+        ],
+        "createdAt": "2026-11-04T21:29:18.104Z",
+        "reason": "Claude: throwaway brainstorm wireframe drawn at reduced scale inside a tablet frame; not shipped UI (the real app uses Palette.kt type sizes)"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/19360-1793827525/content/medic-screens-v2.html"
+        ],
+        "createdAt": "2026-11-04T21:29:18.121Z",
+        "reason": "Claude: throwaway brainstorm wireframe drawn at reduced scale inside a tablet frame; not shipped UI (the real app uses Palette.kt type sizes)"
+      },
+      {
+        "rule": "tight-leading",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.297Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.315Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.332Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.349Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.365Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.381Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "tight-leading",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions-v2.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.398Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions-v2.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.414Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions-v2.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.430Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions-v2.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.446Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions-v2.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.462Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/65061-1794411348/content/landing-directions-v2.html"
+        ],
+        "createdAt": "2026-11-11T16:06:29.478Z",
+        "reason": "Claude: throwaway brainstorm mockup in git-ignored .superpowers/, drawn at reduced scale inside device frames; not shipped UI"
+      }
+    ]
+  }
+}

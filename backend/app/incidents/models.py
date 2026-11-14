@@ -24,6 +24,10 @@ class EventType(StrEnum):
     inactivity = "inactivity"
     sos_button = "sos_button"
     manual_request = "manual_request"  # "Sunați-mă" (05 §4)
+    fall = "fall"  # a fall seen by the watch (P19) or found by the home node (P24)
+    # Derived by FastAPI from the home node's room readings, never sent by a device (P21)
+    room_cold = "room_cold"
+    room_heat = "room_heat"
 
 
 class IncidentOutcome(StrEnum):
@@ -45,7 +49,8 @@ UNRESOLVED = frozenset({IncidentStatus.open, IncidentStatus.in_progress})
 
 
 class Event(Base):
-    """A watch anomaly, a button press or a "Sunați-mă" request (05 §2).
+    """A watch anomaly, a fall, a button press, a room out of range or a "Sunați-mă"
+    request (05 §2).
 
     The id is generated on the device, so a resent event is a duplicate key (05 §3).
     """
@@ -57,6 +62,8 @@ class Event(Base):
     type: Mapped[EventType] = mapped_column(enum_type(EventType))
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime] = timestamp_now()
+    # Where the event came from: "watch", "phone" or "home_node" (04 §3)
+    source: Mapped[str | None] = mapped_column(String(32))
     snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     # The phone's last known location, stored only with an event (05 §4).
     latitude: Mapped[float | None] = mapped_column(Float)

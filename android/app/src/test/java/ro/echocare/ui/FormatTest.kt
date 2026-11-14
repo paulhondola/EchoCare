@@ -17,4 +17,13 @@ class FormatTest {
         assertEquals("+16505550101", formatPhone("+16505550101"))
         assertEquals("+4072", formatPhone("+4072"))
     }
+
+    @Test
+    fun initialsAreTheFirstAndLastWordsLettersWithoutTitles() {
+        assertEquals("AI", initials("Dr. Ana Ionescu"))
+        assertEquals("M", initials("Maria"))
+        assertEquals("AP", initials("ana maria pop"))
+        assertEquals("", initials("  "))
+        assertEquals("", initials("Dr."))
+    }
 }

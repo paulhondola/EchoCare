@@ -66,6 +66,19 @@ export default defineRailway((ctx) => {
       TWILIO_ACCOUNT_SID: preserve(),
       TWILIO_AUTH_TOKEN: preserve(),
       TWILIO_FROM_NUMBER: preserve(),
+      // DeepInfra, the agent's model (04 §5), set by a person; apply keeps it
+      DEEPINFRA_API_KEY: preserve(),
+      // The call agent's and the summary agent's DeepInfra models
+      AGENT_MODEL: "deepseek-ai/DeepSeek-V4-Pro",
+      SUMMARY_MODEL: "deepseek-ai/DeepSeek-V4-Pro",
+      // Set by a person per environment; apply keeps them
+      DEMO_MODE: preserve(),
+      DIAL_ALLOWLIST: preserve(),
+      SCHEDULER_ENABLED: preserve(),
+      TWILIO_API_HOST: preserve(),
+      FIREBASE_WEB_API_KEY: preserve(),
+      // Firebase push (04 §6): a Google credential's JSON, set by a person; unset sends none
+      FIREBASE_PUSH_CREDENTIALS: preserve(),
     },
   });
 

@@ -23,7 +23,8 @@ sealed interface Refusal {
     /** 422 `incomplete`: what DAS still needs, named in `missing` (04 §2). */
     data class Incomplete(val missing: List<String>) : Refusal
 
-    data object AlreadyDone : Refusal
+    /** 409 `already_done`; an incident taken by someone else names them (04 §2). */
+    data class AlreadyDone(val takenByName: String? = null) : Refusal
 
     /** 409 `phone_taken`: the mobile already belongs to another senior (SE10). */
     data object PhoneTaken : Refusal
@@ -51,7 +52,9 @@ fun refusalOf(status: Int?, body: String?): Refusal {
 
         status == 422 -> Refusal.Invalid(emptyList())
 
-        status == 409 && reason == "already_done" -> Refusal.AlreadyDone
+        status == 409 && reason == "already_done" -> Refusal.AlreadyDone(
+            ours?.get("taken_by_name").text()
+        )
 
         status == 409 && reason == "phone_taken" -> Refusal.PhoneTaken
 
@@ -101,7 +104,7 @@ fun ensure(response: Response<*>) {
 }
 
 /** The form's commands. */
-enum class Action { Save, Add, Remove, Submit }
+enum class Action { Save, Add, Remove, Submit, Sign }
 
 /** One line over the form's buttons. */
 sealed interface Notice {
@@ -137,7 +140,7 @@ fun thenAfter(action: Action, refusal: Refusal): Then = when (refusal) {
     }
 
     // A repeated submit: already submitted, so step 4 shows that
-    Refusal.AlreadyDone -> if (action == Action.Add) {
+    is Refusal.AlreadyDone -> if (action == Action.Add) {
         Then.Show(Notice.Says(R.string.already_caregiver))
     } else {
         Then.Reread
@@ -160,7 +163,7 @@ private fun marks(action: Action, keys: List<String>): Then {
     val sent = when (action) {
         Action.Save -> REGISTRATION
         Action.Add -> Step.Caregivers.fields
-        Action.Remove, Action.Submit -> emptyList()
+        Action.Remove, Action.Submit, Action.Sign -> emptyList()
     }
     val errors = keys.mapNotNull { key -> sent.find { it.key == key } }.associateWith {
         when (it) {

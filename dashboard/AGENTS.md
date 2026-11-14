@@ -16,17 +16,25 @@ dashboard/
 │   │   ├── +page.svelte             / : IncidentBoard
 │   │   ├── seniors/
 │   │   │   └── +page.svelte         /seniors : Seniors, Monitorizare seniori
+│   │   ├── map/
+│   │   │   └── +page.svelte         /map : SeniorMap, Hartă
 │   │   ├── enrollments/
 │   │   │   └── +page.svelte         /enrollments : Enrollments (UC-04)
-│   │   └── staff/
-│   │       └── +page.svelte         /staff : Staff (UC-14)
+│   │   ├── staff/
+│   │   │   └── +page.svelte         /staff : Staff (UC-14)
+│   │   └── campaigns/
+│   │       └── +page.svelte         /campaigns : Campaigns, Campanii meteo
 │   ├── features/                    domain feature components
 │   │   ├── shell/                   Shell (Cod Roșu banner and incident dossier over every page), Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
-│   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over
-│   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over
+│   │   ├── landing/                 Landing: what a signed-out visitor sees first; „Intrați în cont” opens SignIn
+│   │   ├── calls/                   CallTranscript; LiveStrip (the calls happening now, over every page) and LiveCallView (one call's lines as they arrive)
+│   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over, WhyRed („De ce cod roșu?”)
+│   │   ├── map/                     SeniorMap: Leaflet over OpenStreetMap tiles darkened in CSS; pins from GET /seniors' approximate points, live calls ring
+│   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over, Briefing (the latest summary: Pe scurt, Subiecte deschise, Cum vorbim, Observații)
 │   │   ├── enrollments/             Enrollments: review and Acceptă
 │   │   ├── staff/                   Staff: member list, who is on duty, adding medic or DAS
+│   │   ├── campaigns/               Campaigns: start a weather campaign, progress per campaign, Încheie
 │   │   └── system/                  SystemHealthIndicator: the sidebar's system line
 │   ├── ui/                          presentational pieces with no data: Icon.svelte (Lucide), Brand.svelte, CopyButton.svelte
 │   ├── services/                    apiFetch, getMe, Firebase auth
@@ -36,7 +44,9 @@ dashboard/
 │   │   ├── phone.ts                 typed number → E.164 and back for display, with phone.test.ts
 │   │   ├── labels.ts                shared Romanian labels, tones, date formats and address line
 │   │   ├── incidents.ts             board columns, filter, relative times, with incidents.test.ts
+│   │   ├── campaigns.ts             campaign labels and progress counts, with campaigns.test.ts
 │   │   ├── csv.ts                   CSV text and download, with csv.test.ts
+│   │   ├── briefing.ts              trend direction labels and citation dates, with briefing.test.ts
 │   │   └── poll.svelte.ts           shared reactive timer utility (04 §6), with poll.test.ts
 │   └── vite.config.ts               Vite+: SvelteKit SPA adapter, Tailwind v4, lint, fmt
 ├── tsconfig.json                    extends "$app/tsconfig"
@@ -73,7 +83,7 @@ The toolchain is Vite+ ([ADR-002](../docs/adr/ADR-002-git-hooks.md), [ADR-003](.
 
 - **`VITE_*` variables are compiled into the bundle.** A change needs a rebuild. Each new one must also be an `ARG` in the Dockerfile's `build` stage and a variable in [.railway/railway.ts](../.railway/railway.ts), or Railway builds without it.
 - **`VITE_API_URL` is read by the browser**, so locally it is `http://localhost:8000`, never Compose's `api`.
-- **Firebase web config is public**, not a secret. Phone sign-in works only on authorized domains; test with Firebase test numbers, never real SMS.
+- **Firebase web config is public**, not a secret. Phone sign-in works only on authorized domains; test with Firebase test numbers; real SMS only on the dev server with `VITE_REAL_SMS=true` in `.env`, never in a deployed bundle.
 - **The Caddy stage stays last** in the Dockerfile; Railway builds the last stage.
 - **Lefthook owns the Git hooks**, for the whole repository. Run `vp config` and `vp migrate` only with `--no-hooks`: Vite+'s hooks set `core.hooksPath`, which silently turns lefthook off. To undo that, run `npx vp hooks disable`, then `lefthook install`.
 - **`vite` is Vite+'s build of it** (`npm:@voidzero-dev/vite-plus-core`), forced by `overrides` in `package.json`. Keep both entries on the same version as `vite-plus`.

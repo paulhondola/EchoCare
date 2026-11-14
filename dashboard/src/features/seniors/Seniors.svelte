@@ -4,7 +4,7 @@
   import Icon from "../../ui/Icon.svelte";
   import { download, toCsv } from "../../utils/csv";
   import { fold } from "../../utils/incidents";
-  import { clock, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
+  import { clock, code, enrollment, TONE_CHIP, TONE_DOT } from "../../utils/labels";
   import { formatPhone } from "../../utils/phone";
   import { getLive } from "../shell/live.svelte";
   import PageHeader from "../shell/PageHeader.svelte";
@@ -16,8 +16,8 @@
   // The registry is polled slowly for the sidebar's counter: read it fresh when the page opens
   onMount(() => seniors.reload());
 
-  // Tabs by enrollment state (03 §1). The API sends no codes per senior yet (04 §1, proposed),
-  // so the design's Cod Roșu / Galben / Verde tabs wait for them.
+  // Tabs by enrollment state (03 §1). Each row also carries the senior's code (04 §1); a tab per
+  // code is not built.
   type Tab = "all" | "active" | "enrolling" | "attention";
   const TABS: { key: Tab; label: string; dot: string; states: string[] | null }[] = [
     { key: "all", label: "Toți", dot: "bg-fg-muted", states: null },
@@ -34,6 +34,13 @@
   let tab = $state<Tab>("all");
   let query = $state("");
   let selected = $state<SeniorSummary | null>(null);
+  let erasedNotice = $state(false);
+
+  function erased() {
+    selected = null;
+    erasedNotice = true;
+    seniors.reload();
+  }
 
   const all = $derived(seniors.load.kind === "ok" ? seniors.load.data : []);
   const inTab = (s: SeniorSummary, t: (typeof TABS)[number]) =>
@@ -126,6 +133,19 @@
   </label>
 </PageHeader>
 
+{#if erasedNotice}
+  <p role="status" class="m-4 flex items-center gap-3 border border-line bg-card px-4 py-3">
+    Datele au fost șterse.
+    <button
+      type="button"
+      class="sn-btn sn-btn-link ml-auto px-2 py-1 text-xs"
+      onclick={() => (erasedNotice = false)}
+    >
+      Închide
+    </button>
+  </p>
+{/if}
+
 {#if seniors.load.kind === "loading"}
   <div
     role="status"
@@ -157,10 +177,11 @@
     </div>
     {#each shown as s, n (s.id)}
       {@const st = enrollment(s.enrollment_state)}
+      {@const cd = code(s.code)}
       <div role="row" class={["grid border-b border-line hover:bg-subtle", COLS]}>
         <div
           role="cell"
-          class="border-r border-card px-3 py-2.5 font-mono text-[11px] text-fg-subtle"
+          class="border-r border-card px-3 py-2.5 font-mono text-[11px] text-fg-muted"
         >
           {n + 1}
         </div>
@@ -181,7 +202,10 @@
             {formatPhone(s.phone_e164)}
           </a>
         </div>
-        <div role="cell" class="flex min-w-0 items-center border-r border-card px-3 py-2">
+        <div
+          role="cell"
+          class="flex min-w-0 flex-wrap items-center gap-1.5 border-r border-card px-3 py-2"
+        >
           <span
             class={[
               "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-bold",
@@ -190,6 +214,28 @@
           >
             <span class={["size-[7px]", TONE_DOT[st.tone]]}></span>{st.label}
           </span>
+          {#if cd}
+            <span
+              class={[
+                "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-bold",
+                TONE_CHIP[cd.tone],
+              ]}
+            >
+              <span class={["size-[7px]", TONE_DOT[cd.tone]]}></span>{cd.label}
+            </span>
+            {#if s.reason}
+              <span class="text-xs text-fg-muted">{s.reason}</span>
+            {/if}
+          {/if}
+          {#if s.home_node_state === "offline"}
+            <span class="border border-galben px-1.5 py-0.5 text-[11px] text-galben-fg">
+              Senzor din casă deconectat
+            </span>
+          {:else if s.room_temperature != null}
+            <span class="border border-line px-1.5 py-0.5 font-mono text-[11px] text-fg-soft">
+              Cameră {s.room_temperature.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}°C
+            </span>
+          {/if}
         </div>
         <div role="cell" class="flex items-center px-3 py-2">
           <button
@@ -223,6 +269,6 @@
 
 {#if selected}
   {#key selected.id}
-    <SeniorDetails senior={selected} onClose={() => (selected = null)} />
+    <SeniorDetails senior={selected} onClose={() => (selected = null)} onErased={erased} />
   {/key}
 {/if}

@@ -1,0 +1,136 @@
+"""Text of a medical record PDF: the text layer, OCR for scanned pages (design §5.3)."""
+
+import asyncio
+import base64
+import io
+import threading
+from collections.abc import Awaitable, Callable
+from concurrent.futures import ThreadPoolExecutor
+
+import openai
+import pypdfium2 as pdfium
+
+from app.core.llm import BASE_URL
+
+MAX_PAGES = 10
+MIN_CHARS = 50
+DPI = 150
+MAX_SIDE = 2500  # px; a huge MediaBox must not become a gigabyte bitmap
+OCR_TIMEOUT = 60  # seconds per page request: one slow page must not eat the analysis
+
+# pdfium is not thread-safe: the lock guards direct callers, and one thread of its own
+# keeps waiters off asyncio's default executor, which also sends the pushes.
+_PDFIUM = threading.Lock()
+_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pdfium")
+
+type Ocr = Callable[[bytes], Awaitable[str]]
+
+
+def _open(pdf: bytes) -> pdfium.PdfDocument:
+    try:
+        doc = pdfium.PdfDocument(pdf)
+    except pdfium.PdfiumError as e:
+        raise ValueError("unreadable PDF") from e
+    if len(doc) == 0:
+        doc.close()
+        raise ValueError("PDF has no pages")
+    return doc
+
+
+def page_texts(pdf: bytes) -> list[str]:
+    """The text layers of the first MAX_PAGES pages."""
+    with _PDFIUM:
+        return _page_texts(pdf)
+
+
+def _page_texts(pdf: bytes) -> list[str]:
+    doc = _open(pdf)
+    try:
+        texts = []
+        for i in range(min(len(doc), MAX_PAGES)):
+            page = doc[i]
+            try:
+                textpage = page.get_textpage()
+                try:
+                    texts.append(textpage.get_text_bounded())
+                finally:
+                    textpage.close()
+            finally:
+                page.close()
+        return texts
+    except pdfium.PdfiumError as e:
+        raise ValueError("unreadable PDF") from e
+    finally:
+        doc.close()
+
+
+def page_pngs(pdf: bytes, indexes: list[int]) -> list[bytes]:
+    """The pages at `indexes` as PNGs, from one parse of the PDF."""
+    with _PDFIUM:
+        return _page_pngs(pdf, indexes)
+
+
+def _page_pngs(pdf: bytes, indexes: list[int]) -> list[bytes]:
+    doc = _open(pdf)
+    try:
+        pngs = []
+        for index in indexes:
+            page = doc[index]
+            try:
+                width, height = page.get_size()
+                scale = min(DPI / 72, MAX_SIDE / max(width, height))
+                image = page.render(scale=scale).to_pil()
+            finally:
+                page.close()
+            out = io.BytesIO()
+            image.save(out, format="PNG")
+            pngs.append(out.getvalue())
+        return pngs
+    except pdfium.PdfiumError as e:
+        raise ValueError("unreadable PDF") from e
+    finally:
+        doc.close()
+
+
+async def extract_text(pdf: bytes, ocr: Ocr) -> str:
+    loop = asyncio.get_running_loop()
+    texts = await loop.run_in_executor(_POOL, page_texts, pdf)
+    scanned = [i for i, t in enumerate(texts) if len("".join(t.split())) < MIN_CHARS]
+    if scanned:
+        pngs = await loop.run_in_executor(_POOL, page_pngs, pdf, scanned)
+        # ponytail: every scanned page at once (at most MAX_PAGES); a semaphore if
+        # DeepInfra starts refusing the burst.
+        for i, text in zip(scanned, await asyncio.gather(*map(ocr, pngs)), strict=True):
+            texts[i] = text
+    # Postgres text refuses NUL, which a broken text layer or OCR can carry.
+    return "\n\n".join(texts).replace("\x00", "")
+
+
+def deepinfra_ocr(api_key: str, model: str) -> Ocr:
+    client = openai.AsyncOpenAI(
+        base_url=BASE_URL,
+        api_key=api_key or "missing",
+        timeout=OCR_TIMEOUT,
+        max_retries=1,
+    )
+
+    async def ocr(png: bytes) -> str:
+        url = "data:image/png;base64," + base64.b64encode(png).decode()
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": url}},
+                        {
+                            "type": "text",
+                            "text": "Return the plain text of this page.",
+                        },
+                    ],
+                }
+            ],
+        )
+        return response.choices[0].message.content or ""
+
+    return ocr

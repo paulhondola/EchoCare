@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into the generated Info.plist: keys with no INFOPLIST_KEY_ build setting. -->
+	<key>WKApplication</key>
+	<true/>
+	<!-- G5: the watch has no identity and needs the senior's phone (manifest standalone=false). -->
+	<key>WKRunsIndependentlyOfCompanionApp</key>
+	<false/>
+	<!-- Monitoring runs inside an HKWorkoutSession, the only way to stay awake with the wrist down. -->
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
+</dict>
+</plist>
