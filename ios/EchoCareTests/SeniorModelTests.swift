@@ -60,7 +60,7 @@ struct SeniorModelTests {
         #expect(starts == 0)
     }
 
-    @Test func failedMonitoringDoesNotTouchHealthSync() async {
+    @Test func failedMonitoringRestartsHealthSyncWithoutStartingIt() async {
         var starts = 0
         var restarts = 0
         let model = model(
@@ -68,7 +68,7 @@ struct SeniorModelTests {
             restartHealth: { restarts += 1 })
         await model.startMonitoring()
         #expect(starts == 0)
-        #expect(restarts == 0)
+        #expect(restarts == 1)
     }
 
     // MARK: What the phone hears from the watch

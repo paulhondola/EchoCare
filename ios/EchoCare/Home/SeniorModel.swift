@@ -166,6 +166,8 @@ final class SeniorModel {
             restartHealth()
         } catch {
             monitoring = .failed
+            // The grant happens before startWatchApp, which can still throw
+            restartHealth()
         }
     }
 
