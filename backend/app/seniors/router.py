@@ -13,7 +13,9 @@ from app.calls.service import (
     welcome_call_pending,
 )
 from app.core.db import get_session
-from app.medical.service import record_states
+from app.core.storage import StorageService, get_storage
+from app.erasure.service import delete_pdf
+from app.medical.service import record_key, record_states
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -139,11 +141,15 @@ async def delete_senior(
     senior_id: uuid.UUID,
     caller: Annotated[Caller, Depends(require_roles(Role.medic))],
     session: Annotated[AsyncSession, Depends(get_session)],
+    storage: Annotated[StorageService, Depends(get_storage)],
 ) -> Response:
-    """Deletes a draft with its consents and grants, by its registering medic (Q10).
-    Past draft, or once a call refers to the senior, it is 409 `wrong_state`. A repeat
-    is 404, the row being gone."""
+    """Deletes a draft with its consents and grants, by its registering medic (Q10),
+    and its medical record PDF (design 2026-11-14). Past draft, or once a call refers
+    to the senior, it is 409 `wrong_state`. A repeat is 404, the row being gone."""
+    key = await record_key(session, senior_id)  # the record cascades with the senior
     await delete_draft(session, caller, senior_id)
+    if key:
+        await delete_pdf(storage, senior_id, key)
     return Response(status_code=204)
 
 

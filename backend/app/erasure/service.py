@@ -17,6 +17,7 @@ from app.auth.service import (
     refuse,
 )
 from app.codes.service import erase_senior_codes
+from app.core.storage import StorageError, StorageService
 from app.incidents.service import erase_senior_incidents, incident_unresolved
 from app.medical.service import erase_record
 from app.seniors.service import (
@@ -57,3 +58,12 @@ async def erase_senior(
     await session.commit()
     log.info("erased senior %s by user %s", senior_id, caller.user.id)
     return key
+
+
+async def delete_pdf(storage: StorageService, senior_id: uuid.UUID, key: str) -> None:
+    """After the commit: the database is clean either way, so a store that fails
+    leaves an orphaned file, named in the log, and the request still succeeds."""
+    try:
+        await storage.delete(key)
+    except StorageError:
+        log.warning("pdf not deleted for senior %s: %s", senior_id, key)
