@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.medical.schemas import MedicalRecordView
+from app.seniors.models import EcgClassification, HealthReadingKind
 from app.seniors.schemas import Code, RoomView, SeniorView, State, WatchView
 
 
@@ -47,9 +48,22 @@ class ExportWatchReading(BaseModel):
     worn: bool | None
 
 
+class ExportHealthReading(BaseModel):
+    id: uuid.UUID
+    kind: HealthReadingKind
+    measured_at: datetime
+    received_at: datetime
+    spo2: int | None
+    ecg_classification: EcgClassification | None
+    ecg_heart_rate: int | None
+    ecg_trace: list[int] | None
+    ecg_trace_hz: int | None
+
+
 class ExportWatch(BaseModel):
     state: WatchView | None
     readings: list[ExportWatchReading]
+    health_readings: list[ExportHealthReading] = []
 
 
 class ExportEvent(BaseModel):

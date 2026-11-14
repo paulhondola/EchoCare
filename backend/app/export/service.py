@@ -19,6 +19,7 @@ from app.export.schemas import (
     ExportCall,
     ExportConsent,
     ExportEvent,
+    ExportHealthReading,
     ExportIncident,
     ExportReport,
     ExportStatus,
@@ -32,7 +33,12 @@ from app.homenode.service import room_for
 from app.incidents.service import export_senior_incidents
 from app.medical.service import export_record
 from app.seniors.schemas import WatchView
-from app.seniors.service import editable_senior, export_senior_children, senior_view
+from app.seniors.service import (
+    editable_senior,
+    export_health_readings,
+    export_senior_children,
+    senior_view,
+)
 from app.voice.service import export_calls
 
 log = logging.getLogger("echocare.export")
@@ -82,6 +88,10 @@ async def export_senior(
             readings=[
                 ExportWatchReading.model_validate(r, from_attributes=True)
                 for r in watch_readings
+            ],
+            health_readings=[
+                ExportHealthReading.model_validate(r, from_attributes=True)
+                for r in await export_health_readings(session, senior_id)
             ],
         ),
         room=await room_for(session, senior_id),

@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.models import EcgClassification, HealthReading, HealthReadingKind, Role
+from app.seniors.service import prune_health_readings
 from tests.seniors.test_seniors import NOT_ALLOWED, refusal, signed_in
 
 SENIOR = "+40700000101"
@@ -227,3 +228,20 @@ async def test_readings_past_a_day_are_not_served(client, db, add_user, senior):
     )
     await db.commit()
     assert (await health(client, senior)).status_code == 204
+
+
+async def test_prune_deletes_health_readings_older_than_a_day(db, senior):
+    now = datetime.now(UTC)
+    db.add_all(
+        HealthReading(
+            senior_id=senior.id,
+            id=uuid.uuid4(),
+            kind=HealthReadingKind.spo2,
+            measured_at=now - age,
+            spo2=97,
+        )
+        for age in (timedelta(hours=25), timedelta(hours=1))
+    )
+    await db.commit()
+    assert await prune_health_readings(db, now) == 1
+    assert await count(db) == 1

@@ -32,6 +32,7 @@ def patch_steps(monkeypatch, **overrides):
         "sweep": AsyncMock(return_value=0),
         "silence_watches": AsyncMock(return_value=0),
         "prune_watch_readings": AsyncMock(return_value=0),
+        "prune_health_readings": AsyncMock(return_value=0),
         "start_summaries": AsyncMock(return_value=0),
         "start_analyses": AsyncMock(return_value=0),
         **overrides,
@@ -60,6 +61,7 @@ async def test_a_step_that_raises_does_not_stop_the_others(db, monkeypatch):
     steps["sweep"].assert_awaited_once_with(NOW)
     steps["silence_watches"].assert_awaited_once()
     steps["prune_watch_readings"].assert_awaited_once()
+    steps["prune_health_readings"].assert_awaited_once()
 
 
 async def test_the_tick_cancels_a_lapsed_campaigns_calls(

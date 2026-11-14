@@ -979,6 +979,15 @@ async def prune_watch_readings(session: AsyncSession, now: datetime) -> int:
     return pruned.rowcount
 
 
+async def prune_health_readings(session: AsyncSession, now: datetime) -> int:
+    """Deletes Apple Health readings older than 24 hours (design 2026-11-14)."""
+    pruned = await session.execute(
+        delete(HealthReading).where(HealthReading.measured_at < now - READINGS_KEPT)
+    )
+    await session.commit()
+    return pruned.rowcount
+
+
 def watch_silence() -> timedelta:
     """How long a watch may go without a check-in before it is `offline` (UC-13)."""
     return timedelta(seconds=90) if get_settings().demo_mode else timedelta(minutes=45)
@@ -1121,3 +1130,16 @@ async def export_senior_children(
         )
     )
     return consents, summaries, watch, readings
+
+
+async def export_health_readings(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> list[HealthReading]:
+    """The senior's Apple Health readings, oldest first, for a GDPR export."""
+    return list(
+        await session.scalars(
+            select(HealthReading)
+            .where(HealthReading.senior_id == senior_id)
+            .order_by(HealthReading.measured_at, HealthReading.id)
+        )
+    )
