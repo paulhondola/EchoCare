@@ -44,7 +44,8 @@ struct HomeView: View {
 
     private var pulseLine: String {
         guard let bpm = monitor.lastHeartRate else { return String(localized: "heart_rate_waiting") }
-        return String(format: String(localized: "heart_rate"), bpm)
+        // %1$lld reads 64 bits; Swift's Int is 32 on arm64_32 watches
+        return String(format: String(localized: "heart_rate"), Int64(bpm))
     }
 
     /// Queued at once, as on Wear OS; „Se trimite…” for a moment keeps a second tap from sending a

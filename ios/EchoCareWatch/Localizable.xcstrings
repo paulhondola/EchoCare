@@ -175,7 +175,7 @@
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sentinela are nevoie de acces la puls și la activitate."
+            "value" : "EchoCare are nevoie de acces la puls și la activitate."
           }
         }
       }

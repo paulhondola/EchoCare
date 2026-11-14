@@ -3,38 +3,85 @@ import Shared
 import WatchConnectivity
 import os
 
-/// The watch's end of the link to the senior's phone (04 §3, design "Watch ↔ phone"). Events go
-/// with `sendMessage` when the phone is reachable, which wakes the iPhone app, else with
-/// `transferUserInfo`, which WatchConnectivity queues; check-ins always with `transferUserInfo`.
-/// Each dictionary is `WatchMessage.encode` plus `"kind"`. The phone answers an event with
-/// `kind: "received"` and `{"id": "<event id>"}` as the JSON, which clears it from the queue.
+/// What PhoneLink uses of `WCSession` to send, so the tests can see which way each message goes.
+/// WCSession's methods are thread-safe; PhoneLink calls them from the main actor.
+protocol LinkSession: AnyObject {
+    var isActive: Bool { get }
+    var isReachable: Bool { get }
+    /// `sendMessage` with no reply handler: delivered at once, and it wakes the iPhone app.
+    func send(message: [String: Any], onError: @escaping @Sendable (any Error) -> Void)
+    /// `transferUserInfo`: queued by WatchConnectivity until the phone takes it.
+    func transfer(_ userInfo: [String: Any])
+    /// The dictionaries of the transfers still waiting.
+    var waitingTransfers: [[String: Any]] { get }
+    /// Cancels the waiting transfers whose dictionary matches.
+    func cancelWaiting(where match: ([String: Any]) -> Bool)
+}
+
+extension WCSession: LinkSession {
+    var isActive: Bool { activationState == .activated }
+
+    func send(message: [String: Any], onError: @escaping @Sendable (any Error) -> Void) {
+        sendMessage(message, replyHandler: nil, errorHandler: onError)
+    }
+
+    func transfer(_ userInfo: [String: Any]) {
+        transferUserInfo(userInfo)
+    }
+
+    var waitingTransfers: [[String: Any]] { outstandingUserInfoTransfers.map(\.userInfo) }
+
+    func cancelWaiting(where match: ([String: Any]) -> Bool) {
+        for transfer in outstandingUserInfoTransfers where match(transfer.userInfo) { transfer.cancel() }
+    }
+}
+
+/// The watch's end of the link to the senior's phone (04 §3, design "Watch ↔ phone"). Events and
+/// check-ins go with `sendMessage` when the phone is reachable, which wakes the iPhone app, as the
+/// Wear OS Data Layer's `sendMessage` does; else, or when that fails, with `transferUserInfo`,
+/// which WatchConnectivity queues. Each dictionary is `WatchMessage.encode` plus `"kind"`. The
+/// phone answers an event with `kind: "received"` and `{"id": "<event id>"}` as the JSON, which
+/// clears it from the queue; a check-in is never answered, and only the newest one waits.
 ///
 /// Main-actor isolated; the WCSessionDelegate methods arrive on a background queue, decode there
 /// into Sendable values and hop over.
 @MainActor
 final class PhoneLink: NSObject, PhoneSending {
     private let queue: EventQueue
-    private let session: WCSession?
+    private let session: (any LinkSession)?
+    // The same session, for activation and its delegate; nil in tests
+    private let wcSession: WCSession?
     private let log = Logger(subsystem: "ro.echocare.watch", category: "link")
+    // The newest check-in sent, so a late failure of an older one doesn't resend it
+    private var lastCheckIn: CheckInMessage?
 
     init(queue: EventQueue) {
         self.queue = queue
-        session = WCSession.isSupported() ? WCSession.default : nil
+        wcSession = WCSession.isSupported() ? WCSession.default : nil
+        session = wcSession
+        super.init()
+    }
+
+    /// For tests: sends through `session`, with no WCSession to activate.
+    init(queue: EventQueue, session: any LinkSession) {
+        self.queue = queue
+        self.session = session
+        wcSession = nil
         super.init()
     }
 
     /// Call once at launch, before anything is sent.
     func activate() {
-        guard let session else {
+        guard let wcSession else {
             log.error("WatchConnectivity is not supported")
             return
         }
-        session.delegate = self
-        session.activate()
+        wcSession.delegate = self
+        wcSession.activate()
     }
 
     func send(event: EventMessage) {
-        guard let session, session.activationState == .activated else {
+        guard let session, session.isActive else {
             // Kept in the queue; resent on activation, on reachability and every minute
             log.info("event \(event.id, privacy: .public) waits: the link is not active")
             return
@@ -42,10 +89,10 @@ final class PhoneLink: NSObject, PhoneSending {
         guard let payload = Self.payload(WatchMessage.event, event) else { return }
         if session.isReachable {
             let id = event.id
-            session.sendMessage(
-                payload, replyHandler: nil,
+            session.send(
+                message: payload,
                 // @Sendable: WatchConnectivity calls it on its own queue, not the main actor
-                errorHandler: { @Sendable [weak self] error in
+                onError: { @Sendable [weak self] error in
                     let reason = error.localizedDescription
                     Task { @MainActor in self?.sendFailed(event, id: id, reason: reason) }
                 })
@@ -55,26 +102,50 @@ final class PhoneLink: NSObject, PhoneSending {
         }
     }
 
+    /// As an event, without the queue: a suspended iPhone app gets a `transferUserInfo` only when
+    /// it next runs, and by then the dashboard has marked the watch offline (UC-13).
     func send(checkIn: CheckInMessage) {
-        guard let session, session.activationState == .activated else {
+        guard let session, session.isActive else {
             log.info("check-in skipped: the link is not active")
             return
         }
         guard let payload = Self.payload(WatchMessage.checkIn, checkIn) else { return }
-        // Only the latest check-in is worth delivering (UC-13 reads the newest)
-        for transfer in session.outstandingUserInfoTransfers
-        where transfer.userInfo["kind"] as? String == WatchMessage.checkIn {
-            transfer.cancel()
+        lastCheckIn = checkIn
+        if session.isReachable {
+            session.send(
+                message: payload,
+                onError: { @Sendable [weak self] error in
+                    let reason = error.localizedDescription
+                    Task { @MainActor in self?.checkInFailed(checkIn, reason: reason) }
+                })
+            log.info("check-in sent")
+        } else {
+            transfer(checkIn: payload, session: session)
         }
-        session.transferUserInfo(payload)
-        log.info("check-in queued")
     }
 
     // MARK: Private
 
+    private func checkInFailed(_ checkIn: CheckInMessage, reason: String) {
+        log.error("check-in send failed: \(reason, privacy: .public)")
+        // A newer check-in has gone since; it says more than this one
+        guard checkIn == lastCheckIn, let session, session.isActive,
+            let payload = Self.payload(WatchMessage.checkIn, checkIn)
+        else { return }
+        transfer(checkIn: payload, session: session)
+    }
+
+    /// `transferUserInfo`, replacing any older check-in still waiting: only the newest is worth
+    /// delivering (UC-13 reads the newest).
+    private func transfer(checkIn payload: [String: Any], session: any LinkSession) {
+        session.cancelWaiting { $0["kind"] as? String == WatchMessage.checkIn }
+        session.transfer(payload)
+        log.info("check-in queued for transfer")
+    }
+
     private func sendFailed(_ event: EventMessage, id: String, reason: String) {
         log.error("event \(id, privacy: .public) send failed: \(reason, privacy: .public)")
-        guard let session, session.activationState == .activated,
+        guard let session, session.isActive,
             let payload = Self.payload(WatchMessage.event, event)
         else { return }
         transfer(event, payload: payload, session: session)
@@ -82,13 +153,13 @@ final class PhoneLink: NSObject, PhoneSending {
 
     /// `transferUserInfo`, once per event: the minute's resend doesn't pile up copies while the
     /// phone is away.
-    private func transfer(_ event: EventMessage, payload: [String: Any], session: WCSession) {
-        let already = session.outstandingUserInfoTransfers.contains { transfer in
-            transfer.userInfo["kind"] as? String == WatchMessage.event
-                && (try? WatchMessage.decode(EventMessage.self, from: transfer.userInfo))?.id == event.id
+    private func transfer(_ event: EventMessage, payload: [String: Any], session: any LinkSession) {
+        let already = session.waitingTransfers.contains { userInfo in
+            userInfo["kind"] as? String == WatchMessage.event
+                && (try? WatchMessage.decode(EventMessage.self, from: userInfo))?.id == event.id
         }
         if already { return }
-        session.transferUserInfo(payload)
+        session.transfer(payload)
         log.info("event \(event.id, privacy: .public) queued for transfer")
     }
 

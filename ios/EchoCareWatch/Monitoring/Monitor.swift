@@ -13,15 +13,17 @@ enum Timings {
     static let inactivityMs: Int64 = 60_000
     // UC-09 §2 step 3
     static let promptTimeoutMs: Int64 = 15_000
-    // Under the 90 s and 45 min silence limits (UC-13)
-    static let checkInMinutes = 1
     #else
     static let demo = false
     static let pulseHoldMs: Int64 = 60_000
     static let inactivityMs: Int64 = 4 * 60 * 60_000
     static let promptTimeoutMs: Int64 = 120_000
-    static let checkInMinutes = 15
     #endif
+    // Under the 90 s and 45 min silence limits (UC-13); the phone reads the same value
+    static let checkInMinutes = CheckInInterval.minutes(demo: demo)
+    // „Sunteți bine?” buzzes again this often while it shows; a fall's sound follows the first buzz
+    static let promptBuzzMs: Int64 = 3_000
+    static let fallSoundDelayMs: Int64 = 1_000
     // 50 readings a second, the rate fall detection needs (P19)
     static let accelerometerHz: Double = 50
     // How long after the last step the wearer is still considered to be moving (UC-09 "not moving")
@@ -51,6 +53,9 @@ protocol PhoneSending: AnyObject {
     func send(checkIn: CheckInMessage)
 }
 
+/// The watch's haptics: `WKInterfaceDevice.play` on the watch, a recorder in tests.
+typealias Haptics = @MainActor (WKHapticType) -> Void
+
 /// „Sunteți bine?", raised by a detector or the Debug trigger. `deadlineMs` is when silence sends it.
 struct Prompt: Equatable {
     var id: String
@@ -79,6 +84,7 @@ final class Monitor {
     @ObservationIgnored private let queue: EventQueue
     @ObservationIgnored private let clock: () -> Int64
     @ObservationIgnored private let ticking: Bool
+    @ObservationIgnored private let haptics: Haptics
     @ObservationIgnored private let log = Logger(subsystem: "ro.echocare.watch", category: "monitor")
 
     // Fresh each session, as Wear OS gets a fresh MonitoringService
@@ -93,6 +99,9 @@ final class Monitor {
     @ObservationIgnored private var lastStepAtMs: Int64 = -1
     @ObservationIgnored private var stepCount = -1
     @ObservationIgnored private var tickTask: Task<Void, Never>?
+    // While a prompt shows: when it last buzzed, and when a fall's sound is due
+    @ObservationIgnored private var lastBuzzMs: Int64 = 0
+    @ObservationIgnored private var fallSoundAtMs: Int64?
 
     /// `ticking: false` leaves `tick(nowMs:)` to the caller (tests); otherwise a loop calls it every
     /// second while the session runs or a prompt shows.
@@ -101,13 +110,15 @@ final class Monitor {
         link: any PhoneSending,
         queue: EventQueue,
         clock: @escaping () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1_000) },
-        ticking: Bool = true
+        ticking: Bool = true,
+        haptics: @escaping Haptics = { WKInterfaceDevice.current().play($0) }
     ) {
         self.sensors = sensors
         self.link = link
         self.queue = queue
         self.clock = clock
         self.ticking = ticking
+        self.haptics = haptics
         // batteryLevel reads -1 until this is on
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
     }
@@ -165,6 +176,7 @@ final class Monitor {
             log.info("prompt \(prompt.id, privacy: .public) timed out")
             resolve(send: true)
         }
+        if prompt != nil { buzz(nowMs: nowMs) }
         guard running else { return }
         if inactivity.isInactive(nowMs: nowMs) {
             raiseAnomaly("inactivity", snapshot(nowMs: nowMs))
@@ -256,16 +268,30 @@ final class Monitor {
         prompt = Prompt(
             id: UUID().uuidString, type: type, measuredAt: iso(nowMs), snapshot: snapshot,
             deadlineMs: nowMs + Timings.promptTimeoutMs)
-        let device = WKInterfaceDevice.current()
-        device.play(.notification)
-        // A fall also sounds (design, Watch app)
-        if type == "fall" { device.play(.failure) }
+        haptics(.notification)
+        lastBuzzMs = nowMs
+        // A fall also sounds (design, Watch app), a moment after the first buzz so the two don't merge
+        fallSoundAtMs = type == "fall" ? nowMs + Timings.fallSoundDelayMs : nil
         startTicking()
+    }
+
+    /// Wear OS buzzes once; a watch on a lowered wrist is easy to miss, so the prompt buzzes again
+    /// every few seconds until it is answered or times out (design, Watch app).
+    private func buzz(nowMs: Int64) {
+        if let at = fallSoundAtMs, nowMs >= at {
+            fallSoundAtMs = nil
+            haptics(.failure)
+        }
+        if nowMs - lastBuzzMs >= Timings.promptBuzzMs {
+            lastBuzzMs = nowMs
+            haptics(.notification)
+        }
     }
 
     private func resolve(send: Bool) {
         guard let prompt else { return }
         self.prompt = nil
+        fallSoundAtMs = nil
         guard send else { return }
         enqueueAndSend(
             EventMessage(id: prompt.id, type: prompt.type, measuredAt: prompt.measuredAt, snapshot: prompt.snapshot))

@@ -1,6 +1,7 @@
 import Foundation
 import Shared
 import Testing
+import WatchKit
 
 @testable import EchoCareWatch
 
@@ -45,6 +46,12 @@ private final class FakeClock {
     var now: Int64 = 1_793_304_000_000
 }
 
+/// What the watch played and when, by the fake clock.
+@MainActor
+private final class FakeHaptics {
+    var played: [(type: WKHapticType, at: Int64)] = []
+}
+
 private struct Denied: Error {}
 
 // The FallDetector traces of Task 2's FallDetectorTests: 50 readings a second, shaped after S13.
@@ -70,6 +77,7 @@ struct MonitorTests {
     private let sensors = FakeSensors()
     private let link = FakeLink()
     private let clock = FakeClock()
+    private let haptics = FakeHaptics()
     private let queue = EventQueue(
         directory: FileManager.default.temporaryDirectory
             .appending(path: "echocare-monitor-\(UUID().uuidString)", directoryHint: .isDirectory))
@@ -78,7 +86,10 @@ struct MonitorTests {
 
     init() async {
         let clock = clock
-        monitor = Monitor(sensors: sensors, link: link, queue: queue, clock: { clock.now }, ticking: false)
+        let haptics = haptics
+        monitor = Monitor(
+            sensors: sensors, link: link, queue: queue, clock: { clock.now }, ticking: false,
+            haptics: { haptics.played.append((type: $0, at: clock.now)) })
         startedAt = clock.now
         await monitor.start()
     }
@@ -210,6 +221,48 @@ struct MonitorTests {
         feed(fall(), from: startedAt)
         #expect(monitor.prompt?.type == "fall")
         #expect(link.events.isEmpty)
+    }
+
+    @Test func thePromptBuzzesEveryThreeSecondsUntilAnswered() {
+        let at = raiseHighPulse()
+        #expect(haptics.played.map(\.type) == [.notification])
+        #expect(haptics.played.first?.at == at)
+        for s in Int64(1)...7 { tick(at: at + s * 1_000) }
+        #expect(haptics.played.map(\.type) == [.notification, .notification, .notification])
+        #expect(haptics.played.map(\.at) == [at, at + 3_000, at + 6_000])
+        monitor.answer(ok: true)
+        for s in Int64(8)...14 { tick(at: at + s * 1_000) }
+        #expect(haptics.played.count == 3)
+    }
+
+    @Test func thePromptStopsBuzzingWhenItTimesOut() {
+        let at = raiseHighPulse()
+        for s in Int64(1)...20 { tick(at: at + s * 1_000) }
+        // 0, 3, 6, 9, 12 s; the 15 s tick sends the event instead
+        #expect(haptics.played.map(\.at) == [0, 3, 6, 9, 12].map { at + $0 * 1_000 })
+        #expect(monitor.prompt == nil)
+    }
+
+    @Test func aFallSoundsASecondAfterTheFirstBuzz() throws {
+        feed(fall(), from: startedAt)
+        #expect(monitor.prompt?.type == "fall")
+        let first = try #require(haptics.played.first)
+        #expect(haptics.played.map(\.type) == [.notification])
+        tick(at: first.at + 999)
+        #expect(haptics.played.count == 1)
+        tick(at: first.at + 1_000)
+        #expect(haptics.played.map(\.type) == [.notification, .failure])
+        tick(at: first.at + 2_000)
+        tick(at: first.at + 3_000)
+        #expect(haptics.played.map(\.type) == [.notification, .failure, .notification])
+    }
+
+    @Test func aFallAnsweredAtOncePlaysNoSound() throws {
+        feed(fall(), from: startedAt)
+        let first = try #require(haptics.played.first)
+        monitor.answer(ok: true)
+        tick(at: first.at + 1_000)
+        #expect(haptics.played.map(\.type) == [.notification])
     }
 
     @Test func inactivityRaisesPromptAfterTheDemoMinute() {
