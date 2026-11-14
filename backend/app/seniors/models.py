@@ -13,7 +13,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, enum_type, timestamp_now, uuid_pk
@@ -71,6 +71,9 @@ class Senior(Base):
     landmark: Mapped[str | None] = mapped_column(String(200))
     # Collected, unused in the MVP (05 §4).
     call_window: Mapped[str | None] = mapped_column(String(60))
+    # Smartphone (the app on her own phone), watch, home node, as the medic declared them;
+    # null for a senior registered before the declaration existed (design 2026-11-14).
+    equipment: Mapped[list[str] | None] = mapped_column(ARRAY(String(20)))
     enrollment_state: Mapped[EnrollmentState] = mapped_column(
         enum_type(EnrollmentState),
         default=EnrollmentState.draft,
