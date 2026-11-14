@@ -26,9 +26,21 @@ final class EnrollModel {
     /// What „Continuă” last saved. Back returns to it: what was typed since is dropped.
     private(set) var saved: [Field: String] = [:]
 
+    /// „Echipamente”: the ticked boxes. Empty on a new form; nil for a saved senior whose
+    /// equipment is not stated, which the form leaves alone until a box is ticked (design
+    /// 2026-11-14).
+    private(set) var equipment: Set<String>? = []
+
+    private var savedEquipment: Set<String>? = []
+
     private(set) var state = "draft"
 
     private(set) var caregivers: [Caregiver] = []
+
+    func tick(_ item: String, _ on: Bool) {
+        let now = equipment ?? []
+        equipment = on ? now.union([item]) : now.subtracting([item])
+    }
 
     /// Step 3's row for a new caregiver.
     private(set) var adding: [Field: String] = [:]
@@ -92,7 +104,7 @@ final class EnrollModel {
     /// „Continuă”: steps 1 and 2 save first; step 3 sends nothing (seniors §9.2).
     func next() async {
         let api = api
-        switch saveFor(step, id: id, values) {
+        switch saveFor(step, id: id, values, equipment: equipment) {
         case .create(let body):
             await command(.save, { try await api.createSenior(body) }, done: savedAndNext)
         case .update(let id, let body):
@@ -110,6 +122,7 @@ final class EnrollModel {
         if busy { return true }
         if step == .senior { return false }
         values = saved
+        equipment = savedEquipment
         adding = [:]
         go(step.previous)
         return true
@@ -205,6 +218,8 @@ final class EnrollModel {
         caregivers = page.caregivers
         saved = valuesOf(page)
         values = saved
+        savedEquipment = equipmentIn(page)
+        equipment = savedEquipment
     }
 
     /// One request at a time (SE14). A refusal becomes what seniors §9.3 shows for it.

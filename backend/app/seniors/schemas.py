@@ -65,6 +65,11 @@ State = Annotated[str, BeforeValidator(lambda v: getattr(v, "value", v))]
 # A code reads back as its name ("green"): Severity is an IntEnum and would serialize as 0.
 Code = Annotated[str, BeforeValidator(lambda v: getattr(v, "name", v))]
 
+# What a senior uses, as the medic declares it (UC-01, design 2026-11-14), stored and
+# returned in this order.
+Equipment = Literal["smartphone", "watch", "home_node"]
+EQUIPMENT_ORDER: tuple[str, ...] = ("smartphone", "watch", "home_node")
+
 # The registration form's optional fields (UC-01 steps 1 and 2); empty means none.
 OPTIONAL = (
     "call_window",
@@ -96,6 +101,9 @@ class SeniorForm(BaseModel):
     intercom_code: text(40) | None = None
     key_holder: text(200) | None = None
     landmark: text(200) | None = None
+    # Null, or left out, keeps what is stored on PUT and stores null on POST (design
+    # 2026-11-14): old APKs send the form without it, Android writes it as null.
+    equipment: list[Equipment] | None = None
 
     @field_validator("phone")
     @classmethod
@@ -108,9 +116,26 @@ class SeniorForm(BaseModel):
         # A form's empty field stores nothing, not "".
         return value or None
 
+    @field_validator("equipment")
+    @classmethod
+    def ordered(cls, value: list[str] | None) -> list[str] | None:
+        return None if value is None else [e for e in EQUIPMENT_ORDER if e in value]
+
+    @model_validator(mode="after")
+    def equipment_rules(self) -> Self:
+        # The watch and the home node talk only to her phone's app (01 §12), which signs
+        # in by SMS: a landline has no senior grant (UC-01 step 3)
+        kit = self.equipment or []
+        if ("watch" in kit or "home_node" in kit) and "smartphone" not in kit:
+            raise ValueError("a watch or a home node needs the app on her phone")
+        if "smartphone" in kit and not is_mobile(self.phone):
+            raise ValueError("the app needs the senior's own number to be a mobile")
+        return self
+
     def columns(self) -> dict[str, Any]:
+        unstated = {"equipment"} if self.equipment is None else set()
         return {
-            **self.model_dump(exclude={"phone"}),
+            **self.model_dump(exclude={"phone", *unstated}),
             "phone_e164": self.phone,
             "phone_is_landline": not is_mobile(self.phone),
         }
@@ -249,6 +274,8 @@ class SeniorView(SeniorDetail):
     shape for every role (seniors SE7)."""
 
     call_window: str | None
+    # Declared at registration: null not stated, [] none (design 2026-11-14).
+    equipment: list[str] | None = None
     enrollment_state: State
     code: Code | None = None
     reason: str | None = None
@@ -271,6 +298,9 @@ class SeniorView(SeniorDetail):
     # The watch's latest pulse, alongside `watch_state` (UC-03). Null before the first
     # check-in that carried one, or for callers who can't see the watch.
     last_pulse: int | None = Field(None, ge=0, le=300)
+    # Whether her own phone's app has ever signed in, for the device warning (design
+    # 2026-11-14). Set by GET /seniors/{id} only, for who sees the watch; else null.
+    app_signed_in: bool | None = None
     # The home node's latest reading, for every role; null without a node (P20, 04 §1).
     # Set by GET /seniors/{id} only.
     room: RoomView | None = None

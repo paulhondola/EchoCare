@@ -81,6 +81,10 @@ data class SeniorPage(
     // herself on her own page (UC-03, UC-12). Null before the first check-in or for DAS.
     @SerialName("watch_state") val watchState: String? = null,
     @SerialName("last_pulse") val lastPulse: Int? = null,
+    // What the medic declared, null when not stated, and whether her own phone's app has ever
+    // signed in; both null from an older API (UC-13, design 2026-11-14).
+    val equipment: List<String>? = null,
+    @SerialName("app_signed_in") val appSignedIn: Boolean? = null,
     // The home node's latest reading, for every role; null without a node or from an older API
     // (04 §1, P20)
     val room: RoomInfo? = null,
@@ -159,7 +163,10 @@ data class SeniorForm(
     val apartment: String?,
     @SerialName("intercom_code") val intercomCode: String?,
     @SerialName("key_holder") val keyHolder: String?,
-    val landmark: String?
+    val landmark: String?,
+    // smartphone, watch, home_node as the medic ticked them; null keeps what the server holds
+    // (design 2026-11-14)
+    val equipment: List<String>? = null
 )
 
 // POST /seniors/{id}/caregivers's body (seniors §3.5). The phone must be a mobile: caregivers

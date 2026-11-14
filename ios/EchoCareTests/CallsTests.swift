@@ -105,4 +105,66 @@ struct CallsTests {
         // An older API that does not send the field
         #expect(!showsCallBadge(senior(code: "yellow", live: nil)))
     }
+
+    // UC-13, design 2026-11-14: which devices a senior's page shows and what it warns about.
+    private func devices(
+        _ equipment: [String]? = ["smartphone", "watch"], state: String = "active",
+        watch: String? = nil, signedIn: Bool? = false
+    ) -> SeniorPage {
+        var page = SeniorPage(
+            id: "s1", fullName: "Maria Popescu", formOfAddress: "doamna Maria",
+            phone: "+40700000005", landline: false, state: state,
+            medic: Medic(displayName: "Dr. Ion Pop"), watchState: watch)
+        page.equipment = equipment
+        page.appSignedIn = signedIn
+        return page
+    }
+
+    @Test func `the watch hides only when the equipment says there is none`() {
+        #expect(showsWatch(devices(nil)))
+        #expect(showsWatch(devices()))
+        #expect(!showsWatch(devices([])))
+        #expect(!showsWatch(devices(["smartphone"])))
+    }
+
+    @Test func `a declared watch with no data and an unopened app both warn`() {
+        #expect(
+            deviceWarnings(devices(), forSenior: false) == [
+                "device_watch_never", "device_app_never",
+            ])
+    }
+
+    @Test func `the warnings stop once the watch reports and the app is opened`() {
+        #expect(deviceWarnings(devices(watch: "ok", signedIn: true), forSenior: false) == [])
+    }
+
+    @Test func `a declared home node warns until its first room reading`() {
+        var node = devices(["smartphone", "home_node"], signedIn: true)
+        #expect(deviceWarnings(node, forSenior: false) == ["device_node_never"])
+        node.hasRoom = true
+        #expect(deviceWarnings(node, forSenior: false) == [])
+    }
+
+    @Test func `a room reading in the page is noticed`() throws {
+        func page(_ room: String) throws -> SeniorPage {
+            let json = """
+                {"id":"s1","full_name":"M","form_of_address":"d","phone_e164":"+40700000005",
+                 "phone_is_landline":false,"enrollment_state":"active",
+                 "medic":{"display_name":"D"}\(room)}
+                """
+            return try ApiClient.makeDecoder().decode(SeniorPage.self, from: Data(json.utf8))
+        }
+        #expect(try page(#","room":{"state":"ok","temperature":21.5,"room_state":"ok"}"#).hasRoom)
+        #expect(try !page(#","room":null"#).hasRoom)
+        #expect(try !page("").hasRoom)
+    }
+
+    @Test
+    func `no warnings when not stated, before acceptance, from an older API or for the senior`() {
+        #expect(deviceWarnings(devices(nil), forSenior: false) == [])
+        #expect(deviceWarnings(devices(state: "submitted"), forSenior: false) == [])
+        #expect(deviceWarnings(devices(state: "accepted"), forSenior: false).count == 2)
+        #expect(deviceWarnings(devices(watch: "ok", signedIn: nil), forSenior: false) == [])
+        #expect(deviceWarnings(devices(), forSenior: true) == [])
+    }
 }

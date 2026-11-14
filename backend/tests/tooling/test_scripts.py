@@ -56,6 +56,13 @@ async def test_seed_fills_the_dashboard_once(db, client):
     # Every senior past draft, as DAS sees them (auth-layer §3.6).
     r = await client.get("/api/seniors", headers=DAS)
     assert len(r.json()) == len(SENIORS) - 1
+    # A reporting watch means her app is open (G5); aurelia's and silvia's never was
+    # (design 2026-11-14)
+    for key, opened in (("maria", True), ("aurelia", False), ("silvia", False)):
+        page = await client.get(
+            f"/api/seniors/{seed_script.seed_id('senior', key)}", headers=DAS
+        )
+        assert page.json()["app_signed_in"] is opened, key
 
 
 async def test_seed_reset_replaces_only_its_own_rows(db, add_senior):

@@ -95,7 +95,7 @@ async def test_the_medic_registers_a_draft(client, staff):
     assert maria["medic"] == {"display_name": "Dr. Pop", "practice": None}
     r = await get(client, f"/api/seniors/{maria['id']}", MEDIC)
     # Only the read says whether a call is live (04 §1)
-    assert r.json() == {**maria, "call_in_progress": False}
+    assert r.json() == {**maria, "call_in_progress": False, "app_signed_in": False}
 
 
 async def test_a_mobile_senior_signs_in_as_herself(client, staff):
@@ -702,6 +702,96 @@ async def test_a_senior_with_no_result_has_no_code(client, add_user, add_active_
     await add_active_senior("+40700000101")
     row = (await client.get("/api/seniors", headers=signed_in(DAS))).json()[0]
     assert (row["code"], row["reason"], row["since"]) == (None, None, None)
+
+
+# Equipment, declared at registration (UC-01, design 2026-11-14)
+
+LANDLINE = "0256 123 456"
+
+
+async def test_equipment_round_trips_ordered_and_deduplicated(client, staff):
+    s = await register(client, {**MARIA, "equipment": ["watch", "smartphone", "watch"]})
+    assert s["equipment"] == ["smartphone", "watch"]
+
+
+async def test_equipment_not_sent_is_not_stated(client, staff):
+    assert (await register(client))["equipment"] is None
+
+
+async def test_empty_equipment_is_none_declared(client, staff):
+    assert (await register(client, {**MARIA, "equipment": []}))["equipment"] == []
+
+
+@pytest.mark.parametrize("equipment", [["watch"], ["home_node"], ["tablet"]])
+async def test_equipment_refused(client, staff, equipment):
+    r = await client.post(
+        "/api/seniors", json={**MARIA, "equipment": equipment}, headers=signed_in(MEDIC)
+    )
+    assert r.status_code == 422
+
+
+async def test_smartphone_needs_a_mobile(client, staff):
+    body = {**MARIA, "phone": LANDLINE, "equipment": ["smartphone"]}
+    r = await client.post("/api/seniors", json=body, headers=signed_in(MEDIC))
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("sent", [{}, {"equipment": None}])
+async def test_put_without_equipment_keeps_it(client, staff, sent):
+    # Old APKs leave it out; Android writes an absent optional as null (ADR-001 §2.3)
+    s = await register(client, {**MARIA, "equipment": ["smartphone", "watch"]})
+    r = await client.put(
+        f"/api/seniors/{s['id']}", json={**MARIA, **sent}, headers=signed_in(MEDIC)
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["equipment"] == ["smartphone", "watch"]
+
+
+async def test_put_replaces_equipment(client, staff):
+    s = await register(client, {**MARIA, "equipment": ["smartphone", "watch"]})
+    r = await client.put(
+        f"/api/seniors/{s['id']}",
+        json={**MARIA, "equipment": []},
+        headers=signed_in(MEDIC),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["equipment"] == []
+
+
+async def test_landline_edit_without_equipment_keeps_the_list(client, staff):
+    s = await register(client, {**MARIA, "equipment": ["smartphone"]})
+    r = await client.put(
+        f"/api/seniors/{s['id']}",
+        json={**MARIA, "phone": LANDLINE},
+        headers=signed_in(MEDIC),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["equipment"] == ["smartphone"]
+
+
+async def page_of(client, senior_id, token=MEDIC) -> dict:
+    r = await client.get(f"/api/seniors/{senior_id}", headers=signed_in(token))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_app_signed_in_after_the_senior_signs_in(client, staff):
+    s = await register(client)
+    assert (await page_of(client, s["id"]))["app_signed_in"] is False
+    await client.get("/api/profile", headers=signed_in(SENIOR))  # sets firebase_uid
+    assert (await page_of(client, s["id"]))["app_signed_in"] is True
+
+
+async def test_app_signed_in_is_false_for_a_landline(client, staff):
+    s = await register(client, {**MARIA, "phone": LANDLINE})
+    assert (await page_of(client, s["id"]))["app_signed_in"] is False
+
+
+async def test_the_senior_sees_her_own_app_signed_in(client, staff):
+    s = await register(client)
+    await client.get("/api/profile", headers=signed_in(SENIOR))
+    # The senior on her own page sees it, as she sees her watch (UC-03)
+    assert (await page_of(client, s["id"], SENIOR))["app_signed_in"] is True
 
 
 async def test_the_list_carries_an_approximate_location(client, staff):

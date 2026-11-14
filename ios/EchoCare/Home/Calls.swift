@@ -61,5 +61,23 @@ func watchChip(_ state: String?) -> (label: String, tone: Tone)? {
     }
 }
 
+/// Whether the page shows the watch at all: unless the medic declared none (design 2026-11-14).
+func showsWatch(_ senior: SeniorPage) -> Bool { senior.equipment?.contains("watch") ?? true }
+
+/// The device warnings for a declared device that has never reported (UC-13, design 2026-11-14),
+/// as string keys. None while the equipment is not stated, before DAS accepts, or for the senior
+/// herself; an older API's nil `appSignedIn` warns about nothing.
+func deviceWarnings(_ senior: SeniorPage, forSenior: Bool) -> [String] {
+    guard let kit = senior.equipment, !forSenior, ["accepted", "active"].contains(senior.state)
+    else { return [] }
+    var warnings: [String] = []
+    if kit.contains("watch") && senior.watchState == nil { warnings.append("device_watch_never") }
+    if kit.contains("home_node") && !senior.hasRoom { warnings.append("device_node_never") }
+    if kit.contains("smartphone") && senior.appSignedIn == false {
+        warnings.append("device_app_never")
+    }
+    return warnings
+}
+
 /// The "call in progress" badge (UC-12); an older API that does not say shows none.
 func showsCallBadge(_ senior: SeniorPage) -> Bool { senior.callInProgress == true }

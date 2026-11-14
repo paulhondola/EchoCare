@@ -22,6 +22,7 @@ class FormTest {
         Field.FormOfAddress to "doamna Maria",
         Field.Phone to "0256 123 456"
     )
+    private val mobile = step1 + (Field.Phone to "0722 111 222")
     private val all = step1 + mapOf(
         Field.CallWindow to "9-12",
         Field.Street to "Str. Daliei",
@@ -166,6 +167,58 @@ class FormTest {
         val json = Json { ignoreUnknownKeys = true }.encodeToJsonElement(bodyOf(step1)).jsonObject
         assertEquals(REGISTRATION.map { it.key }.toSet(), json.keys)
         assertEquals(JsonNull, json["street"])
+    }
+
+    @Test
+    fun equipmentNotStatedIsLeftOutSoTheServerKeepsIt() {
+        // A default the encoder does not write: PUT then keeps the stored list (design 2026-11-14)
+        val json = Json { ignoreUnknownKeys = true }
+        assertFalse("equipment" in json.encodeToJsonElement(bodyOf(step1)).jsonObject)
+        val ticked = json.encodeToJsonElement(bodyOf(mobile, setOf("watch"))).jsonObject
+        assertEquals("[\"smartphone\",\"watch\"]", ticked["equipment"].toString())
+    }
+
+    @Test
+    fun aWatchOrAHomeNodeBringsThePhoneAppInOrder() {
+        assertEquals(listOf("smartphone", "watch"), equipmentOf(setOf("watch")))
+        assertEquals(
+            listOf("smartphone", "watch", "home_node"),
+            equipmentOf(setOf("home_node", "watch"))
+        )
+        assertEquals(listOf("smartphone"), equipmentOf(setOf("smartphone")))
+        assertEquals(emptyList<String>(), equipmentOf(emptySet()))
+    }
+
+    @Test
+    fun theEquipmentTravelsInTheBodyOnlyOnceStated() {
+        assertEquals(null, bodyOf(mobile).equipment)
+        assertEquals(emptyList<String>(), bodyOf(mobile, emptySet()).equipment)
+        assertEquals(listOf("smartphone", "watch"), bodyOf(mobile, setOf("watch")).equipment)
+        assertEquals(
+            Save.Create(bodyOf(mobile, setOf("watch"))),
+            saveFor(Step.Senior, id = null, mobile, setOf("watch"))
+        )
+    }
+
+    @Test
+    fun aLandlineSendsNoEquipmentTheServerWouldRefuse() {
+        // The boxes are off for a landline; a number changed after ticking sends none
+        assertEquals(emptyList<String>(), bodyOf(step1, setOf("watch")).equipment)
+        assertEquals(null, bodyOf(step1, null).equipment)
+    }
+
+    @Test
+    fun onlyAMobileCanHaveThePhoneApp() {
+        assertTrue(isMobile("0722 111 222"))
+        assertFalse(isMobile("0256 123 456"))
+        assertFalse(isMobile("021 234 5678"))
+    }
+
+    @Test
+    fun aSavedSeniorsEquipmentFillsTheForm() {
+        assertEquals(null, equipmentIn(page))
+        val declared = page.copy(equipment = listOf("smartphone", "watch"))
+        assertEquals(setOf("smartphone", "watch"), equipmentIn(declared))
     }
 
     private val page = SeniorPage(

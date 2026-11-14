@@ -384,7 +384,11 @@ fun SeniorDetails(
                 StateLabel(senior.state)
                 CodeLabel(senior.code, senior.reason)
                 if (showsCallBadge(senior)) Chip(stringResource(R.string.call_live), Tone.Galben)
-                watchChip(senior.watchState)?.let { (label, tone) ->
+                // Her own page and the form's step 4 are the two without a call to her: no warnings
+                deviceWarnings(senior, forSenior = !callSenior).forEach {
+                    Chip(stringResource(it), Tone.Galben)
+                }
+                watchChip(senior.watchState)?.takeIf { showsWatch(senior) }?.let { (label, tone) ->
                     val text = if (senior.watchState == "ok" && senior.lastPulse != null) {
                         stringResource(R.string.watch_ok_pulse, senior.lastPulse)
                     } else {

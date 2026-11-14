@@ -107,7 +107,11 @@ struct SeniorDetails<Below: View>: View {
                 StateLabel(state: senior.state)
                 CodeLabel(code: senior.code, reason: senior.reason)
                 if showsCallBadge(senior) { Chip("call_live", tone: .galben) }
-                if let chip = watchChip(senior.watchState) {
+                // Her own page and the form's step 4 are the two without a call to her: no warnings
+                ForEach(deviceWarnings(senior, forSenior: !callSenior), id: \.self) {
+                    Chip(LocalizedStringKey($0), tone: .galben)
+                }
+                if showsWatch(senior), let chip = watchChip(senior.watchState) {
                     if senior.watchState == "ok", let pulse = senior.lastPulse {
                         Chip(verbatim: localized("watch_ok_pulse", pulse), tone: chip.tone)
                     } else {

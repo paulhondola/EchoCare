@@ -31,6 +31,7 @@ from app.seniors.schemas import (
 )
 from app.seniors.service import (
     accept,
+    app_signed_in,
     call_again,
     delete_draft,
     edit,
@@ -88,6 +89,7 @@ async def get_senior(
     # `seniors` can't import `voice` (ADR-005); the router composes them
     view.call_in_progress = await call_in_progress(session, senior_id)
     view.watch_state, view.last_pulse = await watch_state(session, caller, senior)
+    view.app_signed_in = await app_signed_in(session, caller, senior)
     view.room = await room_for(session, senior_id)
     return view
 

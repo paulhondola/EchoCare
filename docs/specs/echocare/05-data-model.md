@@ -68,6 +68,7 @@ erDiagram
         string key_holder
         string landmark
         string call_window "collected, unused in MVP"
+        string_array equipment "smartphone, watch, home_node; null = not stated"
         string enrollment_state "draft, submitted, accepted, active, refused, wrong_number, unreachable, withdrawn"
         datetime submitted_at "the medic's submit; empty for a draft"
         datetime accepted_at "DAS's accept; empty before it"
@@ -322,6 +323,8 @@ Several rules from the other files are enforced by the database itself, so they 
 | Check-ins | Latest, plus 24 hours of readings (ADR-006) | Data minimisation |
 | Room readings | Latest only | Data minimisation |
 | Grants | Removed when revoked | A removed caregiver loses access at once |
+
+**Declared equipment** (design 2026-11-14). `seniors.equipment` holds what the medic ticked at registration (UC-01): `smartphone` (the EchoCare app on the senior's own phone, not merely a mobile), `watch` and `home_node`, in that order. `[]` means the senior only takes calls. `null` means not stated, for seniors registered before the field existed, and every screen treats it as before. An edit that leaves it out or sends null keeps it, so a senior never goes back to `null`.
 
 **Erasure** (GDPR Art. 17, design 2026-11-14). `POST /seniors/{id}/erase` ([04-interfaces.md](04-interfaces.md) §2) deletes the senior and every row about them in one transaction, each table through its owner (ADR-005), children first: status reports and the code, events and incidents, consents, summaries and watch data, calls with their turns and answers, the medical record, the senior, and the users of the senior and caregivers left with no grant, unless another row still names them (a former medic or DAS employee). The medical record's PDF is deleted from the file store after the commit. In our database and file store, only a log line with the senior's id and who erased it remains. Outside our database and file store, Twilio's call logs (numbers and times), database backups until they rotate, and the Firebase sign-in account (auth-layer AL11) are not touched; a pilot needs a retention setting or a deletion request for each. It is refused while a call is live or an incident unresolved.
 
