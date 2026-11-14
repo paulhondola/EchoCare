@@ -52,6 +52,7 @@ final class SeniorModel {
     private let api: ApiClient
     private let location: LocationHelper
     private let startWatch: @MainActor () async throws -> Void
+    private let startHealth: @MainActor () -> Void
     private let watchSeen: @MainActor () -> WatchSeen
     private let now: @MainActor () -> Date
     private let checkInInterval: TimeInterval
@@ -65,6 +66,7 @@ final class SeniorModel {
         startWatch: @escaping @MainActor () async throws -> Void = {
             try await WatchLink.shared.startMonitoring()
         },
+        startHealth: @escaping @MainActor () -> Void = { HealthSync.shared.start() },
         watchSeen: @escaping @MainActor () -> WatchSeen = { WatchLink.shared.seen },
         now: @escaping @MainActor () -> Date = { Date() },
         checkInInterval: TimeInterval = WatchLink.checkInInterval
@@ -72,6 +74,7 @@ final class SeniorModel {
         self.api = api
         self.location = location
         self.startWatch = startWatch
+        self.startHealth = startHealth
         self.watchSeen = watchSeen
         self.now = now
         self.checkInInterval = checkInInterval
@@ -98,6 +101,7 @@ final class SeniorModel {
     /// left running, it could land after this one.
     func load() async {
         location.prepare()
+        startHealth()
         refreshMonitoring()
         reading?.cancel()
         let read = Task { await readAll() }
@@ -155,6 +159,8 @@ final class SeniorModel {
             try await startWatch()
             startedAt = now()
             monitoring = .started
+            // Idempotent; the first start of a fresh install ran before the grant
+            startHealth()
         } catch {
             monitoring = .failed
         }

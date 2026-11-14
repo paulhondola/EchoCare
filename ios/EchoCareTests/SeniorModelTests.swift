@@ -11,8 +11,11 @@ struct SeniorModelTests {
         func token(forceRefresh: Bool) async throws -> String { "t" }
     }
 
-    private func model(start: @escaping @MainActor () async throws -> Void) -> SeniorModel {
-        SeniorModel(api: ApiClient(tokens: NoToken()), startWatch: start)
+    private func model(
+        start: @escaping @MainActor () async throws -> Void,
+        startHealth: @escaping @MainActor () -> Void = {}
+    ) -> SeniorModel {
+        SeniorModel(api: ApiClient(tokens: NoToken()), startWatch: start, startHealth: startHealth)
     }
 
     @Test func aStartThatThrowsIsFailedNotStarted() async {
@@ -33,6 +36,30 @@ struct SeniorModelTests {
         await model.startMonitoring()
         await model.startMonitoring()
         #expect(starts == 2)
+    }
+
+    // MARK: Apple Health sync
+
+    @Test func loadStartsHealthSync() async {
+        var starts = 0
+        let model = model(start: {}, startHealth: { starts += 1 })
+        await model.load()
+        #expect(starts >= 1)
+    }
+
+    @Test func startedMonitoringStartsHealthSync() async {
+        var starts = 0
+        let model = model(start: {}, startHealth: { starts += 1 })
+        await model.startMonitoring()
+        #expect(starts == 1)
+    }
+
+    @Test func failedMonitoringDoesNotStartHealthSync() async {
+        var starts = 0
+        let model = model(
+            start: { throw WatchLinkError.notAvailable }, startHealth: { starts += 1 })
+        await model.startMonitoring()
+        #expect(starts == 0)
     }
 
     // MARK: What the phone hears from the watch

@@ -438,7 +438,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/EchoCare-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = EchoCare;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "EchoCare citește pulsul și pașii măsurați de ceas, ca să vă sune când ceva pare în neregulă.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "EchoCare citește pulsul, pașii, oxigenul din sânge și EKG-urile măsurate de ceas, ca să vă sune când ceva pare în neregulă și ca dispeceratul să le vadă.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "EchoCare pornește pe ceas o sesiune de antrenament, ca pulsul să fie urmărit fără întrerupere.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "EchoCare se conectează la serverul de test din rețeaua locală.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "EchoCare trimite locația telefonului odată cu o alertă de la ceas, ca echipa de intervenție să vă găsească.";
@@ -474,7 +474,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/EchoCare-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = EchoCare;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "EchoCare citește pulsul și pașii măsurați de ceas, ca să vă sune când ceva pare în neregulă.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "EchoCare citește pulsul, pașii, oxigenul din sânge și EKG-urile măsurate de ceas, ca să vă sune când ceva pare în neregulă și ca dispeceratul să le vadă.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "EchoCare pornește pe ceas o sesiune de antrenament, ca pulsul să fie urmărit fără întrerupere.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "EchoCare se conectează la serverul de test din rețeaua locală.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "EchoCare trimite locația telefonului odată cu o alertă de la ceas, ca echipa de intervenție să vă găsească.";
