@@ -40,6 +40,9 @@ from app.voice.service import queue_calls, recent_call
 
 log = logging.getLogger("echocare.incidents")
 
+# The call an event queues, by the event's source (04 §3); the phone's is `manual`.
+TRIGGERS = {"watch": CallTrigger.watch, "home_node": CallTrigger.home_node}
+
 # An event measured longer ago than this starts no call (04 §3, 06 §3).
 STALE = timedelta(minutes=30)
 
@@ -122,10 +125,8 @@ async def intake_event(
             await queue_calls(
                 session,
                 Senior.id == senior_id,
-                # The watch's own trigger, so the call says why it rings (04 §4.2)
-                trigger=(
-                    CallTrigger.watch if source == "watch" else CallTrigger.manual
-                ),
+                # The device's own trigger, so the call says why it rings (04 §4.2)
+                trigger=TRIGGERS.get(source, CallTrigger.manual),
                 due_at=now,
                 starting_severity=Severity.yellow,
             )

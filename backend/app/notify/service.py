@@ -132,7 +132,12 @@ def pushes_for(change: Change) -> list[tuple[Audience, Push]]:
         case ChangeKind.code if change.after == "red":
             alert = code_alert(senior)
             return [(Audience.caregivers, alert), (Audience.medic, alert)]
-        case ChangeKind.code | ChangeKind.call_moved | ChangeKind.watch:
+        case (
+            ChangeKind.code
+            | ChangeKind.call_moved
+            | ChangeKind.watch
+            | ChangeKind.home_node
+        ):
             return everyone
         case ChangeKind.incident_opened | ChangeKind.incident_raised if (
             change.incident_id is not None

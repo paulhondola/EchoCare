@@ -123,6 +123,8 @@ async def test_one_row(client, seniors):
             "accepted_at": None,
             "watch_state": None,
             "medical_record_state": None,
+            "home_node_state": None,
+            "room_temperature": None,
         }
     ]
 

@@ -47,3 +47,7 @@ class HomeNodeState(Base):
     out_of_range_event_sent: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false()
     )
+    # One inactivity event per warning, until motion is seen again (04 §3)
+    inactivity_event_sent: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )

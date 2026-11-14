@@ -92,7 +92,11 @@ async def test_a_request_queues_a_yellow_manual_call(client, db, senior):
 
 @pytest.mark.parametrize(
     ("source", "trigger"),
-    [("watch", CallTrigger.watch), ("phone", CallTrigger.manual)],
+    [
+        ("watch", CallTrigger.watch),
+        ("phone", CallTrigger.manual),
+        ("home_node", CallTrigger.home_node),
+    ],
 )
 async def test_a_watch_event_queues_a_watch_call(client, db, senior, source, trigger):
     """The call says why it rings: the watch's own trigger for its events (04 §3)."""

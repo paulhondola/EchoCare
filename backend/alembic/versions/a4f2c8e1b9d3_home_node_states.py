@@ -38,6 +38,12 @@ def upgrade() -> None:
             server_default=sa.false(),
             nullable=False,
         ),
+        sa.Column(
+            "inactivity_event_sent",
+            sa.Boolean(),
+            server_default=sa.false(),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["senior_id"], ["seniors.id"]),
         sa.PrimaryKeyConstraint("senior_id"),
     )

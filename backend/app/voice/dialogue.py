@@ -52,6 +52,7 @@ def greeting(form_of_address: str) -> str:
 WHY = {
     "watch": "Vă sun pentru că ceasul a semnalat ceva neobișnuit.",
     "manual": "Vă sun pentru că ați cerut să vorbim.",
+    "home_node": "Vă sun pentru că senzorul din casă a semnalat ceva neobișnuit.",
 }
 LEVELS = {"yellow": "galben", "red": "roșu"}
 KINDS = {"cold": "ger", "heat": "caniculă"}

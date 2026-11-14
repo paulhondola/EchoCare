@@ -127,7 +127,7 @@ async def test_a_cold_room_calls_after_the_hold_time_once(client, db, senior):
     [call] = await calls(db)
     assert (str(call.id), call.trigger, call.starting_severity) == (
         second["call_id"],
-        CallTrigger.manual,
+        CallTrigger.home_node,
         Severity.yellow,
     )
 
