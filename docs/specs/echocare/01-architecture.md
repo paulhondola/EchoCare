@@ -318,3 +318,5 @@ The PIR needs 30 to 60 seconds to settle after power-on; its jumper is set to re
 - Lights the LED in the colour the phone writes: the senior's code, blue while a call is in progress. A slow white blink means "not connected to the phone".
 
 The node decides nothing. The thresholds, the hold time and the inactivity limit live in FastAPI (P21), so changing them needs no firmware update.
+
+**Ecou (P23, proposed).** For the hackathon the node is built from the boards the team has: an Arduino UNO Q as a small robot head, with an UNO R4 WiFi in the kitchen. Same role and same link to the phone; it adds a floor search, gestures and a room state shown by its body. Parts, wiring and interfaces are in [08-ecou.md](08-ecou.md).
