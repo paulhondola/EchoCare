@@ -54,7 +54,10 @@
       await eraseSenior(summary.id);
       onErased();
     } catch (err) {
-      eraseError = eraseRefusalText(err instanceof ApiError ? err.reason : undefined);
+      const reason = err instanceof ApiError ? err.reason : undefined;
+      // Someone else erased the senior first: the outcome is the same
+      if (reason === "not_found") return onErased();
+      eraseError = eraseRefusalText(reason);
     } finally {
       erasing = false;
     }

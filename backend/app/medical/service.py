@@ -417,8 +417,8 @@ async def erase_record(session: AsyncSession, senior_id: uuid.UUID) -> str | Non
     """Deletes the senior's medical record row and returns its PDF's key, for the
     caller to delete from the file store after the commit (design 2026-11-14).
     Doesn't commit (ADR-005)."""
-    key = await record_key(session, senior_id)
-    await session.execute(
-        delete(MedicalRecord).where(MedicalRecord.senior_id == senior_id)
+    return await session.scalar(
+        delete(MedicalRecord)
+        .where(MedicalRecord.senior_id == senior_id)
+        .returning(MedicalRecord.storage_key)
     )
-    return key

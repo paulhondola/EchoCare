@@ -9,10 +9,10 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import Grant, Role, User
+from app.auth.models import Grant, PushToken, Role, User
 from app.auth.service import Caller
 from app.codes.models import ReportSource, SeniorStatus, StatusReport
-from app.core.db import Session
+from app.core.db import Base, Session
 from app.erasure.service import erase_senior
 from app.incidents.models import (
     Event,
@@ -35,7 +35,7 @@ from app.seniors.models import (
 from app.status.engine import Question, Severity
 from app.voice.calls import CallState
 from app.voice.models import Answer, Call, CallTrigger, CallTurn, Speaker, TurnKind
-from app.voice.service import take_for_dialing
+from app.voice.service import append_turn, take_for_dialing
 
 NOW = datetime(2026, 11, 14, 12, tzinfo=UTC)
 
@@ -155,6 +155,7 @@ async def test_erase_removes_every_row(
                 storage_key=f"medical-records/{senior.id}/x.pdf",
                 uploaded_by=senior.medic_id,
             ),
+            PushToken(user_id=caregiver.id, token="caregiver-device"),
         ]
     )
     await db.commit()
@@ -185,6 +186,7 @@ async def test_erase_removes_every_row(
     for model in (CallTurn, Answer, StatusReport):
         assert await count(db, model, model.call_id.in_(call_ids)) == 0, model
     assert await count(db, User, User.id.in_([senior_user_id, caregiver_id])) == 0
+    assert await count(db, PushToken, PushToken.user_id == caregiver_id) == 0
     assert await count(db, User, or_(User.id == medic_id, User.id == das.id)) == 2
 
 
@@ -336,3 +338,70 @@ async def test_erase_refuses_a_call_being_dialed(
     assert refused.value.detail == {"reason": "call_live"}
     await db.rollback()
     assert await count(db, Call, Call.id == call_id) == 1
+
+
+async def test_erase_refuses_a_call_row_being_written(
+    db: AsyncSession, add_active_senior, das: User
+):
+    """A hand-over callback writing a turn on a finished call holds its row: the
+    erasure answers call_live at once instead of waiting, which could deadlock."""
+    senior = await add_active_senior("+40700000101")
+    call = add_call(db, senior, state=CallState.handed_over)
+    await db.commit()
+    senior_id, call_id, caller = senior.id, call.id, await caller_for(db, das)
+    async with Session() as other:
+        assert await append_turn(other, call_id, Speaker.agent, TurnKind.speech, "Da")
+        with pytest.raises(HTTPException) as refused:
+            await asyncio.wait_for(erase_senior(db, caller, senior_id), timeout=5)
+        await other.rollback()
+    assert refused.value.detail == {"reason": "call_live"}
+    await db.rollback()
+    assert await count(db, Senior, Senior.id == senior_id) == 1
+
+
+async def test_erase_keeps_a_caregiver_still_named_elsewhere(
+    db: AsyncSession, add_user, add_senior, add_active_senior, das: User
+):
+    """A former medic, now only a caregiver, still registered another senior: their
+    user row stays, and the erasure goes through instead of a foreign-key 500."""
+    erased = await add_active_senior("+40700000101")
+    former_medic = await add_caregiver(db, add_user, erased, "+40700000201")
+    await add_senior("+40700000102", medic=former_medic)
+    former_id = former_medic.id
+
+    await erase_senior(db, await caller_for(db, das), erased.id)
+
+    assert await count(db, Senior, Senior.id == erased.id) == 0
+    assert await count(db, User, User.id == former_id) == 1
+
+
+# Every table besides `seniors` that points at a senior or a call, or names one by
+# column. A new one
+# fails here until erase_senior deletes its rows and this list names it.
+ERASED_TABLES = {
+    "grants",
+    "consents",
+    "senior_summaries",
+    "watch_states",
+    "watch_readings",
+    "events",
+    "incidents",
+    "calls",
+    "call_turns",
+    "answers",
+    "status_reports",
+    "senior_statuses",
+    "medical_records",
+}
+
+
+def test_every_senior_table_is_erased():
+    about_a_senior = {
+        table.name
+        for table in Base.metadata.sorted_tables
+        if {"senior_id", "call_id"} & set(table.columns.keys())
+        or any(
+            fk.column.table.name in ("seniors", "calls") for fk in table.foreign_keys
+        )
+    }
+    assert about_a_senior == ERASED_TABLES

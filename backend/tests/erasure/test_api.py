@@ -68,7 +68,7 @@ async def test_erase_twice_is_not_found(client, senior):
 
 async def test_erase_with_storage_down_still_204(client, senior, storage, caplog):
     storage.down = True
-    with caplog.at_level(logging.WARNING, logger="echocare.erasure"):
+    with caplog.at_level(logging.WARNING, logger="echocare.medical"):
         assert (await erase(client, senior.id)).status_code == 204
     assert str(senior.id) in caplog.text
     assert f"medical-records/{senior.id}/r.pdf" in caplog.text

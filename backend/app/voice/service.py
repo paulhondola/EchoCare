@@ -14,6 +14,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as OrmSession
 from sqlalchemy.orm import object_session
@@ -35,6 +36,8 @@ from app.voice.models import (
 )
 
 log = logging.getLogger("echocare.voice")
+
+LOCK_NOT_AVAILABLE = "55P03"  # Postgres, for FOR UPDATE NOWAIT
 
 
 def _note_moved(session: AsyncSession | OrmSession | None, call: Call) -> None:
@@ -458,21 +461,26 @@ async def call_live(session: AsyncSession, senior_id: uuid.UUID) -> bool:
     still queued: an erasure waits for it (design 2026-11-14). Test calls count,
     unlike `call_in_progress`, since Twilio is running them too.
 
-    Locks the senior's unfinished calls until the caller's transaction ends, so the
-    scheduler's `take_for_dialing` either committed first and is seen here, or waits
-    and then finds its call gone. Doesn't commit."""
-    calls = await session.execute(
-        select(Call.state, Call.dialed_at)
-        .where(
-            Call.senior_id == senior_id,
-            Call.state.in_(
-                [CallState.queued, CallState.ringing, CallState.in_progress]
-            ),
+    Locks every call of the senior's, finished ones included, until the caller's
+    transaction ends, so no turn, answer or report lands on one before the erasure
+    deletes it, and the scheduler's `take_for_dialing` waits and then finds its call
+    gone. NOWAIT: a call row someone holds (dialing, an answer, a hand-over, a call
+    being concluded) counts as live instead of being waited for, since that writer
+    may next wait on the senior the erasure holds, a deadlock. That refusal leaves
+    the transaction failed; the caller only rolls back. Doesn't commit."""
+    try:
+        calls = await session.execute(
+            select(Call.state, Call.dialed_at)
+            .where(Call.senior_id == senior_id)
+            .with_for_update(nowait=True)
         )
-        .with_for_update()
-    )
+    except DBAPIError as e:
+        if getattr(e.orig, "sqlstate", None) == LOCK_NOT_AVAILABLE:
+            return True
+        raise
     return any(
-        state is not CallState.queued or dialed_at is not None
+        state in (CallState.ringing, CallState.in_progress)
+        or (state is CallState.queued and dialed_at is not None)
         for state, dialed_at in calls
     )
 

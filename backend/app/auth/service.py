@@ -13,8 +13,9 @@ import google.auth.credentials
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import ROLE_ORDER, Grant, PushToken, Role, User
@@ -483,10 +484,20 @@ async def drop_users_without_grants(
 ) -> None:
     """Deletes those of `user_ids` left with no grant, phone numbers included, after
     an erasure (design 2026-11-14); their push tokens cascade. Doesn't commit
-    (ADR-005)."""
-    await session.execute(
-        delete(User).where(
-            User.id.in_(user_ids),
-            ~select(Grant.id).where(Grant.user_id == User.id).exists(),
-        )
+    (ADR-005).
+
+    The users are locked first, so a grant another request is adding is seen and
+    keeps its user, instead of going with it by cascade. A user another row still
+    names, such as a former medic's seniors or a former DAS employee's incidents,
+    stays: their savepoint rolls back instead of the whole erasure."""
+    locked = await session.scalars(
+        select(User.id).where(User.id.in_(user_ids)).order_by(User.id).with_for_update()
     )
+    for user_id in locked.all():
+        if await session.scalar(select(exists().where(Grant.user_id == user_id))):
+            continue
+        try:
+            async with session.begin_nested():
+                await session.execute(delete(User).where(User.id == user_id))
+        except IntegrityError:
+            log.info("user %s kept after an erasure: still referenced", user_id)

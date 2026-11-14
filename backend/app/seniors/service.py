@@ -141,17 +141,24 @@ async def senior_summaries(
 
 
 async def reach_senior(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, *, lock: bool = False
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    lock: bool = False,
+    full: bool = False,
 ) -> Senior:
     """The senior, if the caller reaches them; otherwise 404 `not_found` (AL8).
 
     `lock` is FOR NO KEY UPDATE, not FOR UPDATE: inserting a grant, a call or an
     incident takes FOR KEY SHARE on the senior's row through its foreign key, which a
-    plain FOR UPDATE would block (seniors §6.2).
+    plain FOR UPDATE would block (seniors §6.2). `full` is that FOR UPDATE, for an
+    erasure, taken in one step: upgrading from NO KEY UPDATE deadlocks with a writer
+    holding KEY SHARE that then updates the senior (design 2026-11-14).
     """
     query = select(Senior).where(Senior.id == senior_id, reach(caller))
-    if lock:
-        query = query.with_for_update(key_share=True)
+    if lock or full:
+        query = query.with_for_update(key_share=not full)
     senior = await session.scalar(query)
     if senior is None:
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
@@ -177,15 +184,15 @@ async def own_senior(
 
 
 async def editable_senior(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
+    session: AsyncSession, caller: Caller, senior_id: uuid.UUID, *, full: bool = False
 ) -> Senior:
     """A senior the caller may edit: the registering medic, or DAS within reach (SE9).
 
     Locked like `own_senior`, so edits and caregiver changes on one senior run one at
-    a time. Out of reach is 404; reached but neither the registering medic nor DAS
-    past `draft` is 403 `not_allowed`.
+    a time; `full` as in `reach_senior`. Out of reach is 404; reached but neither the
+    registering medic nor DAS past `draft` is 403 `not_allowed`.
     """
-    senior = await reach_senior(session, caller, senior_id, lock=True)
+    senior = await reach_senior(session, caller, senior_id, lock=True, full=full)
     registering_medic = Role.medic in caller.roles and senior.medic_id == caller.user.id
     # SE9: DAS edits what she reaches as DAS, past draft; a caregiver grant is not that
     reaches_as_das = (
@@ -481,14 +488,22 @@ async def revoke_caregiver(
 
 
 async def delete_draft(
-    session: AsyncSession, caller: Caller, senior_id: uuid.UUID
-) -> None:
+    session: AsyncSession,
+    caller: Caller,
+    senior_id: uuid.UUID,
+    *,
+    read_first: Callable[[AsyncSession, uuid.UUID], Awaitable[str | None]]
+    | None = None,
+) -> str | None:
     """Deletes a draft and its consents; grants go by ON DELETE CASCADE. Any other row
-    still pointing at the senior, a call for one, stops the delete (Q10, §5.4)."""
+    still pointing at the senior, a call for one, stops the delete (Q10, §5.4).
+    `read_first` runs under the senior's lock, so its answer, the medical record PDF's
+    key, can't change before the delete; it is returned."""
     senior = await own_senior(session, caller, senior_id)
     if senior.enrollment_state != EnrollmentState.draft:
         log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(409, "wrong_state")
+    read = await read_first(session, senior_id) if read_first else None
     # `voice` imports `seniors`, so the calls are not checked by name: the foreign key,
     # which fires as the statement runs, refuses them.
     try:
@@ -499,6 +514,7 @@ async def delete_draft(
         log.info("refused wrong_state: user %s, senior %s", caller.user.id, senior_id)
         await session.rollback()  # expires every row, so log first
         raise refuse(409, "wrong_state") from None
+    return read
 
 
 async def submit(
@@ -959,16 +975,6 @@ async def summary_for(
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(404, "not_found")
     return summary_view(await latest_summary(session, senior_id))
-
-
-async def lock_for_erasure(session: AsyncSession, senior_id: uuid.UUID) -> None:
-    """A full row lock on the senior, past `editable_senior`'s FOR NO KEY UPDATE: it
-    also waits for, and then blocks, every insert that points at the senior (a
-    check-in, an event, a call), so none lands between an erasure's guards and its
-    deletes (design 2026-11-14)."""
-    await session.execute(
-        select(Senior.id).where(Senior.id == senior_id).with_for_update()
-    )
 
 
 async def erase_senior_children(session: AsyncSession, senior_id: uuid.UUID) -> None:

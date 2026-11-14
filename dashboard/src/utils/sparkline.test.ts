@@ -50,6 +50,22 @@ describe("sparkline", () => {
     expect(path).toContain("L");
   });
 
+  it("ignores points outside [from, to] when scaling and drawing", () => {
+    const path = sparkline(
+      [
+        { t: 0, v: 200 },
+        { t: 50 * MIN, v: 60 },
+        { t: 55 * MIN, v: 80 },
+        { t: 65 * MIN, v: 40 },
+      ],
+      50 * MIN,
+      60 * MIN,
+      100,
+      20,
+    );
+    expect(path).toBe("M0.0 20.0L50.0 0.0");
+  });
+
   it("is empty with nothing to draw", () => {
     expect(sparkline([{ t: 0, v: null }], 0, MIN, 10, 10)).toBe("");
     expect(sparkline([], 0, MIN, 10, 10)).toBe("");

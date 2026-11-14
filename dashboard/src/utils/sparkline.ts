@@ -10,7 +10,8 @@ const GAP_MS = 35 * 60_000;
  * A missing value or a long silence starts a new segment. "" when nothing is drawable.
  */
 export function sparkline(points: Point[], from: number, to: number, w: number, h: number): string {
-  const values = points.flatMap((p) => (p.v === null ? [] : [p.v]));
+  const windowed = points.filter((p) => p.t >= from && p.t <= to);
+  const values = windowed.flatMap((p) => (p.v === null ? [] : [p.v]));
   if (!values.length || to <= from) return "";
   const lo = Math.min(...values);
   const span = Math.max(...values) - lo || 1;
@@ -18,7 +19,7 @@ export function sparkline(points: Point[], from: number, to: number, w: number, 
   const y = (v: number) => (h - ((v - lo) / span) * h).toFixed(1);
   let path = "";
   let last: number | null = null;
-  for (const p of points) {
+  for (const p of windowed) {
     if (p.v === null) {
       last = null;
       continue;

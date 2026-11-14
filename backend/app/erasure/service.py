@@ -17,14 +17,12 @@ from app.auth.service import (
     refuse,
 )
 from app.codes.service import erase_senior_codes
-from app.core.storage import StorageError, StorageService
 from app.incidents.service import erase_senior_incidents, incident_unresolved
 from app.medical.service import erase_record
 from app.seniors.service import (
     editable_senior,
     erase_senior_children,
     erase_senior_row,
-    lock_for_erasure,
 )
 from app.voice.service import call_live, erase_calls, senior_call_ids
 
@@ -38,8 +36,8 @@ async def erase_senior(
     record PDF's key, if any, for the caller to delete from the file store after the
     commit. Refused while a call is live or an incident unresolved; a refusal changes
     nothing."""
-    await editable_senior(session, caller, senior_id)  # access
-    await lock_for_erasure(session, senior_id)  # no insert for the senior from here on
+    # Access, and a full row lock: no insert for the senior from here on
+    await editable_senior(session, caller, senior_id, full=True)
     if await call_live(session, senior_id):
         log.info("refused call_live: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(409, "call_live")
@@ -60,12 +58,3 @@ async def erase_senior(
     await session.commit()
     log.info("erased senior %s by user %s", senior_id, caller.user.id)
     return key
-
-
-async def delete_pdf(storage: StorageService, senior_id: uuid.UUID, key: str) -> None:
-    """After the commit: the database is clean either way, so a store that fails
-    leaves an orphaned file, named in the log, and the request still succeeds."""
-    try:
-        await storage.delete(key)
-    except StorageError:
-        log.warning("pdf not deleted for senior %s: %s", senior_id, key)

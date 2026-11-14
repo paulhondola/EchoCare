@@ -8,7 +8,6 @@ test("explains each erase refusal (04 §2)", () => {
   expect(eraseRefusalText("incident_open")).toBe(
     "Seniorul are un incident nerezolvat. Rezolvați-l mai întâi.",
   );
-  expect(eraseRefusalText("not_found")).toBe("Seniorul nu mai există.");
 });
 
 test("falls back for anything else", () => {
