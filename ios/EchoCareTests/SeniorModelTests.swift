@@ -13,9 +13,12 @@ struct SeniorModelTests {
 
     private func model(
         start: @escaping @MainActor () async throws -> Void,
-        startHealth: @escaping @MainActor () -> Void = {}
+        startHealth: @escaping @MainActor () -> Void = {},
+        restartHealth: @escaping @MainActor () -> Void = {}
     ) -> SeniorModel {
-        SeniorModel(api: ApiClient(tokens: NoToken()), startWatch: start, startHealth: startHealth)
+        SeniorModel(
+            api: ApiClient(tokens: NoToken()), startWatch: start, startHealth: startHealth,
+            restartHealth: restartHealth)
     }
 
     @Test func aStartThatThrowsIsFailedNotStarted() async {
@@ -47,19 +50,25 @@ struct SeniorModelTests {
         #expect(starts >= 1)
     }
 
-    @Test func startedMonitoringStartsHealthSync() async {
+    @Test func startedMonitoringRestartsHealthSync() async {
         var starts = 0
-        let model = model(start: {}, startHealth: { starts += 1 })
+        var restarts = 0
+        let model = model(
+            start: {}, startHealth: { starts += 1 }, restartHealth: { restarts += 1 })
         await model.startMonitoring()
-        #expect(starts == 1)
+        #expect(restarts == 1)
+        #expect(starts == 0)
     }
 
-    @Test func failedMonitoringDoesNotStartHealthSync() async {
+    @Test func failedMonitoringDoesNotTouchHealthSync() async {
         var starts = 0
+        var restarts = 0
         let model = model(
-            start: { throw WatchLinkError.notAvailable }, startHealth: { starts += 1 })
+            start: { throw WatchLinkError.notAvailable }, startHealth: { starts += 1 },
+            restartHealth: { restarts += 1 })
         await model.startMonitoring()
         #expect(starts == 0)
+        #expect(restarts == 0)
     }
 
     // MARK: What the phone hears from the watch

@@ -204,6 +204,8 @@ final class AuthModel {
     }
 
     private func signOutOfFirebase() {
+        // Every path that ends the session: no more Health readings under the next sign-in
+        HealthSync.shared.stop()
         do {
             try Auth.auth().signOut()
         } catch {

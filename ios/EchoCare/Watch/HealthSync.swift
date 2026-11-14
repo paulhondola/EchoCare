@@ -25,6 +25,29 @@ final class HealthSync {
     /// Starts the two queries; once per launch, and nothing without HealthKit (an iPad).
     func start() {
         guard !running, HKHealthStore.isHealthDataAvailable() else { return }
+        run()
+    }
+
+    /// Stops the queries and runs them again from 24 hours back: after the grant, since a query
+    /// started before it read nothing. `start()` stays a no-op once running, so a reread of the
+    /// home doesn't send the day again.
+    func restart() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        stop()
+        run()
+    }
+
+    /// Stops everything, on sign-out: a sample read for one senior must not go out under the next
+    /// one's token. Readings already on their way to the main actor are dropped by `post`.
+    func stop() {
+        for query in queries { store.stop(query) }
+        queries = []
+        running = false
+    }
+
+    // MARK: Private
+
+    private func run() {
         running = true
         let day = HKQuery.predicateForSamples(
             withStart: Date().addingTimeInterval(-24 * 3600), end: nil)
@@ -67,10 +90,8 @@ final class HealthSync {
         store.execute(ecg)
     }
 
-    // MARK: Private
-
     private func oxygen(_ readings: [(id: String, at: Date, fraction: Double)], error: String?) {
-        if let error { log.error("blood oxygen query failed: \(error, privacy: .public)") }
+        if let error { log.error("blood oxygen query failed: \(error, privacy: .private)") }
         for reading in readings {
             post(
                 HealthReadingForm(
@@ -80,7 +101,7 @@ final class HealthSync {
     }
 
     private func electrocardiograms(_ found: [HKElectrocardiogram], error: String?) {
-        if let error { log.error("ECG query failed: \(error, privacy: .public)") }
+        if let error { log.error("ECG query failed: \(error, privacy: .private)") }
         for ecg in found { readTrace(of: ecg) }
     }
 
@@ -115,7 +136,7 @@ final class HealthSync {
                 let reason = String(describing: error)
                 Task { @MainActor in
                     self?.log.error(
-                        "ECG \(id, privacy: .public) not read: \(reason, privacy: .public)")
+                        "ECG not read: \(reason, privacy: .private)")
                 }
             @unknown default:
                 break
@@ -126,16 +147,22 @@ final class HealthSync {
     }
 
     private func post(_ form: HealthReadingForm) {
+        guard running else { return }
         let api = api
         let log = log
         Task {
             do {
                 try await api.sendHealthReading(form)
-                log.info("\(form.kind, privacy: .public) \(form.id, privacy: .public) sent")
+                log.info("\(form.kind, privacy: .public) sent")
             } catch {
-                log.error(
-                    "\(form.kind, privacy: .public) \(form.id, privacy: .public) not sent: \(String(describing: error), privacy: .public)"
-                )
+                // Only the kind and the status: a 422 body can echo the posted health values
+                let why: String
+                if case ApiError.http(let status, _) = error {
+                    why = "HTTP \(status)"
+                } else {
+                    why = String(describing: type(of: error))
+                }
+                log.error("\(form.kind, privacy: .public) not sent: \(why, privacy: .public)")
             }
         }
     }
