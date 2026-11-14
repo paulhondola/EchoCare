@@ -39,6 +39,13 @@
       on: page.url.pathname.startsWith("/seniors"),
     },
     {
+      href: "/map",
+      label: "Hartă",
+      icon: "map-pin",
+      count: null,
+      on: page.url.pathname.startsWith("/map"),
+    },
+    {
       href: "/enrollments",
       label: "Cereri înrolare",
       icon: "clipboard",

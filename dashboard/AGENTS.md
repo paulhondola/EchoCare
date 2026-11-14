@@ -16,6 +16,8 @@ dashboard/
 │   │   ├── +page.svelte             / : IncidentBoard
 │   │   ├── seniors/
 │   │   │   └── +page.svelte         /seniors : Seniors, Monitorizare seniori
+│   │   ├── map/
+│   │   │   └── +page.svelte         /map : SeniorMap, Hartă
 │   │   ├── enrollments/
 │   │   │   └── +page.svelte         /enrollments : Enrollments (UC-04)
 │   │   ├── staff/
@@ -26,7 +28,9 @@ dashboard/
 │   │   ├── shell/                   Shell (Cod Roșu banner and incident dossier over every page), Sidebar, PageHeader; live.svelte.ts polls once for every page; siren.ts
 │   │   ├── auth/                    SignIn.svelte: phone step, code step; invisible reCAPTCHA
 │   │   ├── landing/                 Landing: what a signed-out visitor sees first; „Intrați în cont” opens SignIn
-│   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over
+│   │   ├── calls/                   CallTranscript; LiveStrip (the calls happening now, over every page) and LiveCallView (one call's lines as they arrive)
+│   │   ├── incidents/               IncidentBoard (board and table), IncidentCard, RedAlert (the Cod Roșu banner), IncidentDetails slide-over, WhyRed („De ce cod roșu?”)
+│   │   ├── map/                     SeniorMap: Leaflet over OpenStreetMap tiles darkened in CSS; pins from GET /seniors' approximate points, live calls ring
 │   │   ├── seniors/                 Seniors table with CSV export, SeniorDetails slide-over, Briefing (the latest summary: Pe scurt, Subiecte deschise, Cum vorbim, Observații)
 │   │   ├── enrollments/             Enrollments: review and Acceptă
 │   │   ├── staff/                   Staff: member list, who is on duty, adding medic or DAS
