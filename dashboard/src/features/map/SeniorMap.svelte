@@ -3,6 +3,7 @@
   import "leaflet/dist/leaflet.css";
   import { onMount } from "svelte";
   import type { SeniorSummary } from "../../services/api";
+  import { escapeHtml } from "../../utils/html";
   import { code } from "../../utils/labels";
   import SeniorDetails from "../seniors/SeniorDetails.svelte";
   import { getLive } from "../shell/live.svelte";
@@ -65,7 +66,7 @@
       const pin = pins.get(s.id);
       if (!pin) {
         const marker = L.marker([s.latitude!, s.longitude!], { icon: icon(tone, ringing) })
-          .bindTooltip(s.full_name, { direction: "top", offset: [0, -8] })
+          .bindTooltip(escapeHtml(s.full_name), { direction: "top", offset: [0, -8] })
           .on("click", () => (selected = seniors.find((x) => x.id === s.id) ?? null))
           .addTo(m);
         pins.set(s.id, { marker, key });
