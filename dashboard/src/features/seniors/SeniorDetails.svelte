@@ -28,6 +28,7 @@
     TONE_DOT,
     TRIGGERS,
   } from "../../utils/labels";
+  import { WATCH_WARNING, deviceWarnings, showsWatch } from "../../utils/equipment";
   import { eraseRefusalText } from "../../utils/erase";
   import { formatPhone } from "../../utils/phone";
   import { tabKeydown } from "../../utils/tabs";
@@ -347,6 +348,7 @@
         <p role="alert" class="text-rosu-fg">{load.message}</p>
       {:else}
         {@const s = load.data}
+        {@const warnings = deviceWarnings(s)}
         <div class="flex flex-col">
           <div
             class="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3 border-b border-line pb-3.5"
@@ -387,9 +389,26 @@
             <div class="pt-4"><MedicalRecord record={medical.data} /></div>
           {/if}
 
-          <div class="pt-4">
-            <WatchHealth id={s.id} />
-          </div>
+          {#if warnings.length}
+            <div class="flex flex-wrap gap-2 pt-4" aria-label="Echipamente">
+              {#each warnings as warning (warning)}
+                <span
+                  class={[
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 text-[11.5px] font-semibold",
+                    TONE_CHIP.galben,
+                  ]}
+                >
+                  <span class={["size-1.5", TONE_DOT.galben]}></span>{warning}
+                </span>
+              {/each}
+            </div>
+          {/if}
+          <!-- The warning stands in for an empty panel (design 2026-11-14) -->
+          {#if showsWatch(s) && !warnings.includes(WATCH_WARNING)}
+            <div class="pt-4">
+              <WatchHealth id={s.id} />
+            </div>
+          {/if}
 
           <div class="sn-label pt-4 pb-2">Aparținători înregistrați</div>
           {#each s.caregivers as c (c.user_id)}

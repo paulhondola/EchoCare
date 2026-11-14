@@ -340,6 +340,10 @@ export type SeniorView = IncidentDetail["senior"] & {
   call_in_progress?: boolean | null;
   watch_state?: string | null;
   last_pulse?: number | null;
+  // Declared at registration: null not stated, [] none (design 2026-11-14)
+  equipment?: string[] | null;
+  // Whether her own phone's app has ever signed in; only GET /seniors/{id} sets it
+  app_signed_in?: boolean | null;
   medic: { display_name: string; practice: string | null };
   caregivers: {
     user_id: string;
