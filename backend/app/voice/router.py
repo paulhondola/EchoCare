@@ -183,9 +183,9 @@ async def answer(call: uuid.UUID, params: Params, session: Db) -> Response:
         "transcriptionProvider": "Deepgram",
         "speechModel": "nova-3-general",
         "hints": HINTS,
-        # A turn ends 1.2 s after the senior stops, not when the provider decides: on a
+        # A turn ends 0.8 s after the senior stops, not when the provider decides: on a
         # noisy line `auto` sent nothing until the hang-up. 2 s added to every silence.
-        "speechTimeout": "1200",
+        "speechTimeout": "800",
         # When each side speaks and what was played, for the session's log.
         "events": "speaker-events tokens-played",
         "debug": "debugging",

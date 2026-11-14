@@ -83,9 +83,9 @@ async def test_answer_connects_to_conversation_relay(client, call):
     assert relay.get("welcomeGreeting").startswith("Bună ziua, doamna Maria.")
     # Words and keys over the greeting still reach the session.
     assert relay.get("reportInputDuringAgentSpeech") == "any"
-    # Its own voice on a speakerphone is not the senior; a turn ends after 1.2 s.
+    # Its own voice on a speakerphone is not the senior; a turn ends after 0.8 s.
     assert relay.get("echoPromptFiltering") == "true"
-    assert relay.get("speechTimeout") == "1200"
+    assert relay.get("speechTimeout") == "800"
     assert relay.get("ttsProvider") == "ElevenLabs"
     assert relay.get("transcriptionProvider") == "Deepgram"
     assert relay.get("speechModel") == "nova-3-general"
