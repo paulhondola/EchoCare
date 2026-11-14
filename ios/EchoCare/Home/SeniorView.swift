@@ -38,7 +38,7 @@ struct SeniorView: View {
                             if let call = model.mock {
                                 MockCallCard(call: call) { answer in Task { await model.answerMock(answer) } }
                             }
-                            MonitoringButton(state: model.monitoring, action: model.startMonitoring)
+                            MonitoringButton(state: model.monitoring) { Task { await model.startMonitoring() } }
                             SeniorDetails(senior: senior, callSenior: false)
                             if let calls = model.calls { CallList(calls: recentCalls(calls)) }
                         }

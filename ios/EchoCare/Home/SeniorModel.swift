@@ -107,16 +107,14 @@ final class SeniorModel {
 
     /// „Pornește monitorizarea”: asks the watch to start (design, Monitoring runs inside an
     /// HKWorkoutSession).
-    func startMonitoring() {
+    func startMonitoring() async {
         guard monitoring != .starting else { return }
         monitoring = .starting
-        Task {
-            do {
-                try await startWatch()
-                monitoring = .started
-            } catch {
-                monitoring = .failed
-            }
+        do {
+            try await startWatch()
+            monitoring = .started
+        } catch {
+            monitoring = .failed
         }
     }
 

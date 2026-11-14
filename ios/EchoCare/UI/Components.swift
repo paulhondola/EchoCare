@@ -254,7 +254,9 @@ struct WrappingRow: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let arranged = arrange(bounds.width, subviews)
         for (subview, origin) in zip(subviews, arranged.origins) {
-            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+            subview.place(
+                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: nil))
         }
     }
 
@@ -265,7 +267,8 @@ struct WrappingRow: Layout {
         var lineHeight: CGFloat = 0
         var widest: CGFloat = 0
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            // Clamped to the line, so a long text wraps instead of overflowing
+            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
             if x > 0, x + size.width > width {
                 x = 0
                 y += lineHeight + lineSpacing
