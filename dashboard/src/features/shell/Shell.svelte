@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import LiveCallView from "../calls/LiveCallView.svelte";
+  import LiveStrip from "../calls/LiveStrip.svelte";
   import IncidentDetails from "../incidents/IncidentDetails.svelte";
   import RedAlert from "../incidents/RedAlert.svelte";
   import { Live, setLive } from "./live.svelte";
@@ -30,6 +32,20 @@
     seen = new Set(open.map((i) => i.id));
     if (fresh && live.sound) playSiren();
   });
+
+  // A call that leaves the live list has just ended: read incidents and codes at once, so a
+  // red reaches the banner, the siren and the map within one live poll (design 2026-11-14 §4)
+  let wasLive = new Set<string>();
+  $effect(() => {
+    const l = live.liveCalls.load;
+    if (l.kind !== "ok") return;
+    const now = new Set(l.data.map((c) => c.id));
+    if ([...wasLive].some((id) => !now.has(id))) {
+      live.incidents.reload();
+      live.seniors.reload();
+    }
+    wasLive = now;
+  });
 </script>
 
 <svelte:head>
@@ -44,6 +60,7 @@
         <RedAlert incident={alert} {now} />
       {/key}
     {/if}
+    <LiveStrip />
     {@render children()}
   </main>
 </div>
@@ -58,5 +75,11 @@
       onChanged={live.incidentChanged}
       onStale={() => live.incidents.reload()}
     />
+  {/key}
+{/if}
+
+{#if live.liveCall}
+  {#key live.liveCall}
+    <LiveCallView id={live.liveCall} onClose={() => (live.liveCall = null)} />
   {/key}
 {/if}

@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { fade } from "svelte/transition";
   import type { IncidentCall } from "../../services/api";
   import Icon from "../../ui/Icon.svelte";
   import { clock, code, TONE_TEXT } from "../../utils/labels";
+  import { alarmWords, highlight } from "../../utils/live";
 
   // One call's summary, every turn in the order it was said, the codes it reported and how it ended
-  let { call }: { call: IncidentCall } = $props();
+  // `live`: new lines fade in and a typing indicator waits under the last (design 2026-11-14 §4)
+  let { call, live = false }: { call: IncidentCall; live?: boolean } = $props();
   const final = $derived(code(call.final_severity));
 
   // Who said each line (05 §1); `das` is the employee after a hand-over (04 §4.4)
@@ -14,6 +17,28 @@
     das: { label: "Operator DAS", text: "text-fg" },
   };
   const SYSTEM = { label: "Sistem", text: "text-fg-muted" };
+
+  // The senior's words behind each alarm, lit inside the turn that said them. Words found in
+  // no turn light the senior's last turn before the alarm, whole.
+  const marks = $derived.by(() => {
+    const out = new Map<number, [string, string, string] | "whole">();
+    for (const r of call.reports) {
+      if (r.source !== "alarm_tier1" && r.source !== "alarm_tier2") continue;
+      const words = alarmWords(r);
+      const hit = words
+        ? call.turns.findIndex((t) => t.speaker === "senior" && highlight(t.content, words))
+        : -1;
+      if (hit >= 0) {
+        out.set(hit, highlight(call.turns[hit].content, words!)!);
+        continue;
+      }
+      const before = call.turns.findLastIndex(
+        (t) => t.speaker === "senior" && Date.parse(t.at) <= Date.parse(r.at),
+      );
+      if (before >= 0 && !out.has(before)) out.set(before, "whole");
+    }
+    return out;
+  });
 </script>
 
 {#if call.summary}
@@ -22,18 +47,43 @@
 
 {#each call.turns as t, n (n)}
   {@const who = SPEAKERS[t.speaker] ?? SYSTEM}
-  <div class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1">
+  {@const mark = marks.get(n)}
+  <div
+    class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-1"
+    in:fade={{ duration: live ? 350 : 0 }}
+  >
     <span class="pt-0.5 font-mono text-xs font-medium text-fg-muted">
       {clock.format(Date.parse(t.at))}
     </span>
     <div class="flex flex-col gap-0.5">
       <span class={["sn-label", who.text]}>{who.label}</span>
-      <span>{t.kind === "keys" ? `tasta ${t.content}` : `„${t.content}”`}</span>
+      {#if t.kind === "keys"}
+        <span>tasta {t.content}</span>
+      {:else if mark === "whole"}
+        <span><mark class="bg-rosu/25 text-fg">„{t.content}”</mark></span>
+      {:else if mark}
+        <span
+          >„{mark[0]}<mark class="bg-rosu/25 font-semibold text-fg">{mark[1]}</mark>{mark[2]}”</span
+        >
+      {:else}
+        <span>„{t.content}”</span>
+      {/if}
     </div>
   </div>
 {:else}
-  <p class="text-fg-muted">Nicio replică înregistrată.</p>
+  <p class="text-fg-muted">{live ? "Se așteaptă primul cuvânt…" : "Nicio replică înregistrată."}</p>
 {/each}
+
+{#if live}
+  <div class="grid grid-cols-[70px_minmax(0,1fr)] gap-x-3" aria-hidden="true">
+    <span></span>
+    <span class="flex gap-1 py-1">
+      <span class="sn-pulse size-1.5 rounded-full bg-fg-muted"></span>
+      <span class="sn-pulse size-1.5 rounded-full bg-fg-muted [animation-delay:150ms]"></span>
+      <span class="sn-pulse size-1.5 rounded-full bg-fg-muted [animation-delay:300ms]"></span>
+    </span>
+  </div>
+{/if}
 
 {#each call.reports as r, n (n)}
   {@const level = code(r.severity)}
