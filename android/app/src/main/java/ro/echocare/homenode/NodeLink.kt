@@ -66,7 +66,7 @@ class NodeLink(
         val g = gatt ?: return false
         val service = g.getService(NodeUuids.SERVICE) ?: return false
         val char = service.getCharacteristic(characteristic) ?: return false
-        return run {
+        return gattOp {
             g.writeCharacteristic(
                 char,
                 text.toByteArray(),
@@ -75,7 +75,7 @@ class NodeLink(
         } == BluetoothGatt.GATT_SUCCESS
     }
 
-    private suspend fun run(start: () -> Boolean): Int = ops.withLock {
+    private suspend fun gattOp(start: () -> Boolean): Int = ops.withLock {
         val done = CompletableDeferred<Int>()
         pending = done
         if (!start()) return@withLock -1
@@ -83,8 +83,8 @@ class NodeLink(
     }
 
     private suspend fun setUp(g: BluetoothGatt) {
-        run { g.requestMtu(MTU) } // a fall's 37-point scan needs more than 20 bytes
-        if (run { g.discoverServices() } != BluetoothGatt.GATT_SUCCESS) {
+        gattOp { g.requestMtu(MTU) } // a fall's 37-point scan needs more than 20 bytes
+        if (gattOp { g.discoverServices() } != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "no services on $address")
             return
         }
@@ -96,7 +96,7 @@ class NodeLink(
             val char = service.getCharacteristic(uuid) ?: continue
             g.setCharacteristicNotification(char, true)
             val cccd = char.getDescriptor(NodeUuids.CCCD) ?: continue
-            run {
+            gattOp {
                 g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) ==
                     BluetoothStatusCodes.SUCCESS
             }
