@@ -21,7 +21,7 @@ struct HomeNav: View {
     let auth: AuthModel
 
     @State private var path: [HomeRoute] = []
-    /// „Trimis la DAS.” on the medic home after the form submits (Task 10 sets it).
+    /// „Trimis la DAS.” on the medic home after the form submits.
     @State private var sent = false
 
     var body: some View {
@@ -57,7 +57,17 @@ struct HomeNav: View {
                             onEdit: medic ? { path.append(.enroll(id: $0)) } : nil
                         )
                     case .enroll(let id):
-                        EnrollView(seniorId: id, onLeave: { pop(route) })
+                        EnrollView(
+                            seniorId: id,
+                            onLeave: { pop(route) },
+                            onSubmitted: {
+                                // Back to the home, with „Trimis la DAS.” on it
+                                sent = true
+                                path.removeAll()
+                            },
+                            onDone: { toPage($0, from: route) },
+                            onSessionEnd: sessionEnded
+                        )
                     }
                 }
         }
@@ -73,5 +83,20 @@ struct HomeNav: View {
     /// Back by route, as Android pops by route: a second tap never pops the home.
     private func pop(_ route: HomeRoute) {
         if let at = path.lastIndex(of: route) { path.removeSubrange(at...) }
+    }
+
+    /// „Gata” on the form's last step: back to the page it was opened from when that is a senior's
+    /// page or the monitoring list, which keeps the patient selected (UC-12); otherwise to the
+    /// senior's page in the form's place (android's `toPage`).
+    private func toPage(_ id: String, from route: HomeRoute) {
+        guard let at = path.lastIndex(of: route) else { return }
+        let before = at > 0 ? path[at - 1] : nil
+        switch before {
+        case .senior?, .monitor?:
+            pop(route)
+        default:
+            path.removeSubrange(at...)
+            path.append(.senior(id: id))
+        }
     }
 }

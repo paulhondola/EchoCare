@@ -340,6 +340,8 @@ struct CallButton: View {
 
 /// The dashboard's inset field: square, dark, blue border while typing. `mono` for numbers and
 /// codes; names and places in Archivo. `multiline` for free text: four lines tall, growing to eight.
+/// `hint` shows while empty; `error`, already in words, turns the border red and stands under the
+/// field, read out by VoiceOver when it appears.
 struct SnTextField: View {
     @Binding var text: String
     let label: LocalizedStringKey
@@ -347,18 +349,25 @@ struct SnTextField: View {
     var content: UITextContentType?
     var mono = true
     var multiline = false
+    var hint: LocalizedStringKey?
+    var error: String?
+    var capitalization: TextInputAutocapitalization = .never
 
     @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel(label)
-            TextField("", text: $text, axis: multiline ? .vertical : .horizontal)
+            TextField(
+                "", text: $text,
+                prompt: hint.map { Text($0).foregroundStyle(Theme.fgSubtle) },
+                axis: multiline ? .vertical : .horizontal
+            )
                 .lineLimit(multiline ? 4...8 : 1...1)
                 .keyboardType(keyboard)
                 .textContentType(content)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                .textInputAutocapitalization(capitalization)
                 .focused($focused)
                 .font(.custom((mono ? TextStyle.Face.monoMedium : .regular).rawValue, size: 16))
                 .foregroundStyle(Theme.fg)
@@ -368,9 +377,18 @@ struct SnTextField: View {
                 .frame(minHeight: 52)
                 .background(Theme.inset)
                 .overlay(
-                    Rectangle().strokeBorder(focused ? Theme.link : Theme.line, lineWidth: focused ? 2 : 1)
+                    Rectangle().strokeBorder(
+                        error != nil ? Theme.rosu : focused ? Theme.link : Theme.line,
+                        lineWidth: focused || error != nil ? 2 : 1)
                 )
                 .accessibilityLabel(Text(label))
+            if let error {
+                Text(verbatim: error)
+                    .textStyle(Theme.bodyMedium)
+                    .foregroundStyle(Theme.rosuFg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onAppear { AccessibilityNotification.Announcement(error).post() }
+            }
         }
     }
 }
