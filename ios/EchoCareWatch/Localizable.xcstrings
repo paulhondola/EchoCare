@@ -136,6 +136,61 @@
         }
       }
     },
+    "help_answer_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vă sunăm imediat. Răspundeți la telefon."
+          }
+        }
+      }
+    },
+    "help_keep_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Țineți telefonul aproape"
+          }
+        }
+      }
+    },
+    "help_received" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echipa a fost anunțată"
+          }
+        }
+      }
+    },
+    "help_retrying" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încercăm din nou…"
+          }
+        }
+      }
+    },
+    "help_sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anunțăm echipa…"
+          }
+        }
+      }
+    },
     "monitor_off" : {
       "extractionState" : "manual",
       "localizations" : {
