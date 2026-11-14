@@ -122,6 +122,7 @@ erDiagram
         float temperature_c
         float humidity_pct
         datetime last_motion_at
+        float forecast_60m_c "the node's prediction, P26"
         datetime out_of_range_since "empty while in range"
         boolean out_of_range_event_sent "one room event per stretch"
     }

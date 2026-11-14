@@ -341,6 +341,7 @@ EXPORTED_TABLES = {
     "senior_summaries",
     "watch_states",
     "watch_readings",
+    "home_node_states",
     "events",
     "incidents",
     "calls",

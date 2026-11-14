@@ -20,6 +20,8 @@ from app.codes.models import ReportSource, SeniorStatus, StatusReport
 from app.codes.service import add_report, set_code
 from app.core.db import Session
 from app.core.settings import get_settings
+from app.homenode.models import RoomState
+from app.homenode.service import out_of_range, room_out_of_range
 from app.incidents.models import UNRESOLVED, Incident
 from app.incidents.service import note_red_added, open_incident, opens_incident
 from app.seniors.models import ConsentMethod, EnrollmentState
@@ -49,6 +51,7 @@ INCOMPLETE_REASON = "Nu a răspuns la toate întrebările"
 NOT_REACHED = {
     CallTrigger.watch: "Nu a răspuns după semnalul ceasului",
     CallTrigger.manual: "Nu a răspuns după cererea de apel",
+    CallTrigger.home_node: "Nu a răspuns după semnalul senzorului din casă",
 }
 LINE_LOST_SUMMARY = "Convorbirea s-a întrerupt."
 # Sources that hand a call over red; any other hand-over is yellow (03 §6, 04 §4.4).
@@ -67,8 +70,16 @@ def redial_delay() -> timedelta:
     return timedelta(seconds=20) if get_settings().demo_mode else timedelta(minutes=20)
 
 
-def campaign_reason(worrying: list[Question], kind: CampaignKind) -> str:
-    """What a campaign call found, in Romanian, for `reason` and the incident."""
+def upper_first(text: str) -> str:
+    """The first letter up, the rest as it is: `str.capitalize` would make „°C” „°c”."""
+    return text[:1].upper() + text[1:]
+
+
+def campaign_reason(
+    worrying: list[Question], kind: CampaignKind, room: str | None = None
+) -> str:
+    """What a campaign call found, in Romanian, for `reason` and the incident. `room`
+    replaces the shelter phrase when the room overruled the senior's "yes" (P22)."""
     cold = kind is CampaignKind.cold
     if not worrying:
         shelter = "căldură" if cold else "un loc răcoros"
@@ -76,10 +87,11 @@ def campaign_reason(worrying: list[Question], kind: CampaignKind) -> str:
     said = {
         Question.feeling: "se simte rău",
         Question.orientation: "nu știe ce zi este",
-        Question.shelter: "nu are căldură în casă" if cold else "nu are un loc răcoros",
+        Question.shelter: room
+        or ("nu are căldură în casă" if cold else "nu are un loc răcoros"),
     }
     *init, last = [said[q] for q in Question if q in worrying]
-    return (f"{', '.join(init)} și {last}" if init else last).capitalize()
+    return upper_first(f"{', '.join(init)} și {last}" if init else last)
 
 
 async def stored_answers(session: AsyncSession, call_id: uuid.UUID) -> CallAnswers:
@@ -113,7 +125,22 @@ async def save_concern(call_id: uuid.UUID, severity: Severity, reason: str) -> N
         await session.commit()
 
 
-async def call_reason(session: AsyncSession, call: Call, answers: CallAnswers) -> str:
+def check_shelter(answers: CallAnswers, celsius: float | None) -> str | None:
+    """P22: with a fresh room reading past a limit, a "yes" to the shelter question is
+    recorded as worrying, as if it were "no"; the senior's words are kept. Returns what
+    the reading says against the answer, or None when the rule does not apply. A
+    sensor can make an answer worrying, never make a worrying answer fine."""
+    said = answers.answers.get(Question.shelter)
+    if celsius is None or said is None or said.value != "yes":
+        return None
+    answers.answers[Question.shelter] = Answer("no", said.clear, said.words)
+    place = "căldură" if out_of_range(celsius) is RoomState.cold else "un loc răcoros"
+    return f"spune că are {place}, senzorul arată {round(celsius)}°C"
+
+
+async def call_reason(
+    session: AsyncSession, call: Call, answers: CallAnswers, room: str | None = None
+) -> str:
     """What the answers found, in Romanian; INCOMPLETE_REASON when nothing worrying was
     said and a question is missing or unclear (unclear never counts as fine, 03 §5)."""
     kind = await session.scalar(
@@ -123,7 +150,7 @@ async def call_reason(session: AsyncSession, call: Call, answers: CallAnswers) -
     worrying = [q for q in Question if answers.worrying(q, today)]
     if not worrying and answers.unclear():
         return INCOMPLETE_REASON
-    return campaign_reason(worrying, kind or CampaignKind.cold)
+    return campaign_reason(worrying, kind or CampaignKind.cold, room)
 
 
 async def code_now(
@@ -160,7 +187,16 @@ async def conclude(
     """
     now = datetime.now(UTC)
     if answers is not None:
-        reason = await call_reason(session, call, answers)
+        room = check_shelter(answers, await room_out_of_range(session, call.senior_id))
+        if room is not None:
+            add_report(
+                session,
+                call.id,
+                ReportSource.home_temperature,
+                Severity.yellow,
+                upper_first(room),
+            )
+        reason = await call_reason(session, call, answers, room)
         certainty = Certainty.low if dropped else answers.certainty()
         result = final_severity(
             starting=call.starting_severity,

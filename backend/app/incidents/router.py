@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Role
 from app.auth.service import Caller, refuse, require_roles
 from app.core.db import get_session
+from app.homenode.service import room_for
 from app.incidents.models import IncidentStatus
 from app.incidents.schemas import (
     EventForm,
@@ -67,6 +68,8 @@ async def get_incident(
     detail = await load_incident(session, incident_id)
     if detail is None:
         raise refuse(404, "not_found")
+    # `incidents` can't import `homenode`, which sits above it (ADR-005)
+    detail.room = await room_for(session, detail.senior.id)
     return detail
 
 

@@ -16,6 +16,7 @@ from app.core.db import (
     timestamp_now,
     uuid_pk,
 )
+from app.homenode.models import HomeNodeState, NodeCondition, RoomState
 from app.incidents.models import (
     UNRESOLVED,
     Event,
@@ -65,15 +66,18 @@ __all__ = [
     "Event",
     "EventType",
     "Grant",
+    "HomeNodeState",
     "Incident",
     "IncidentEvent",
     "IncidentOutcome",
     "IncidentStatus",
     "MedicalRecord",
     "MedicalRecordState",
+    "NodeCondition",
     "PushToken",
     "ReportSource",
     "Role",
+    "RoomState",
     "Senior",
     "SeniorStatus",
     "Speaker",

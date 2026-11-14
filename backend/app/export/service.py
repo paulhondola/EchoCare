@@ -28,6 +28,7 @@ from app.export.schemas import (
     ExportWatchReading,
     SeniorExport,
 )
+from app.homenode.service import room_for
 from app.incidents.service import export_senior_incidents
 from app.medical.service import export_record
 from app.seniors.schemas import WatchView
@@ -83,6 +84,7 @@ async def export_senior(
                 for r in watch_readings
             ],
         ),
+        room=await room_for(session, senior_id),
         events=[ExportEvent.model_validate(e, from_attributes=True) for e in events],
         incidents=[
             ExportIncident.model_validate(i, from_attributes=True) for i in incidents

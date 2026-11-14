@@ -24,13 +24,16 @@ class CallTrigger(StrEnum):
     campaign = "campaign"
     watch = "watch"
     manual = "manual"
+    home_node = "home_node"  # the home node's room, inactivity, fall or SOS (UC-16)
     welcome = "welcome"
     # scripts/place_call.py's scripted calls, which no rule or call history counts (05 §1)
     test = "test"
 
 
 # The calls that check on the senior's wellbeing, which notes and summaries cover (design §4).
-WELLBEING = frozenset({CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual})
+WELLBEING = frozenset(
+    {CallTrigger.campaign, CallTrigger.watch, CallTrigger.manual, CallTrigger.home_node}
+)
 
 
 class WelcomeOutcome(StrEnum):

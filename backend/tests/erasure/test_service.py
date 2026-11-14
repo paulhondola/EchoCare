@@ -14,6 +14,7 @@ from app.auth.service import Caller
 from app.codes.models import ReportSource, SeniorStatus, StatusReport
 from app.core.db import Base, Session
 from app.erasure.service import erase_senior
+from app.homenode.models import HomeNodeState, NodeCondition
 from app.incidents.models import (
     Event,
     EventType,
@@ -107,6 +108,12 @@ async def test_erase_removes_every_row(
             ),
             WatchReading(senior_id=senior.id, measured_at=NOW),
             WatchReading(senior_id=senior.id, measured_at=NOW - timedelta(hours=1)),
+            HomeNodeState(
+                senior_id=senior.id,
+                state=NodeCondition.ok,
+                last_reading_at=NOW,
+                temperature_c=21.0,
+            ),
             Event(
                 id=uuid.uuid4(),
                 senior_id=senior.id,
@@ -174,6 +181,7 @@ async def test_erase_removes_every_row(
         SummaryVersion.senior_id == senior_id,
         WatchState.senior_id == senior_id,
         WatchReading.senior_id == senior_id,
+        HomeNodeState.senior_id == senior_id,
         Event.senior_id == senior_id,
         Incident.senior_id == senior_id,
         Call.senior_id == senior_id,
@@ -384,6 +392,7 @@ ERASED_TABLES = {
     "senior_summaries",
     "watch_states",
     "watch_readings",
+    "home_node_states",
     "events",
     "incidents",
     "calls",

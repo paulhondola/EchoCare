@@ -27,14 +27,20 @@ DIALABLE = {
     CallTrigger.campaign: EnrollmentState.active,
     CallTrigger.watch: EnrollmentState.active,
     CallTrigger.manual: EnrollmentState.active,
+    CallTrigger.home_node: EnrollmentState.active,
     CallTrigger.welcome: EnrollmentState.accepted,
 }
 
 # Which due calls go first when lines are short, as during a campaign (06 §2): a senior
-# or their watch asked, then a senior already not reached, then a campaign's first
+# or one of their devices asked, then a senior already not reached, then a campaign's first
 # attempt, then a welcome call, where nothing is wrong yet.
 PRIORITY = case(
-    (Call.trigger.in_([CallTrigger.watch, CallTrigger.manual]), 0),
+    (
+        Call.trigger.in_(
+            [CallTrigger.watch, CallTrigger.manual, CallTrigger.home_node]
+        ),
+        0,
+    ),
     (Call.attempt > 1, 1),
     (Call.trigger == CallTrigger.campaign, 2),
     else_=3,

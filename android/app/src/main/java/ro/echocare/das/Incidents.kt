@@ -209,3 +209,21 @@ val OUTCOMES = listOf(
     "not_reached" to R.string.outcome_not_reached,
     "false_alarm" to R.string.outcome_false_alarm
 )
+
+/** Where the home node found someone lying (P24), from the robot's side of the room. */
+enum class Side { Left, Front, Right }
+
+data class FloorSpot(val metres: Double, val side: Side)
+
+/** The spot of a fall the home node found; null for any other event (08-ecou.md §3.3). */
+fun floorSpot(event: TriggerEvent): FloorSpot? {
+    val angle = event.objectAngleDeg ?: return null
+    val metres = event.objectDistanceM ?: return null
+    if (event.source != "home_node") return null
+    val side = when {
+        angle > 112.5 -> Side.Left
+        angle < 67.5 -> Side.Right
+        else -> Side.Front
+    }
+    return FloorSpot(metres, side)
+}

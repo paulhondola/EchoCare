@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.medical.schemas import MedicalRecordView
-from app.seniors.schemas import Code, SeniorView, State, WatchView
+from app.seniors.schemas import Code, RoomView, SeniorView, State, WatchView
 
 
 class ExportStatus(BaseModel):
@@ -134,6 +134,8 @@ class SeniorExport(BaseModel):
     summaries: list[ExportSummary]
     medical_record: MedicalRecordView | None
     watch: ExportWatch
+    # The home node's latest reading, the only one kept (P20, 05 §4)
+    room: RoomView | None = None
     events: list[ExportEvent]
     incidents: list[ExportIncident]
     calls: list[ExportCall]

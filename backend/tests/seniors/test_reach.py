@@ -127,6 +127,8 @@ async def test_one_row(client, seniors):
                 "medical_record_state": None,
                 "latitude": None,  # her street is not in the map's table (design 2026-11-14 §7)
                 "longitude": None,
+                "home_node_state": None,
+                "room_temperature": None,
             }
         ]
     )

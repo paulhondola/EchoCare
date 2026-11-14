@@ -24,7 +24,10 @@ class EventType(StrEnum):
     inactivity = "inactivity"
     sos_button = "sos_button"
     manual_request = "manual_request"  # "Sunați-mă" (05 §4)
-    fall = "fall"  # watch-detected fall (P19)
+    fall = "fall"  # a fall seen by the watch (P19) or found by the home node (P24)
+    # Derived by FastAPI from the home node's room readings, never sent by a device (P21)
+    room_cold = "room_cold"
+    room_heat = "room_heat"
 
 
 class IncidentOutcome(StrEnum):
@@ -46,7 +49,8 @@ UNRESOLVED = frozenset({IncidentStatus.open, IncidentStatus.in_progress})
 
 
 class Event(Base):
-    """A watch anomaly, a button press or a "Sunați-mă" request (05 §2).
+    """A watch anomaly, a fall, a button press, a room out of range or a "Sunați-mă"
+    request (05 §2).
 
     The id is generated on the device, so a resent event is a duplicate key (05 §3).
     """

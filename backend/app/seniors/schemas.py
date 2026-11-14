@@ -206,6 +206,23 @@ class SeniorSummary(BaseModel):
     # not in the table (design 2026-11-14 §7).
     latitude: float | None = None
     longitude: float | None = None
+    # The home node's state and the room's temperature, for every role; null without a
+    # node (P20, 04 §1). Set by GET /seniors only.
+    home_node_state: str | None = None
+    room_temperature: float | None = None
+
+
+class RoomView(BaseModel):
+    """The home node's latest reading (P20, 04 §1), for every role that reaches the
+    senior. Plain strings: `seniors` sits below `homenode` (ADR-005). `state` is `ok` or
+    `offline`; `room_state` as POST /me/room-readings answers it (P26)."""
+
+    state: str
+    temperature: float
+    humidity: float | None
+    reading_at: datetime
+    last_motion_at: datetime | None
+    room_state: str
 
 
 class CaregiverView(CaregiverSummary):
@@ -254,6 +271,9 @@ class SeniorView(SeniorDetail):
     # The watch's latest pulse, alongside `watch_state` (UC-03). Null before the first
     # check-in that carried one, or for callers who can't see the watch.
     last_pulse: int | None = Field(None, ge=0, le=300)
+    # The home node's latest reading, for every role; null without a node (P20, 04 §1).
+    # Set by GET /seniors/{id} only.
+    room: RoomView | None = None
     medic: MedicView
     caregivers: list[CaregiverView]
 

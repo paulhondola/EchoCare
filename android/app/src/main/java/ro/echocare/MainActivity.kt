@@ -55,6 +55,7 @@ import ro.echocare.auth.ROLE_LABELS
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
+import ro.echocare.homenode.NodeService
 import ro.echocare.push.PUSH_KEYS
 import ro.echocare.push.Push
 import ro.echocare.push.tappedFrom
@@ -77,6 +78,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The home node's relay, when this phone has one (UC-15); started while in front
+        NodeService.start(this)
         // Not again after a rotation, once opened: its page is on the back stack already
         if (savedInstanceState?.getBoolean(ALERT_OPENED) != true) opening = alertIn(intent)
         // One dark theme (spec 07 §2.1): light status and navigation icons whatever the system uses

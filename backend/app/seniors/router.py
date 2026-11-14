@@ -14,6 +14,7 @@ from app.calls.service import (
 )
 from app.core.db import get_session
 from app.core.storage import StorageService, get_storage
+from app.homenode.service import room_for, rooms_for
 from app.medical.service import forget, record_key, record_states
 from app.seniors.schemas import (
     CaregiverEditForm,
@@ -66,8 +67,13 @@ async def list_seniors(
     rows = await senior_summaries(session, caller, role)
     # `seniors` can't import `medical` (ADR-005); the router composes them
     states = await record_states(session, caller)
+    # Nor `homenode`, which sits above it
+    nodes = await rooms_for(session, [row.id for row in rows])
     for row in rows:
         row.medical_record_state = states.get(row.id)
+        if (node := nodes.get(row.id)) is not None:
+            row.home_node_state = node.state
+            row.room_temperature = node.temperature_c
     return rows
 
 
@@ -82,6 +88,7 @@ async def get_senior(
     # `seniors` can't import `voice` (ADR-005); the router composes them
     view.call_in_progress = await call_in_progress(session, senior_id)
     view.watch_state, view.last_pulse = await watch_state(session, caller, senior)
+    view.room = await room_for(session, senior_id)
     return view
 
 
