@@ -125,10 +125,7 @@ class NodeService :
     private fun accuracy(here: Location?): Double? = here?.accuracy?.toDouble()
 
     /** An event goes to FastAPI; once recorded, the node hears its id and stops resending. */
-    private suspend fun relay(
-        id: String,
-        form: (Instant, Location?) -> EventForm
-    ) {
+    private suspend fun relay(id: String, form: (Instant, Location?) -> EventForm) {
         val here = lastKnownLocation(this)
         val sent = runCatching { api.sendEvent(form(Instant.now(), here)) }
             .onFailure { Log.w(TAG, "event $id not sent", it) }
