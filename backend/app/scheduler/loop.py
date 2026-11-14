@@ -17,7 +17,11 @@ from app.medical.service import start_analyses
 from app.memory.service import start_summaries
 from app.scheduler.dialer import dial_due
 from app.scheduler.sweep import sweep
-from app.seniors.service import prune_watch_readings, silence_watches
+from app.seniors.service import (
+    prune_health_readings,
+    prune_watch_readings,
+    silence_watches,
+)
 
 log = logging.getLogger("echocare.scheduler")
 
@@ -50,7 +54,9 @@ async def node_inactivity(now: datetime) -> int:
 
 async def prune(now: datetime) -> int:
     async with Session() as session:
-        return await prune_watch_readings(session, now)
+        return await prune_watch_readings(session, now) + await prune_health_readings(
+            session, now
+        )
 
 
 async def tick(now: datetime | None = None) -> bool:

@@ -39,6 +39,8 @@ from app.seniors.models import (
     ConsentDecision,
     ConsentMethod,
     EnrollmentState,
+    HealthReading,
+    HealthReadingKind,
     Senior,
     SummaryVersion,
     WatchCondition,
@@ -51,13 +53,18 @@ from app.seniors.schemas import (
     CaregiverForm,
     CaregiverView,
     CheckInForm,
+    EcgView,
+    HealthReadingForm,
     MedicView,
     SeniorForm,
     SeniorSummary,
     SeniorView,
     SignatureForm,
+    Spo2PointView,
+    Spo2View,
     SummaryContent,
     SummaryVersionView,
+    WatchHealthView,
     WatchReadingView,
     WatchView,
 )
@@ -809,6 +816,28 @@ async def record_check_in(
     await session.commit()
 
 
+async def record_health_reading(
+    session: AsyncSession, senior_id: uuid.UUID, body: HealthReadingForm, now: datetime
+) -> None:
+    """Stores one Apple Health sample (design 2026-11-14). A time ahead of `now` is
+    stored as `now`; one older than `READINGS_KEPT` is dropped; a re-sent id changes
+    nothing, since the phone re-sends the last day on every launch."""
+    if body.measured_at < now - READINGS_KEPT:
+        return
+    await session.execute(
+        insert(HealthReading)
+        .values(
+            {
+                **body.model_dump(),
+                "senior_id": senior_id,
+                "measured_at": min(body.measured_at, now),
+            }
+        )
+        .on_conflict_do_nothing(index_elements=["senior_id", "id"])
+    )
+    await session.commit()
+
+
 def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> bool:
     """Whether the caller looks after this senior, as her registering medic, as a
     caregiver (UC-12) or as DAS (ADR-006), or is the senior herself on her own page
@@ -902,10 +931,58 @@ async def watch_readings(
     return [WatchReadingView.model_validate(r, from_attributes=True) for r in rows]
 
 
+async def watch_health(
+    session: AsyncSession, caller: Caller, senior: Senior, now: datetime
+) -> WatchHealthView | None:
+    """The last day of Apple Health readings: the latest blood oxygen, the day's
+    series and the latest ECG; None when the caller can't see the watch or there is
+    nothing."""
+    if not sees_watch(caller, senior.id, senior.medic_id):
+        return None
+    rows = (
+        await session.scalars(
+            select(HealthReading)
+            .where(
+                HealthReading.senior_id == senior.id,
+                HealthReading.measured_at >= now - READINGS_KEPT,
+            )
+            .order_by(HealthReading.measured_at)
+        )
+    ).all()
+    if not rows:
+        return None
+    spo2 = [r for r in rows if r.kind == HealthReadingKind.spo2]
+    ecg = next((r for r in reversed(rows) if r.kind == HealthReadingKind.ecg), None)
+    return WatchHealthView(
+        spo2=Spo2View(value=spo2[-1].spo2, measured_at=spo2[-1].measured_at)
+        if spo2
+        else None,
+        spo2_readings=[Spo2PointView(at=r.measured_at, value=r.spo2) for r in spo2],
+        ecg=EcgView(
+            classification=ecg.ecg_classification,
+            heart_rate=ecg.ecg_heart_rate,
+            measured_at=ecg.measured_at,
+            trace=ecg.ecg_trace,
+            trace_hz=ecg.ecg_trace_hz,
+        )
+        if ecg
+        else None,
+    )
+
+
 async def prune_watch_readings(session: AsyncSession, now: datetime) -> int:
     """Deletes readings older than 24 hours (05 §5, ADR-006). Returns how many."""
     pruned = await session.execute(
         delete(WatchReading).where(WatchReading.measured_at < now - READINGS_KEPT)
+    )
+    await session.commit()
+    return pruned.rowcount
+
+
+async def prune_health_readings(session: AsyncSession, now: datetime) -> int:
+    """Deletes Apple Health readings older than 24 hours (design 2026-11-14)."""
+    pruned = await session.execute(
+        delete(HealthReading).where(HealthReading.measured_at < now - READINGS_KEPT)
     )
     await session.commit()
     return pruned.rowcount
@@ -1009,7 +1086,13 @@ async def summary_for(
 async def erase_senior_children(session: AsyncSession, senior_id: uuid.UUID) -> None:
     """The senior's consents, summaries and watch data, for an erasure (design
     2026-11-14). Doesn't commit (ADR-005)."""
-    for model in (Consent, SummaryVersion, WatchReading, WatchState):
+    for model in (
+        Consent,
+        HealthReading,
+        SummaryVersion,
+        WatchReading,
+        WatchState,
+    ):
         await session.execute(delete(model).where(model.senior_id == senior_id))
 
 
@@ -1047,3 +1130,16 @@ async def export_senior_children(
         )
     )
     return consents, summaries, watch, readings
+
+
+async def export_health_readings(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> list[HealthReading]:
+    """The senior's Apple Health readings, oldest first, for a GDPR export."""
+    return list(
+        await session.scalars(
+            select(HealthReading)
+            .where(HealthReading.senior_id == senior_id)
+            .order_by(HealthReading.measured_at, HealthReading.id)
+        )
+    )

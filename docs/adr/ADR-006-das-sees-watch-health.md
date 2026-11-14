@@ -25,5 +25,5 @@ A dispatcher who opens a senior after a red, or before calling a family, asks th
 
 ## Not done
 
-- **ECG and SpO2.** On Wear OS, ECG runs only inside the vendor's own app (Samsung Health Monitor), and the Samsung Health Sensor SDK requires partner approval. Neither `SensorManager` nor Health Services gives a third-party app either signal.
+- **ECG and SpO2.** On Wear OS, ECG runs only inside the vendor's own app (Samsung Health Monitor), and the Samsung Health Sensor SDK requires partner approval. Neither `SensorManager` nor Health Services gives a third-party app either signal. On iOS, the iPhone sends both from Apple Health ([ADR-008](ADR-008-ios-apple-health-oxygen-and-ecg.md), proposed).
 - **Exact daily steps after a restart.** The watch counts steps from the moment its service starts on a given day. Health Services' `STEPS_DAILY` would fix this if it matters.

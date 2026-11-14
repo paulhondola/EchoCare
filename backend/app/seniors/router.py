@@ -21,11 +21,13 @@ from app.seniors.schemas import (
     CaregiverForm,
     CaregiverView,
     CheckInForm,
+    HealthReadingForm,
     SeniorForm,
     SeniorSummary,
     SeniorView,
     SignatureForm,
     SummaryVersionView,
+    WatchHealthView,
     WatchReadingView,
     WatchView,
 )
@@ -40,6 +42,7 @@ from app.seniors.service import (
     grant_caregiver,
     reach_senior,
     record_check_in,
+    record_health_reading,
     register,
     revoke_caregiver,
     save_signature,
@@ -47,6 +50,7 @@ from app.seniors.service import (
     senior_view,
     submit,
     summary_for,
+    watch_health,
     watch_readings,
     watch_state,
     watch_view,
@@ -107,6 +111,24 @@ async def get_watch(
     """The watch's latest check-in (04 §1, ADR-006)."""
     senior = await reach_senior(session, caller, senior_id)
     view = await watch_view(session, caller, senior)
+    return view if view else Response(status_code=204)
+
+
+@router.get(
+    "/seniors/{senior_id}/watch/health",
+    response_model=WatchHealthView,
+    responses={
+        204: {"description": "No reading in the last day, or the watch is not shown"}
+    },
+)
+async def get_watch_health(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The last day of Apple Health blood oxygen and ECG readings."""
+    senior = await reach_senior(session, caller, senior_id)
+    view = await watch_health(session, caller, senior, datetime.now(UTC))
     return view if view else Response(status_code=204)
 
 
@@ -292,6 +314,18 @@ async def check_in(
     the latest; an older one than the stored is ignored."""
     senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
     await record_check_in(session, senior_id, body, datetime.now(UTC))
+
+
+@router.post("/me/health-readings", status_code=204)
+async def health_reading(
+    body: HealthReadingForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.senior))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """One Apple Health blood oxygen or ECG sample, relayed by the senior's phone. A
+    re-sent sample answers 204 and changes nothing."""
+    senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
+    await record_health_reading(session, senior_id, body, datetime.now(UTC))
 
 
 @router.get(

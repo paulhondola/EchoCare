@@ -26,6 +26,9 @@ from app.seniors.models import (
     Consent,
     ConsentDecision,
     ConsentMethod,
+    EcgClassification,
+    HealthReading,
+    HealthReadingKind,
     Senior,
     SummaryVersion,
     WatchCondition,
@@ -143,6 +146,23 @@ async def test_export_includes_every_senior_row(
                 battery=84,
                 worn=True,
             ),
+            HealthReading(
+                senior_id=senior.id,
+                id=uuid.uuid4(),
+                kind=HealthReadingKind.ecg,
+                measured_at=NOW,
+                ecg_classification=EcgClassification.sinus_rhythm,
+                ecg_heart_rate=64,
+                ecg_trace=[1, -2, 3],
+                ecg_trace_hz=512,
+            ),
+            HealthReading(
+                senior_id=senior.id,
+                id=uuid.uuid4(),
+                kind=HealthReadingKind.spo2,
+                measured_at=NOW - timedelta(hours=1),
+                spo2=96,
+            ),
             Event(
                 id=event_id,
                 senior_id=senior.id,
@@ -241,6 +261,10 @@ async def test_export_includes_every_senior_row(
     assert exported.watch.state.last_pulse == 72
     assert [r.pulse for r in exported.watch.readings] == [70, 72]
     assert [r.resting_pulse for r in exported.watch.readings] == [62, 62]
+    health = exported.watch.health_readings
+    assert [r.kind for r in health] == [HealthReadingKind.spo2, HealthReadingKind.ecg]
+    assert health[0].spo2 == 96
+    assert health[1].ecg_trace == [1, -2, 3]
     assert len(exported.events) == 1
     assert exported.events[0].id == event_id
     assert exported.events[0].latitude == 45.75
@@ -350,6 +374,7 @@ EXPORTED_TABLES = {
     "status_reports",
     "senior_statuses",
     "medical_records",
+    "health_readings",
 }
 
 

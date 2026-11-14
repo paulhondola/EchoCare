@@ -409,15 +409,19 @@ extension ApiTests {
             let api = client(stub)
             try await api.removeCaregiver(id: "s1", userId: "u1")
             try await api.checkIn(CheckInForm(measuredAt: "2026-11-14T10:00:00+02:00", worn: true))
+            try await api.sendHealthReading(
+                HealthReadingForm(
+                    id: "r1", kind: "ecg", measuredAt: "2026-11-14T10:00:00.000+02:00",
+                    ecgTrace: [1, 2], ecgTraceHz: 128))
             try await api.mockAnswer(id: "c1", body: MockAnswer(consent: true))
             try await api.sign(
                 id: "s1", body: SignatureForm(textVersion: "v1", strokes: [[[0.5, 1], [2, 3]]]))
             let sent = stub.requests
-            #expect(sent.map(\.method) == ["DELETE", "POST", "POST", "POST"])
+            #expect(sent.map(\.method) == ["DELETE", "POST", "POST", "POST", "POST"])
             #expect(
                 sent.map(\.url.path) == [
                     "/api/seniors/s1/caregivers/u1", "/api/me/check-ins",
-                    "/api/calls/c1/mock-answer",
+                    "/api/me/health-readings", "/api/calls/c1/mock-answer",
                     "/api/seniors/s1/signature",
                 ])
             #expect(sent[1].headers["Content-Type"] == "application/json")
@@ -425,6 +429,9 @@ extension ApiTests {
             #expect(body?["measured_at"] as? String == "2026-11-14T10:00:00+02:00")
             #expect(body?["worn"] as? Bool == true)
             #expect(body?["battery"] == nil)
+            let reading = try JSONSerialization.jsonObject(with: sent[2].body) as? [String: Any]
+            #expect(reading?["ecg_trace_hz"] as? Int == 128)
+            #expect(reading?["spo2"] == nil)
         }
 
         @Test func aMockAnswerConflictThrows() async throws {

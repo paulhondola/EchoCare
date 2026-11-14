@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -137,6 +138,46 @@ class WatchReading(Base):
     steps_today: Mapped[int | None] = mapped_column(Integer)
     battery: Mapped[int | None] = mapped_column(Integer)
     worn: Mapped[bool | None] = mapped_column(Boolean)
+
+
+class HealthReadingKind(StrEnum):
+    spo2 = "spo2"
+    ecg = "ecg"
+
+
+class EcgClassification(StrEnum):
+    sinus_rhythm = "sinus_rhythm"
+    atrial_fibrillation = "atrial_fibrillation"
+    inconclusive_low_heart_rate = "inconclusive_low_heart_rate"
+    inconclusive_high_heart_rate = "inconclusive_high_heart_rate"
+    inconclusive_poor_reading = "inconclusive_poor_reading"
+    inconclusive_other = "inconclusive_other"
+    unrecognized = "unrecognized"
+
+
+class HealthReading(Base):
+    """One Apple Health blood oxygen or ECG sample, kept 24 hours (design 2026-11-14).
+    The id is the HealthKit sample's UUID, so a re-sent sample is kept once."""
+
+    __tablename__ = "health_readings"
+    __table_args__ = (
+        Index("ix_health_readings_senior_measured", "senior_id", "measured_at"),
+    )
+
+    senior_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("seniors.id"), primary_key=True
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    kind: Mapped[HealthReadingKind] = mapped_column(enum_type(HealthReadingKind))
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = timestamp_now()
+    spo2: Mapped[int | None] = mapped_column(Integer)
+    ecg_classification: Mapped[EcgClassification | None] = mapped_column(
+        enum_type(EcgClassification)
+    )
+    ecg_heart_rate: Mapped[int | None] = mapped_column(Integer)
+    ecg_trace: Mapped[list[int] | None] = mapped_column(JSONB)
+    ecg_trace_hz: Mapped[int | None] = mapped_column(Integer)
 
 
 class SummaryVersion(Base):

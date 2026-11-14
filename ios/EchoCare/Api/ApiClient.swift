@@ -154,6 +154,11 @@ actor ApiClient {
         _ = try await send("POST", "me/check-ins", json: body)
     }
 
+    /// Senior only. 204, also on a repeat of the same `id` (04 §3).
+    func sendHealthReading(_ body: HealthReadingForm) async throws {
+        _ = try await send("POST", "me/health-readings", json: body)
+    }
+
     /// Senior only. 200 also for a duplicate; `callId` is nil when no call was queued (04 §3).
     func sendEvent(_ body: EventForm) async throws -> EventResult {
         try await post("me/events", body: body)

@@ -14,7 +14,7 @@ from pydantic import (
 )
 
 from app.core.phones import is_mobile, normalize
-from app.seniors.models import WatchCondition
+from app.seniors.models import EcgClassification, HealthReadingKind, WatchCondition
 
 
 class SeniorDetail(BaseModel):
@@ -322,6 +322,41 @@ class CheckInForm(BaseModel):
     minutes_without_steps: int | None = Field(None, ge=0)
 
 
+class HealthReadingForm(BaseModel):
+    """One Apple Health blood oxygen or ECG sample, relayed by the senior's phone.
+    `id` is the HealthKit sample's UUID; `measured_at` carries an offset (design
+    2026-11-14)."""
+
+    id: uuid.UUID
+    kind: HealthReadingKind
+    measured_at: AwareDatetime
+    spo2: int | None = Field(None, ge=50, le=100)
+    ecg_classification: EcgClassification | None = None
+    ecg_heart_rate: int | None = Field(None, ge=0, le=300)
+    # Microvolts, shortened by the phone to at most 1,280 samples
+    ecg_trace: list[Annotated[int, Field(ge=-10_000, le=10_000)]] | None = Field(
+        None, max_length=1_280
+    )
+    ecg_trace_hz: int | None = Field(None, ge=1, le=512)
+
+    @model_validator(mode="after")
+    def fields_match_kind(self) -> Self:
+        ecg = (
+            self.ecg_classification,
+            self.ecg_heart_rate,
+            self.ecg_trace,
+            self.ecg_trace_hz,
+        )
+        if self.kind == HealthReadingKind.spo2:
+            if self.spo2 is None or any(v is not None for v in ecg):
+                raise ValueError("a blood oxygen reading carries spo2 and nothing else")
+        elif self.spo2 is not None or self.ecg_classification is None:
+            raise ValueError("an ECG carries a classification and no spo2")
+        if (self.ecg_trace is None) != (self.ecg_trace_hz is None):
+            raise ValueError("ecg_trace and ecg_trace_hz come together")
+        return self
+
+
 class WatchView(BaseModel):
     """GET /seniors/{id}/watch (04 §1): the latest check-in (UC-13, ADR-006)."""
 
@@ -343,6 +378,32 @@ class WatchReadingView(BaseModel):
     battery: int | None
     worn: bool | None
     steps_today: int | None
+
+
+class Spo2View(BaseModel):
+    value: int
+    measured_at: datetime
+
+
+class Spo2PointView(BaseModel):
+    at: datetime
+    value: int
+
+
+class EcgView(BaseModel):
+    classification: EcgClassification
+    heart_rate: int | None
+    measured_at: datetime
+    trace: list[int] | None
+    trace_hz: int | None
+
+
+class WatchHealthView(BaseModel):
+    """GET /seniors/{id}/watch/health: the last day of Apple Health readings."""
+
+    spo2: Spo2View | None
+    spo2_readings: list[Spo2PointView]
+    ecg: EcgView | None
 
 
 class Citation(BaseModel):

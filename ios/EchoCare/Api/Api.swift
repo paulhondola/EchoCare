@@ -441,6 +441,35 @@ struct CheckInForm: Codable, Equatable, Sendable {
     }
 }
 
+// POST /me/health-readings' body (04 §3): one Apple Health blood oxygen or ECG reading. [id] is
+// the HealthKit sample's UUID, so a resend is a duplicate. [kind] is spo2 or ecg; [ecgTrace] is
+// microvolts at [ecgTraceHz]. 204, no body.
+struct HealthReadingForm: Codable, Equatable, Sendable {
+    var id: String
+    var kind: String
+    var measuredAt: String
+    var spo2: Int?
+    var ecgClassification: String?
+    var ecgHeartRate: Int?
+    var ecgTrace: [Int]?
+    var ecgTraceHz: Int?
+
+    init(
+        id: String, kind: String, measuredAt: String, spo2: Int? = nil,
+        ecgClassification: String? = nil, ecgHeartRate: Int? = nil, ecgTrace: [Int]? = nil,
+        ecgTraceHz: Int? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.measuredAt = measuredAt
+        self.spo2 = spo2
+        self.ecgClassification = ecgClassification
+        self.ecgHeartRate = ecgHeartRate
+        self.ecgTrace = ecgTrace
+        self.ecgTraceHz = ecgTraceHz
+    }
+}
+
 // POST /me/events' body (04 §3). [type] is one of manual_request, fall, high_pulse_at_rest,
 // inactivity; [measuredAt] is ISO-8601 with an offset; [id] is the device's, so a resend is a
 // duplicate. [source] is watch, phone or home_node.

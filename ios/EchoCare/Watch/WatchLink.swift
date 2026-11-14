@@ -76,7 +76,10 @@ final class WatchLink: NSObject {
         guard HKHealthStore.isHealthDataAvailable() else { throw WatchLinkError.notAvailable }
         // As the spike: the phone asks for the workout and heart rate before starting the watch
         let share: Set<HKSampleType> = [HKObjectType.workoutType()]
-        let read: Set<HKObjectType> = [HKQuantityType(.heartRate)]
+        let read: Set<HKObjectType> = [
+            HKQuantityType(.heartRate), HKQuantityType(.oxygenSaturation),
+            HKObjectType.electrocardiogramType(),
+        ]
         do {
             if try await store.statusForAuthorizationRequest(toShare: share, read: read)
                 == .shouldRequest

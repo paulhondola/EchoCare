@@ -42,6 +42,7 @@ def test_every_entity_has_a_table():
         "consents",
         "watch_states",
         "watch_readings",
+        "health_readings",
         "home_node_states",
         "senior_summaries",
         "events",
