@@ -28,7 +28,9 @@ struct AppConfigTests {
 
     @Test(
         "API_URL defaults to staging",
-        .enabled(if: Built.isDefault("EchoCareAPIURL", Built.stagingURL), "API_URL is overridden for this build"))
+        .enabled(
+            if: Built.isDefault("EchoCareAPIURL", Built.stagingURL),
+            "API_URL is overridden for this build"))
     func apiURLDefaultsToStaging() {
         #expect(AppConfig.apiURL.absoluteString == Built.stagingURL)
     }
@@ -40,7 +42,9 @@ struct AppConfigTests {
 
     @Test(
         "REREAD_SECONDS defaults to 30",
-        .enabled(if: Built.isDefault("EchoCareRereadSeconds", "30"), "REREAD_SECONDS is overridden for this build"))
+        .enabled(
+            if: Built.isDefault("EchoCareRereadSeconds", "30"),
+            "REREAD_SECONDS is overridden for this build"))
     func rereadDefaultsTo30() {
         #expect(AppConfig.rereadSeconds == 30)
     }
@@ -52,7 +56,8 @@ struct AppConfigTests {
 
     @Test(
         "REAL_SMS defaults to NO",
-        .enabled(if: Built.isDefault("EchoCareRealSMS", "NO"), "REAL_SMS is overridden for this build"))
+        .enabled(
+            if: Built.isDefault("EchoCareRealSMS", "NO"), "REAL_SMS is overridden for this build"))
     func realSMSDefaultsToNo() {
         #expect(!AppConfig.realSMS)
     }

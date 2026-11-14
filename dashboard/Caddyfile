@@ -8,7 +8,22 @@
 	}
 }
 
+# On every response, errors included (design 2026-11-14). No script CSP: Firebase phone
+# sign-in loads reCAPTCHA from Google's domains; frame-ancestors only blocks framing.
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Content-Security-Policy "frame-ancestors 'none'"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# No includeSubDomains: the dashboard lives on a Railway subdomain
+		Strict-Transport-Security "max-age=31536000"
+	}
+}
+
 :{$PORT:3000} {
+	import security_headers
 	root * /srv
 	encode gzip
 
@@ -29,6 +44,7 @@
 
 	# Never cache an error: during a deploy's overlap, an asset can 404 on the old copy for a moment.
 	handle_errors {
+		import security_headers
 		header Cache-Control "no-store"
 		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}

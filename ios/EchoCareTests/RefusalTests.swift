@@ -25,7 +25,8 @@ struct RefusalTests {
         // The body as a whole, or a path parameter: no field of the form to mark
         #expect(
             refusalOf(
-                status: 422, body: #"{"detail": [{"loc": ["body"]}, {"loc": ["path", "senior_id"]}]}"#)
+                status: 422,
+                body: #"{"detail": [{"loc": ["body"]}, {"loc": ["path", "senior_id"]}]}"#)
                 == .invalid([]))
         #expect(refusalOf(status: 422, body: "not json") == .invalid([]))
     }
@@ -39,9 +40,11 @@ struct RefusalTests {
                                 "missing": ["street", "street_number", "caregiver"]}}
                     """) == .incomplete(["street", "street_number", "caregiver"]))
         #expect(
-            refusalOf(status: 422, body: #"{"detail": {"reason": "incomplete"}}"#) == .incomplete([]))
+            refusalOf(status: 422, body: #"{"detail": {"reason": "incomplete"}}"#)
+                == .incomplete([]))
         #expect(
-            refusalOf(status: 409, body: #"{"detail": {"reason": "already_done"}}"#) == .alreadyDone())
+            refusalOf(status: 409, body: #"{"detail": {"reason": "already_done"}}"#)
+                == .alreadyDone())
         #expect(
             refusalOf(status: 409, body: #"{"detail": {"reason": "wrong_state"}}"#) == .wrongState)
         // A reason a later server adds: the senior is read again, never a crash (ADR-001 §2.3)
@@ -50,7 +53,8 @@ struct RefusalTests {
 
     @Test func `everything else is as for a read in slice 3`() {
         #expect(
-            refusalOf(status: 404, body: #"{"detail": {"reason": "not_found"}}"#) == .failed(.notFound))
+            refusalOf(status: 404, body: #"{"detail": {"reason": "not_found"}}"#)
+                == .failed(.notFound))
         #expect(
             refusalOf(status: 403, body: #"{"detail": {"reason": "not_allowed"}}"#)
                 == .failed(.notAllowed))
@@ -68,7 +72,8 @@ struct RefusalTests {
         #expect(
             thenAfter(.save, .invalid(["phone"])) == .mark([.phone: "invalid_phone"]))
         #expect(
-            thenAfter(.save, .invalid(["full_name", "unknown"])) == .mark([.fullName: "field_invalid"]))
+            thenAfter(.save, .invalid(["full_name", "unknown"]))
+                == .mark([.fullName: "field_invalid"]))
         #expect(thenAfter(.save, .invalid([])) == .show(.says("field_invalid")))
         // A submitted senior keeps the street and number (04 §2)
         #expect(
@@ -84,7 +89,8 @@ struct RefusalTests {
 
     @Test func `a refused caregiver says why`() {
         #expect(
-            thenAfter(.add, .invalid(["phone"])) == .mark([.caregiverPhone: "caregiver_phone_invalid"]))
+            thenAfter(.add, .invalid(["phone"]))
+                == .mark([.caregiverPhone: "caregiver_phone_invalid"]))
         #expect(
             thenAfter(.add, .invalid(["display_name", "relation"]))
                 == .mark([.caregiverName: "field_invalid", .relation: "field_invalid"]))

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    ApiError,
+    eraseSenior,
     fetchCalls,
     fetchMedicalRecord,
     fetchSenior,
@@ -26,6 +28,7 @@
     TONE_DOT,
     TRIGGERS,
   } from "../../utils/labels";
+  import { eraseRefusalText } from "../../utils/erase";
   import { formatPhone } from "../../utils/phone";
   import { tabKeydown } from "../../utils/tabs";
   import CallTranscript from "../calls/CallTranscript.svelte";
@@ -33,7 +36,32 @@
   import MedicalRecord from "./MedicalRecord.svelte";
   import WatchHealth from "./WatchHealth.svelte";
 
-  let { senior: summary, onClose }: { senior: SeniorSummary; onClose: () => void } = $props();
+  let {
+    senior: summary,
+    onClose,
+    onErased,
+  }: { senior: SeniorSummary; onClose: () => void; onErased: () => void } = $props();
+
+  // Șterge toate datele (04 §2, design 2026-11-14): asked once more in the panel, never by confirm()
+  let confirmingErase = $state(false);
+  let erasing = $state(false);
+  let eraseError = $state<string | null>(null);
+
+  async function erase() {
+    erasing = true;
+    eraseError = null;
+    try {
+      await eraseSenior(summary.id);
+      onErased();
+    } catch (err) {
+      const reason = err instanceof ApiError ? err.reason : undefined;
+      // Someone else erased the senior first: the outcome is the same
+      if (reason === "not_found") return onErased();
+      eraseError = eraseRefusalText(reason);
+    } finally {
+      erasing = false;
+    }
+  }
 
   type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
 
@@ -380,6 +408,51 @@
           {:else}
             <p class="text-fg-muted">Niciun aparținător înregistrat.</p>
           {/each}
+
+          <div class="mt-6 border-t-2 border-line pt-4">
+            {#if !confirmingErase}
+              <button
+                type="button"
+                class="sn-btn sn-btn-outline px-3 py-1.5 text-xs"
+                onclick={() => (confirmingErase = true)}
+              >
+                <Icon name="trash-2" size={14} />Șterge toate datele
+              </button>
+            {:else}
+              <div
+                class="border border-rosu bg-rosu/15 p-4"
+                role="group"
+                aria-label="Confirmă ștergerea"
+              >
+                <p class="text-rosu-fg">
+                  Toate datele despre {s.full_name} vor fi șterse definitiv: apeluri, transcrieri, fișa
+                  medicală, consimțăminte. Acțiunea nu poate fi anulată.
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="sn-btn sn-btn-outline px-3 py-1.5 text-xs"
+                    disabled={erasing}
+                    onclick={() => {
+                      confirmingErase = false;
+                      eraseError = null;
+                    }}
+                  >
+                    Anulează
+                  </button>
+                  <button
+                    type="button"
+                    class="sn-btn sn-btn-danger px-3 py-1.5 text-xs"
+                    disabled={erasing}
+                    onclick={erase}
+                  >
+                    {erasing ? "Se șterge…" : "Șterge definitiv"}
+                  </button>
+                </div>
+                {#if eraseError}<p role="alert" class="mt-3 text-rosu-fg">{eraseError}</p>{/if}
+              </div>
+            {/if}
+          </div>
         </div>
       {/if}
     </div>

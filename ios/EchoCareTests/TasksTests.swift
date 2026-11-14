@@ -10,7 +10,8 @@ struct TasksTests {
         acceptedAt: String? = nil
     ) -> SeniorRow {
         SeniorRow(
-            id: id, fullName: id, formOfAddress: "Dna", phone: "+40700000000", landline: false, state: state,
+            id: id, fullName: id, formOfAddress: "Dna", phone: "+40700000000", landline: false,
+            state: state,
             createdAt: createdAt, acceptedAt: acceptedAt, medicalRecordState: medical)
     }
 

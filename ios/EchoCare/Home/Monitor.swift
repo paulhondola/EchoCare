@@ -17,7 +17,8 @@ struct MonitorView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(
-        onBack: @escaping () -> Void, onOpen: @escaping (String) -> Void, onNew: @escaping () -> Void,
+        onBack: @escaping () -> Void, onOpen: @escaping (String) -> Void,
+        onNew: @escaping () -> Void,
         onEdit: @escaping (String) -> Void, onSessionEnd: @escaping (Failure) -> Void,
         api: ApiClient = ApiClient(tokens: FirebaseTokenSource())
     ) {
@@ -35,7 +36,10 @@ struct MonitorView: View {
             if case .loading = model.seniors {
                 PlaceholderCards(count: 6)
             } else {
-                LoadBody(load: model.seniors, onRetry: { Task { await model.load() } }, onSessionEnd: onSessionEnd) {
+                LoadBody(
+                    load: model.seniors, onRetry: { Task { await model.load() } },
+                    onSessionEnd: onSessionEnd
+                ) {
                     seniors in
                     let groups = panel(seniors)
                     if groups.isEmpty {
@@ -43,14 +47,17 @@ struct MonitorView: View {
                     } else if sizeClass == .regular {
                         GeometryReader { geometry in
                             HStack(spacing: 0) {
-                                PatientList(groups: groups, selected: model.selected) { model.selected = $0 }
-                                    .frame(width: geometry.size.width * 0.4)
+                                PatientList(groups: groups, selected: model.selected) {
+                                    model.selected = $0
+                                }
+                                .frame(width: geometry.size.width * 0.4)
                                 Rectangle().fill(Theme.line).frame(width: 2)
                                 Group {
                                     if let id = model.selected {
                                         // One page per patient, so a new choice starts clean
                                         SelectedPatient(
-                                            id: id, api: api, onSessionEnd: onSessionEnd, onEdit: onEdit,
+                                            id: id, api: api, onSessionEnd: onSessionEnd,
+                                            onEdit: onEdit,
                                             onChanged: { await model.load() }
                                         )
                                         .id(id)
@@ -81,7 +88,8 @@ private struct SelectedPatient: View {
     @State private var model: SeniorDetailModel
 
     init(
-        id: String, api: ApiClient, onSessionEnd: @escaping (Failure) -> Void, onEdit: @escaping (String) -> Void,
+        id: String, api: ApiClient, onSessionEnd: @escaping (Failure) -> Void,
+        onEdit: @escaping (String) -> Void,
         onChanged: @escaping () async -> Void
     ) {
         self.id = id
@@ -92,7 +100,8 @@ private struct SelectedPatient: View {
     }
 
     var body: some View {
-        PatientPane(id: id, model: model, onSessionEnd: onSessionEnd, onEdit: onEdit, onChanged: onChanged)
+        PatientPane(
+            id: id, model: model, onSessionEnd: onSessionEnd, onEdit: onEdit, onChanged: onChanged)
     }
 }
 
@@ -108,18 +117,23 @@ private struct PatientList: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(groups, id: \.group) { group, rows in
-                    SectionLabel(LocalizedStringKey(group.title)).padding(.top, 12).padding(.bottom, 4)
+                    SectionLabel(LocalizedStringKey(group.title)).padding(.top, 12).padding(
+                        .bottom, 4)
                     // Inactive starts collapsed: those patients need nothing from her
                     if group != .inactive || showInactive {
                         ForEach(rows, id: \.id) { row in
-                            PatientCard(row: row, group: group, selected: row.id == selected, now: now) {
+                            PatientCard(
+                                row: row, group: group, selected: row.id == selected, now: now
+                            ) {
                                 onPick(row.id)
                             }
                         }
                     }
                     if group == .inactive {
                         SnButton(
-                            showInactive ? "hide" : LocalizedStringKey(localized("show_n", rows.count)), kind: .link
+                            showInactive
+                                ? "hide" : LocalizedStringKey(localized("show_n", rows.count)),
+                            kind: .link
                         ) { showInactive.toggle() }
                     }
                 }
@@ -155,10 +169,13 @@ struct PatientCard: View {
                     // A state this build does not know, in Inactivi under its raw name (UC-12)
                     Chip(verbatim: row.state, tone: .muted)
                 }
-                Text(verbatim: row.formOfAddress).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
-                Text(verbatim: row.fullName).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgMuted)
+                Text(verbatim: row.formOfAddress).textStyle(Theme.titleMedium).foregroundStyle(
+                    Theme.fg)
+                Text(verbatim: row.fullName).textStyle(Theme.bodyMedium).foregroundStyle(
+                    Theme.fgMuted)
                 if let line = says(row.state) {
-                    Text(LocalizedStringKey(line)).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fg)
+                    Text(LocalizedStringKey(line)).textStyle(Theme.bodyMedium).foregroundStyle(
+                        Theme.fg)
                 }
                 let at: String? =
                     switch group {
@@ -167,7 +184,8 @@ struct PatientCard: View {
                     default: nil
                     }
                 if let at, let since = ago(at, now: now) {
-                    Text(verbatim: agoText(since)).textStyle(Theme.bodySmall).foregroundStyle(Theme.fgMuted)
+                    Text(verbatim: agoText(since)).textStyle(Theme.bodySmall).foregroundStyle(
+                        Theme.fgMuted)
                 }
                 if row.watchState != "ok", let chip = watchChip(row.watchState) {
                     Chip(LocalizedStringKey(chip.label), tone: chip.tone)

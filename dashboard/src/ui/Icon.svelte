@@ -28,7 +28,8 @@
     | "watch"
     | "scale"
     | "headset"
-    | "menu";
+    | "menu"
+    | "trash-2";
 </script>
 
 <script lang="ts">
@@ -53,7 +54,13 @@
   class={["flex-none", className]}
   aria-hidden="true"
 >
-  {#if name === "siren"}
+  {#if name === "trash-2"}
+    <path d="M3 6h18" />
+    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    <line x1="10" x2="10" y1="11" y2="17" />
+    <line x1="14" x2="14" y1="11" y2="17" />
+  {:else if name === "siren"}
     <path d="M7 18v-6a5 5 0 1 1 10 0v6" />
     <path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z" />
     <path d="M21 12h1" />

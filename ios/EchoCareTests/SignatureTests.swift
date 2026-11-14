@@ -8,7 +8,8 @@ import Testing
 struct SignatureTests {
     @Test func `points are shares of the pad`() {
         #expect(
-            normalised([[Point(x: 50, y: 25)]], width: 100, height: 50) == [[Point(x: 0.5, y: 0.5)]])
+            normalised([[Point(x: 50, y: 25)]], width: 100, height: 50) == [[Point(x: 0.5, y: 0.5)]]
+        )
     }
 
     @Test func `points outside the pad are clamped`() {
@@ -46,8 +47,9 @@ struct SignatureTests {
     // What the server reads: text_version and strokes as lists of [x, y] shares
     @Test func `the body is text_version and strokes of x y pairs`() throws {
         let form = signatureForm([[Point(x: 5, y: 10), Point(x: 10, y: 5)]], width: 10, height: 10)
-        let json = try JSONSerialization.jsonObject(
-            with: ApiClient.makeEncoder().encode(form)) as? [String: Any]
+        let json =
+            try JSONSerialization.jsonObject(
+                with: ApiClient.makeEncoder().encode(form)) as? [String: Any]
         #expect(json?["text_version"] as? String == "v1-semnatura")
         #expect(json?["strokes"] as? [[[Double]]] == [[[0.5, 1.0], [1.0, 0.5]]])
     }

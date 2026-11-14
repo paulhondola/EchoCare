@@ -40,7 +40,10 @@ final class AuthModel {
     /// starts a new attempt: an answer from an older one changes nothing.
     private var attempt = 0
 
-    init(api: ApiClient = ApiClient(tokens: FirebaseTokenSource()), defaults: UserDefaults = .standard) {
+    init(
+        api: ApiClient = ApiClient(tokens: FirebaseTokenSource()),
+        defaults: UserDefaults = .standard
+    ) {
         self.api = api
         self.defaults = defaults
     }
@@ -84,7 +87,8 @@ final class AuthModel {
         attempt += 1
         let current = attempt
         do {
-            let id = try await PhoneAuthProvider.provider().verifyPhoneNumber(phone, uiDelegate: nil)
+            let id = try await PhoneAuthProvider.provider().verifyPhoneNumber(
+                phone, uiDelegate: nil)
             guard current == attempt else { return }
             signingIn = false
             verificationID = id
@@ -224,6 +228,8 @@ final class AuthModel {
     /// screen shows only a short Romanian text (auth-layer §3.2), which hides codes such as 17028.
     private func logFailure(_ step: String, _ error: Error) {
         let ns = error as NSError
-        log.warning("\(step, privacy: .public) failed: \(ns.domain, privacy: .public) \(ns.code) \(ns.localizedDescription, privacy: .public)")
+        log.warning(
+            "\(step, privacy: .public) failed: \(ns.domain, privacy: .public) \(ns.code) \(ns.localizedDescription, privacy: .public)"
+        )
     }
 }

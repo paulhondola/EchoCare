@@ -23,18 +23,26 @@
 
   const W = 300;
   const H = 48;
-  const line = $derived.by(() => {
+  type PulseLine = { path: string; lo: number; hi: number };
+
+  function windowLine(windowMs: number): PulseLine | null {
     if (readings.load.kind !== "ok") return null;
     const to = readings.load.at;
-    const points = readings.load.data.map((r) => ({ t: Date.parse(r.at), v: r.pulse }));
+    const from = to - windowMs;
+    const points = readings.load.data
+      .map((r) => ({ t: Date.parse(r.at), v: r.pulse }))
+      .filter((p) => p.t >= from && p.t <= to);
     const pulses = points.flatMap((p) => (p.v === null ? [] : [p.v]));
     if (!pulses.length) return null;
     return {
-      path: sparkline(points, to - 24 * 3_600_000, to, W, H),
+      path: sparkline(points, from, to, W, H),
       lo: Math.min(...pulses),
       hi: Math.max(...pulses),
     };
-  });
+  }
+
+  const line24h = $derived(windowLine(24 * 3_600_000));
+  const line1h = $derived(windowLine(3_600_000));
   const value = (n: number | null, unit = "") => (n === null ? "—" : `${n}${unit}`);
 </script>
 
@@ -42,6 +50,32 @@
   <div class="flex flex-col gap-0.5">
     <span class="sn-label">{label}</span>
     <span class="font-mono text-[15px] font-medium">{text}</span>
+  </div>
+{/snippet}
+
+{#snippet pulseGraph(label: string, spanLabel: string, line: PulseLine | null, emptyText: string)}
+  <div class="flex flex-col gap-1 border-t border-line pt-3">
+    <span class="sn-label">{label}</span>
+    {#if line}
+      <svg
+        viewBox="0 0 {W} {H}"
+        preserveAspectRatio="none"
+        class="h-12 w-full text-link"
+        role="img"
+        aria-label="Puls în {spanLabel}, între {line.lo} și {line.hi} bpm"
+      >
+        <path
+          d={line.path}
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
+      <span class="font-mono text-xs text-fg-muted">min {line.lo} · max {line.hi} bpm</span>
+    {:else}
+      <p class="text-fg-muted">{emptyText}</p>
+    {/if}
   </div>
 {/snippet}
 
@@ -74,31 +108,25 @@
       {@render stat("Fără pași de", value(w.minutes_without_steps, " min"))}
     </div>
 
-    <div class="flex flex-col gap-1 border-t border-line pt-3">
-      <span class="sn-label">Puls, ultimele 24 h</span>
-      {#if line}
-        <svg
-          viewBox="0 0 {W} {H}"
-          preserveAspectRatio="none"
-          class="h-12 w-full text-link"
-          role="img"
-          aria-label="Puls în ultimele 24 de ore, între {line.lo} și {line.hi} bpm"
-        >
-          <path
-            d={line.path}
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            vector-effect="non-scaling-stroke"
-          />
-        </svg>
-        <span class="font-mono text-xs text-fg-muted">min {line.lo} · max {line.hi} bpm</span>
-      {:else if readings.load.kind === "error"}
+    {#if readings.load.kind === "error"}
+      <div class="flex flex-col gap-1 border-t border-line pt-3">
+        <span class="sn-label">Puls, ultimele 24 h</span>
         <p role="alert" class="text-rosu-fg">{readings.load.message}</p>
-      {:else}
-        <p class="text-fg-muted">Fără citiri de puls în ultimele 24 de ore.</p>
-      {/if}
-    </div>
+      </div>
+    {:else}
+      {@render pulseGraph(
+        "Puls, ultimele 24 h",
+        "ultimele 24 de ore",
+        line24h,
+        "Fără citiri de puls în ultimele 24 de ore.",
+      )}
+      {@render pulseGraph(
+        "Puls, ultima oră",
+        "ultima oră",
+        line1h,
+        "Fără citiri de puls în ultima oră.",
+      )}
+    {/if}
     {#if watch.load.error}<p role="alert" class="text-xs text-rosu-fg">{watch.load.error}</p>{/if}
   </section>
 {/if}

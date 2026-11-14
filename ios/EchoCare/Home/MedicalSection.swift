@@ -37,10 +37,12 @@ struct MedicalSection: View {
             SectionLabel("medical_section")
             Rule()
             if let line = stageLine(stage) {
-                Text(LocalizedStringKey(line)).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgSoft)
+                Text(LocalizedStringKey(line)).textStyle(Theme.bodyLarge).foregroundStyle(
+                    Theme.fgSoft)
             }
             if let uploadNotice {
-                Text(LocalizedStringKey(uploadNotice)).textStyle(Theme.bodyLarge).foregroundStyle(Theme.galbenFg)
+                Text(LocalizedStringKey(uploadNotice)).textStyle(Theme.bodyLarge).foregroundStyle(
+                    Theme.galbenFg)
             }
             if stage == .review || stage == .confirmed {
                 let open = stage == .review || editing
@@ -60,10 +62,13 @@ struct MedicalSection: View {
                     SnButton("medical_open", kind: .link) { openURL(url) }
                 }
                 if canReanalyze(stage, editing: editing) {
-                    SnButton("medical_reanalyze", kind: .outline, action: onReanalyze).disabled(busy)
+                    SnButton("medical_reanalyze", kind: .outline, action: onReanalyze).disabled(
+                        busy)
                 }
-                SnButton(record == nil ? "medical_upload" : "medical_replace", kind: .outline) { picking = true }
-                    .disabled(busy)
+                SnButton(record == nil ? "medical_upload" : "medical_replace", kind: .outline) {
+                    picking = true
+                }
+                .disabled(busy)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,8 +108,10 @@ private struct ItemRow: View {
                         .font(.system(size: 20))
                         .foregroundStyle(item.included ? Theme.link : Theme.fgMuted)
                         .frame(width: 48, height: 48)
-                    Text(verbatim: item.condition).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(verbatim: item.condition).textStyle(Theme.titleMedium).foregroundStyle(
+                        Theme.fg
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .contentShape(Rectangle())
             }
@@ -117,12 +124,16 @@ private struct ItemRow: View {
                     .textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgSoft).padding(.leading, 12)
             }
             if !item.evidence.trimmingCharacters(in: .whitespaces).isEmpty {
-                Text(verbatim: item.evidence).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgMuted)
-                    .padding(.leading, 12)
+                Text(verbatim: item.evidence).textStyle(Theme.bodyLarge).foregroundStyle(
+                    Theme.fgMuted
+                )
+                .padding(.leading, 12)
             }
             if editable {
-                SnTextField(text: $item.question, label: "medical_question", mono: false, multiline: true)
-                SnTextField(text: $item.worrying, label: "medical_worrying", mono: false, multiline: true)
+                SnTextField(
+                    text: $item.question, label: "medical_question", mono: false, multiline: true)
+                SnTextField(
+                    text: $item.worrying, label: "medical_worrying", mono: false, multiline: true)
             } else {
                 Text(verbatim: item.question).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fg)
                     .padding(8)

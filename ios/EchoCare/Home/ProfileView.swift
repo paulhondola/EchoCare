@@ -63,7 +63,8 @@ private struct Who: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: name).textStyle(Theme.titleLarge).foregroundStyle(Theme.fg)
                 if let phone {
-                    Text(verbatim: formatPhone(phone)).textStyle(Theme.mono).foregroundStyle(Theme.fgMuted)
+                    Text(verbatim: formatPhone(phone)).textStyle(Theme.mono).foregroundStyle(
+                        Theme.fgMuted)
                 }
             }
         }

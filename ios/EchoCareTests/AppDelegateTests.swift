@@ -8,7 +8,9 @@ import UIKit
 @MainActor
 struct AppDelegateTests {
     private let remoteNotification =
-        #selector(UIApplicationDelegate.application(_:didReceiveRemoteNotification:fetchCompletionHandler:))
+        #selector(
+            UIApplicationDelegate.application(
+                _:didReceiveRemoteNotification:fetchCompletionHandler:))
 
     // The question Firebase asks of the delegate SwiftUI installs for UIApplicationDelegateAdaptor,
     // which forwards only what our AppDelegate implements.

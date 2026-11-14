@@ -65,12 +65,15 @@ private struct Said: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
                 Text(who).textCase(.uppercase).textStyle(Theme.labelSmall).foregroundStyle(color)
-                Text(verbatim: clockTime(turn.at)).textStyle(Theme.mono).foregroundStyle(Theme.fgMuted)
+                Text(verbatim: clockTime(turn.at)).textStyle(Theme.mono).foregroundStyle(
+                    Theme.fgMuted)
             }
-            Text(verbatim: turn.kind == "keys" ? localized("turn_keys", turn.content) : turn.content)
-                .textStyle(Theme.bodyMedium)
-                .foregroundStyle(Theme.fg)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                verbatim: turn.kind == "keys" ? localized("turn_keys", turn.content) : turn.content
+            )
+            .textStyle(Theme.bodyMedium)
+            .foregroundStyle(Theme.fg)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -80,12 +83,14 @@ private struct Flagged: View {
 
     var body: some View {
         let tone = CODE_TONES[report.severity] ?? .muted
-        Text(verbatim: localized("flagged", labelOf(report.severity, in: CODE_LABELS), report.reason))
-            .textStyle(Theme.bodySmall)
-            .foregroundStyle(tone.text)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(tone.fill)
+        Text(
+            verbatim: localized("flagged", labelOf(report.severity, in: CODE_LABELS), report.reason)
+        )
+        .textStyle(Theme.bodySmall)
+        .foregroundStyle(tone.text)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tone.fill)
     }
 }

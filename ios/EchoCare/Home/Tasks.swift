@@ -46,6 +46,7 @@ private func waitingSince(_ task: MedicTask) -> Date? {
 func tasksOf(_ rows: [SeniorRow]) -> [MedicTask] {
     let tasks = rows.compactMap { row in kindOf(row).map { MedicTask(row: row, kind: $0) } }
     return stableSorted(tasks) { a, b in
-        a.kind != b.kind ? (a.kind < b.kind ? -1 : 1) : oldestFirst(waitingSince(a), waitingSince(b))
+        a.kind != b.kind
+            ? (a.kind < b.kind ? -1 : 1) : oldestFirst(waitingSince(a), waitingSince(b))
     }
 }

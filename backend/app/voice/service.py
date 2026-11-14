@@ -3,8 +3,18 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, exists, func, literal, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    delete,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as OrmSession
 from sqlalchemy.orm import object_session
@@ -26,6 +36,8 @@ from app.voice.models import (
 )
 
 log = logging.getLogger("echocare.voice")
+
+LOCK_NOT_AVAILABLE = "55P03"  # Postgres, for FOR UPDATE NOWAIT
 
 
 def _note_moved(session: AsyncSession | OrmSession | None, call: Call) -> None:
@@ -442,3 +454,50 @@ async def end_completed(call_id: uuid.UUID) -> None:
     goodbye (03 §9)."""
     async with Session() as session:
         await move_call(session, call_id, None, CallState.completed)
+
+
+async def call_live(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """Whether a call for the senior is ringing, in progress, or handed to Twilio and
+    still queued: an erasure waits for it (design 2026-11-14). Test calls count,
+    unlike `call_in_progress`, since Twilio is running them too.
+
+    Locks every call of the senior's, finished ones included, until the caller's
+    transaction ends, so no turn, answer or report lands on one before the erasure
+    deletes it, and the scheduler's `take_for_dialing` waits and then finds its call
+    gone. NOWAIT: a call row someone holds (dialing, an answer, a hand-over, a call
+    being concluded) counts as live instead of being waited for, since that writer
+    may next wait on the senior the erasure holds, a deadlock. That refusal leaves
+    the transaction failed; the caller only rolls back. Doesn't commit."""
+    try:
+        calls = await session.execute(
+            select(Call.state, Call.dialed_at)
+            .where(Call.senior_id == senior_id)
+            .with_for_update(nowait=True)
+        )
+    except DBAPIError as e:
+        if getattr(e.orig, "sqlstate", None) == LOCK_NOT_AVAILABLE:
+            return True
+        raise
+    return any(
+        state in (CallState.ringing, CallState.in_progress)
+        or (state is CallState.queued and dialed_at is not None)
+        for state, dialed_at in calls
+    )
+
+
+async def senior_call_ids(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """Every call of the senior's, test calls included (design 2026-11-14)."""
+    return list(
+        await session.scalars(select(Call.id).where(Call.senior_id == senior_id))
+    )
+
+
+async def erase_calls(session: AsyncSession, call_ids: list[uuid.UUID]) -> None:
+    """The calls with their answers and turns, for an erasure (design 2026-11-14). One
+    DELETE for the calls, so `previous_call_id` links among them resolve inside it.
+    Doesn't commit (ADR-005)."""
+    await session.execute(delete(Answer).where(Answer.call_id.in_(call_ids)))
+    await session.execute(delete(CallTurn).where(CallTurn.call_id.in_(call_ids)))
+    await session.execute(delete(Call).where(Call.id.in_(call_ids)))

@@ -34,6 +34,13 @@
   let tab = $state<Tab>("all");
   let query = $state("");
   let selected = $state<SeniorSummary | null>(null);
+  let erasedNotice = $state(false);
+
+  function erased() {
+    selected = null;
+    erasedNotice = true;
+    seniors.reload();
+  }
 
   const all = $derived(seniors.load.kind === "ok" ? seniors.load.data : []);
   const inTab = (s: SeniorSummary, t: (typeof TABS)[number]) =>
@@ -125,6 +132,19 @@
     />
   </label>
 </PageHeader>
+
+{#if erasedNotice}
+  <p role="status" class="m-4 flex items-center gap-3 border border-line bg-card px-4 py-3">
+    Datele au fost șterse.
+    <button
+      type="button"
+      class="sn-btn sn-btn-link ml-auto px-2 py-1 text-xs"
+      onclick={() => (erasedNotice = false)}
+    >
+      Închide
+    </button>
+  </p>
+{/if}
 
 {#if seniors.load.kind === "loading"}
   <div
@@ -240,6 +260,6 @@
 
 {#if selected}
   {#key selected.id}
-    <SeniorDetails senior={selected} onClose={() => (selected = null)} />
+    <SeniorDetails senior={selected} onClose={() => (selected = null)} onErased={erased} />
   {/key}
 {/if}

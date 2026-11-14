@@ -53,13 +53,21 @@ struct CommandsTests {
     }
 
     @Test func `a new number on a senior to resolve is a changed number`() {
-        #expect(isNewNumberToCall(before: "+40700000001", now: page(state: "wrong_number", phone: "+40700000002")))
-        #expect(isNewNumberToCall(before: "+40700000001", now: page(state: "unreachable", phone: "+40700000002")))
+        #expect(
+            isNewNumberToCall(
+                before: "+40700000001", now: page(state: "wrong_number", phone: "+40700000002")))
+        #expect(
+            isNewNumberToCall(
+                before: "+40700000001", now: page(state: "unreachable", phone: "+40700000002")))
     }
 
     @Test func `the same number, or a senior not to resolve, is not`() {
-        #expect(!isNewNumberToCall(before: "+40700000001", now: page(state: "unreachable", phone: "+40700000001")))
-        #expect(!isNewNumberToCall(before: "+40700000001", now: page(state: "active", phone: "+40700000002")))
+        #expect(
+            !isNewNumberToCall(
+                before: "+40700000001", now: page(state: "unreachable", phone: "+40700000001")))
+        #expect(
+            !isNewNumberToCall(
+                before: "+40700000001", now: page(state: "active", phone: "+40700000002")))
     }
 
     // Android's `command(call)`: what the API client threw becomes the status and body read above
@@ -69,9 +77,12 @@ struct CommandsTests {
     }
 
     @Test func `a refusal the client threw is read from its status and body`() async {
-        let wrong = await command { throw ApiError.http(status: 409, body: #"{"detail": {"reason": "wrong_state"}}"#) }
+        let wrong = await command {
+            throw ApiError.http(status: 409, body: #"{"detail": {"reason": "wrong_state"}}"#)
+        }
         #expect(wrong == .refused("wrong_state"))
-        #expect(await command { throw ApiError.http(status: 404, body: "{}") } == .refused("not_found"))
+        #expect(
+            await command { throw ApiError.http(status: 404, body: "{}") } == .refused("not_found"))
         #expect(await command { throw ApiError.http(status: 503, body: "") } == .offline)
     }
 

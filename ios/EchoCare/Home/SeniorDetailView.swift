@@ -24,7 +24,9 @@ struct SeniorPageView: View {
 
     var body: some View {
         let title =
-            if case .ready(let senior, _) = model.page { senior.formOfAddress } else { String(localized: "app_name") }
+            if case .ready(let senior, _) = model.page { senior.formOfAddress } else {
+                String(localized: "app_name")
+            }
         Frame(title, onBack: onBack) {
             PatientPane(id: id, model: model, onSessionEnd: onSessionEnd, onEdit: onEdit)
         }
@@ -50,11 +52,14 @@ struct PatientPane: View {
     @State private var drawing = false
 
     var body: some View {
-        LoadBody(load: model.page, onRetry: { Task { await load() } }, onSessionEnd: onSessionEnd) { senior in
+        LoadBody(load: model.page, onRetry: { Task { await load() } }, onSessionEnd: onSessionEnd) {
+            senior in
             // An alert can open a senior she only cares for: her panel is for her own patients
             let medic = onEdit != nil && !model.notHers
             VStack(spacing: 0) {
-                if medic { CommandBanners(notice: model.notice, numberChanged: model.numberChanged) }
+                if medic {
+                    CommandBanners(notice: model.notice, numberChanged: model.numberChanged)
+                }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if medic {
@@ -82,13 +87,19 @@ struct PatientPane: View {
                 }
                 .scrollDisabled(drawing)
             }
-            .alert(Text(verbatim: localized("withdraw_title", senior.formOfAddress)), isPresented: $withdrawing) {
+            .alert(
+                Text(verbatim: localized("withdraw_title", senior.formOfAddress)),
+                isPresented: $withdrawing
+            ) {
                 Button(role: .destructive) {
                     Task { await model.withdraw(id: senior.id, onChanged: onChanged) }
                 } label: {
                     Text("withdraw_confirm")
                 }
-                Button(role: .cancel) {} label: { Text("cancel") }
+                Button(role: .cancel) {
+                } label: {
+                    Text("cancel")
+                }
             } message: {
                 Text("withdraw_text")
             }
@@ -119,7 +130,8 @@ struct PatientPane: View {
             }
             // Stays open after the save, showing „Semnat” with the date (G7)
             if signing && showsConsent(senior) {
-                ConsentSection(signedAt: senior.signedAt, busy: model.busy, drawing: $drawing) { form in
+                ConsentSection(signedAt: senior.signedAt, busy: model.busy, drawing: $drawing) {
+                    form in
                     Task { await model.sign(id: senior.id, form: form, onChanged: onChanged) }
                 }
                 .padding(.top, 16)
@@ -127,8 +139,12 @@ struct PatientPane: View {
             MedicalSection(
                 record: model.medical, seniorState: senior.state, busy: model.busy,
                 uploadNotice: model.uploadNotice,
-                onUpload: { pdf in Task { await model.uploadPdf(id: senior.id, pdf: pdf, onChanged: onChanged) } },
-                onConfirm: { items in Task { await model.confirmMedical(id: senior.id, items: items) } },
+                onUpload: { pdf in
+                    Task { await model.uploadPdf(id: senior.id, pdf: pdf, onChanged: onChanged) }
+                },
+                onConfirm: { items in
+                    Task { await model.confirmMedical(id: senior.id, items: items) }
+                },
                 onReanalyze: { Task { await model.reanalyzeMedical(id: senior.id) } })
         }
     }
@@ -194,7 +210,8 @@ private struct ConsentLine: View {
         let lines = [
             senior.consent.map {
                 localized(
-                    "consent_line", labelOf($0.decision, in: CONSENT_DECISIONS), labelOf($0.method, in: CONSENT_METHODS),
+                    "consent_line", labelOf($0.decision, in: CONSENT_DECISIONS),
+                    labelOf($0.method, in: CONSENT_METHODS),
                     shortDate($0.at, year: true))
             },
             senior.signedAt.map { localized("signed_on_tablet", shortDate($0, year: true)) },
@@ -265,7 +282,8 @@ struct TranscriptOf: View {
                     case .notAllowed: "not_allowed"
                     default: "no_connection"
                     }
-                Text(LocalizedStringKey(key)).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgMuted)
+                Text(LocalizedStringKey(key)).textStyle(Theme.bodyLarge).foregroundStyle(
+                    Theme.fgMuted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -284,7 +302,8 @@ private struct Answers: View {
         if !answers.isEmpty {
             SectionLabel("answers").padding(.top, 4)
             ForEach(Array(answers.enumerated()), id: \.offset) { _, answer in
-                Text(verbatim: Self.line(answer)).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fg)
+                Text(verbatim: Self.line(answer)).textStyle(Theme.bodyMedium).foregroundStyle(
+                    Theme.fg)
             }
         }
     }

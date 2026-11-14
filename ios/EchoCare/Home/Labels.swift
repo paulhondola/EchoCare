@@ -49,6 +49,7 @@ let ANSWER_VALUES = [
 
 /// The event behind an incident (05 §1), as the dashboard names it. Unknown: shown as it is.
 let EVENT_LABELS = [
-    "sos_button": "event_sos_button", "fall": "event_fall", "high_pulse_at_rest": "event_high_pulse_at_rest",
+    "sos_button": "event_sos_button", "fall": "event_fall",
+    "high_pulse_at_rest": "event_high_pulse_at_rest",
     "inactivity": "event_inactivity", "manual_request": "event_manual_request",
 ]

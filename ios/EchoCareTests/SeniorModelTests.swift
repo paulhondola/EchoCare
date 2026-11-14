@@ -46,7 +46,8 @@ struct SeniorModelTests {
     ) -> Monitoring {
         monitoringAfter(
             state,
-            seen: WatchSeen(lastHeard: heard.map { now.addingTimeInterval(-$0) }, appInstalled: installed),
+            seen: WatchSeen(
+                lastHeard: heard.map { now.addingTimeInterval(-$0) }, appInstalled: installed),
             startedAt: started.map { now.addingTimeInterval(-$0) }, now: now, interval: interval)
     }
 

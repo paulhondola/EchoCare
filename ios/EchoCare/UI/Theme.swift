@@ -69,7 +69,10 @@ struct TextStyle: Sendable {
     /// Letter spacing in em, as on Android: headings close up a little, as on the dashboard.
     let trackingEm: CGFloat
 
-    init(size: CGFloat, lineHeight: CGFloat?, face: Face, tight: Bool = false, trackingEm: CGFloat? = nil) {
+    init(
+        size: CGFloat, lineHeight: CGFloat?, face: Face, tight: Bool = false,
+        trackingEm: CGFloat? = nil
+    ) {
         self.size = size
         self.lineHeight = lineHeight
         self.face = face

@@ -30,7 +30,10 @@ struct EnrollView: View {
             title.flatMap { $0.trimmed.isEmpty ? nil : $0 } ?? String(localized: "new_patient"),
             onBack: { if !model.back() { onLeave() } }
         ) {
-            LoadBody(load: model.form, onRetry: { Task { await model.open() } }, onSessionEnd: onSessionEnd) { _ in
+            LoadBody(
+                load: model.form, onRetry: { Task { await model.open() } },
+                onSessionEnd: onSessionEnd
+            ) { _ in
                 Steps(model: model, onDone: onDone, onSessionEnd: onSessionEnd)
             }
         }
@@ -65,7 +68,8 @@ private struct Steps: View {
                     case .senior, .address:
                         Fields(model: model, fields: model.step.fields, values: model.values)
                     case .caregivers: CaregiversStep(model: model)
-                    case .review: ReviewStep(model: model, drawing: $drawing, onSessionEnd: onSessionEnd)
+                    case .review:
+                        ReviewStep(model: model, drawing: $drawing, onSessionEnd: onSessionEnd)
                     }
                     if let notice = model.notice { NoticeLine(notice: notice) }
                     Buttons(model: model, onDone: onDone)
@@ -79,7 +83,11 @@ private struct Steps: View {
             .scrollDisabled(drawing)
             .onChange(of: model.step) { scroll.scrollTo("top", anchor: .top) }
         }
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 600 } action: { wide = $0 }
+        .onGeometryChange(for: Bool.self) {
+            $0.size.width >= 600
+        } action: {
+            wide = $0
+        }
     }
 }
 
@@ -90,14 +98,17 @@ private struct StepHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel(verbatim: localized("step_counter", step.rawValue + 1, Step.allCases.count))
+            SectionLabel(
+                verbatim: localized("step_counter", step.rawValue + 1, Step.allCases.count))
             if wide {
                 WrappingRow(spacing: 20, lineSpacing: 10) {
                     ForEach(Step.allCases, id: \.self) { StepName(step: $0, current: $0 == step) }
                 }
             } else {
-                Text(LocalizedStringKey(step.title)).textStyle(Theme.titleLarge).foregroundStyle(Theme.fg)
-                    .accessibilityAddTraits(.isHeader)
+                Text(LocalizedStringKey(step.title)).textStyle(Theme.titleLarge).foregroundStyle(
+                    Theme.fg
+                )
+                .accessibilityAddTraits(.isHeader)
             }
             Rule()
         }
@@ -173,7 +184,10 @@ private struct CaregiversStep: View {
             .accessibilityAddTraits(.isHeader)
         Fields(model: model, fields: Step.caregivers.fields, values: model.adding)
         SnButton("add", kind: .link) { Task { await model.add() } }
-            .disabled(model.busy || !problems(model.adding, Step.caregivers.fields, draft: model.isDraft).isEmpty)
+            .disabled(
+                model.busy
+                    || !problems(model.adding, Step.caregivers.fields, draft: model.isDraft).isEmpty
+            )
     }
 }
 
@@ -185,9 +199,13 @@ private struct CaregiverRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: [caregiver.displayName, caregiver.relation].compactMap { $0 }.joined(separator: " · "))
-                    .textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
-                Text(verbatim: formatPhone(caregiver.phone)).textStyle(Theme.mono).foregroundStyle(Theme.fgSoft)
+                Text(
+                    verbatim: [caregiver.displayName, caregiver.relation].compactMap { $0 }.joined(
+                        separator: " · ")
+                )
+                .textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
+                Text(verbatim: formatPhone(caregiver.phone)).textStyle(Theme.mono).foregroundStyle(
+                    Theme.fgSoft)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             SnButton("remove", kind: .outline, action: onRemove).disabled(!enabled)
@@ -203,7 +221,10 @@ private struct ReviewStep: View {
     let onSessionEnd: (Failure) -> Void
 
     var body: some View {
-        LoadBody(load: model.review, onRetry: { Task { await model.reread() } }, onSessionEnd: onSessionEnd) { senior in
+        LoadBody(
+            load: model.review, onRetry: { Task { await model.reread() } },
+            onSessionEnd: onSessionEnd
+        ) { senior in
             VStack(alignment: .leading, spacing: 16) {
                 // A refused submit names what is missing itself, over the buttons
                 let missing = missingOf(senior)
@@ -213,7 +234,8 @@ private struct ReviewStep: View {
                 SeniorDetails(senior: senior, callSenior: false, calls: false)
                 MedicalUpload(model: model)
                 if showsConsent(senior) {
-                    ConsentSection(signedAt: senior.signedAt, busy: model.busy, drawing: drawing) { form in
+                    ConsentSection(signedAt: senior.signedAt, busy: model.busy, drawing: drawing) {
+                        form in
                         Task { await model.sign(form) }
                     }
                 }
@@ -235,17 +257,22 @@ private struct MedicalUpload: View {
                 Text("medical_waiting").textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgSoft)
             }
             if let line = model.medicalNotice {
-                Text(LocalizedStringKey(line)).textStyle(Theme.bodyLarge).foregroundStyle(Theme.galbenFg)
+                Text(LocalizedStringKey(line)).textStyle(Theme.bodyLarge).foregroundStyle(
+                    Theme.galbenFg)
             }
-            SnButton(model.medicalSent ? "medical_replace" : "medical_upload", kind: .outline) { picking = true }
-                .disabled(model.uploading)
+            SnButton(model.medicalSent ? "medical_replace" : "medical_upload", kind: .outline) {
+                picking = true
+            }
+            .disabled(model.uploading)
         }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.pdf]) { result in
             switch result {
             case .success(let url): Task { await model.uploadPdf(readPdf(url)) }
             case .failure(let error):
                 // Closing the picker is not a failure
-                if (error as? CocoaError)?.code != .userCancelled { Task { await model.uploadPdf(nil) } }
+                if (error as? CocoaError)?.code != .userCancelled {
+                    Task { await model.uploadPdf(nil) }
+                }
             }
         }
     }
@@ -259,7 +286,9 @@ private struct NoticeLine: View {
             switch notice {
             case .says(let key): String(localized: String.LocalizationValue(key))
             case .missing(let names):
-                localized("missing", names.map { labelOf($0, in: MISSING_LABELS) }.joined(separator: ", "))
+                localized(
+                    "missing", names.map { labelOf($0, in: MISSING_LABELS) }.joined(separator: ", ")
+                )
             }
         Text(verbatim: text).textStyle(Theme.bodyLarge).foregroundStyle(Theme.galbenFg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -279,12 +308,14 @@ private struct Buttons: View {
             }
             if model.step != .review {
                 SnButton("next_step", kind: .link) { Task { await model.next() } }
-                    .disabled(model.busy || !canContinue(model.step, model.values, draft: model.isDraft))
+                    .disabled(
+                        model.busy || !canContinue(model.step, model.values, draft: model.isDraft))
             } else if case .ready(let senior, _) = model.review {
                 if senior.state == "draft" {
                     SnButton("submit", kind: .success) { Task { await model.submit() } }
                         .disabled(
-                            model.busy || model.uploading || !missingOf(senior).isEmpty || model.noticeIsMissing)
+                            model.busy || model.uploading || !missingOf(senior).isEmpty
+                                || model.noticeIsMissing)
                 } else {
                     SnButton("done", kind: .link) { onDone(senior.id) }
                 }

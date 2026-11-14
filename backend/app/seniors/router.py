@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
@@ -13,7 +13,8 @@ from app.calls.service import (
     welcome_call_pending,
 )
 from app.core.db import get_session
-from app.medical.service import record_states
+from app.core.storage import StorageService, get_storage
+from app.medical.service import forget, record_key, record_states
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -139,11 +140,16 @@ async def delete_senior(
     senior_id: uuid.UUID,
     caller: Annotated[Caller, Depends(require_roles(Role.medic))],
     session: Annotated[AsyncSession, Depends(get_session)],
+    storage: Annotated[StorageService, Depends(get_storage)],
+    background: BackgroundTasks,
 ) -> Response:
-    """Deletes a draft with its consents and grants, by its registering medic (Q10).
-    Past draft, or once a call refers to the senior, it is 409 `wrong_state`. A repeat
-    is 404, the row being gone."""
-    await delete_draft(session, caller, senior_id)
+    """Deletes a draft with its consents and grants, by its registering medic (Q10),
+    and its medical record PDF (design 2026-11-14). Past draft, or once a call refers
+    to the senior, it is 409 `wrong_state`. A repeat is 404, the row being gone."""
+    # The record cascades with the senior; its key is read under the senior's lock
+    key = await delete_draft(session, caller, senior_id, read_first=record_key)
+    if key:
+        background.add_task(forget, storage, key)  # after the 204
     return Response(status_code=204)
 
 

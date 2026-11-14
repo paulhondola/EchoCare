@@ -45,7 +45,8 @@ final class WorkoutRunner: NSObject, SensorSource {
         try await store.requestAuthorization(
             toShare: [HKObjectType.workoutType()], read: [HKQuantityType(.heartRate)])
         // Reading access is never revealed; sharing workouts is what the session needs
-        guard store.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else {
+        guard store.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized
+        else {
             throw WorkoutError.notAuthorized
         }
         guard session == nil else { return }
@@ -54,7 +55,8 @@ final class WorkoutRunner: NSObject, SensorSource {
         configuration = nil
         let session = try HKWorkoutSession(healthStore: store, configuration: config)
         let builder = session.associatedWorkoutBuilder()
-        builder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
+        builder.dataSource = HKLiveWorkoutDataSource(
+            healthStore: store, workoutConfiguration: config)
         session.delegate = self
         builder.delegate = self
         self.session = session
@@ -95,7 +97,8 @@ final class WorkoutRunner: NSObject, SensorSource {
             do {
                 try await builder?.endCollection(at: Date())
             } catch {
-                self.log.error("endCollection failed: \(error.localizedDescription, privacy: .public)")
+                self.log.error(
+                    "endCollection failed: \(error.localizedDescription, privacy: .public)")
             }
             // Monitoring isn't exercise: nothing is saved to Health
             builder?.discardWorkout()
@@ -172,7 +175,9 @@ extension WorkoutRunner: HKWorkoutSessionDelegate {
         }
     }
 
-    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: any Error) {
+    nonisolated func workoutSession(
+        _ workoutSession: HKWorkoutSession, didFailWithError error: any Error
+    ) {
         let reason = error.localizedDescription
         Task { @MainActor in
             self.log.error("session failed: \(reason, privacy: .public)")

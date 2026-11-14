@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import Select, func, or_, select, update
+from sqlalchemy import Select, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -464,3 +464,24 @@ async def resolve(
             raise refuse(409, reason)
     await session.commit()
     return await incident_summary(session, incident_id)
+
+
+async def incident_unresolved(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """Whether the senior has an `open` or `in_progress` incident, which stops an
+    erasure (design 2026-11-14)."""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Incident.senior_id == senior_id, Incident.status.in_(UNRESOLVED)
+                )
+            )
+        )
+    )
+
+
+async def erase_senior_incidents(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """The senior's events and incidents, for an erasure (design 2026-11-14). Doesn't
+    commit (ADR-005)."""
+    await session.execute(delete(Event).where(Event.senior_id == senior_id))
+    await session.execute(delete(Incident).where(Incident.senior_id == senior_id))

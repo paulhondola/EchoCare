@@ -32,7 +32,9 @@ extension WCSession: LinkSession {
     var waitingTransfers: [[String: Any]] { outstandingUserInfoTransfers.map(\.userInfo) }
 
     func cancelWaiting(where match: ([String: Any]) -> Bool) {
-        for transfer in outstandingUserInfoTransfers where match(transfer.userInfo) { transfer.cancel() }
+        for transfer in outstandingUserInfoTransfers where match(transfer.userInfo) {
+            transfer.cancel()
+        }
     }
 }
 
@@ -183,7 +185,9 @@ final class PhoneLink: NSObject, PhoneSending {
             return payload
         } catch {
             Logger(subsystem: "ro.echocare.watch", category: "link")
-                .error("can't encode \(kind, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                .error(
+                    "can't encode \(kind, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
             return nil
         }
     }
@@ -215,7 +219,8 @@ final class PhoneLink: NSObject, PhoneSending {
 
 extension PhoneLink: WCSessionDelegate {
     nonisolated func session(
-        _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?
+        _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
+        error: (any Error)?
     ) {
         let active = activationState == .activated
         let reason = error?.localizedDescription ?? "none"

@@ -8,16 +8,16 @@ import os
 /// the production values.
 enum Timings {
     #if DEMO
-    static let demo = true
-    static let pulseHoldMs: Int64 = 15_000
-    static let inactivityMs: Int64 = 60_000
-    // UC-09 §2 step 3
-    static let promptTimeoutMs: Int64 = 15_000
+        static let demo = true
+        static let pulseHoldMs: Int64 = 15_000
+        static let inactivityMs: Int64 = 60_000
+        // UC-09 §2 step 3
+        static let promptTimeoutMs: Int64 = 15_000
     #else
-    static let demo = false
-    static let pulseHoldMs: Int64 = 60_000
-    static let inactivityMs: Int64 = 4 * 60 * 60_000
-    static let promptTimeoutMs: Int64 = 120_000
+        static let demo = false
+        static let pulseHoldMs: Int64 = 60_000
+        static let inactivityMs: Int64 = 4 * 60 * 60_000
+        static let promptTimeoutMs: Int64 = 120_000
     #endif
     // Under the 90 s and 45 min silence limits (UC-13); the phone reads the same value
     static let checkInMinutes = CheckInInterval.minutes(demo: demo)
@@ -85,7 +85,8 @@ final class Monitor {
     @ObservationIgnored private let clock: () -> Int64
     @ObservationIgnored private let ticking: Bool
     @ObservationIgnored private let haptics: Haptics
-    @ObservationIgnored private let log = Logger(subsystem: "ro.echocare.watch", category: "monitor")
+    @ObservationIgnored private let log = Logger(
+        subsystem: "ro.echocare.watch", category: "monitor")
 
     // Fresh each session, as Wear OS gets a fresh MonitoringService
     @ObservationIgnored private var fallDetector = FallDetector()
@@ -194,24 +195,25 @@ final class Monitor {
 
     /// „Nu mă simt bine" (UC-10): a `manual_request`, queued and sent like any event.
     func callMe() {
-        enqueueAndSend(EventMessage(id: UUID().uuidString, type: "manual_request", measuredAt: iso(clock())))
+        enqueueAndSend(
+            EventMessage(id: UUID().uuidString, type: "manual_request", measuredAt: iso(clock())))
     }
 
     #if DEBUG
-    /// Hand-raises a prompt with a fake snapshot, so the demo can show the whole UC-09 loop without
-    /// a real anomaly (Debug only, `MonitoringService.forceAnomaly`).
-    func forceAnomaly(type: String) {
-        let nowMs = clock()
-        raiseAnomaly(
-            type,
-            EventSnapshot(
-                pulse: type == "high_pulse_at_rest" ? 125 : lastHeartRate,
-                restingBaseline: restingBaseline.value(nowMs: nowMs),
-                moving: false,
-                minutesWithoutSteps: type == "inactivity" ? 240 : 0,
-                battery: battery()))
-        log.info("forced anomaly=\(type, privacy: .public)")
-    }
+        /// Hand-raises a prompt with a fake snapshot, so the demo can show the whole UC-09 loop without
+        /// a real anomaly (Debug only, `MonitoringService.forceAnomaly`).
+        func forceAnomaly(type: String) {
+            let nowMs = clock()
+            raiseAnomaly(
+                type,
+                EventSnapshot(
+                    pulse: type == "high_pulse_at_rest" ? 125 : lastHeartRate,
+                    restingBaseline: restingBaseline.value(nowMs: nowMs),
+                    moving: false,
+                    minutesWithoutSteps: type == "inactivity" ? 240 : 0,
+                    battery: battery()))
+            log.info("forced anomaly=\(type, privacy: .public)")
+        }
     #endif
 
     // MARK: Readings
@@ -294,7 +296,9 @@ final class Monitor {
         fallSoundAtMs = nil
         guard send else { return }
         enqueueAndSend(
-            EventMessage(id: prompt.id, type: prompt.type, measuredAt: prompt.measuredAt, snapshot: prompt.snapshot))
+            EventMessage(
+                id: prompt.id, type: prompt.type, measuredAt: prompt.measuredAt,
+                snapshot: prompt.snapshot))
     }
 
     /// Queue first, then send: the phone's `received` clears it.

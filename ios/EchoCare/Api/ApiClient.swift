@@ -91,7 +91,9 @@ actor ApiClient {
     }
 
     /// `draft` → `submitted`: DAS sees the senior from now on (04 §2). Answers one row.
-    func submit(id: String) async throws -> SeniorRow { try await post("seniors/\(seg(id))/submit") }
+    func submit(id: String) async throws -> SeniorRow {
+        try await post("seniors/\(seg(id))/submit")
+    }
 
     /// Queues the welcome call again; answers the senior's row (04 §2, UC-04).
     func callAgain(id: String) async throws -> SeniorRow {
@@ -120,7 +122,9 @@ actor ApiClient {
     /// The raw PDF, `application/pdf`, at most 10 MB (design §5.7).
     func uploadMedicalRecord(id: String, pdf: Data) async throws -> MedicalRecord {
         try await decoded(
-            send("PUT", "seniors/\(seg(id))/medical-record", body: pdf, contentType: "application/pdf"))
+            send(
+                "PUT", "seniors/\(seg(id))/medical-record", body: pdf,
+                contentType: "application/pdf"))
     }
 
     func confirmMedicalRecord(id: String, body: MedicalConfirmForm) async throws -> MedicalRecord {
@@ -165,10 +169,14 @@ actor ApiClient {
     func incident(id: String) async throws -> IncidentPage { try await get("incidents/\(seg(id))") }
 
     /// One call's turns (04 §1): the incident page's call; its `answers` are ignored.
-    func transcript(id: String) async throws -> IncidentCall { try await get("calls/\(seg(id))/transcript") }
+    func transcript(id: String) async throws -> IncidentCall {
+        try await get("calls/\(seg(id))/transcript")
+    }
 
     /// `open` → `in_progress` (UC-11). 409 `already_done` names who has it in `taken_by_name`.
-    func take(id: String) async throws -> IncidentRow { try await post("incidents/\(seg(id))/take") }
+    func take(id: String) async throws -> IncidentRow {
+        try await post("incidents/\(seg(id))/take")
+    }
 
     /// `in_progress` → `resolved`, by any DAS employee (UC-11). 409 `wrong_state` while open.
     func resolve(id: String, body: Resolution) async throws -> IncidentRow {
@@ -210,7 +218,8 @@ actor ApiClient {
         _ method: String, _ path: String, query: [URLQueryItem] = [], json: some Encodable
     ) async throws -> Data {
         let body = try Self.makeEncoder().encode(json)
-        return try await send(method, path, query: query, body: body, contentType: "application/json")
+        return try await send(
+            method, path, query: query, body: body, contentType: "application/json")
     }
 
     /// The body of a 2xx answer; anything else throws `ApiError.http`.
@@ -248,7 +257,9 @@ actor ApiClient {
     ) async throws -> (Data, Int) {
         var request = URLRequest(url: try url(path, query))
         request.httpMethod = method
-        request.setValue("Bearer \(try await tokens.token(forceRefresh: forceRefresh))", forHTTPHeaderField: "Authorization")
+        request.setValue(
+            "Bearer \(try await tokens.token(forceRefresh: forceRefresh))",
+            forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
             request.httpBody = body

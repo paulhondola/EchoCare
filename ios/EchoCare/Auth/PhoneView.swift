@@ -10,7 +10,8 @@ struct SignInPanel<Content: View>: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
                 BrandMark(size: 32)
-                Text("app_name").textCase(.uppercase).textStyle(Theme.titleLarge).foregroundStyle(Theme.fg)
+                Text("app_name").textCase(.uppercase).textStyle(Theme.titleLarge).foregroundStyle(
+                    Theme.fg)
             }
             Rule()
             content
@@ -42,7 +43,8 @@ struct PhoneView: View {
 
     var body: some View {
         SignInTitle("sign_in_title")
-        SnTextField(text: $phone, label: "phone_label", keyboard: .phonePad, content: .telephoneNumber)
+        SnTextField(
+            text: $phone, label: "phone_label", keyboard: .phonePad, content: .telephoneNumber)
         if let error { ErrorText(key: error) }
         SnButton("send_code", kind: .link, fullWidth: true) { onSendCode(toE164(phone)) }
             .disabled(phone.trimmingCharacters(in: .whitespaces).isEmpty)

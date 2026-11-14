@@ -60,7 +60,8 @@ func stableSorted<T>(_ items: [T], by compare: (T, T) -> Int) -> [T] {
 /// Groups in their order, empty ones dropped; the API's order inside all but Urgent, where red
 /// comes before yellow, then the longest waiting first, no `since` last.
 func panel(_ rows: [SeniorRow]) -> [(group: PatientGroup, rows: [SeniorRow])] {
-    let byGroup = Dictionary(grouping: rows.compactMap { row in groupOf(row).map { ($0, row) } }, by: \.0)
+    let byGroup = Dictionary(
+        grouping: rows.compactMap { row in groupOf(row).map { ($0, row) } }, by: \.0)
     return PatientGroup.allCases.compactMap { group in
         guard let members = byGroup[group]?.map(\.1) else { return nil }
         guard group == .urgent else { return (group, members) }
@@ -95,7 +96,9 @@ enum PatientAction: Hashable {
 
 /// The consent text and its signature belong before the welcome call: until acceptance, signed or
 /// not, so a saved signature shows „Semnat” in its place (G7, UC-01 step 5, UC-04).
-func showsConsent(_ page: SeniorPage) -> Bool { ["draft", "submitted", "accepted"].contains(page.state) }
+func showsConsent(_ page: SeniorPage) -> Bool {
+    ["draft", "submitted", "accepted"].contains(page.state)
+}
 
 /// Not yet signed, and not past acceptance (UC-04).
 func signable(_ page: SeniorPage) -> Bool { showsConsent(page) && page.signedAt == nil }

@@ -20,7 +20,9 @@ struct Sections: Equatable {
 /// dashboard's columns(). A status this build does not know is left out (ADR-001 §2.3).
 func sections(_ rows: [IncidentRow]) -> Sections {
     Sections(
-        open: stableSorted(rows.filter { $0.status == OPEN }) { oldestFirst(instant($0.openedAt), instant($1.openedAt)) },
+        open: stableSorted(rows.filter { $0.status == OPEN }) {
+            oldestFirst(instant($0.openedAt), instant($1.openedAt))
+        },
         inProgress: stableSorted(rows.filter { $0.status == IN_PROGRESS }) {
             oldestFirst(instantOf($0.takenAt ?? $0.openedAt), instantOf($1.takenAt ?? $1.openedAt))
         })
@@ -68,11 +70,13 @@ func timeline(_ call: IncidentCall) -> [Line] {
 /// What the senior said: the quote of the latest red report that has one, across the calls.
 func seniorsWords(_ calls: [IncidentCall]) -> String? {
     let quoted = calls.flatMap(\.reports).filter {
-        $0.severity == "red" && !($0.quote ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        $0.severity == "red"
+            && !($0.quote ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     // maxBy keeps the first of equals, as Kotlin's maxByOrNull
     var best: CallReport?
-    for report in quoted where best == nil || oldestFirst(instant(report.at), instant(best!.at)) > 0 {
+    for report in quoted where best == nil || oldestFirst(instant(report.at), instant(best!.at)) > 0
+    {
         best = report
     }
     return best?.quote
@@ -120,10 +124,15 @@ func mapsUrl(_ senior: IncidentSenior, _ event: TriggerEvent?) -> String? {
     if let lat = event?.latitude, let lng = event?.longitude {
         return "https://maps.apple.com/?ll=\(lat),\(lng)&q=\(lat),\(lng)"
     }
-    guard let street = senior.street, !street.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-    let place = ([street] + [senior.streetNumber].compactMap { $0 }).joined(separator: " ") + ", \(CITY)"
-    let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-    return "https://maps.apple.com/?q=" + (place.addingPercentEncoding(withAllowedCharacters: unreserved) ?? "")
+    guard let street = senior.street, !street.trimmingCharacters(in: .whitespaces).isEmpty else {
+        return nil
+    }
+    let place =
+        ([street] + [senior.streetNumber].compactMap { $0 }).joined(separator: " ") + ", \(CITY)"
+    let unreserved = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    return "https://maps.apple.com/?q="
+        + (place.addingPercentEncoding(withAllowedCharacters: unreserved) ?? "")
 }
 
 /// The colour of a status's chip and card bar, as the dashboard's: red open, yellow in progress,
@@ -164,7 +173,13 @@ enum DasNotice: Equatable {
 func noticeAfter(_ refusal: Refusal, act: Act) -> DasNotice {
     switch refusal {
     case .alreadyDone(let name):
-        if act == .resolve { .says("already_resolved") } else if let name { .takenBy(name) } else { .says("incident_changed") }
+        if act == .resolve {
+            .says("already_resolved")
+        } else if let name {
+            .takenBy(name)
+        } else {
+            .says("incident_changed")
+        }
     case .wrongState: .says("incident_changed")
     case .failed(let failure):
         switch failure {
@@ -183,7 +198,8 @@ let NOTE_MAX = 1000
 
 /// Trimite needs an outcome and a note of 1 to `NOTE_MAX` characters (04 §2).
 func canSend(_ outcome: String?, _ note: String) -> Bool {
-    outcome != nil && !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && note.count <= NOTE_MAX
+    outcome != nil && !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && note.count <= NOTE_MAX
 }
 
 /// The five outcomes of 04 §2, in the dashboard's order and words (`label` is a string key).

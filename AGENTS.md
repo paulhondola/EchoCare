@@ -18,7 +18,7 @@ EchoCare checks on seniors living alone with automated phone calls in Romanian, 
 | `docs/specs/esti-bine-specificatii-v3.md`, `unihack.md` | The earlier v3 spec and the hackathon brief, in Romanian. History, not the current design | Markdown | |
 | `.github/workflows/` | One CI workflow per folder, path-filtered | GitHub Actions | |
 | `compose.yaml` | Local stack: Postgres 18, API, dashboard, optional ngrok tunnel | Docker Compose | |
-| `lefthook.yml` | Git hooks: each folder's checks on commit (`ios/Shared` tests included), Android's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
+| `lefthook.yml` | Git hooks: each folder's checks on commit (`ios/Shared` tests included), Android's and iOS's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
 
 Run each toolchain from its own folder. There is no root `package.json`, Makefile or task runner.
 
@@ -56,7 +56,7 @@ branch → CI for the folders it touches → main → Railway staging
 PR main → release, merged with a merge commit → Railway production
 ```
 
-- CI is path-filtered: `backend.yml`, `dashboard.yml`, `android.yml`. Run the same check locally before you push; each folder's AGENTS.md names it. With `lefthook install`, the hooks run it for you.
+- CI is path-filtered: `backend.yml`, `dashboard.yml`, `android.yml`, `ios.yml`. Run the same check locally before you push; each folder's AGENTS.md names it. With `lefthook install`, the hooks run it for you.
 - **Commit with the hooks on.** When a hook fails, fix the cause; don't pass `--no-verify` or `LEFTHOOK=0` unless the user asks. Formatters restage what they fix, so check `git diff` after committing part of a file.
 - Railway's Wait for CI waits for every workflow on a commit, so a red Android build also holds back an API deploy. Prefer one component per change.
 - Railway redeploys a service on any change under its folder (`/backend/**`, `/dashboard/**`), Markdown included. Redeploying `api` drops live calls.

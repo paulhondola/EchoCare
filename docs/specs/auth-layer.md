@@ -56,7 +56,7 @@ Every client signs in with a phone number and an SMS code. FastAPI decides what 
 5. If the token's `uid` differs from `users.firebase_uid`, FastAPI writes the new value. It logs a warning when it replaces a value that was already set.
 6. The endpoint checks the caller's roles (AL2).
 
-`/api/health` and the OpenAPI docs at `/api/docs` stay open.
+`/api/health` and the OpenAPI docs at `/api/docs` stay open, locally and on staging; production serves no docs (06-operations §4).
 
 ### 3.2 Refusals
 

@@ -13,7 +13,8 @@ struct IncidentView: View {
 
     init(
         id: String, onBack: @escaping () -> Void, onResolve: @escaping (String) -> Void,
-        onSessionEnd: @escaping (Failure) -> Void, api: ApiClient = ApiClient(tokens: FirebaseTokenSource())
+        onSessionEnd: @escaping (Failure) -> Void,
+        api: ApiClient = ApiClient(tokens: FirebaseTokenSource())
     ) {
         self.id = id
         self.onBack = onBack
@@ -25,7 +26,10 @@ struct IncidentView: View {
     var body: some View {
         let title = if case .ready(let page, _) = model.page { page.senior.fullName } else { "" }
         Frame(title, onBack: onBack) {
-            LoadBody(load: model.page, onRetry: { Task { await model.load() } }, onSessionEnd: onSessionEnd) {
+            LoadBody(
+                load: model.page, onRetry: { Task { await model.load() } },
+                onSessionEnd: onSessionEnd
+            ) {
                 incident in
                 IncidentBody(
                     incident: incident, now: model.now, notice: model.notice, taking: model.taking,
@@ -66,7 +70,10 @@ struct IncidentBody: View {
             if let notice { NoticeBanner(notice: notice) }
             switch actFor(incident.status) {
             case .take?:
-                ActionBar { SnButton("take", kind: .danger, fullWidth: true, action: onTake).disabled(taking) }
+                ActionBar {
+                    SnButton("take", kind: .danger, fullWidth: true, action: onTake).disabled(
+                        taking)
+                }
             case .resolve?:
                 // The next step, as the dashboard's card; green is for Trimite
                 ActionBar { SnButton("resolve", kind: .link, fullWidth: true, action: onResolve) }
@@ -119,7 +126,8 @@ private struct Summary: View {
             WrappingRow(spacing: 8, lineSpacing: 6) {
                 StatusChip(status: incident.status, takenByName: incident.takenByName)
                 if incident.status == OPEN, let since = ago(incident.openedAt, now: now) {
-                    Text(verbatim: agoText(since)).textStyle(Theme.bodySmall).foregroundStyle(Theme.fgMuted)
+                    Text(verbatim: agoText(since)).textStyle(Theme.bodySmall).foregroundStyle(
+                        Theme.fgMuted)
                 }
                 if callLive(incident.calls) { Chip("call_live", tone: .galben) }
             }
@@ -130,7 +138,9 @@ private struct Summary: View {
                     .padding(.leading, 15).padding(.trailing, 12).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Theme.card)
-                    .overlay(alignment: .leading) { Rectangle().fill(Tone.rosu.dot).frame(width: 3) }
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Tone.rosu.dot).frame(width: 3)
+                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -140,7 +150,9 @@ private struct Summary: View {
 private struct Value: View {
     let text: String
 
-    var body: some View { Text(verbatim: text).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fg) }
+    var body: some View {
+        Text(verbatim: text).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fg)
+    }
 }
 
 /// The address with what it takes to get in (G13), and Maps.
@@ -158,7 +170,8 @@ private struct Access: View {
             FieldRow("label_address", last: tail && s.intercomCode == nil) {
                 Value(
                     text: place(
-                        street: s.street, streetNumber: s.streetNumber, block: s.block, staircase: s.staircase,
+                        street: s.street, streetNumber: s.streetNumber, block: s.block,
+                        staircase: s.staircase,
                         floor: s.floor, apartment: s.apartment))
             }
             if let code = s.intercomCode {
@@ -166,8 +179,12 @@ private struct Access: View {
                     Text(verbatim: code).textStyle(Theme.mono).foregroundStyle(Theme.fg)
                 }
             }
-            if let holder = s.keyHolder { FieldRow("label_key_holder", last: s.landmark == nil) { Value(text: holder) } }
-            if let landmark = s.landmark { FieldRow("label_landmark", last: true) { Value(text: landmark) } }
+            if let holder = s.keyHolder {
+                FieldRow("label_key_holder", last: s.landmark == nil) { Value(text: holder) }
+            }
+            if let landmark = s.landmark {
+                FieldRow("label_landmark", last: true) { Value(text: landmark) }
+            }
         }
         if let link = mapsUrl(s, incident.event), let url = URL(string: link) {
             SnButton("open_in_maps", kind: .link, fullWidth: true) { openURL(url) }
@@ -183,14 +200,21 @@ private struct Phones: View {
         SectionLabel("label_phone").padding(.top, 20)
         VStack(spacing: 0) {
             PersonRow(e164: incident.senior.phone, last: incident.caregivers.isEmpty) {
-                Text(verbatim: incident.senior.fullName).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
-                HStack(spacing: 8) { PhoneNumber(e164: incident.senior.phone, landline: incident.senior.landline) }
+                Text(verbatim: incident.senior.fullName).textStyle(Theme.titleMedium)
+                    .foregroundStyle(Theme.fg)
+                HStack(spacing: 8) {
+                    PhoneNumber(e164: incident.senior.phone, landline: incident.senior.landline)
+                }
             }
             ForEach(Array(incident.caregivers.enumerated()), id: \.offset) { i, c in
                 PersonRow(e164: c.phone, last: i == incident.caregivers.count - 1) {
-                    Text(verbatim: [c.displayName, c.relation].compactMap { $0 }.joined(separator: " · "))
-                        .textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
-                    Text(verbatim: formatPhone(c.phone)).textStyle(Theme.mono).foregroundStyle(Theme.fgSoft)
+                    Text(
+                        verbatim: [c.displayName, c.relation].compactMap { $0 }.joined(
+                            separator: " · ")
+                    )
+                    .textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
+                    Text(verbatim: formatPhone(c.phone)).textStyle(Theme.mono).foregroundStyle(
+                        Theme.fgSoft)
                 }
             }
         }
@@ -225,7 +249,8 @@ private struct EventSection: View {
         VStack(spacing: 0) {
             FieldRow("event_type") { Value(text: labelOf(event.type, in: EVENT_LABELS)) }
             FieldRow("event_measured_at", last: place == nil) {
-                Text(verbatim: dated(event.measuredAt)).textStyle(Theme.mono).foregroundStyle(Theme.fg)
+                Text(verbatim: dated(event.measuredAt)).textStyle(Theme.mono).foregroundStyle(
+                    Theme.fg)
             }
             if let place {
                 FieldRow("event_location", last: true) {
@@ -258,10 +283,14 @@ private struct Calls: View {
             ForEach(newest, id: \.id) { call in
                 let open = expanded(call.id, newestId: newest[0].id, toggled: toggled)
                 VStack(alignment: .leading, spacing: 8) {
-                    Button { toggled[call.id] = !open } label: {
-                        Text(verbatim: callLine(call)).textStyle(Theme.labelLarge).foregroundStyle(Theme.fgSoft)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                    Button {
+                        toggled[call.id] = !open
+                    } label: {
+                        Text(verbatim: callLine(call)).textStyle(Theme.labelLarge).foregroundStyle(
+                            Theme.fgSoft
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(open ? [.isSelected] : [])
@@ -277,8 +306,11 @@ private struct Calls: View {
     /// "Ceas · încercarea 1 · Cod roșu"; a call with no final code shows its state.
     private func callLine(_ call: IncidentCall) -> String {
         let outcome =
-            call.finalSeverity.flatMap { CODE_LABELS[$0] }.map { String(localized: String.LocalizationValue($0)) }
+            call.finalSeverity.flatMap { CODE_LABELS[$0] }.map {
+                String(localized: String.LocalizationValue($0))
+            }
             ?? labelOf(call.state, in: CALL_STATE_LABELS)
-        return localized("call_line", labelOf(call.trigger, in: TRIGGER_LABELS), call.attempt, outcome)
+        return localized(
+            "call_line", labelOf(call.trigger, in: TRIGGER_LABELS), call.attempt, outcome)
     }
 }

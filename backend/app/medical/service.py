@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from functools import cache
 
 from pydantic_ai.models import Model
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
@@ -404,3 +404,21 @@ async def stop_analyses() -> None:
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def record_key(session: AsyncSession, senior_id: uuid.UUID) -> str | None:
+    """Where the senior's medical record PDF is stored, if they have one."""
+    return await session.scalar(
+        select(MedicalRecord.storage_key).where(MedicalRecord.senior_id == senior_id)
+    )
+
+
+async def erase_record(session: AsyncSession, senior_id: uuid.UUID) -> str | None:
+    """Deletes the senior's medical record row and returns its PDF's key, for the
+    caller to delete from the file store after the commit (design 2026-11-14).
+    Doesn't commit (ADR-005)."""
+    return await session.scalar(
+        delete(MedicalRecord)
+        .where(MedicalRecord.senior_id == senior_id)
+        .returning(MedicalRecord.storage_key)
+    )

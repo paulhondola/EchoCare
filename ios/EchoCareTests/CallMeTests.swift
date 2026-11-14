@@ -42,7 +42,8 @@ struct CallMeTests {
         #expect(try decoder.decode(EventResult.self, from: Data("{}".utf8)) == EventResult())
         #expect(
             try decoder.decode(
-                EventResult.self, from: Data(#"{"queued": true, "call_id": "c1", "later": 1}"#.utf8))
+                EventResult.self, from: Data(#"{"queued": true, "call_id": "c1", "later": 1}"#.utf8)
+            )
                 == EventResult(queued: true, callId: "c1"))
     }
 

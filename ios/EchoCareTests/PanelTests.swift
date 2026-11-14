@@ -6,24 +6,32 @@ import Testing
 // UC-12, 03 §7: the medic's panel groups, actions and the enrollment stages. Ported from Android's
 // home/PanelTest.kt.
 struct PanelTests {
-    private func row(_ id: String, _ state: String, _ code: String? = nil, _ since: String? = nil) -> SeniorRow {
+    private func row(_ id: String, _ state: String, _ code: String? = nil, _ since: String? = nil)
+        -> SeniorRow
+    {
         SeniorRow(
-            id: id, fullName: id, formOfAddress: "Dna", phone: "+40700000000", landline: false, state: state,
+            id: id, fullName: id, formOfAddress: "Dna", phone: "+40700000000", landline: false,
+            state: state,
             code: code, since: since)
     }
 
     private func page(
-        _ state: String, signedAt: String? = nil, createdAt: String? = nil, submittedAt: String? = nil,
+        _ state: String, signedAt: String? = nil, createdAt: String? = nil,
+        submittedAt: String? = nil,
         acceptedAt: String? = nil, consent: ConsentState? = nil, consentGivenAt: String? = nil
     ) -> SeniorPage {
         SeniorPage(
-            id: "s", fullName: "S", formOfAddress: "Dna", phone: "+40700000000", landline: false, state: state,
+            id: "s", fullName: "S", formOfAddress: "Dna", phone: "+40700000000", landline: false,
+            state: state,
             medic: Medic(displayName: "M"), createdAt: createdAt, submittedAt: submittedAt,
-            acceptedAt: acceptedAt, consent: consent, consentGivenAt: consentGivenAt, signedAt: signedAt)
+            acceptedAt: acceptedAt, consent: consent, consentGivenAt: consentGivenAt,
+            signedAt: signedAt)
     }
 
     @Test func `a red is above a yellow is above everything`() {
-        let rows = [row("g", "active", "green"), row("y", "active", "yellow"), row("r", "active", "red")]
+        let rows = [
+            row("g", "active", "green"), row("y", "active", "yellow"), row("r", "active", "red"),
+        ]
         let first = panel(rows).first
         #expect(first?.group == .urgent)
         #expect(first?.rows.map(\.id) == ["r", "y"])
@@ -40,11 +48,14 @@ struct PanelTests {
 
     @Test func `groups come in order and empty ones go`() {
         let rows = [
-            row("a", "refused"), row("b", "submitted"), row("c", "active", "green"), row("d", "accepted"),
+            row("a", "refused"), row("b", "submitted"), row("c", "active", "green"),
+            row("d", "accepted"),
             row("e", "wrong_number"), row("f", "active", "red"), row("g", "draft"),
         ]
         #expect(
-            panel(rows).map(\.group) == [.urgent, .toResolve, .inProgress, .green, .atDas, .inactive])
+            panel(rows).map(\.group) == [
+                .urgent, .toResolve, .inProgress, .green, .atDas, .inactive,
+            ])
         #expect(!panel(rows).flatMap(\.rows).contains { $0.id == "g" })
     }
 
@@ -62,7 +73,8 @@ struct PanelTests {
     @Test func counts() {
         let rows = [
             row("1", "active", "red"), row("2", "active", "yellow"), row("3", "active", "yellow"),
-            row("4", "wrong_number"), row("5", "unreachable"), row("6", "draft"), row("7", "active", "green"),
+            row("4", "wrong_number"), row("5", "unreachable"), row("6", "draft"),
+            row("7", "active", "green"),
             row("8", "submitted"), row("9", "submitted"), row("10", "withdrawn", "green"),
         ]
         #expect(countsOf(rows) == Counts(red: 1, yellow: 2, green: 1, atDas: 2))
@@ -115,8 +127,12 @@ struct PanelTests {
         let stages = stagesOf(
             page(
                 "active", createdAt: "c", submittedAt: "s", acceptedAt: "a",
-                consent: ConsentState(decision: "given", method: "call", at: "g"), consentGivenAt: "g"))
-        #expect(stages.map(\.label) == ["stage_draft", "stage_submitted", "stage_accepted", "stage_active"])
+                consent: ConsentState(decision: "given", method: "call", at: "g"),
+                consentGivenAt: "g"))
+        #expect(
+            stages.map(\.label) == [
+                "stage_draft", "stage_submitted", "stage_accepted", "stage_active",
+            ])
         #expect(stages.map(\.at) == ["c", "s", "a", "g"])
         #expect(stages.allSatisfy { $0.reached })
     }
@@ -125,7 +141,8 @@ struct PanelTests {
         let stages = stagesOf(
             page(
                 "withdrawn", createdAt: "c", submittedAt: "s", acceptedAt: "a",
-                consent: ConsentState(decision: "withdrawn", method: "call", at: "w"), consentGivenAt: "g"))
+                consent: ConsentState(decision: "withdrawn", method: "call", at: "w"),
+                consentGivenAt: "g"))
         #expect(stages.count == 5)
         #expect(stages[3].at == "g")
         #expect(stages[4].label == "stage_withdrawn")
@@ -134,7 +151,8 @@ struct PanelTests {
     }
 
     @Test func `a refusal reaches three stages then Refuzat`() {
-        let stages = stagesOf(page("refused", consent: ConsentState(decision: "refused", method: "call", at: "r")))
+        let stages = stagesOf(
+            page("refused", consent: ConsentState(decision: "refused", method: "call", at: "r")))
         #expect(stages.map(\.reached) == [true, true, true, false, true])
         #expect(stages[4].label == "stage_refused")
         #expect(stages[4].at == "r")

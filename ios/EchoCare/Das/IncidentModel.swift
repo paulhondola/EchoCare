@@ -41,7 +41,11 @@ final class IncidentModel {
             page = page.after(read)
         }
         reading = read
-        await withTaskCancellationHandler { await read.value } onCancel: { read.cancel() }
+        await withTaskCancellationHandler {
+            await read.value
+        } onCancel: {
+            read.cancel()
+        }
     }
 
     /// *Preiau* (UC-11 step 2). A refusal means the page is stale, so it is read again.
@@ -56,7 +60,8 @@ final class IncidentModel {
         case .ok: notice = nil
         case .no(let refusal): notice = noticeAfter(refusal, act: .take)
         }
-        if case .ends? = notice {} else {
+        if case .ends? = notice {
+        } else {
             page = page.after(await answer { try await api.incident(id: id) })
         }
         taking = false

@@ -96,7 +96,8 @@ final class EnrollModel {
         case .create(let body):
             await command(.save, { try await api.createSenior(body) }, done: savedAndNext)
         case .update(let id, let body):
-            await command(.save, { try await api.updateSenior(id: id, body: body) }, done: savedAndNext)
+            await command(
+                .save, { try await api.updateSenior(id: id, body: body) }, done: savedAndNext)
         case .none:
             go(step.next)
             await rereadIfDue()
@@ -118,7 +119,8 @@ final class EnrollModel {
         guard let id else { return }
         let api = api
         let body = caregiverOf(adding)
-        await command(.add, { try await api.addCaregiver(id: id, body: body) }) { [self] caregiver in
+        await command(.add, { try await api.addCaregiver(id: id, body: body) }) {
+            [self] caregiver in
             caregivers.append(caregiver)
             adding = [:]
         }
@@ -127,7 +129,8 @@ final class EnrollModel {
     func remove(_ caregiver: Caregiver) async {
         guard let id else { return }
         let api = api
-        await command(.remove, { try await api.removeCaregiver(id: id, userId: caregiver.userId) }) {
+        await command(.remove, { try await api.removeCaregiver(id: id, userId: caregiver.userId) })
+        {
             [self] _ in caregivers.removeAll { $0.userId == caregiver.userId }
         }
     }

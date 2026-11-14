@@ -1,0 +1,53 @@
+# Checks for the iOS and watchOS demo apps (ADR-007): Shared unit tests, iOS simulator build + test bundle, watchOS simulator build.
+# Generic simulator destinations need no booted simulator or DEVELOPMENT_TEAM (CODE_SIGNING_ALLOWED=NO).
+# Do not mark it as a required check: path-filtered workflows never report on other PRs.
+name: ios
+
+on:
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  push:
+    branches: [main, release]
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ios/build/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-${{ hashFiles('ios/EchoCare.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+      - name: Lint and check formatting
+        run: >-
+          swift format lint --strict --parallel --recursive
+          --configuration ios/.swift-format
+          ios/EchoCare ios/EchoCareWatch ios/EchoCareTests ios/Shared
+      - name: Shared package unit tests
+        run: swift test --package-path ios/Shared
+      - name: Build iOS app and test bundle
+        run: >-
+          xcodebuild build-for-testing
+          -project ios/EchoCare.xcodeproj
+          -scheme EchoCare
+          -destination 'generic/platform=iOS Simulator'
+          -clonedSourcePackagesDirPath ios/build/SourcePackages
+          CODE_SIGNING_ALLOWED=NO
+          -quiet
+      - name: Build watchOS app
+        run: >-
+          xcodebuild build
+          -project ios/EchoCare.xcodeproj
+          -scheme EchoCareWatch
+          -destination 'generic/platform=watchOS Simulator'
+          -clonedSourcePackagesDirPath ios/build/SourcePackages
+          CODE_SIGNING_ALLOWED=NO
+          -quiet

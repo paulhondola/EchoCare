@@ -98,7 +98,11 @@ private struct TopBar: View {
             Rule()
         }
         .background(Theme.subtle.ignoresSafeArea(edges: .top))
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 600 } action: { wide = $0 }
+        .onGeometryChange(for: Bool.self) {
+            $0.size.width >= 600
+        } action: {
+            wide = $0
+        }
     }
 }
 
@@ -115,7 +119,9 @@ private struct SignedIn: View {
             SquareIconButton(systemImage: "ellipsis", description: "profile") { onOpen() }
         } else if let onOpen {
             // The only way to Ieșire and role switching: a full 48pt target, as ⋮ was
-            Button { onOpen() } label: {
+            Button {
+                onOpen()
+            } label: {
                 square(letters, border: Theme.link)
                     .frame(minWidth: 48, minHeight: 48)
                     .contentShape(Rectangle())

@@ -18,13 +18,16 @@ final class EventQueue {
         do {
             try files.createDirectory(at: directory, withIntermediateDirectories: true)
         } catch {
-            log.error("can't create the queue folder: \(error.localizedDescription, privacy: .public)")
+            log.error(
+                "can't create the queue folder: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     /// The app's queue, in Application Support, so it outlives a relaunch.
     static func standard() -> EventQueue {
-        EventQueue(directory: URL.applicationSupportDirectory.appending(path: "events", directoryHint: .isDirectory))
+        EventQueue(
+            directory: URL.applicationSupportDirectory.appending(
+                path: "events", directoryHint: .isDirectory))
     }
 
     func enqueue(_ msg: EventMessage) {
@@ -37,7 +40,9 @@ final class EventQueue {
             encoder.keyEncodingStrategy = .convertToSnakeCase
             try encoder.encode(msg).write(to: file, options: .atomic)
         } catch {
-            log.error("event \(msg.id, privacy: .public) not queued: \(error.localizedDescription, privacy: .public)")
+            log.error(
+                "event \(msg.id, privacy: .public) not queued: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -48,14 +53,20 @@ final class EventQueue {
 
     /// Every queued event, oldest first. A file that doesn't decode is skipped, as on Wear OS.
     func pending() -> [EventMessage] {
-        let urls = (try? files.contentsOfDirectory(
-            at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        let urls =
+            (try? files.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return urls
+        return
+            urls
             .filter { $0.pathExtension == "json" }
             .map { url in
-                (url, (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast)
+                (
+                    url,
+                    (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                        .contentModificationDate ?? .distantPast
+                )
             }
             .sorted { $0.1 < $1.1 }
             .compactMap { url, _ in

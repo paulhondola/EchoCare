@@ -23,11 +23,14 @@ struct IncidentModelTests {
     }
 
     private func api(_ stub: StubURLProtocol.Stub) -> ApiClient {
-        ApiClient(baseURL: URL(string: "https://api.test")!, tokens: NoToken(), session: stub.session())
+        ApiClient(
+            baseURL: URL(string: "https://api.test")!, tokens: NoToken(), session: stub.session())
     }
 
     /// The incident page answers `page`; a POST answers `command`.
-    private func stub(page: String = openJSON, command: StubURLProtocol.Reply) -> StubURLProtocol.Stub {
+    private func stub(page: String = openJSON, command: StubURLProtocol.Reply)
+        -> StubURLProtocol.Stub
+    {
         StubURLProtocol.Stub { sent in sent.method == "POST" ? command : .init(200, page) }
     }
 
@@ -45,7 +48,8 @@ struct IncidentModelTests {
 
     @Test func aTakeSomeoneElseWonNamesThemAndReadsAgain() async {
         let s = stub(
-            command: .init(409, #"{"detail": {"reason": "already_done", "taken_by_name": "Cristian Pavel"}}"#))
+            command: .init(
+                409, #"{"detail": {"reason": "already_done", "taken_by_name": "Cristian Pavel"}}"#))
         let model = IncidentModel(id: "i1", api: api(s))
         await model.take()
         #expect(model.notice == .takenBy("Cristian Pavel"))
@@ -85,7 +89,9 @@ struct IncidentModelTests {
         model.note = "  Echipa a ajuns.  "
         await model.submit()
         #expect(model.done)
-        let body = try JSONSerialization.jsonObject(with: #require(s.requests.first).body) as? [String: String]
+        let body =
+            try JSONSerialization.jsonObject(with: #require(s.requests.first).body)
+            as? [String: String]
         #expect(body == ["outcome": "team_sent", "note": "Echipa a ajuns."])
     }
 

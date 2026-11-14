@@ -92,7 +92,8 @@ struct HomeNav: View {
         }
         .environment(\.signedIn, displayName)
         // Not twice on top of itself, as Android's launchSingleTop
-        .environment(\.openProfile, OpenProfileAction { if path.last != .profile { path.append(.profile) } })
+        .environment(
+            \.openProfile, OpenProfileAction { if path.last != .profile { path.append(.profile) } })
     }
 
     private func sessionEnded(_ failure: Failure) {

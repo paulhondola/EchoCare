@@ -16,8 +16,10 @@ struct MedicHomeView: View {
     @State private var model: SeniorsModel
 
     init(
-        onMonitor: @escaping () -> Void, onNew: @escaping () -> Void, onOpen: @escaping (String) -> Void,
-        onDraft: @escaping (String) -> Void, onSessionEnd: @escaping (Failure) -> Void, sent: Binding<Bool>,
+        onMonitor: @escaping () -> Void, onNew: @escaping () -> Void,
+        onOpen: @escaping (String) -> Void,
+        onDraft: @escaping (String) -> Void, onSessionEnd: @escaping (Failure) -> Void,
+        sent: Binding<Bool>,
         api: ApiClient = ApiClient(tokens: FirebaseTokenSource())
     ) {
         self.onMonitor = onMonitor
@@ -33,7 +35,10 @@ struct MedicHomeView: View {
         Frame(String(localized: "medic_home")) {
             SnButton("new_patient", kind: .success, action: onNew)
         } content: {
-            LoadBody(load: model.seniors, onRetry: { Task { await model.load() } }, onSessionEnd: onSessionEnd) {
+            LoadBody(
+                load: model.seniors, onRetry: { Task { await model.load() } },
+                onSessionEnd: onSessionEnd
+            ) {
                 seniors in
                 let tasks = tasksOf(seniors)
                 ScrollView {
@@ -44,11 +49,16 @@ struct MedicHomeView: View {
                             SectionLabel(verbatim: localized("tasks_title", tasks.count))
                                 .padding(.top, 12).padding(.bottom, 4)
                             if tasks.isEmpty {
-                                Text("all_done").textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgMuted)
+                                Text("all_done").textStyle(Theme.bodyLarge).foregroundStyle(
+                                    Theme.fgMuted)
                             }
                             ForEach(tasks, id: \.row.id) { task in
                                 TaskRow(task: task) {
-                                    if task.kind == .draft { onDraft(task.row.id) } else { onOpen(task.row.id) }
+                                    if task.kind == .draft {
+                                        onDraft(task.row.id)
+                                    } else {
+                                        onOpen(task.row.id)
+                                    }
                                 }
                             }
                         }
@@ -76,15 +86,20 @@ private struct Strip: View {
     var body: some View {
         // The chips are padded down to the middle of the 48pt button: WrappingRow aligns tops
         WrappingRow(spacing: 8, lineSpacing: 8) {
-            if counts.red > 0 { Chip(verbatim: localized("count_red", counts.red), tone: .rosu).padding(.top, 13) }
+            if counts.red > 0 {
+                Chip(verbatim: localized("count_red", counts.red), tone: .rosu).padding(.top, 13)
+            }
             if counts.yellow > 0 {
-                Chip(verbatim: localized("count_yellow", counts.yellow), tone: .galben).padding(.top, 13)
+                Chip(verbatim: localized("count_yellow", counts.yellow), tone: .galben).padding(
+                    .top, 13)
             }
             if counts.green > 0 {
-                Chip(verbatim: localized("count_green", counts.green), tone: .verde).padding(.top, 13)
+                Chip(verbatim: localized("count_green", counts.green), tone: .verde).padding(
+                    .top, 13)
             }
             if counts.atDas > 0 {
-                Chip(verbatim: localized("count_at_das", counts.atDas), tone: .link).padding(.top, 13)
+                Chip(verbatim: localized("count_at_das", counts.atDas), tone: .link).padding(
+                    .top, 13)
             }
             SnButton("all_patients", kind: .link, action: onMonitor)
         }
@@ -109,9 +124,11 @@ private struct TaskRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 // A draft may not have its form of address yet
                 if !task.row.formOfAddress.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text(verbatim: task.row.formOfAddress).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
+                    Text(verbatim: task.row.formOfAddress).textStyle(Theme.titleMedium)
+                        .foregroundStyle(Theme.fg)
                 }
-                Text(verbatim: task.row.fullName).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgMuted)
+                Text(verbatim: task.row.fullName).textStyle(Theme.bodyMedium).foregroundStyle(
+                    Theme.fgMuted)
                 Text(line).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fg)
             }
             .padding(12)

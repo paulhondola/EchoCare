@@ -37,68 +37,75 @@ struct FallDetectorTests {
 
     @Test("a fall with a strong impact, then stillness, is detected once")
     func strongImpact() {
-        #expect(detections {
-            $0.hold(1, ms: 1_000)
-            $0.impact(8.3)
-            $0.move(ms: 1_500)
-            $0.hold(1, ms: 15_000)
-        } == 1)
+        #expect(
+            detections {
+                $0.hold(1, ms: 1_000)
+                $0.impact(8.3)
+                $0.move(ms: 1_500)
+                $0.hold(1, ms: 15_000)
+            } == 1)
     }
 
     @Test("a soft fall backwards onto a bed is detected")
     func softFall() {
-        #expect(detections {
-            $0.hold(1, ms: 1_000)
-            $0.impact(2.04)
-            $0.move(ms: 1_000)
-            $0.hold(1.02, ms: 10_000)
-        } == 1)
+        #expect(
+            detections {
+                $0.hold(1, ms: 1_000)
+                $0.impact(2.04)
+                $0.move(ms: 1_000)
+                $0.hold(1.02, ms: 10_000)
+            } == 1)
     }
 
     @Test("a slap on a table, with the arm moving on, is not a fall")
     func slapOnTable() {
-        #expect(detections {
-            $0.hold(1, ms: 1_000)
-            $0.impact(11.8)
-            $0.move(ms: 15_000)
-        } == 0)
+        #expect(
+            detections {
+                $0.hold(1, ms: 1_000)
+                $0.impact(11.8)
+                $0.move(ms: 15_000)
+            } == 0)
     }
 
     @Test("walking with a peak below the impact threshold is not a fall")
     func walking() {
-        #expect(detections {
-            for _ in 0..<10 {
-                $0.impact(1.9)
-                $0.move(ms: 500)
-            }
-            $0.hold(1, ms: 10_000)
-        } == 0)
+        #expect(
+            detections {
+                for _ in 0..<10 {
+                    $0.impact(1.9)
+                    $0.move(ms: 500)
+                }
+                $0.hold(1, ms: 10_000)
+            } == 0)
     }
 
     @Test("stillness shorter than seven seconds is not a fall")
     func shortStillness() {
-        #expect(detections {
-            $0.impact(5)
-            $0.hold(1, ms: 6_000)
-            $0.move(ms: 5_000)
-        } == 0)
+        #expect(
+            detections {
+                $0.impact(5)
+                $0.hold(1, ms: 6_000)
+                $0.move(ms: 5_000)
+            } == 0)
     }
 
     @Test("stillness that begins long after the impact is not a fall")
     func lateStillness() {
-        #expect(detections {
-            $0.impact(5)
-            $0.move(ms: 6_000)
-            $0.hold(1, ms: 10_000)
-        } == 0)
+        #expect(
+            detections {
+                $0.impact(5)
+                $0.move(ms: 6_000)
+                $0.hold(1, ms: 10_000)
+            } == 0)
     }
 
     @Test("sitting down hard matches, and the wrist prompt is what catches it")
     func sittingDownHard() {
-        #expect(detections {
-            $0.impact(2.74)
-            $0.hold(1, ms: 10_000)
-        } == 1)
+        #expect(
+            detections {
+                $0.impact(2.74)
+                $0.hold(1, ms: 10_000)
+            } == 1)
     }
 
     @Test("acceleration at rest is one g")

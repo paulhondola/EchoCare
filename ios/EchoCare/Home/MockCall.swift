@@ -15,11 +15,16 @@ struct Choice: Equatable, Sendable {
 }
 
 // What the buttons send: the server's values for each answer, "unknown" for „Nu știu”.
-let FEELINGS = [Choice(value: "ok", label: "feeling_ok"), Choice(value: "unwell", label: "feeling_unwell")]
+let FEELINGS = [
+    Choice(value: "ok", label: "feeling_ok"), Choice(value: "unwell", label: "feeling_unwell"),
+]
 let DAY_CHOICES =
     zip(
         DAYS,
-        ["day_luni", "day_marti", "day_miercuri", "day_joi", "day_vineri", "day_sambata", "day_duminica"]
+        [
+            "day_luni", "day_marti", "day_miercuri", "day_joi", "day_vineri", "day_sambata",
+            "day_duminica",
+        ]
     ).map { Choice(value: $0, label: $1) } + [Choice(value: "unknown", label: "day_unknown")]
 let SHELTERS = [Choice(value: "yes", label: "yes"), Choice(value: "no", label: "no")]
 
@@ -101,7 +106,9 @@ private func warningLine(_ call: MockCall) -> String? {
         default: nil as String?
         }
     guard let level, let kind else { return nil }
-    return String(format: String(localized: "mock_warning"), String(localized: .init(level)), String(localized: .init(kind)))
+    return String(
+        format: String(localized: "mock_warning"), String(localized: .init(level)),
+        String(localized: .init(kind)))
 }
 
 /// `onAnswer` gets the body to post: the three choices, `declined`, or the consent.
@@ -141,7 +148,9 @@ private struct Campaign: View {
     var body: some View {
         Question("q_feeling", FEELINGS, chosen: feeling) { feeling = $0 }
         Question("q_day", DAY_CHOICES, chosen: day) { day = $0 }
-        Question(call.kind == "heat" ? "q_shelter_heat" : "q_shelter_cold", SHELTERS, chosen: shelter) {
+        Question(
+            call.kind == "heat" ? "q_shelter_heat" : "q_shelter_cold", SHELTERS, chosen: shelter
+        ) {
             shelter = $0
         }
         let answer = campaignAnswer(feeling: feeling, day: day, shelter: shelter)
@@ -179,7 +188,10 @@ private struct Question: View {
     let chosen: String?
     let onChoose: (String) -> Void
 
-    init(_ text: LocalizedStringKey, _ options: [Choice], chosen: String?, onChoose: @escaping (String) -> Void) {
+    init(
+        _ text: LocalizedStringKey, _ options: [Choice], chosen: String?,
+        onChoose: @escaping (String) -> Void
+    ) {
         self.text = text
         self.options = options
         self.chosen = chosen
@@ -192,7 +204,10 @@ private struct Question: View {
             WrappingRow(spacing: 8, lineSpacing: 8) {
                 ForEach(options, id: \.value) { option in
                     let picked = option.value == chosen
-                    SnButton(LocalizedStringKey(option.label), kind: picked ? .success : .outline, minHeight: 56) {
+                    SnButton(
+                        LocalizedStringKey(option.label), kind: picked ? .success : .outline,
+                        minHeight: 56
+                    ) {
                         onChoose(option.value)
                     }
                     .accessibilityAddTraits(picked ? .isSelected : [])

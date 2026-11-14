@@ -25,10 +25,13 @@ struct WatchMessageTests {
 
     @Test("a check-in from an older watch decodes the added fields as null")
     func decodesOlderCheckIn() throws {
-        let old = #"{"measured_at":"2026-11-07T19:45:00Z","battery":73,"worn":true,"last_pulse":88}"#
+        let old =
+            #"{"measured_at":"2026-11-07T19:45:00Z","battery":73,"worn":true,"last_pulse":88}"#
         let decoded = try WatchMessage.decode(CheckInMessage.self, from: ["json": old])
-        #expect(decoded == CheckInMessage(
-            measuredAt: "2026-11-07T19:45:00Z", battery: 73, worn: true, lastPulse: 88))
+        #expect(
+            decoded
+                == CheckInMessage(
+                    measuredAt: "2026-11-07T19:45:00Z", battery: 73, worn: true, lastPulse: 88))
     }
 
     @Test("check-in omits null fields and decodes them back as null")
