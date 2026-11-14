@@ -3,6 +3,7 @@
   import {
     ApiError,
     eraseSenior,
+    exportSenior,
     fetchCalls,
     fetchMedicalRecord,
     fetchSenior,
@@ -46,6 +47,27 @@
   let confirmingErase = $state(false);
   let erasing = $state(false);
   let eraseError = $state<string | null>(null);
+  let exporting = $state(false);
+  let exportError = $state<string | null>(null);
+
+  async function downloadExport() {
+    exporting = true;
+    exportError = null;
+    try {
+      const data = await exportSenior(summary.id, reads.signal);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `echocare-senior-${summary.id}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      if (!reads.signal.aborted) exportError = failed("exportul datelor", err);
+    } finally {
+      exporting = false;
+    }
+  }
 
   async function erase() {
     erasing = true;
@@ -411,13 +433,24 @@
 
           <div class="mt-6 border-t-2 border-line pt-4">
             {#if !confirmingErase}
-              <button
-                type="button"
-                class="sn-btn sn-btn-outline px-3 py-1.5 text-xs"
-                onclick={() => (confirmingErase = true)}
-              >
-                <Icon name="trash-2" size={14} />Șterge toate datele
-              </button>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="sn-btn sn-btn-outline px-3 py-1.5 text-xs"
+                  disabled={exporting}
+                  onclick={downloadExport}
+                >
+                  <Icon name="download" size={14} />{exporting ? "Se exportă…" : "Exportă datele"}
+                </button>
+                <button
+                  type="button"
+                  class="sn-btn sn-btn-outline px-3 py-1.5 text-xs"
+                  onclick={() => (confirmingErase = true)}
+                >
+                  <Icon name="trash-2" size={14} />Șterge toate datele
+                </button>
+              </div>
+              {#if exportError}<p role="alert" class="mt-3 text-rosu-fg">{exportError}</p>{/if}
             {:else}
               <div
                 class="border border-rosu bg-rosu/15 p-4"
