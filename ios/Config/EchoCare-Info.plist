@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into the generated Info.plist: keys with no INFOPLIST_KEY_ build setting. -->
+	<!-- Android's BuildConfig fields, from Base.xcconfig / Local.xcconfig; read by AppConfig. -->
+	<key>EchoCareAPIURL</key>
+	<string>$(API_URL)</string>
+	<key>EchoCareRereadSeconds</key>
+	<string>$(REREAD_SECONDS)</string>
+	<key>EchoCareRealSMS</key>
+	<string>$(REAL_SMS)</string>
+	<!-- Firebase phone sign-in without APNs returns from its reCAPTCHA page through the -->
+	<!-- Encoded App ID: GOOGLE_APP_ID from GoogleService-Info.plist, : as -, prefixed app-. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>app-1-171353703999-ios-7b9a7b391899badd391a8a</string>
+			</array>
+		</dict>
+	</array>
+	<!-- The dashboard's type (spec 07 §2), as on Android: res/font, licences beside them. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Archivo.ttf</string>
+		<string>JetBrainsMono.ttf</string>
+	</array>
+	<!-- Plain HTTP only to the laptop's Compose stack (Local.xcconfig API_URL), as Android's debug manifest. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

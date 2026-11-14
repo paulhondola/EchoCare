@@ -1,0 +1,3702 @@
+{
+  "sourceLanguage" : "ro",
+  "strings" : {
+    "a_dispatcher" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "un dispecer"
+          }
+        }
+      }
+    },
+    "add" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă"
+          }
+        }
+      }
+    },
+    "address_apartment" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ap. %1$@"
+          }
+        }
+      }
+    },
+    "address_block" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bl. %1$@"
+          }
+        }
+      }
+    },
+    "address_floor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "et. %1$@"
+          }
+        }
+      }
+    },
+    "address_staircase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sc. %1$@"
+          }
+        }
+      }
+    },
+    "ago_hours" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "acum %1$lld h %2$lld min"
+          }
+        }
+      }
+    },
+    "ago_minutes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "acum %1$lld min"
+          }
+        }
+      }
+    },
+    "ago_moments" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "acum câteva secunde"
+          }
+        }
+      }
+    },
+    "alert_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O persoană pe care o urmăriți are nevoie de atenție."
+          }
+        }
+      }
+    },
+    "alert_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EchoCare"
+          }
+        }
+      }
+    },
+    "alerts_channel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alerte"
+          }
+        }
+      }
+    },
+    "alerts_channel_description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Când o persoană pe care o urmăriți are nevoie de atenție"
+          }
+        }
+      }
+    },
+    "all_done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Totul e la zi"
+          }
+        }
+      }
+    },
+    "all_patients" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toți pacienții →"
+          }
+        }
+      }
+    },
+    "already_caregiver" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este deja aparținător pentru acest senior."
+          }
+        }
+      }
+    },
+    "already_resolved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incidentul a fost deja rezolvat."
+          }
+        }
+      }
+    },
+    "answer_feeling" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stare"
+          }
+        }
+      }
+    },
+    "answer_identity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identitate"
+          }
+        }
+      }
+    },
+    "answer_no" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nu"
+          }
+        }
+      }
+    },
+    "answer_ok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bine"
+          }
+        }
+      }
+    },
+    "answer_orientation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ziua"
+          }
+        }
+      }
+    },
+    "answer_quote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@”"
+          }
+        }
+      }
+    },
+    "answer_shelter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adăpost"
+          }
+        }
+      }
+    },
+    "answer_unclear" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "neclar"
+          }
+        }
+      }
+    },
+    "answer_unknown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nu știe"
+          }
+        }
+      }
+    },
+    "answer_unwell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rău"
+          }
+        }
+      }
+    },
+    "answer_yes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "da"
+          }
+        }
+      }
+    },
+    "answers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Răspunsuri"
+          }
+        }
+      }
+    },
+    "app_name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EchoCare"
+          }
+        }
+      }
+    },
+    "back" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Înapoi"
+          }
+        }
+      }
+    },
+    "background_off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ca ceasul să vă poată trimite datele, permiteți EchoCare să ruleze în fundal."
+          }
+        }
+      }
+    },
+    "background_on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite"
+          }
+        }
+      }
+    },
+    "call" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apelează"
+          }
+        }
+      }
+    },
+    "call_again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sună din nou"
+          }
+        }
+      }
+    },
+    "call_canceled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "anulat"
+          }
+        }
+      }
+    },
+    "call_completed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "încheiat"
+          }
+        }
+      }
+    },
+    "call_dropped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "întrerupt"
+          }
+        }
+      }
+    },
+    "call_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "eșuat"
+          }
+        }
+      }
+    },
+    "call_handed_over" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "transferat la DAS"
+          }
+        }
+      }
+    },
+    "call_in_progress" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "în curs"
+          }
+        }
+      }
+    },
+    "call_line" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · încercarea %2$lld · %3$@"
+          }
+        }
+      }
+    },
+    "call_live" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apel în curs"
+          }
+        }
+      }
+    },
+    "call_me" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunați-mă"
+          }
+        }
+      }
+    },
+    "call_me_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cererea nu a putut fi trimisă. Încercați din nou."
+          }
+        }
+      }
+    },
+    "call_me_sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cererea a fost trimisă. Veți primi un apel în scurt timp."
+          }
+        }
+      }
+    },
+    "call_queued" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "în așteptare"
+          }
+        }
+      }
+    },
+    "call_ringing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sună"
+          }
+        }
+      }
+    },
+    "call_unanswered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nepreluat"
+          }
+        }
+      }
+    },
+    "cancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renunță"
+          }
+        }
+      }
+    },
+    "caregiver_home" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seniorii mei"
+          }
+        }
+      }
+    },
+    "caregiver_phone_invalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr invalid. Aparținătorul are nevoie de un număr de mobil."
+          }
+        }
+      }
+    },
+    "changed_state" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starea pacientului s-a schimbat între timp."
+          }
+        }
+      }
+    },
+    "clear_signature" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Șterge"
+          }
+        }
+      }
+    },
+    "code_green" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cod verde"
+          }
+        }
+      }
+    },
+    "code_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codul primit prin SMS"
+          }
+        }
+      }
+    },
+    "code_red" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cod roșu"
+          }
+        }
+      }
+    },
+    "code_yellow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cod galben"
+          }
+        }
+      }
+    },
+    "confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmă"
+          }
+        }
+      }
+    },
+    "consent_app" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "în aplicație"
+          }
+        }
+      }
+    },
+    "consent_call" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la apel"
+          }
+        }
+      }
+    },
+    "consent_das" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de DAS"
+          }
+        }
+      }
+    },
+    "consent_given" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dat"
+          }
+        }
+      }
+    },
+    "consent_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consimțământ"
+          }
+        }
+      }
+    },
+    "consent_line" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "consent_medic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de medic"
+          }
+        }
+      }
+    },
+    "consent_refused" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refuzat"
+          }
+        }
+      }
+    },
+    "consent_signature_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opțional: consimțământul se confirmă și la apelul de bun venit."
+          }
+        }
+      }
+    },
+    "consent_signature_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vă vom suna în zilele cu vreme extremă sau când ceasul semnalează ceva neobișnuit. Ce spuneți în apel văd medicul de familie, familia și DAS. Puteți renunța oricând. Semnând mai jos, sunteți de acord."
+          }
+        }
+      }
+    },
+    "consent_withdrawn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retras"
+          }
+        }
+      }
+    },
+    "count_at_das" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La DAS: %lld"
+          }
+        }
+      }
+    },
+    "count_green" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verzi: %lld"
+          }
+        }
+      }
+    },
+    "count_red" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roșu: %lld"
+          }
+        }
+      }
+    },
+    "count_yellow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Galben: %lld"
+          }
+        }
+      }
+    },
+    "day_duminica" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duminică"
+          }
+        }
+      }
+    },
+    "day_joi" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joi"
+          }
+        }
+      }
+    },
+    "day_luni" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luni"
+          }
+        }
+      }
+    },
+    "day_marti" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marți"
+          }
+        }
+      }
+    },
+    "day_miercuri" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miercuri"
+          }
+        }
+      }
+    },
+    "day_sambata" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sâmbătă"
+          }
+        }
+      }
+    },
+    "day_unknown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu știu"
+          }
+        }
+      }
+    },
+    "day_vineri" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vineri"
+          }
+        }
+      }
+    },
+    "do_continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuă"
+          }
+        }
+      }
+    },
+    "do_correct" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corectează"
+          }
+        }
+      }
+    },
+    "do_open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide"
+          }
+        }
+      }
+    },
+    "do_review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revizuiește"
+          }
+        }
+      }
+    },
+    "done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gata"
+          }
+        }
+      }
+    },
+    "edit_data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editează datele"
+          }
+        }
+      }
+    },
+    "event_fall" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cădere detectată"
+          }
+        }
+      }
+    },
+    "event_high_pulse_at_rest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puls ridicat în repaus"
+          }
+        }
+      }
+    },
+    "event_inactivity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inactivitate"
+          }
+        }
+      }
+    },
+    "event_location" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locație"
+          }
+        }
+      }
+    },
+    "event_location_only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "event_location_value" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@ · ±%3$lld m"
+          }
+        }
+      }
+    },
+    "event_manual_request" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Sunați-mă”"
+          }
+        }
+      }
+    },
+    "event_measured_at" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Măsurat la"
+          }
+        }
+      }
+    },
+    "event_sos_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buton SOS"
+          }
+        }
+      }
+    },
+    "event_type" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tip"
+          }
+        }
+      }
+    },
+    "feeling_ok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bine"
+          }
+        }
+      }
+    },
+    "feeling_unwell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rău"
+          }
+        }
+      }
+    },
+    "field_apartment" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apartament"
+          }
+        }
+      }
+    },
+    "field_block" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloc"
+          }
+        }
+      }
+    },
+    "field_call_window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interval preferat pentru apel"
+          }
+        }
+      }
+    },
+    "field_caregiver_name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nume"
+          }
+        }
+      }
+    },
+    "field_floor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etaj"
+          }
+        }
+      }
+    },
+    "field_form_of_address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formulă de adresare"
+          }
+        }
+      }
+    },
+    "field_full_name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nume complet"
+          }
+        }
+      }
+    },
+    "field_intercom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interfon"
+          }
+        }
+      }
+    },
+    "field_invalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valoare invalidă."
+          }
+        }
+      }
+    },
+    "field_key_holder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cine are cheie"
+          }
+        }
+      }
+    },
+    "field_landmark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reper"
+          }
+        }
+      }
+    },
+    "field_relation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relație"
+          }
+        }
+      }
+    },
+    "field_staircase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scară"
+          }
+        }
+      }
+    },
+    "field_street" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stradă"
+          }
+        }
+      }
+    },
+    "field_street_number" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr"
+          }
+        }
+      }
+    },
+    "flagged" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · semnalat — %2$@"
+          }
+        }
+      }
+    },
+    "form_of_address_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de exemplu: doamna Maria"
+          }
+        }
+      }
+    },
+    "group_at_das" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La DAS"
+          }
+        }
+      }
+    },
+    "group_green" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verde"
+          }
+        }
+      }
+    },
+    "group_in_progress" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În progres"
+          }
+        }
+      }
+    },
+    "group_inactive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inactivi"
+          }
+        }
+      }
+    },
+    "group_to_resolve" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De rezolvat"
+          }
+        }
+      }
+    },
+    "group_urgent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roșu și galben"
+          }
+        }
+      }
+    },
+    "handover_call_no" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferul nu a fost preluat"
+          }
+        }
+      }
+    },
+    "handover_call_yes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferat la telefonul de serviciu DAS"
+          }
+        }
+      }
+    },
+    "handover_no" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nepreluat"
+          }
+        }
+      }
+    },
+    "handover_yes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferat la DAS"
+          }
+        }
+      }
+    },
+    "hide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ascunde"
+          }
+        }
+      }
+    },
+    "incident_changed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incidentul s-a schimbat între timp."
+          }
+        }
+      }
+    },
+    "incident_gone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incidentul nu mai există."
+          }
+        }
+      }
+    },
+    "incidents_in_progress" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În lucru · %1$lld"
+          }
+        }
+      }
+    },
+    "incidents_open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschise · %1$lld"
+          }
+        }
+      }
+    },
+    "invalid_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr de telefon invalid."
+          }
+        }
+      }
+    },
+    "kind_cold" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ger"
+          }
+        }
+      }
+    },
+    "kind_heat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "caniculă"
+          }
+        }
+      }
+    },
+    "label_address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adresă"
+          }
+        }
+      }
+    },
+    "label_intercom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interfon"
+          }
+        }
+      }
+    },
+    "label_key_holder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cheie de rezervă"
+          }
+        }
+      }
+    },
+    "label_landmark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reper orientare"
+          }
+        }
+      }
+    },
+    "label_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telefon"
+          }
+        }
+      }
+    },
+    "landing_accounts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conturile le creează medicul de familie și DAS."
+          }
+        }
+      }
+    },
+    "landing_bpm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BPM · repaus"
+          }
+        }
+      }
+    },
+    "landing_call" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sună"
+          }
+        }
+      }
+    },
+    "landing_call_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agentul sună în câteva secunde, vorbește românește și pune trei întrebări simple."
+          }
+        }
+      }
+    },
+    "landing_decide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decide"
+          }
+        }
+      }
+    },
+    "landing_decide_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codul îl pun reguli fixe; modelul îl poate doar ridica. O frază de alarmă gravă duce direct la roșu."
+          }
+        }
+      }
+    },
+    "landing_example" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exemplu · Gheorghe Pavel, 84"
+          }
+        }
+      }
+    },
+    "landing_hand_over" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predă"
+          }
+        }
+      }
+    },
+    "landing_hand_over_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La roșu, apelul trece pe loc la dispecerul DAS, cu dosarul seniorului deschis."
+          }
+        }
+      }
+    },
+    "landing_lead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul observă, agentul sună, un om preia doar când e nevoie."
+          }
+        }
+      }
+    },
+    "landing_live" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ÎN DESFĂȘURARE"
+          }
+        }
+      }
+    },
+    "landing_observe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observă"
+          }
+        }
+      }
+    },
+    "landing_observe_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul compară pulsul cu cel obișnuit și cu mișcarea. O plimbare nu declanșează nimic."
+          }
+        }
+      }
+    },
+    "landing_red" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "COD ROȘU"
+          }
+        }
+      }
+    },
+    "landing_red_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "în 58 s. Familia și medicul, anunțați."
+          }
+        }
+      }
+    },
+    "landing_sign_in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intrați"
+          }
+        }
+      }
+    },
+    "landing_step_1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul: puls 128, în repaus"
+          }
+        }
+      }
+    },
+    "landing_step_2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Sunteți bine?” Niciun răspuns."
+          }
+        }
+      }
+    },
+    "landing_step_3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agentul sună"
+          }
+        }
+      }
+    },
+    "landing_step_4" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Mă apasă pe piept…”"
+          }
+        }
+      }
+    },
+    "landing_step_5" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frază de alarmă: cod roșu"
+          }
+        }
+      }
+    },
+    "landing_step_6" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dispecerul DAS preia apelul"
+          }
+        }
+      }
+    },
+    "landing_title_end" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "primul."
+          }
+        }
+      }
+    },
+    "landing_title_start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimeni nu trebuie să observe"
+          }
+        }
+      }
+    },
+    "last_caregiver" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un senior trimis la DAS are nevoie de cel puțin un aparținător."
+          }
+        }
+      }
+    },
+    "level_red" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "roșu"
+          }
+        }
+      }
+    },
+    "level_yellow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "galben"
+          }
+        }
+      }
+    },
+    "medic_home" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pacienții mei"
+          }
+        }
+      }
+    },
+    "medical_analyzing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se analizează…"
+          }
+        }
+      }
+    },
+    "medical_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmă"
+          }
+        }
+      }
+    },
+    "medical_edit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifică"
+          }
+        }
+      }
+    },
+    "medical_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analiza a eșuat"
+          }
+        }
+      }
+    },
+    "medical_not_analyzed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu se analizează în această stare"
+          }
+        }
+      }
+    },
+    "medical_open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide PDF"
+          }
+        }
+      }
+    },
+    "medical_question" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Întrebare"
+          }
+        }
+      }
+    },
+    "medical_reanalyze" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analizează din nou"
+          }
+        }
+      }
+    },
+    "medical_replace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încarcă altă fișă"
+          }
+        }
+      }
+    },
+    "medical_review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Așteaptă confirmarea medicului"
+          }
+        }
+      }
+    },
+    "medical_section" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fișa medicală"
+          }
+        }
+      }
+    },
+    "medical_too_large" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fișierul depășește 10 MB."
+          }
+        }
+      }
+    },
+    "medical_upload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă fișa medicală (PDF)"
+          }
+        }
+      }
+    },
+    "medical_upload_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fișa nu s-a încărcat. Încercați din nou."
+          }
+        }
+      }
+    },
+    "medical_waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se analizează după acceptarea DAS"
+          }
+        }
+      }
+    },
+    "medical_worrying" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Îngrijorător"
+          }
+        }
+      }
+    },
+    "missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lipsesc: %1$@"
+          }
+        }
+      }
+    },
+    "missing_caregiver" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aparținător"
+          }
+        }
+      }
+    },
+    "mock_calling" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DAS Timișoara vă sună"
+          }
+        }
+      }
+    },
+    "mock_later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu acum"
+          }
+        }
+      }
+    },
+    "mock_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apel simulat: răspundeți aici în loc de telefon."
+          }
+        }
+      }
+    },
+    "mock_send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite răspunsurile"
+          }
+        }
+      }
+    },
+    "mock_warning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cod %1$@ de %2$@"
+          }
+        }
+      }
+    },
+    "mock_why_event" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul a semnalat ceva sau ați cerut să vorbim."
+          }
+        }
+      }
+    },
+    "monitor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitorizare"
+          }
+        }
+      }
+    },
+    "new_caregiver" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aparținător nou"
+          }
+        }
+      }
+    },
+    "new_patient" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pacient nou"
+          }
+        }
+      }
+    },
+    "next_step" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuă"
+          }
+        }
+      }
+    },
+    "no" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu"
+          }
+        }
+      }
+    },
+    "no_address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fără adresă."
+          }
+        }
+      }
+    },
+    "no_calls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niciun apel înregistrat pentru acest incident."
+          }
+        }
+      }
+    },
+    "no_caregivers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niciun aparținător."
+          }
+        }
+      }
+    },
+    "no_connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fără conexiune."
+          }
+        }
+      }
+    },
+    "no_incidents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu sunt incidente."
+          }
+        }
+      }
+    },
+    "no_patients_yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încă nu aveți pacienți."
+          }
+        }
+      }
+    },
+    "no_recent_calls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niciun apel încă."
+          }
+        }
+      }
+    },
+    "no_seniors" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu aveți niciun senior."
+          }
+        }
+      }
+    },
+    "no_transcript" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimic înregistrat la acest apel."
+          }
+        }
+      }
+    },
+    "not_accepted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serverul nu a acceptat datele. Citiți pagina din nou și reîncercați."
+          }
+        }
+      }
+    },
+    "not_allowed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu aveți acces la această acțiune."
+          }
+        }
+      }
+    },
+    "not_allowed_action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu aveți dreptul să faceți asta."
+          }
+        }
+      }
+    },
+    "not_found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu a fost găsit."
+          }
+        }
+      }
+    },
+    "not_registered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numărul nu este înregistrat. Contactați medicul de familie."
+          }
+        }
+      }
+    },
+    "note_count" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "notice_channel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizări"
+          }
+        }
+      }
+    },
+    "notice_channel_description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fișe medicale gata de verificat"
+          }
+        }
+      }
+    },
+    "notice_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O fișă medicală e gata de verificat."
+          }
+        }
+      }
+    },
+    "notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notificări"
+          }
+        }
+      }
+    },
+    "notifications_device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alerte pe acest telefon"
+          }
+        }
+      }
+    },
+    "notifications_off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notificările sunt oprite. Porniți-le ca să aflați imediat când o persoană pe care o urmăriți are nevoie de atenție."
+          }
+        }
+      }
+    },
+    "notifications_on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pornește notificările"
+          }
+        }
+      }
+    },
+    "notifications_state_off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oprite"
+          }
+        }
+      }
+    },
+    "notifications_state_on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pornite"
+          }
+        }
+      }
+    },
+    "number_changed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numărul a fost schimbat. Apăsați «Sună din nou» ca să-l sunăm."
+          }
+        }
+      }
+    },
+    "offline_banner" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fără conexiune"
+          }
+        }
+      }
+    },
+    "offline_retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fără conexiune. Încercați din nou."
+          }
+        }
+      }
+    },
+    "open_in_maps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide în Hărți"
+          }
+        }
+      }
+    },
+    "outcome_called_112" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apelat 112"
+          }
+        }
+      }
+    },
+    "outcome_false_alarm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alarmă falsă"
+          }
+        }
+      }
+    },
+    "outcome_not_reached" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu a răspuns"
+          }
+        }
+      }
+    },
+    "outcome_senior_ok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senior OK"
+          }
+        }
+      }
+    },
+    "outcome_team_sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echipaj trimis"
+          }
+        }
+      }
+    },
+    "phone_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr de telefon"
+          }
+        }
+      }
+    },
+    "phone_taken" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acest număr este deja al altui senior."
+          }
+        }
+      }
+    },
+    "pick_patient" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alegeți un pacient."
+          }
+        }
+      }
+    },
+    "pick_role_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alegeți rolul"
+          }
+        }
+      }
+    },
+    "profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profil"
+          }
+        }
+      }
+    },
+    "profile_role" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rol"
+          }
+        }
+      }
+    },
+    "q_day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce zi este azi?"
+          }
+        }
+      }
+    },
+    "q_feeling" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cum vă simțiți?"
+          }
+        }
+      }
+    },
+    "q_shelter_cold" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aveți căldură în casă?"
+          }
+        }
+      }
+    },
+    "q_shelter_heat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aveți un loc răcoros?"
+          }
+        }
+      }
+    },
+    "recent_call_line" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "remove" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimină"
+          }
+        }
+      }
+    },
+    "resend_code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retrimite codul"
+          }
+        }
+      }
+    },
+    "resolve" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rezolvă cazul"
+          }
+        }
+      }
+    },
+    "resolve_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notă"
+          }
+        }
+      }
+    },
+    "resolve_outcome" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rezultat"
+          }
+        }
+      }
+    },
+    "resolve_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rezolvare caz"
+          }
+        }
+      }
+    },
+    "retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reîncercați"
+          }
+        }
+      }
+    },
+    "role_active" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activ"
+          }
+        }
+      }
+    },
+    "role_caregiver" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aparținător"
+          }
+        }
+      }
+    },
+    "role_das" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dispecerat DAS"
+          }
+        }
+      }
+    },
+    "role_line_caregiver" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seniorii de care aveți grijă"
+          }
+        }
+      }
+    },
+    "role_line_das" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incidentele roșii"
+          }
+        }
+      }
+    },
+    "role_line_medic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sarcinile și pacienții dumneavoastră"
+          }
+        }
+      }
+    },
+    "role_line_senior" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pagina dumneavoastră"
+          }
+        }
+      }
+    },
+    "role_medic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medic"
+          }
+        }
+      }
+    },
+    "role_senior" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senior"
+          }
+        }
+      }
+    },
+    "save_signature" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvează semnătura"
+          }
+        }
+      }
+    },
+    "says_welcome_pending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apel de bun venit în curs"
+          }
+        }
+      }
+    },
+    "section_access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adresă și acces"
+          }
+        }
+      }
+    },
+    "section_call_window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interval pentru apel"
+          }
+        }
+      }
+    },
+    "section_calls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apeluri"
+          }
+        }
+      }
+    },
+    "section_caregivers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aparținători"
+          }
+        }
+      }
+    },
+    "section_event" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eveniment"
+          }
+        }
+      }
+    },
+    "section_recent_calls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apeluri recente"
+          }
+        }
+      }
+    },
+    "send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite"
+          }
+        }
+      }
+    },
+    "send_code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite codul"
+          }
+        }
+      }
+    },
+    "send_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu am putut trimite. Încercați din nou."
+          }
+        }
+      }
+    },
+    "sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimis la DAS."
+          }
+        }
+      }
+    },
+    "show_n" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arată (%lld)"
+          }
+        }
+      }
+    },
+    "sign" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semnătură"
+          }
+        }
+      }
+    },
+    "sign_here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semnați aici"
+          }
+        }
+      }
+    },
+    "sign_in_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intrați în cont"
+          }
+        }
+      }
+    },
+    "sign_out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ieșire"
+          }
+        }
+      }
+    },
+    "signed_on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semnat · %1$@"
+          }
+        }
+      }
+    },
+    "signed_on_tablet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semnat pe tabletă · %1$@"
+          }
+        }
+      }
+    },
+    "speaker_agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistem AI"
+          }
+        }
+      }
+    },
+    "speaker_das" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Operator DAS"
+          }
+        }
+      }
+    },
+    "speaker_senior" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senior"
+          }
+        }
+      }
+    },
+    "speaker_system" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistem"
+          }
+        }
+      }
+    },
+    "stage_accepted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acceptat"
+          }
+        }
+      }
+    },
+    "stage_active" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activ"
+          }
+        }
+      }
+    },
+    "stage_draft" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ciornă"
+          }
+        }
+      }
+    },
+    "stage_refused" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refuzat"
+          }
+        }
+      }
+    },
+    "stage_submitted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimis"
+          }
+        }
+      }
+    },
+    "stage_unreachable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu am putut lua legătura"
+          }
+        }
+      }
+    },
+    "stage_withdrawn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retras"
+          }
+        }
+      }
+    },
+    "stage_wrong_number" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr greșit"
+          }
+        }
+      }
+    },
+    "state_accepted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acceptat"
+          }
+        }
+      }
+    },
+    "state_active" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activ"
+          }
+        }
+      }
+    },
+    "state_draft" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ciornă"
+          }
+        }
+      }
+    },
+    "state_refused" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refuzat"
+          }
+        }
+      }
+    },
+    "state_submitted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimis la DAS"
+          }
+        }
+      }
+    },
+    "state_unreachable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De negăsit"
+          }
+        }
+      }
+    },
+    "state_withdrawn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retras"
+          }
+        }
+      }
+    },
+    "state_wrong_number" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr greșit"
+          }
+        }
+      }
+    },
+    "status_open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschis"
+          }
+        }
+      }
+    },
+    "status_resolved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rezolvat"
+          }
+        }
+      }
+    },
+    "status_taken_by" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În lucru · preluat de %1$@"
+          }
+        }
+      }
+    },
+    "step_address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adresă și acces"
+          }
+        }
+      }
+    },
+    "step_caregivers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aparținători"
+          }
+        }
+      }
+    },
+    "step_counter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasul %1$lld din %2$lld"
+          }
+        }
+      }
+    },
+    "step_review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificare"
+          }
+        }
+      }
+    },
+    "step_senior" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senior"
+          }
+        }
+      }
+    },
+    "submit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite la DAS"
+          }
+        }
+      }
+    },
+    "tag_landline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fix"
+          }
+        }
+      }
+    },
+    "tag_mobile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mobil"
+          }
+        }
+      }
+    },
+    "take" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preiau"
+          }
+        }
+      }
+    },
+    "taken_by_other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preluat deja de %1$@."
+          }
+        }
+      }
+    },
+    "task_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fișa medicală e analizată: confirmați întrebările"
+          }
+        }
+      }
+    },
+    "task_draft" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Înregistrare neterminată"
+          }
+        }
+      }
+    },
+    "task_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analiza fișei medicale a eșuat"
+          }
+        }
+      }
+    },
+    "task_unreachable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu răspunde la apelul de bun venit"
+          }
+        }
+      }
+    },
+    "task_wrong_number" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Număr greșit la apelul de bun venit"
+          }
+        }
+      }
+    },
+    "tasks_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De făcut · %lld"
+          }
+        }
+      }
+    },
+    "too_long" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cel mult %1$lld de caractere."
+          }
+        }
+      }
+    },
+    "too_many_attempts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prea multe încercări. Încercați mai târziu."
+          }
+        }
+      }
+    },
+    "transcript" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcriere"
+          }
+        }
+      }
+    },
+    "trigger_campaign" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campanie"
+          }
+        }
+      }
+    },
+    "trigger_manual" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerere „Sunați-mă”"
+          }
+        }
+      }
+    },
+    "trigger_watch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceas"
+          }
+        }
+      }
+    },
+    "trigger_welcome" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apel de bun venit"
+          }
+        }
+      }
+    },
+    "turn_keys" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tasta %1$@"
+          }
+        }
+      }
+    },
+    "unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autentificarea nu este disponibilă acum. Încercați din nou."
+          }
+        }
+      }
+    },
+    "warning_active" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avertizare meteo în vigoare"
+          }
+        }
+      }
+    },
+    "watch_not_worn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul nu este purtat"
+          }
+        }
+      }
+    },
+    "watch_offline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul nu transmite"
+          }
+        }
+      }
+    },
+    "watch_ok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceas conectat"
+          }
+        }
+      }
+    },
+    "watch_ok_pulse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceas conectat · %1$lld bpm"
+          }
+        }
+      }
+    },
+    "welcome_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apel de bun venit DAS"
+          }
+        }
+      }
+    },
+    "withdraw" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retragere consimțământ"
+          }
+        }
+      }
+    },
+    "withdraw_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retrage"
+          }
+        }
+      }
+    },
+    "withdraw_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu va mai primi apeluri. Nu se poate anula."
+          }
+        }
+      }
+    },
+    "withdraw_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retrageți consimțământul pentru %1$@?"
+          }
+        }
+      }
+    },
+    "wrong_code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cod greșit."
+          }
+        }
+      }
+    },
+    "yes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Da"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
