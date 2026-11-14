@@ -534,3 +534,25 @@ async def erase_senior_incidents(session: AsyncSession, senior_id: uuid.UUID) ->
     commit (ADR-005)."""
     await session.execute(delete(Event).where(Event.senior_id == senior_id))
     await session.execute(delete(Incident).where(Incident.senior_id == senior_id))
+
+
+async def export_senior_incidents(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> tuple[list[Event], list[Incident]]:
+    """The senior's events and incidents in order, for a GDPR export (04 §1, design
+    2026-11-14)."""
+    events = list(
+        await session.scalars(
+            select(Event)
+            .where(Event.senior_id == senior_id)
+            .order_by(Event.measured_at, Event.id)
+        )
+    )
+    incidents = list(
+        await session.scalars(
+            select(Incident)
+            .where(Incident.senior_id == senior_id)
+            .order_by(Incident.opened_at, Incident.id)
+        )
+    )
+    return events, incidents

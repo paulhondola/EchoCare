@@ -430,6 +430,16 @@ export async function eraseSenior(id: string): Promise<void> {
   if (!r.ok) throw await refused(r);
 }
 
+/** Exportă datele: the senior and everything about them as JSON (04 §1, design 2026-11-14). */
+export async function exportSenior(
+  id: string,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const r = await apiFetch(`/api/seniors/${id}/export`, { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as Record<string, unknown>;
+}
+
 export interface DatabaseHealth {
   status: "ok" | "unreachable";
   latency_ms: number | null;

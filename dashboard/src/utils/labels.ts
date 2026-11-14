@@ -10,6 +10,7 @@ export const TRIGGERS: Record<string, string> = {
   campaign: "Campanie",
   watch: "Ceas",
   manual: "Cerere „Sunați-mă”",
+  home_node: "Senzor din casă",
   welcome: "Apel de bun venit",
 };
 
