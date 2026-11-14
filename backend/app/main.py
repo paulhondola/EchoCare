@@ -11,6 +11,7 @@ from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
 from app.core.settings import AppEnv, check_environment, cors_origins, get_settings
 from app.erasure.router import router as erasure_router
+from app.homenode.router import router as homenode_router
 from app.incidents.router import router as incidents_router
 from app.medical.router import router as medical_router
 from app.medical.service import stop_analyses
@@ -82,6 +83,7 @@ api.include_router(seniors_router)
 api.include_router(medical_router)
 api.include_router(erasure_router)
 api.include_router(incidents_router)
+api.include_router(homenode_router)
 api.include_router(campaigns_router)
 api.include_router(calls_router)
 api.include_router(voice_router)

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, BaseModel, BeforeValidator, StringConstraints
+from pydantic import AwareDatetime, BaseModel, BeforeValidator, Field, StringConstraints
 
 from app.incidents.models import EventType, IncidentOutcome, IncidentStatus
 from app.seniors.schemas import CaregiverSummary, SeniorDetail, SummaryVersionView
@@ -38,8 +38,8 @@ class ResolutionForm(BaseModel):
 
 
 class EventSnapshotForm(BaseModel):
-    """What the watch saw when the event fired (04 §3). Every field optional: older clients send
-    none; a fall event sets its own fields; a pulse event sets pulse and resting_baseline. The
+    """What the device saw when the event fired (04 §3). Every field optional: older clients
+    send none; a pulse event sets pulse and resting_baseline; a fall sets its own fields. The
     service stores it as-is on the Event row."""
 
     pulse: int | None = None
@@ -47,6 +47,19 @@ class EventSnapshotForm(BaseModel):
     moving: bool | None = None
     minutes_without_steps: int | None = None
     battery: int | None = None
+    # A fall seen by the watch (P19)
+    lowest_acceleration_g: float | None = None
+    peak_acceleration_g: float | None = None
+    seconds_of_stillness: float | None = None
+    # A fall found by the home node's floor search (P24, 08-ecou.md §3.2): where the
+    # object was, and the sweep that found it, from 0° to 180° in 5° steps, in metres.
+    object_angle_deg: Annotated[float, Field(ge=0, le=180)] | None = None
+    object_distance_m: Annotated[float, Field(ge=0, le=10)] | None = None
+    seconds_still: float | None = None
+    scan: (
+        Annotated[list[Annotated[float, Field(ge=0, le=10)]], Field(max_length=73)]
+        | None
+    ) = None
 
 
 class EventForm(BaseModel):
@@ -77,7 +90,10 @@ class EventView(BaseModel):
 
 
 class TriggerEventView(BaseModel):
-    """The event that queued the opening call, with the phone's location if it had one."""
+    """The event that queued the opening call, with the phone's location if it had one.
+
+    For a fall found by the home node, also where it found the object and the sweep, so
+    the dashboard can draw the room (P24, 08-ecou.md §3.3); null otherwise."""
 
     type: str
     measured_at: datetime
@@ -85,6 +101,10 @@ class TriggerEventView(BaseModel):
     longitude: float | None
     location_accuracy_m: float | None
     located_at: datetime | None
+    source: str | None = None
+    object_angle_deg: float | None = None
+    object_distance_m: float | None = None
+    scan: list[float] | None = None
 
 
 class TurnView(BaseModel):

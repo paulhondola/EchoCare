@@ -162,6 +162,12 @@ export interface IncidentDetail {
     longitude: number | null;
     location_accuracy_m: number | null;
     located_at: string | null;
+    // A fall found by the home node: where, and the sweep from 0° to 180° in metres
+    // (P24, 08-ecou.md §3.3). Absent from an older API copy, null for other events.
+    source?: string | null;
+    object_angle_deg?: number | null;
+    object_distance_m?: number | null;
+    scan?: number[] | null;
   } | null;
   calls: {
     id: string;

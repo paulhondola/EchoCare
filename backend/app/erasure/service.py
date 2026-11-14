@@ -17,6 +17,7 @@ from app.auth.service import (
     refuse,
 )
 from app.codes.service import erase_senior_codes
+from app.homenode.service import erase_home_node
 from app.incidents.service import erase_senior_incidents, incident_unresolved
 from app.medical.service import erase_record
 from app.seniors.service import (
@@ -51,6 +52,7 @@ async def erase_senior(
     await erase_senior_codes(session, senior_id, call_ids)
     await erase_senior_incidents(session, senior_id)
     await erase_senior_children(session, senior_id)
+    await erase_home_node(session, senior_id)
     await erase_calls(session, call_ids)
     key = await erase_record(session, senior_id)
     await erase_senior_row(session, senior_id)
