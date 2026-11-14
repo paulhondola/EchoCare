@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fetchWatch, fetchWatchHealth, fetchWatchReadings } from "../../services/api";
   import Icon from "../../ui/Icon.svelte";
-  import { ecgLabel, tracePoints } from "../../utils/health";
+  import { dots, ecgLabel, tracePoints } from "../../utils/health";
   import { since } from "../../utils/incidents";
   import { TONE_CHIP, type Tone } from "../../utils/labels";
   import { poll } from "../../utils/poll.svelte";
@@ -44,7 +44,7 @@
     };
   }
 
-  // Spot readings: the sparkline's gap rule leaves dots between them (design 2026-11-14)
+  // Spot readings sit too far apart for a line, so each is a dot
   function spo2Line() {
     if (health.load.kind !== "ok" || !health.load.data) return null;
     const to = health.load.at;
@@ -55,7 +55,7 @@
     if (!points.length) return null;
     const values = points.map((p) => p.v);
     return {
-      path: sparkline(points, from, to, W, H),
+      dots: dots(points, from, to, W, H),
       lo: Math.min(...values),
       hi: Math.max(...values),
     };
@@ -71,28 +71,6 @@
   <div class="flex flex-col gap-0.5">
     <span class="sn-label">{label}</span>
     <span class="font-mono text-[15px] font-medium">{text}</span>
-  </div>
-{/snippet}
-
-{#snippet trace(label: string, path: string, ariaLabel: string, caption: string)}
-  <div class="flex flex-col gap-1 border-t border-line pt-3">
-    <span class="sn-label">{label}</span>
-    <svg
-      viewBox="0 0 {W} {H}"
-      preserveAspectRatio="none"
-      class="h-12 w-full text-link"
-      role="img"
-      aria-label={ariaLabel}
-    >
-      <path
-        d={path}
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        vector-effect="non-scaling-stroke"
-      />
-    </svg>
-    <span class="font-mono text-xs text-fg-muted">{caption}</span>
   </div>
 {/snippet}
 
@@ -181,12 +159,21 @@
     {:else if health.load.kind === "ok" && health.load.data}
       {@const h = health.load.data}
       {#if spo2}
-        {@render trace(
-          "SpO2, ultimele 24 h",
-          spo2.path,
-          `SpO2 în ultimele 24 de ore, între ${spo2.lo} și ${spo2.hi}%`,
-          `min ${spo2.lo} · max ${spo2.hi} %`,
-        )}
+        <div class="flex flex-col gap-1 border-t border-line pt-3">
+          <span class="sn-label">SpO2, ultimele 24 h</span>
+          <svg
+            viewBox="0 0 {W} {H}"
+            preserveAspectRatio="none"
+            class="h-12 w-full overflow-visible text-link"
+            role="img"
+            aria-label="SpO2 în ultimele 24 de ore, între {spo2.lo} și {spo2.hi}%"
+          >
+            {#each spo2.dots as d, i (i)}
+              <circle cx={d.x} cy={d.y} r="2.5" fill="currentColor" />
+            {/each}
+          </svg>
+          <span class="font-mono text-xs text-fg-muted">min {spo2.lo} · max {spo2.hi} %</span>
+        </div>
       {/if}
       {#if h.ecg}
         {@const e = h.ecg}
