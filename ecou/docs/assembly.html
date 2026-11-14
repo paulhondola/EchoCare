@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ro">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asamblare Ecou</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a build sheet. Three orthographic views of the robot, then the build steps in order. */
+:root {
+  --bg: #f3f5f2; --surface: #ffffff; --ink: #18211d; --muted: #5d6b64; --line: #cdd6d1;
+  --card: #d9c3a0; --card-edge: #a8875a; --board: #1f6f5c; --board-edge: #134a3d;
+  --sensor: #2b6cd4; --metal: #c9d1d6; --servo: #3a5fb0; --horn: #f1f1ee; --dht: #5aa7d6;
+  --seg: #d0342c; --led: #ffb347; --beam: #2b6cd4; --dim: #a8642f; --cable: #8a45c9;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1513; --surface: #161e1b; --ink: #e4ece8; --muted: #95a49d; --line: #2a3632;
+  --card: #8a7353; --card-edge: #c9a876; --board: #2b8a72; --board-edge: #7fd1b9;
+  --sensor: #6aa2ff; --metal: #6f7a80; --servo: #6f8fe0; --horn: #d6d6d0; --dht: #7cc4ef;
+  --seg: #ff6b5e; --led: #ffc76e; --beam: #6aa2ff; --dim: #d08a50; --cable: #c08cf0;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1513; --surface: #161e1b; --ink: #e4ece8; --muted: #95a49d; --line: #2a3632;
+  --card: #8a7353; --card-edge: #c9a876; --board: #2b8a72; --board-edge: #7fd1b9;
+  --sensor: #6aa2ff; --metal: #6f7a80; --servo: #6f8fe0; --horn: #d6d6d0; --dht: #7cc4ef;
+  --seg: #ff6b5e; --led: #ffc76e; --beam: #6aa2ff; --dim: #d08a50; --cable: #c08cf0;
+  color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font-family: var(--display); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 36px; }
+header h1 { font-weight: 800; font-size: clamp(28px, 5vw, 42px); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+header p { color: var(--muted); max-width: 66ch; margin: 8px 0 0; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.views { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px; }
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 8px; min-width: 0; }
+figcaption { font-weight: 800; font-size: 16px; }
+figure svg { width: 100%; height: auto; display: block; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.steps li::before { content: counter(s); font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--bg); background: var(--ink); width: 30px; height: 30px; border-radius: 4px; display: grid; place-items: center; }
+.steps b { font-weight: 800; display: block; margin-bottom: 2px; }
+.steps p { margin: 0; color: var(--muted); max-width: 70ch; }
+.kit { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.kit li { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+.note { border-left: 3px solid var(--dim); padding: 10px 14px; background: var(--surface); border-radius: 0 6px 6px 0; margin: 0; }
+.mono { font-family: var(--mono); font-size: 0.92em; }
+/* drawing */
+svg text { font-family: var(--mono); fill: var(--ink); font-size: 11px; }
+.ground { stroke: var(--muted); stroke-width: 2; }
+.hatch { stroke: var(--line); stroke-width: 1; }
+.box { fill: var(--card); stroke: var(--card-edge); stroke-width: 2; }
+.lid { stroke: var(--card-edge); stroke-width: 2; }
+.pcb { fill: var(--board); stroke: var(--board-edge); stroke-width: 1.5; }
+.sensor { fill: var(--sensor); stroke: var(--board-edge); stroke-width: 1; }
+.eye { fill: var(--metal); stroke: var(--ink); stroke-width: 1.2; }
+.eye-in { fill: none; stroke: var(--ink); stroke-width: 0.8; opacity: .6; }
+.servo { fill: var(--servo); stroke: var(--ink); stroke-width: 1; }
+.horn { fill: var(--horn); stroke: var(--ink); stroke-width: 1; }
+.dht { fill: var(--dht); stroke: var(--ink); stroke-width: 1; }
+.dht-grid { stroke: var(--ink); stroke-width: .7; opacity: .5; }
+.led { fill: var(--led); }
+.led-off { fill: var(--board-edge); opacity: .35; }
+.seg-body { fill: var(--ink); }
+.seg-text { fill: var(--seg); font-weight: 600; font-size: 15px; }
+.beam { stroke: var(--beam); stroke-width: 1.2; stroke-dasharray: 5 4; fill: none; }
+.beam-fill { fill: var(--beam); opacity: .10; }
+.cable { stroke: var(--cable); stroke-width: 2; fill: none; }
+.lead { stroke: var(--muted); stroke-width: 1; fill: none; }
+.lbl { font-family: var(--display); font-size: 12px; font-weight: 600; }
+.sub { fill: var(--muted); font-size: 10.5px; }
+.dimline { stroke: var(--dim); stroke-width: 1.2; }
+.dimtext { fill: var(--dim); font-weight: 600; }
+.arc { stroke: var(--muted); stroke-width: 1.2; fill: none; stroke-dasharray: 2 3; }
+.tick { stroke: var(--muted); stroke-width: 1.2; }
+.usb { fill: var(--metal); stroke: var(--ink); stroke-width: .8; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Asamblare Ecou</h1>
+    <p>Varianta cu un singur servo: o cutie de carton ca trup, Arduino UNO Q pe față cu matricea pe post de chip, ultrasonicul pe servo pe post de cap. Cablajul e în <span class="mono">ecou/docs/wiring.html</span>. Cotele sunt orientative.</p>
+  </header>
+
+  <section>
+    <h2>Trei vederi</h2>
+    <div class="views">
+      <figure>
+        <figcaption>Din față</figcaption>
+        <svg viewBox="0 0 420 380" role="img" aria-label="Ecou văzut din față">
+          <!-- ground -->
+          <line x1="20" y1="350" x2="400" y2="350" class="ground"/>
+          <g class="hatch"><line x1="40" y1="350" x2="30" y2="362"/><line x1="80" y1="350" x2="70" y2="362"/><line x1="120" y1="350" x2="110" y2="362"/><line x1="160" y1="350" x2="150" y2="362"/><line x1="200" y1="350" x2="190" y2="362"/><line x1="240" y1="350" x2="230" y2="362"/><line x1="280" y1="350" x2="270" y2="362"/><line x1="320" y1="350" x2="310" y2="362"/><line x1="360" y1="350" x2="350" y2="362"/><line x1="400" y1="350" x2="390" y2="362"/></g>
+          <!-- box -->
+          <rect x="110" y="208" width="200" height="142" rx="3" class="box"/>
+          <line x1="110" y1="216" x2="310" y2="216" class="lid"/>
+          <!-- UNO Q on the front -->
+          <rect x="143" y="226" width="134" height="76" rx="4" class="pcb"/>
+          <rect x="271" y="252" width="12" height="18" rx="2" class="usb"/>
+          <g id="matrix">
+            <!-- 13 x 8 LEDs, a smile -->
+            <g class="led-off">
+              <circle cx="168" cy="240" r="2.6"/><circle cx="175" cy="240" r="2.6"/><circle cx="182" cy="240" r="2.6"/><circle cx="189" cy="240" r="2.6"/><circle cx="196" cy="240" r="2.6"/><circle cx="203" cy="240" r="2.6"/><circle cx="210" cy="240" r="2.6"/><circle cx="217" cy="240" r="2.6"/><circle cx="224" cy="240" r="2.6"/><circle cx="231" cy="240" r="2.6"/><circle cx="238" cy="240" r="2.6"/><circle cx="245" cy="240" r="2.6"/><circle cx="252" cy="240" r="2.6"/>
+              <circle cx="168" cy="290" r="2.6"/><circle cx="252" cy="290" r="2.6"/><circle cx="168" cy="261" r="2.6"/><circle cx="252" cy="261" r="2.6"/><circle cx="210" cy="261" r="2.6"/><circle cx="210" cy="268" r="2.6"/>
+            </g>
+            <g class="led">
+              <circle cx="189" cy="247" r="2.8"/><circle cx="196" cy="247" r="2.8"/><circle cx="224" cy="247" r="2.8"/><circle cx="231" cy="247" r="2.8"/>
+              <circle cx="189" cy="254" r="2.8"/><circle cx="196" cy="254" r="2.8"/><circle cx="224" cy="254" r="2.8"/><circle cx="231" cy="254" r="2.8"/>
+              <circle cx="182" cy="268" r="2.8"/><circle cx="238" cy="268" r="2.8"/>
+              <circle cx="189" cy="275" r="2.8"/><circle cx="231" cy="275" r="2.8"/>
+              <circle cx="196" cy="282" r="2.8"/><circle cx="203" cy="282" r="2.8"/><circle cx="210" cy="282" r="2.8"/><circle cx="217" cy="282" r="2.8"/><circle cx="224" cy="282" r="2.8"/>
+            </g>
+          </g>
+          <!-- display -->
+          <rect x="168" y="312" width="84" height="28" rx="2" class="seg-body"/>
+          <text x="210" y="331" class="seg-text" text-anchor="middle">21°C</text>
+          <!-- DHT11 on the right wall, on a stalk -->
+          <line x1="310" y1="262" x2="326" y2="262" class="cable"/>
+          <rect x="326" y="246" width="20" height="30" rx="2" class="dht"/>
+          <line x1="330" y1="252" x2="342" y2="252" class="dht-grid"/><line x1="330" y1="258" x2="342" y2="258" class="dht-grid"/><line x1="330" y1="264" x2="342" y2="264" class="dht-grid"/><line x1="330" y1="270" x2="342" y2="270" class="dht-grid"/>
+          <!-- servo -->
+          <rect x="192" y="180" width="36" height="28" rx="2" class="servo"/>
+          <rect x="184" y="196" width="52" height="5" rx="1" class="servo"/>
+          <rect x="203" y="172" width="14" height="9" class="horn"/>
+          <!-- head: HC-SR04 -->
+          <rect x="150" y="118" width="120" height="54" rx="3" class="sensor"/>
+          <circle cx="180" cy="145" r="19" class="eye"/><circle cx="180" cy="145" r="12" class="eye-in"/>
+          <circle cx="240" cy="145" r="19" class="eye"/><circle cx="240" cy="145" r="12" class="eye-in"/>
+          <rect x="203" y="124" width="14" height="7" rx="1" class="usb"/>
+          <!-- labels -->
+          <path d="M150 145 H70" class="lead"/><text x="24" y="138" class="lbl">Capul</text><text x="24" y="152" class="sub">HC-SR04, „ochii”</text>
+          <path d="M192 194 H70" class="lead"/><text x="24" y="190" class="lbl">Gâtul</text><text x="24" y="204" class="sub">SG90, ax în sus</text>
+          <path d="M143 262 H70" class="lead"/><text x="24" y="256" class="lbl">Fața</text><text x="24" y="270" class="sub">UNO Q, matricea</text>
+          <path d="M168 326 H70" class="lead"/><text x="24" y="320" class="lbl">Burta</text><text x="24" y="334" class="sub">5641AS</text>
+          <path d="M346 261 H360" class="lead"/><text x="362" y="248" class="lbl">DHT11</text><text x="362" y="262" class="sub">la 5 cm</text><text x="362" y="275" class="sub">de placă</text>
+          <path d="M283 261 H300 V238 H362" class="lead"/><text x="362" y="234" class="sub">USB-C</text>
+        </svg>
+      </figure>
+
+      <figure>
+        <figcaption>Din lateral</figcaption>
+        <svg viewBox="0 0 420 380" role="img" aria-label="Ecou văzut din lateral, fața spre dreapta">
+          <line x1="20" y1="350" x2="400" y2="350" class="ground"/>
+          <g class="hatch"><line x1="40" y1="350" x2="30" y2="362"/><line x1="80" y1="350" x2="70" y2="362"/><line x1="120" y1="350" x2="110" y2="362"/><line x1="160" y1="350" x2="150" y2="362"/><line x1="200" y1="350" x2="190" y2="362"/><line x1="240" y1="350" x2="230" y2="362"/><line x1="280" y1="350" x2="270" y2="362"/><line x1="320" y1="350" x2="310" y2="362"/><line x1="360" y1="350" x2="350" y2="362"/><line x1="400" y1="350" x2="390" y2="362"/></g>
+          <!-- beam -->
+          <path d="M276 145 L410 127 L410 163 Z" class="beam-fill"/>
+          <path d="M276 145 L410 127 M276 145 L410 163" class="beam"/>
+          <text x="404" y="120" class="sub" text-anchor="end">fascicul ~15°</text>
+          <!-- box, front on the right -->
+          <rect x="120" y="208" width="140" height="142" rx="3" class="box"/>
+          <line x1="120" y1="216" x2="260" y2="216" class="lid"/>
+          <!-- UNO Q edge on the front face -->
+          <rect x="260" y="226" width="7" height="76" class="pcb"/>
+          <rect x="267" y="232" width="5" height="64" class="usb"/>
+          <!-- display edge -->
+          <rect x="260" y="312" width="9" height="28" class="seg-body"/>
+          <!-- DHT11 at the back -->
+          <line x1="120" y1="262" x2="104" y2="262" class="cable"/>
+          <rect x="84" y="246" width="20" height="30" rx="2" class="dht"/>
+          <!-- servo near the front of the lid -->
+          <rect x="208" y="176" width="40" height="32" rx="2" class="servo"/>
+          <rect x="202" y="196" width="52" height="5" rx="1" class="servo"/>
+          <line x1="236" y1="176" x2="236" y2="168" stroke="var(--ink)" stroke-width="3"/>
+          <rect x="216" y="163" width="36" height="6" rx="2" class="horn"/>
+          <!-- L bracket: tab on the horn, plate up the front -->
+          <path d="M214 163 H258 V112 H252 V157 H214 Z" class="box"/>
+          <!-- sensor board on the plate, eyes forward -->
+          <rect x="258" y="118" width="6" height="54" class="sensor"/>
+          <rect x="264" y="126" width="14" height="38" rx="2" class="eye"/>
+          <!-- cable loop from the sensor to the lid -->
+          <path d="M256 120 C 220 100, 170 120, 186 150 C 196 170, 150 180, 168 214" class="cable"/>
+          <!-- height dimension -->
+          <line x1="300" y1="145" x2="300" y2="350" class="dimline"/>
+          <line x1="294" y1="145" x2="306" y2="145" class="dimline"/>
+          <line x1="294" y1="350" x2="306" y2="350" class="dimline"/>
+          <text x="308" y="240" class="dimtext">20–30 cm</text>
+          <text x="308" y="254" class="sub">ochii până</text>
+          <text x="308" y="267" class="sub">la podea</text>
+          <!-- labels -->
+          <path d="M214 160 H60 V96" class="lead"/><text x="24" y="80" class="lbl">Suport în L</text><text x="24" y="92" class="sub">carton, pe brațul servo-ului</text>
+          <path d="M170 132 H60" class="lead"/><text x="24" y="128" class="sub">buclă de cablu</text><text x="24" y="140" class="sub">~10 cm, pentru rotire</text>
+          <text x="190" y="372" class="sub" text-anchor="middle">spate ← → față</text>
+        </svg>
+      </figure>
+
+      <figure>
+        <figcaption>De sus</figcaption>
+        <svg viewBox="0 0 420 300" role="img" aria-label="Ecou văzut de sus, cu arcul de rotație">
+          <!-- pan arc -->
+          <path d="M80 190 A130 130 0 0 1 340 190" class="arc"/>
+          <line x1="210" y1="190" x2="340" y2="190" class="tick"/><line x1="210" y1="190" x2="80" y2="190" class="tick"/>
+          <line x1="210" y1="190" x2="210" y2="60" class="tick"/>
+          <line x1="210" y1="190" x2="302" y2="98" class="tick" stroke-dasharray="2 3"/><line x1="210" y1="190" x2="118" y2="98" class="tick" stroke-dasharray="2 3"/>
+          <text x="346" y="194" class="lbl">0°</text>
+          <text x="210" y="52" class="lbl" text-anchor="middle">90° drept înainte</text>
+          <text x="74" y="194" class="lbl" text-anchor="end">180°</text>
+          <text x="308" y="92" class="sub">45°</text><text x="112" y="92" class="sub" text-anchor="end">135°</text>
+          <!-- beam at 90 -->
+          <path d="M210 168 L193 70 L227 70 Z" class="beam-fill"/>
+          <!-- box -->
+          <rect x="140" y="182" width="140" height="100" rx="3" class="box"/>
+          <text x="210" y="262" class="sub" text-anchor="middle">capacul cutiei</text>
+          <!-- UNO Q edge on the front -->
+          <rect x="143" y="176" width="134" height="6" class="pcb"/>
+          <!-- servo and head -->
+          <rect x="196" y="186" width="28" height="40" rx="2" class="servo"/>
+          <rect x="172" y="164" width="76" height="8" class="sensor"/>
+          <rect x="178" y="152" width="22" height="12" rx="2" class="eye"/><rect x="220" y="152" width="22" height="12" rx="2" class="eye"/>
+          <!-- DHT -->
+          <rect x="284" y="222" width="18" height="22" rx="2" class="dht"/>
+          <text x="306" y="238" class="sub">DHT11</text>
+          <path d="M224 220 C 260 230, 250 260, 222 254" class="cable"/>
+          <text x="140" y="298" class="sub">Pune servo-ul la 90° înainte să fixezi capul.</text>
+        </svg>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ce mai trebuie</h2>
+    <ul class="kit">
+      <li>Cutie de carton, ~15 × 10 × 10 cm</li>
+      <li>Carton gros pentru suportul în L</li>
+      <li>Bandă dublu adezivă</li>
+      <li>Elastice sau coliere</li>
+      <li>Brațul și șurubul servo-ului, din pungă</li>
+      <li>Breadboard mic</li>
+      <li>Cutter, riglă</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Pașii</h2>
+    <ol class="steps">
+      <li><div><b>Gaura pentru servo</b><p>În capac, aproape de marginea din față și centrat, decupează un dreptunghi de 23 × 12 mm. Bagă servo-ul de sus, cu axul în sus și urechile pe capac. Prinde urechile cu bandă dublă sau cu șuruburile din pungă.</p></div></li>
+      <li><div><b>Servo-ul la 90°</b><p>Pornește testul de pornire o dată, sau doar comanda <span class="mono">look(90, 90)</span>, și oprește-l cu servo-ul la mijloc. Abia apoi pune brațul servo-ului, paralel cu fața cutiei, și strânge șurubul. Așa, la 90°, capul privește drept înainte.</p></div></li>
+      <li><div><b>Suportul în L</b><p>Taie o fâșie de carton de 40 × 90 mm și îndoaie-o la 90° la 40 mm de un capăt. Partea scurtă se lipește pe brațul servo-ului, partea lungă stă vertical, spre față.</p></div></li>
+      <li><div><b>Capul</b><p>Lipește HC-SR04 pe partea verticală a suportului, cu „ochii” spre față și pinii în jos. Nu acoperi cilindrii: orice bandă pe ei strică ecoul.</p></div></li>
+      <li><div><b>Fața</b><p>Prinde UNO Q pe fața cutiei, cu matricea spre exterior și USB-C în lateral, cu bandă dublă pe colțuri sau cu elastice. Nu pune bandă peste cipuri și nici lipici pe placă.</p></div></li>
+      <li><div><b>Burta</b><p>Breadboard-ul mic cu 5641AS și rezistențele merge pe fața cutiei, sub placă. Firele trec în cutie printr-o fantă.</p></div></li>
+      <li><div><b>Temperatura</b><p>DHT11 merge pe peretele lateral sau pe spate, pe un fir de 5 cm, cu grila spre exterior. Placa se încălzește; lipit de ea, senzorul ar arăta cu câteva grade mai mult.</p></div></li>
+      <li><div><b>Cablurile</b><p>Lasă cablului ultrasonicului o buclă liberă de ~10 cm, ca să poată merge cu capul de la 0° la 180° fără să tragă. Prinde restul firelor de capac cu bandă.</p></div></li>
+      <li><div><b>Înălțimea</b><p>Pune robotul pe ceva (două cărți, un taburet), ca ochii să fie la 20–30 cm de podea. La înălțimea asta vede picioarele cuiva care merge și pe cineva întins pe jos. Pe masa de demo, masa e podeaua.</p></div></li>
+      <li><div><b>Proba</b><p>Pornește testul de pornire din App Lab. La pasul cu rotirea, capul trebuie să meargă dintr-o parte în alta fără să agațe cablul.</p></div></li>
+    </ol>
+  </section>
+
+  <p class="note">Cu un al doilea servo, între brațul servo-ului de jos și suportul în L intră un al doilea servo culcat, pentru sus-jos (pinul D10). Atunci robotul poate sta pe un raft și se uită în jos spre podea.</p>
+</div>
+
+</html>

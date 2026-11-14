@@ -7,6 +7,7 @@ The home node built as a small robot on an Arduino UNO Q, for the hackathon. The
 | `app/` | The App Lab app: `sketch/` runs on the UNO Q's STM32, `python/` on its Linux side. Today it is the bring-up test (08 §8, step 1) |
 | `spikes/s14_ble_node.py` | Spike S14: the UNO Q's Linux side as the home node's BLE GATT server |
 | `docs/wiring.html` | The wiring diagram: pin map, one schematic per part, the multimeter checks. Open it in a browser |
+| `docs/assembly.html` | How the robot goes together: front, side and top views, and the build steps for the one-servo build |
 
 ## Bring-up test
 
