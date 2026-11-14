@@ -17,7 +17,8 @@ struct RelayTests {
             type: "high_pulse_at_rest",
             measuredAt: "2026-11-12T19:00:00Z",
             snapshot: EventSnapshot(
-                pulse: 125, restingBaseline: 70, moving: false, minutesWithoutSteps: 0, battery: 55))
+                pulse: 125, restingBaseline: 70, moving: false, minutesWithoutSteps: 0, battery: 55)
+        )
         let form = eventForm(msg, location: nil)
         #expect(form.id == "6569b60e-fdf8-4dfe-916d-025f5e573186")
         #expect(form.type == "high_pulse_at_rest")
@@ -162,7 +163,8 @@ struct RelayTests {
         let stub = StubURLProtocol.replying(.init(204))
         let acks = Acks()
         var payload = try WatchMessage.encode(
-            CheckInMessage(measuredAt: "2026-11-12T19:00:00Z", battery: 42, worn: true, lastPulse: 70))
+            CheckInMessage(
+                measuredAt: "2026-11-12T19:00:00Z", battery: 42, worn: true, lastPulse: 70))
         payload["kind"] = WatchMessage.checkIn
         try await deliver(payload, to: relay(stub, acks: acks))
         let sent = try #require(stub.requests.first)

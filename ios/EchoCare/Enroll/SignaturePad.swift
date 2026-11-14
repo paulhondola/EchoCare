@@ -14,7 +14,8 @@ struct ConsentSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionLabel("consent_label")
-            Text("consent_signature_note").textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgMuted)
+            Text("consent_signature_note").textStyle(Theme.bodyMedium).foregroundStyle(
+                Theme.fgMuted)
             Text("consent_signature_text").textStyle(Theme.bodyLarge).foregroundStyle(Theme.fg)
             if let signedAt {
                 Text(verbatim: localized("signed_on", shortDate(signedAt, year: true)))
@@ -50,12 +51,16 @@ private struct Pad: View {
                     .strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: 2, dash: [8, 5]))
                 Canvas { context, size in
                     for stroke in strokes {
-                        let points = stroke.map { CGPoint(x: CGFloat($0.x) * size.width, y: CGFloat($0.y) * size.height) }
+                        let points = stroke.map {
+                            CGPoint(x: CGFloat($0.x) * size.width, y: CGFloat($0.y) * size.height)
+                        }
                         if points.count == 1 {
                             // A tap is a dot
                             let at = points[0]
                             context.fill(
-                                Path(ellipseIn: CGRect(x: at.x - 1.5, y: at.y - 1.5, width: 3, height: 3)),
+                                Path(
+                                    ellipseIn: CGRect(
+                                        x: at.x - 1.5, y: at.y - 1.5, width: 3, height: 3)),
                                 with: .color(Theme.fg))
                         } else if let first = points.first {
                             var path = Path()
@@ -94,7 +99,7 @@ private struct Pad: View {
                     strokes = []
                     inProgress = nil
                 }
-                    .disabled(strokes.isEmpty || busy)
+                .disabled(strokes.isEmpty || busy)
                 // Already shares: a pad of 1 by 1
                 SnButton("save_signature", kind: .success) {
                     onSave(signatureForm(strokes, width: 1, height: 1))
@@ -106,7 +111,10 @@ private struct Pad: View {
 
     /// The first point is kept even when the finger never moves: a tap is a dot.
     private func draw(_ at: CGPoint, from start: CGPoint) {
-        func share(_ p: CGPoint) -> Point { Point(x: Float(p.x / size.width), y: Float(p.y / size.height)) }
-        (strokes, inProgress) = drawn(strokes, inProgress: inProgress, touchStart: share(start), at: share(at))
+        func share(_ p: CGPoint) -> Point {
+            Point(x: Float(p.x / size.width), y: Float(p.y / size.height))
+        }
+        (strokes, inProgress) = drawn(
+            strokes, inProgress: inProgress, touchStart: share(start), at: share(at))
     }
 }

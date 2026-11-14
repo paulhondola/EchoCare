@@ -34,11 +34,14 @@ struct SeniorDetailModelTests {
                 return medical[n]
             }
             if path.hasSuffix("/calls") { return .init(200, "[]") }
-            if path.hasSuffix("/welcome-call") || path.hasSuffix("/consent-withdrawn") { return command }
+            if path.hasSuffix("/welcome-call") || path.hasSuffix("/consent-withdrawn") {
+                return command
+            }
             if path.hasSuffix("/seniors") { return .init(200, "[]") }
             return .init(200, pageJSON)
         }
-        let api = ApiClient(baseURL: URL(string: "https://api.test")!, tokens: NoToken(), session: stub.session())
+        let api = ApiClient(
+            baseURL: URL(string: "https://api.test")!, tokens: NoToken(), session: stub.session())
         return (SeniorDetailModel(api: api), stub)
     }
 
@@ -46,7 +49,11 @@ struct SeniorDetailModelTests {
         let (model, _) = model(medical: [.init(200, recordJSON)])
         await model.load(id: "s1", medical: true)
         #expect(model.medical?.state == "review")
-        #expect(model.page == Load.ready(try! ApiClient.makeDecoder().decode(SeniorPage.self, from: Data(pageJSON.utf8))))
+        #expect(
+            model.page
+                == Load.ready(
+                    try! ApiClient.makeDecoder().decode(SeniorPage.self, from: Data(pageJSON.utf8)))
+        )
     }
 
     @Test func aNotFoundOrAFailedReadKeepsTheLastRecord() async {

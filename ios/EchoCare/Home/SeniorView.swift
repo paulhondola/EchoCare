@@ -21,7 +21,9 @@ struct SeniorView: View {
     var body: some View {
         // Her form of address once loaded, the app's name before
         let title =
-            if case .ready(let senior, _) = model.page { senior.formOfAddress } else { String(localized: "app_name") }
+            if case .ready(let senior, _) = model.page { senior.formOfAddress } else {
+                String(localized: "app_name")
+            }
         Frame(title) {
             LoadBody(
                 load: model.page,
@@ -36,9 +38,13 @@ struct SeniorView: View {
                             CallMeButton(state: model.callMe, action: model.requestCall)
                             // A call to answer here instead of on the phone (design §6.2)
                             if let call = model.mock {
-                                MockCallCard(call: call) { answer in Task { await model.answerMock(answer) } }
+                                MockCallCard(call: call) { answer in
+                                    Task { await model.answerMock(answer) }
+                                }
                             }
-                            MonitoringButton(state: model.monitoring) { Task { await model.startMonitoring() } }
+                            MonitoringButton(state: model.monitoring) {
+                                Task { await model.startMonitoring() }
+                            }
                             SeniorDetails(senior: senior, callSenior: false)
                             if let calls = model.calls { CallList(calls: recentCalls(calls)) }
                         }
@@ -66,8 +72,10 @@ private struct MonitoringButton: View {
             case .failed: Banner("monitoring_failed", tone: .rosu)
             default: EmptyView()
             }
-            SnButton("monitoring_start", kind: .outline, fullWidth: true, minHeight: 56, action: action)
-                .disabled(state == .starting)
+            SnButton(
+                "monitoring_start", kind: .outline, fullWidth: true, minHeight: 56, action: action
+            )
+            .disabled(state == .starting)
         }
         .padding(.bottom, 16)
     }
@@ -83,7 +91,8 @@ struct SeniorDetails<Below: View>: View {
     var calls = true
     let below: Below?
 
-    init(senior: SeniorPage, callSenior: Bool, calls: Bool = true, @ViewBuilder below: () -> Below) {
+    init(senior: SeniorPage, callSenior: Bool, calls: Bool = true, @ViewBuilder below: () -> Below)
+    {
         self.senior = senior
         self.callSenior = callSenior
         self.calls = calls
@@ -93,7 +102,8 @@ struct SeniorDetails<Below: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(verbatim: senior.fullName).textStyle(Theme.headlineSmall).foregroundStyle(Theme.fg)
+                Text(verbatim: senior.fullName).textStyle(Theme.headlineSmall).foregroundStyle(
+                    Theme.fg)
                 StateLabel(state: senior.state)
                 CodeLabel(code: senior.code, reason: senior.reason)
                 if showsCallBadge(senior) { Chip("call_live", tone: .galben) }
@@ -120,24 +130,36 @@ struct SeniorDetails<Below: View>: View {
                         PhoneNumber(e164: senior.phone, landline: senior.landline)
                     }
                 } else {
-                    FieldRow("label_phone") { PhoneNumber(e164: senior.phone, landline: senior.landline) }
+                    FieldRow("label_phone") {
+                        PhoneNumber(e164: senior.phone, landline: senior.landline)
+                    }
                 }
                 FieldRow("label_address") {
                     Value(
                         text: place(
-                            street: senior.street, streetNumber: senior.streetNumber, block: senior.block,
-                            staircase: senior.staircase, floor: senior.floor, apartment: senior.apartment))
+                            street: senior.street, streetNumber: senior.streetNumber,
+                            block: senior.block,
+                            staircase: senior.staircase, floor: senior.floor,
+                            apartment: senior.apartment))
                 }
                 if let code = senior.intercomCode {
                     FieldRow("label_intercom") {
                         Text(verbatim: code).textStyle(Theme.mono).foregroundStyle(Theme.fg)
                     }
                 }
-                if let holder = senior.keyHolder { FieldRow("label_key_holder") { Value(text: holder) } }
-                if let landmark = senior.landmark { FieldRow("label_landmark") { Value(text: landmark) } }
-                if let window = senior.callWindow { FieldRow("section_call_window") { Value(text: window) } }
+                if let holder = senior.keyHolder {
+                    FieldRow("label_key_holder") { Value(text: holder) }
+                }
+                if let landmark = senior.landmark {
+                    FieldRow("label_landmark") { Value(text: landmark) }
+                }
+                if let window = senior.callWindow {
+                    FieldRow("section_call_window") { Value(text: window) }
+                }
                 FieldRow("role_medic", last: true) {
-                    Value(text: [senior.medic.displayName, senior.medic.practice].compactMap { $0 }.joined(separator: " · "))
+                    Value(
+                        text: [senior.medic.displayName, senior.medic.practice].compactMap { $0 }
+                            .joined(separator: " · "))
                 }
             }
 
@@ -150,9 +172,14 @@ struct SeniorDetails<Below: View>: View {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: [caregiver.displayName, caregiver.relation].compactMap { $0 }.joined(separator: " · "))
-                                .textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
-                            Text(verbatim: formatPhone(caregiver.phone)).textStyle(Theme.mono).foregroundStyle(Theme.fgSoft)
+                            Text(
+                                verbatim: [caregiver.displayName, caregiver.relation].compactMap {
+                                    $0
+                                }.joined(separator: " · ")
+                            )
+                            .textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
+                            Text(verbatim: formatPhone(caregiver.phone)).textStyle(Theme.mono)
+                                .foregroundStyle(Theme.fgSoft)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         if calls { CallButton(e164: caregiver.phone) }
@@ -206,7 +233,9 @@ struct StateLabel: View {
     let state: String
 
     var body: some View {
-        if let label = STATE_LABELS[state] { Chip(LocalizedStringKey(label), tone: STATE_TONES[state] ?? .muted) }
+        if let label = STATE_LABELS[state] {
+            Chip(LocalizedStringKey(label), tone: STATE_TONES[state] ?? .muted)
+        }
     }
 }
 
@@ -219,7 +248,10 @@ struct CodeLabel: View {
         if let code, let label = CODE_LABELS[code] {
             HStack(spacing: 8) {
                 Chip(LocalizedStringKey(label), tone: CODE_TONES[code] ?? .muted)
-                if let reason { Text(verbatim: reason).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgMuted) }
+                if let reason {
+                    Text(verbatim: reason).textStyle(Theme.bodyMedium).foregroundStyle(
+                        Theme.fgMuted)
+                }
             }
         }
     }
@@ -252,17 +284,23 @@ struct CallList: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: line(call)).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
+                            Text(verbatim: line(call)).textStyle(Theme.titleMedium).foregroundStyle(
+                                Theme.fg)
                             if let reason = call.reason {
-                                Text(verbatim: reason).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgMuted)
+                                Text(verbatim: reason).textStyle(Theme.bodyMedium).foregroundStyle(
+                                    Theme.fgMuted)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         switch outcome(call) {
                         case .code(let code):
-                            Chip(verbatim: labelOf(code, in: CODE_LABELS), tone: CODE_TONES[code] ?? .muted)
+                            Chip(
+                                verbatim: labelOf(code, in: CODE_LABELS),
+                                tone: CODE_TONES[code] ?? .muted)
                         case .state(let state):
-                            Chip(verbatim: labelOf(state, in: CALL_STATE_LABELS), tone: stateTone(state))
+                            Chip(
+                                verbatim: labelOf(state, in: CALL_STATE_LABELS),
+                                tone: stateTone(state))
                         }
                     }
                     .padding(.vertical, 12)

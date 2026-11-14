@@ -29,13 +29,16 @@ func stageOf(_ record: MedicalRecord?, seniorState: String) -> MedicalStage {
 
 /// The server refuses an empty question, so an excluded item the medic blanked sends its `stored`
 /// one; an included blank is stopped by `canConfirm`.
-func confirmFormOf(_ edited: [MedicalItem], stored: [MedicalItem], analyzedAt: String? = nil) -> MedicalConfirmForm {
+func confirmFormOf(_ edited: [MedicalItem], stored: [MedicalItem], analyzedAt: String? = nil)
+    -> MedicalConfirmForm
+{
     let items = edited.enumerated().map { i, item in
         let question = item.question.trimmingCharacters(in: .whitespacesAndNewlines)
         let worry = item.worrying.trimmingCharacters(in: .whitespacesAndNewlines)
         return ConfirmItem(
             included: item.included,
-            question: question.isEmpty && !item.included ? (i < stored.count ? stored[i].question : question) : question,
+            question: question.isEmpty && !item.included
+                ? (i < stored.count ? stored[i].question : question) : question,
             // A blank worry keeps the stored one
             worrying: worry.isEmpty ? nil : worry)
     }
@@ -43,7 +46,9 @@ func confirmFormOf(_ edited: [MedicalItem], stored: [MedicalItem], analyzedAt: S
 }
 
 func canConfirm(_ items: [MedicalItem]) -> Bool {
-    items.allSatisfy { !$0.included || !$0.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    items.allSatisfy {
+        !$0.included || !$0.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 /// Reanalyzing drops a confirmed profile and its checks, so there it waits for „Modifică”.

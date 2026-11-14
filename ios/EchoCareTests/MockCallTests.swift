@@ -24,7 +24,8 @@ struct MockCallTests {
     @Test func answersAreSentAsTheServerReadsThem() throws {
         #expect(try sent(MockAnswer(declined: true)) as NSDictionary == ["declined": true])
         #expect(try sent(MockAnswer(consent: false)) as NSDictionary == ["consent": false])
-        let campaign = try #require(campaignAnswer(feeling: "unwell", day: "sâmbătă", shelter: "no"))
+        let campaign = try #require(
+            campaignAnswer(feeling: "unwell", day: "sâmbătă", shelter: "no"))
         #expect(
             try sent(campaign) as NSDictionary
                 == ["feeling": "unwell", "day": "sâmbătă", "shelter": "no"])
@@ -38,7 +39,8 @@ struct MockCallTests {
                 {"call_id": "c1", "trigger": "welcome", "consent_text": "Sunteți de acord?",
                  "text_version": "v1-app"}
                 """.utf8))
-        #expect(call == MockCall(callId: "c1", trigger: "welcome", consentText: "Sunteți de acord?"))
+        #expect(
+            call == MockCall(callId: "c1", trigger: "welcome", consentText: "Sunteți de acord?"))
     }
 
     @Test func aDefiniteReadSetsTheCardAndALostOneKeepsIt() {
@@ -86,7 +88,9 @@ struct MockCallTests {
             #expect(read.status == status)
             #expect(read.body == nil)
         }
-        for error: any Error in [URLError(.notConnectedToInternet), URLError(.timedOut), CancellationError()] {
+        for error: any Error in [
+            URLError(.notConnectedToInternet), URLError(.timedOut), CancellationError(),
+        ] {
             let read = await readMock { throw error }
             #expect(read.status == nil)
         }
@@ -101,7 +105,8 @@ struct MockCallTests {
     @Test func theAdaptedStatusesDriveTheCard() async {
         let shown = MockCall(callId: "c1", trigger: "campaign")
         let forbidden = await readMock { throw ApiError.http(status: 403, body: "") }
-        #expect(cardAfterRead(status: forbidden.status, body: forbidden.body, previous: shown) == nil)
+        #expect(
+            cardAfterRead(status: forbidden.status, body: forbidden.body, previous: shown) == nil)
         let lost = await readMock { throw URLError(.notConnectedToInternet) }
         #expect(cardAfterRead(status: lost.status, body: lost.body, previous: shown) == shown)
         let refused = await postStatus { throw ApiError.http(status: 422, body: "") }

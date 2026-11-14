@@ -187,7 +187,9 @@ struct ErrorText: View {
             .textStyle(Theme.bodyMedium)
             .foregroundStyle(Theme.rosuFg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onAppear { AccessibilityNotification.Announcement(String(localized: .init(key))).post() }
+            .onAppear {
+                AccessibilityNotification.Announcement(String(localized: .init(key))).post()
+            }
     }
 }
 
@@ -277,7 +279,9 @@ struct WrappingRow: Layout {
         arrange(proposal.width ?? .infinity, subviews).size
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) {
         let arranged = arrange(bounds.width, subviews)
         for (subview, origin) in zip(subviews, arranged.origins) {
             subview.place(
@@ -286,7 +290,9 @@ struct WrappingRow: Layout {
         }
     }
 
-    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> (
+        size: CGSize, origins: [CGPoint]
+    ) {
         var origins: [CGPoint] = []
         var x: CGFloat = 0
         var y: CGFloat = 0
@@ -369,25 +375,25 @@ struct SnTextField: View {
                 prompt: hint.map { Text($0).foregroundStyle(Theme.fgSubtle) },
                 axis: multiline ? .vertical : .horizontal
             )
-                .lineLimit(multiline ? 4...8 : 1...1)
-                .keyboardType(keyboard)
-                .textContentType(content)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(capitalization)
-                .focused($focused)
-                .font(.custom((mono ? TextStyle.Face.monoMedium : .regular).rawValue, size: 16))
-                .foregroundStyle(Theme.fg)
-                .tint(Theme.link)
-                .padding(.horizontal, 14)
-                .padding(.vertical, multiline ? 12 : 0)
-                .frame(minHeight: 52)
-                .background(Theme.inset)
-                .overlay(
-                    Rectangle().strokeBorder(
-                        error != nil ? Theme.rosu : focused ? Theme.link : Theme.line,
-                        lineWidth: focused || error != nil ? 2 : 1)
-                )
-                .accessibilityLabel(Text(label))
+            .lineLimit(multiline ? 4...8 : 1...1)
+            .keyboardType(keyboard)
+            .textContentType(content)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(capitalization)
+            .focused($focused)
+            .font(.custom((mono ? TextStyle.Face.monoMedium : .regular).rawValue, size: 16))
+            .foregroundStyle(Theme.fg)
+            .tint(Theme.link)
+            .padding(.horizontal, 14)
+            .padding(.vertical, multiline ? 12 : 0)
+            .frame(minHeight: 52)
+            .background(Theme.inset)
+            .overlay(
+                Rectangle().strokeBorder(
+                    error != nil ? Theme.rosu : focused ? Theme.link : Theme.line,
+                    lineWidth: focused || error != nil ? 2 : 1)
+            )
+            .accessibilityLabel(Text(label))
             if let error {
                 Text(verbatim: error)
                     .textStyle(Theme.bodyMedium)
@@ -414,21 +420,27 @@ struct BrandMark: View {
                 with: .color(Color(hex: 0x1B1B1B)))
             var wave = Path()
             for (x, y0, y1) in [
-                (12.0, 45.0, 55.0), (18, 32, 68), (24, 41, 59), (30, 22, 78), (36, 38, 62), (42, 28, 72),
+                (12.0, 45.0, 55.0), (18, 32, 68), (24, 41, 59), (30, 22, 78), (36, 38, 62),
+                (42, 28, 72),
                 (48, 43, 57),
             ] {
                 wave.move(to: p(x, y0))
                 wave.addLine(to: p(x, y1))
             }
-            context.stroke(wave, with: .color(.white), style: StrokeStyle(lineWidth: 3.2 * s, lineCap: .round))
+            context.stroke(
+                wave, with: .color(.white), style: StrokeStyle(lineWidth: 3.2 * s, lineCap: .round))
             var pulse = Path()
             pulse.addLines([
-                p(54, 50), p(59, 50), p(62, 43), p(65, 53), p(70, 28), p(76, 72), p(81, 50), p(88, 50),
+                p(54, 50), p(59, 50), p(62, 43), p(65, 53), p(70, 28), p(76, 72), p(81, 50),
+                p(88, 50),
             ])
             context.stroke(
-                pulse, with: .color(red), style: StrokeStyle(lineWidth: 3.2 * s, lineCap: .round, lineJoin: .round))
+                pulse, with: .color(red),
+                style: StrokeStyle(lineWidth: 3.2 * s, lineCap: .round, lineJoin: .round))
             context.fill(
-                Path(ellipseIn: CGRect(x: (89 - 3.8) * s, y: (50 - 3.8) * s, width: 7.6 * s, height: 7.6 * s)),
+                Path(
+                    ellipseIn: CGRect(
+                        x: (89 - 3.8) * s, y: (50 - 3.8) * s, width: 7.6 * s, height: 7.6 * s)),
                 with: .color(red))
         }
         .frame(width: size, height: size)

@@ -43,7 +43,9 @@ final class LocationHelper: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {}
+    nonisolated func locationManager(
+        _ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]
+    ) {}
 
     // A failed one-shot request leaves `location` as it was: the request goes without a fix
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}

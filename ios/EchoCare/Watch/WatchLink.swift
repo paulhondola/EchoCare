@@ -34,7 +34,8 @@ final class WatchLink: NSObject {
     static let shared = WatchLink()
 
     /// The watch's check-in interval (06 §3), the value the watch's `Timings.checkInMinutes` reads.
-    nonisolated static let checkInInterval: TimeInterval = CheckInInterval.seconds(demo: AppConfig.isDemo)
+    nonisolated static let checkInInterval: TimeInterval = CheckInInterval.seconds(
+        demo: AppConfig.isDemo)
 
     private(set) var seen = WatchSeen()
 
@@ -77,7 +78,9 @@ final class WatchLink: NSObject {
         let share: Set<HKSampleType> = [HKObjectType.workoutType()]
         let read: Set<HKObjectType> = [HKQuantityType(.heartRate)]
         do {
-            if try await store.statusForAuthorizationRequest(toShare: share, read: read) == .shouldRequest {
+            if try await store.statusForAuthorizationRequest(toShare: share, read: read)
+                == .shouldRequest
+            {
                 try await store.requestAuthorization(toShare: share, read: read)
             }
             let configuration = HKWorkoutConfiguration()
@@ -109,7 +112,9 @@ final class WatchLink: NSObject {
     /// The two strings of a watch message, `"kind"` and `"json"` (`WatchMessage`), copied out of the
     /// dictionary before the hop to the main actor: the dictionary isn't Sendable. Nil without them.
     nonisolated static func split(_ payload: [String: Any]) -> (kind: String, json: String)? {
-        guard let kind = payload["kind"] as? String, let json = payload["json"] as? String else { return nil }
+        guard let kind = payload["kind"] as? String, let json = payload["json"] as? String else {
+            return nil
+        }
         return (kind, json)
     }
 
@@ -127,7 +132,9 @@ final class WatchLink: NSObject {
     }
 
     private func sendAck(_ id: String) {
-        guard let session, session.activationState == .activated, let payload = Self.ackPayload(id: id) else {
+        guard let session, session.activationState == .activated,
+            let payload = Self.ackPayload(id: id)
+        else {
             log.error("ack \(id, privacy: .public) not sent: the link is not active")
             return
         }
@@ -148,7 +155,9 @@ final class WatchLink: NSObject {
 
     private func transferAck(_ id: String, reason: String) {
         log.error("ack \(id, privacy: .public) send failed: \(reason, privacy: .public)")
-        guard let session, session.activationState == .activated, let payload = Self.ackPayload(id: id) else {
+        guard let session, session.activationState == .activated,
+            let payload = Self.ackPayload(id: id)
+        else {
             return
         }
         session.transferUserInfo(payload)
@@ -161,7 +170,8 @@ final class WatchLink: NSObject {
 
     nonisolated private func received(_ payload: [String: Any]) {
         guard let (kind, json) = Self.split(payload) else {
-            Logger(subsystem: "ro.echocare.ios", category: "watch").error("watch message ignored: no kind or json")
+            Logger(subsystem: "ro.echocare.ios", category: "watch").error(
+                "watch message ignored: no kind or json")
             return
         }
         // Begun here, before the hop: a background relaunch could be suspended in between, or
@@ -195,7 +205,8 @@ private final class BackgroundTask: Sendable {
 
 extension WatchLink: WCSessionDelegate {
     nonisolated func session(
-        _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?
+        _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
+        error: (any Error)?
     ) {
         let activated = activationState == .activated
         let paired = session.isPaired
@@ -211,7 +222,9 @@ extension WatchLink: WCSessionDelegate {
         let activated = session.activationState == .activated
         let paired = session.isPaired
         let installed = session.isWatchAppInstalled
-        Task { @MainActor in self.watchState(activated: activated, paired: paired, installed: installed) }
+        Task { @MainActor in
+            self.watchState(activated: activated, paired: paired, installed: installed)
+        }
     }
 
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}

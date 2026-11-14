@@ -29,7 +29,8 @@ struct RoutesTests {
     @Test func everyStateOfTheDataModelHasALabel() {
         // 05 §1
         let states: Set = [
-            "draft", "submitted", "accepted", "active", "refused", "wrong_number", "unreachable", "withdrawn",
+            "draft", "submitted", "accepted", "active", "refused", "wrong_number", "unreachable",
+            "withdrawn",
         ]
         #expect(Set(STATE_LABELS.keys) == states)
         #expect(STATE_LABELS["draft"] == "state_draft")
@@ -39,7 +40,8 @@ struct RoutesTests {
     @Test func everyCallStateHasALabel() {
         // 05 §1's call states, worded as the dashboard's incident page
         let states: Set = [
-            "queued", "ringing", "in_progress", "unanswered", "failed", "completed", "handed_over", "dropped",
+            "queued", "ringing", "in_progress", "unanswered", "failed", "completed", "handed_over",
+            "dropped",
             "canceled",
         ]
         #expect(Set(CALL_STATE_LABELS.keys) == states)

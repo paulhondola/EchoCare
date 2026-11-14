@@ -36,7 +36,9 @@ func callTime(_ call: CallRow, zone: TimeZone = .current) -> String {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = zone
     let parts = calendar.dateComponents([.day, .month, .hour, .minute], from: date)
-    return String(format: "%02d.%02d %02d:%02d", parts.day ?? 0, parts.month ?? 0, parts.hour ?? 0, parts.minute ?? 0)
+    return String(
+        format: "%02d.%02d %02d:%02d", parts.day ?? 0, parts.month ?? 0, parts.hour ?? 0,
+        parts.minute ?? 0)
 }
 
 /// An ISO-8601 instant, with or without fractional seconds (the server sends both).

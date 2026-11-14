@@ -30,7 +30,8 @@ final class ResolveModel {
         sending = true
         let id = id
         let api = api
-        let body = Resolution(outcome: picked, note: note.trimmingCharacters(in: .whitespacesAndNewlines))
+        let body = Resolution(
+            outcome: picked, note: note.trimmingCharacters(in: .whitespacesAndNewlines))
         switch await send({ try await api.resolve(id: id, body: body) }) {
         case .ok: done = true
         case .no(let refusal): notice = noticeAfter(refusal, act: .resolve)

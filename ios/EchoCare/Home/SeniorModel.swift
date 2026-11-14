@@ -62,7 +62,9 @@ final class SeniorModel {
     init(
         api: ApiClient = ApiClient(tokens: FirebaseTokenSource()),
         location: LocationHelper = LocationHelper(),
-        startWatch: @escaping @MainActor () async throws -> Void = { try await WatchLink.shared.startMonitoring() },
+        startWatch: @escaping @MainActor () async throws -> Void = {
+            try await WatchLink.shared.startMonitoring()
+        },
         watchSeen: @escaping @MainActor () -> WatchSeen = { WatchLink.shared.seen },
         now: @escaping @MainActor () -> Date = { Date() },
         checkInInterval: TimeInterval = WatchLink.checkInInterval
@@ -100,7 +102,11 @@ final class SeniorModel {
         reading?.cancel()
         let read = Task { await readAll() }
         reading = read
-        await withTaskCancellationHandler { await read.value } onCancel: { read.cancel() }
+        await withTaskCancellationHandler {
+            await read.value
+        } onCancel: {
+            read.cancel()
+        }
     }
 
     private func readAll() async {
@@ -111,7 +117,9 @@ final class SeniorModel {
         page = page.after(read)
         guard case .ok(let senior) = read else { return }
         // A failed read keeps the last list, as the page keeps its last answer
-        if case .ok(let rows) = await answer({ try await api.calls(id: senior.id) }), !Task.isCancelled {
+        if case .ok(let rows) = await answer({ try await api.calls(id: senior.id) }),
+            !Task.isCancelled
+        {
             calls = rows
         }
         if case .ok(let me) = await answer({ try await api.me() }), !Task.isCancelled {
@@ -155,7 +163,8 @@ final class SeniorModel {
     /// The banner after what the phone heard from the watch; run on each reread of the home.
     func refreshMonitoring() {
         monitoring = monitoringAfter(
-            monitoring, seen: watchSeen(), startedAt: startedAt, now: now(), interval: checkInInterval)
+            monitoring, seen: watchSeen(), startedAt: startedAt, now: now(),
+            interval: checkInInterval)
     }
 
     /// The one senior the grant names: the first of the senior's own list (04 §1).

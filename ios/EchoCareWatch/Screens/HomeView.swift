@@ -34,16 +34,18 @@ struct HomeView: View {
                 Button(sending ? LocalizedStringKey("call_me_sending") : "call_me") { callMe() }
                     .disabled(sending)
                 #if DEBUG
-                Button("force_high_pulse") { monitor.forceAnomaly(type: "high_pulse_at_rest") }
-                Button("force_inactivity") { monitor.forceAnomaly(type: "inactivity") }
-                Button("force_fall") { monitor.forceAnomaly(type: "fall") }
+                    Button("force_high_pulse") { monitor.forceAnomaly(type: "high_pulse_at_rest") }
+                    Button("force_inactivity") { monitor.forceAnomaly(type: "inactivity") }
+                    Button("force_fall") { monitor.forceAnomaly(type: "fall") }
                 #endif
             }
         }
     }
 
     private var pulseLine: String {
-        guard let bpm = monitor.lastHeartRate else { return String(localized: "heart_rate_waiting") }
+        guard let bpm = monitor.lastHeartRate else {
+            return String(localized: "heart_rate_waiting")
+        }
         // %1$lld reads 64 bits; Swift's Int is 32 on arm64_32 watches
         return String(format: String(localized: "heart_rate"), Int64(bpm))
     }

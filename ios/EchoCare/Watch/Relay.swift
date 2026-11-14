@@ -79,7 +79,9 @@ actor Relay {
                 // Tell the watch to drop this id from its resend queue (04 §3)
                 await ack(msg.id)
             } catch {
-                log.error("event \(msg.id, privacy: .public) not sent: \(String(describing: error), privacy: .public)")
+                log.error(
+                    "event \(msg.id, privacy: .public) not sent: \(String(describing: error), privacy: .public)"
+                )
             }
         case WatchMessage.checkIn:
             guard let msg = decode(CheckInMessage.self, kind, json) else { return }
@@ -98,7 +100,9 @@ actor Relay {
         do {
             return try WatchMessage.decode(type, from: ["json": json])
         } catch {
-            log.error("\(kind, privacy: .public) doesn't decode: \(String(describing: error), privacy: .public)")
+            log.error(
+                "\(kind, privacy: .public) doesn't decode: \(String(describing: error), privacy: .public)"
+            )
             return nil
         }
     }

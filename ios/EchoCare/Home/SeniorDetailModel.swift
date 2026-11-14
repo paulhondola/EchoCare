@@ -52,7 +52,11 @@ final class SeniorDetailModel {
         reading?.cancel()
         let read = Task { await readAll(id: id, medical: medical) }
         reading = read
-        await withTaskCancellationHandler { await read.value } onCancel: { read.cancel() }
+        await withTaskCancellationHandler {
+            await read.value
+        } onCancel: {
+            read.cancel()
+        }
     }
 
     private func readAll(id: String, medical readsRecord: Bool) async {
@@ -130,9 +134,12 @@ final class SeniorDetailModel {
 
     /// „Confirmă”: the medic's edits and choices, in the stored order (design §5.5).
     func confirmMedical(id: String, items: [MedicalItem]) async {
-        let form = confirmFormOf(items, stored: medical?.items ?? items, analyzedAt: medical?.analyzedAt)
+        let form = confirmFormOf(
+            items, stored: medical?.items ?? items, analyzedAt: medical?.analyzedAt)
         let api = api
-        await runCommand(id: id, onChanged: {}) { _ = try await api.confirmMedicalRecord(id: id, body: form) }
+        await runCommand(id: id, onChanged: {}) {
+            _ = try await api.confirmMedicalRecord(id: id, body: form)
+        }
     }
 
     /// „Analizează din nou” (design §5.3).

@@ -11,7 +11,8 @@ struct CallsTests {
         started: String? = nil, ended: String? = nil
     ) -> CallRow {
         CallRow(
-            id: "c", trigger: "campaign", state: state, dueAt: due, startedAt: started, endedAt: ended,
+            id: "c", trigger: "campaign", state: state, dueAt: due, startedAt: started,
+            endedAt: ended,
             finalSeverity: severity)
     }
 
@@ -91,7 +92,8 @@ struct CallsTests {
         #expect(callTime(call(), zone: utc) == "04.11 08:00")
         #expect(callTime(call(started: "2026-11-04T08:01:00Z"), zone: utc) == "04.11 08:01")
         #expect(
-            callTime(call(started: "2026-11-04T08:01:00Z", ended: "2026-11-04T08:05:00Z"), zone: utc)
+            callTime(
+                call(started: "2026-11-04T08:01:00Z", ended: "2026-11-04T08:05:00Z"), zone: utc)
                 == "04.11 08:05")
         // In the phone's zone: Bucharest is UTC+2 in November
         #expect(callTime(call(), zone: TimeZone(identifier: "Europe/Bucharest")!) == "04.11 10:00")

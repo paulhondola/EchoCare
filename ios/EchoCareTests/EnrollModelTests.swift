@@ -7,7 +7,8 @@ import Testing
 // seniors §9.2: the form's four steps against a stubbed API, ported from android's
 // EnrollViewModel.kt behaviour (no Kotlin test exists for it).
 private func pageJSON(
-    state: String = "draft", street: String? = nil, number: String? = nil, caregivers: String = "[]",
+    state: String = "draft", street: String? = nil, number: String? = nil,
+    caregivers: String = "[]",
     signedAt: String? = nil
 ) -> String {
     func q(_ s: String?) -> String { s.map { "\"\($0)\"" } ?? "null" }
@@ -33,7 +34,8 @@ struct EnrollModelTests {
     }
 
     private func model(
-        id: String? = nil, _ handler: @escaping @Sendable (StubURLProtocol.Sent) -> StubURLProtocol.Reply
+        id: String? = nil,
+        _ handler: @escaping @Sendable (StubURLProtocol.Sent) -> StubURLProtocol.Reply
     ) -> (EnrollModel, StubURLProtocol.Stub) {
         let stub = StubURLProtocol.Stub(handler)
         let api = ApiClient(
@@ -53,7 +55,9 @@ struct EnrollModelTests {
         #expect(new.step == .senior)
         #expect(!new.existing)
 
-        let (saved, _) = model(id: "s1") { _ in .init(200, pageJSON(street: "Str. Daliei", number: "12")) }
+        let (saved, _) = model(id: "s1") { _ in
+            .init(200, pageJSON(street: "Str. Daliei", number: "12"))
+        }
         #expect(saved.form == .loading)
         await saved.open()
         #expect(saved.form == .ready(Opened()))
@@ -87,8 +91,11 @@ struct EnrollModelTests {
         #expect(model.step == .review)
         // Only the read of step 4
         #expect(stub.requests.dropFirst(before).map(\.method) == ["GET"])
-        #expect(model.review == .ready(try! ApiClient.makeDecoder().decode(
-            SeniorPage.self, from: Data(pageJSON(street: "S", number: "1").utf8))))
+        #expect(
+            model.review
+                == .ready(
+                    try! ApiClient.makeDecoder().decode(
+                        SeniorPage.self, from: Data(pageJSON(street: "S", number: "1").utf8))))
     }
 
     @Test func `back drops what was typed since the last save and step 1 closes the form`() async {
@@ -125,7 +132,9 @@ struct EnrollModelTests {
 
     @Test func `a caregiver is added and removed at once`() async {
         let (model, stub) = model { sent in
-            if sent.method == "POST" && sent.url.path.hasSuffix("/seniors") { return .init(200, pageJSON()) }
+            if sent.method == "POST" && sent.url.path.hasSuffix("/seniors") {
+                return .init(200, pageJSON())
+            }
             if sent.method == "POST" { return .init(200, caregiverJSON) }
             return .init(204)
         }
@@ -138,7 +147,8 @@ struct EnrollModelTests {
         await model.add()
         #expect(model.caregivers.map(\.userId) == ["u1"])
         #expect(model.adding.isEmpty)
-        let body = try? JSONSerialization.jsonObject(with: stub.requests.last!.body) as? [String: Any]
+        let body =
+            try? JSONSerialization.jsonObject(with: stub.requests.last!.body) as? [String: Any]
         #expect(body?["phone"] as? String == "+40700000004")
 
         await model.remove(model.caregivers[0])
@@ -149,7 +159,8 @@ struct EnrollModelTests {
     @Test func `the last caregiver of a submitted senior stays`() async {
         let (model, _) = model(id: "s1") { sent in
             if sent.method == "DELETE" {
-                return .init(422, #"{"detail": {"reason": "incomplete", "missing": ["caregiver"]}}"#)
+                return .init(
+                    422, #"{"detail": {"reason": "incomplete", "missing": ["caregiver"]}}"#)
             }
             return .init(200, pageJSON(state: "submitted", caregivers: "[\(caregiverJSON)]"))
         }
@@ -196,7 +207,8 @@ struct EnrollModelTests {
     }
 
     @Test func `a 404 stops the form`() async {
-        let (model, _) = model(id: "s1") { _ in .init(404, #"{"detail": {"reason": "not_found"}}"#) }
+        let (model, _) = model(id: "s1") { _ in .init(404, #"{"detail": {"reason": "not_found"}}"#)
+        }
         await model.open()
         #expect(model.form == .failed(.notFound))
     }
@@ -208,7 +220,8 @@ struct EnrollModelTests {
                 signed.withLock { $0 = true }
                 return .init(204)
             }
-            return .init(200, pageJSON(signedAt: signed.withLock { $0 } ? "2026-11-14T10:00:00Z" : nil))
+            return .init(
+                200, pageJSON(signedAt: signed.withLock { $0 } ? "2026-11-14T10:00:00Z" : nil))
         }
         await model.open()
         await model.sign(signatureForm([[Point(x: 0.5, y: 0.5)]], width: 1, height: 1))

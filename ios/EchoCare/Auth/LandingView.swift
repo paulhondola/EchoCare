@@ -34,10 +34,16 @@ private struct Does: Sendable {
 }
 
 private let does = [
-    Does(symbol: "applewatch", tint: Theme.link, title: "landing_observe", text: "landing_observe_text"),
+    Does(
+        symbol: "applewatch", tint: Theme.link, title: "landing_observe",
+        text: "landing_observe_text"),
     Does(symbol: "phone", tint: Theme.fg, title: "landing_call", text: "landing_call_text"),
-    Does(symbol: "scalemass", tint: Theme.rosuFg, title: "landing_decide", text: "landing_decide_text"),
-    Does(symbol: "headphones", tint: Theme.verdeFg, title: "landing_hand_over", text: "landing_hand_over_text"),
+    Does(
+        symbol: "scalemass", tint: Theme.rosuFg, title: "landing_decide",
+        text: "landing_decide_text"),
+    Does(
+        symbol: "headphones", tint: Theme.verdeFg, title: "landing_hand_over",
+        text: "landing_hand_over_text"),
 ]
 
 // Landing.kt's one-off type sizes, on the Theme faces.
@@ -153,7 +159,8 @@ private struct Chain: View {
                             .padding(.trailing, 4)
                         Text(LocalizedStringKey(steps[i].key))
                             .textStyle(Theme.bodyMedium)
-                            .foregroundStyle(quotes.contains(steps[i].key) ? Theme.fg : Theme.fgSoft)
+                            .foregroundStyle(
+                                quotes.contains(steps[i].key) ? Theme.fg : Theme.fgSoft)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
@@ -207,7 +214,9 @@ private struct Live: View {
                 Rectangle().fill(Theme.rosu).frame(width: 7, height: 7)
             } else {
                 Rectangle().fill(Theme.rosu).frame(width: 7, height: 7)
-                    .phaseAnimator([1.0, 0.2]) { square, alpha in square.opacity(alpha) } animation: { _ in
+                    .phaseAnimator([1.0, 0.2]) { square, alpha in
+                        square.opacity(alpha)
+                    } animation: { _ in
                         .linear(duration: 0.6)
                     }
             }
@@ -231,7 +240,8 @@ private struct PulseLine: Shape {
 
     func path(in rect: CGRect) -> Path {
         Path { path in
-            path.addLines(points.map { CGPoint(x: $0.0 / 480 * rect.width, y: $0.1 / 92 * rect.height) })
+            path.addLines(
+                points.map { CGPoint(x: $0.0 / 480 * rect.width, y: $0.1 / 92 * rect.height) })
         }
     }
 }
@@ -245,7 +255,9 @@ private struct Trace: View {
             PulseLine(points: calm).stroke(Theme.lineStrong, lineWidth: 2)
             PulseLine(points: racing)
                 .trim(from: 0, to: progress)
-                .stroke(Theme.rosu, style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+                .stroke(
+                    Theme.rosu,
+                    style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
         }
         .accessibilityHidden(true)
     }
@@ -263,8 +275,10 @@ private struct DoesRow: View {
                 .padding(.top, 2)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text(LocalizedStringKey(item.title)).textStyle(doesTitleStyle).foregroundStyle(Theme.fg)
-                Text(LocalizedStringKey(item.text)).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgMuted)
+                Text(LocalizedStringKey(item.title)).textStyle(doesTitleStyle).foregroundStyle(
+                    Theme.fg)
+                Text(LocalizedStringKey(item.text)).textStyle(Theme.bodyMedium).foregroundStyle(
+                    Theme.fgMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -301,7 +315,9 @@ private struct Backdrop: View {
                     startRadius: 0, endRadius: size.width * 0.95))
             let glow = size.width * 0.85
             context.fill(
-                Path(ellipseIn: CGRect(x: size.width - glow, y: -glow, width: glow * 2, height: glow * 2)),
+                Path(
+                    ellipseIn: CGRect(
+                        x: size.width - glow, y: -glow, width: glow * 2, height: glow * 2)),
                 with: .radialGradient(
                     Gradient(colors: [Theme.rosu.opacity(0.16), .clear]),
                     center: CGPoint(x: size.width, y: 0),

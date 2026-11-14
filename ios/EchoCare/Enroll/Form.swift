@@ -86,7 +86,11 @@ enum Step: Int, CaseIterable, Hashable, Sendable {
     var fields: [Field] {
         switch self {
         case .senior: [.fullName, .formOfAddress, .phone, .callWindow]
-        case .address: [.street, .streetNumber, .block, .staircase, .floor, .apartment, .intercom, .keyHolder, .landmark]
+        case .address:
+            [
+                .street, .streetNumber, .block, .staircase, .floor, .apartment, .intercom,
+                .keyHolder, .landmark,
+            ]
         case .caregivers: [.caregiverName, .relation, .caregiverPhone]
         case .review: []
         }
@@ -130,7 +134,7 @@ func problems(_ values: [Field: String], _ fields: [Field], draft: Bool) -> [Fie
             if required(field, draft: draft) { found[field] = .required }
         } else if field.isPhone && !isPhone(text) {
             found[field] = .notAPhone
-        // The server counts characters, not UTF-16 units: a scalar is the nearest here
+            // The server counts characters, not UTF-16 units: a scalar is the nearest here
         } else if let max = field.max, text.unicodeScalars.count > max {
             found[field] = .tooLong
         }
@@ -147,7 +151,9 @@ func canContinue(_ step: Step, _ values: [Field: String], draft: Bool) -> Bool {
     }
 }
 
-private func text(_ values: [Field: String], _ field: Field) -> String { (values[field] ?? "").trimmed }
+private func text(_ values: [Field: String], _ field: Field) -> String {
+    (values[field] ?? "").trimmed
+}
 
 private func optional(_ values: [Field: String], _ field: Field) -> String? {
     let value = text(values, field)
@@ -227,5 +233,6 @@ func missingOf(_ page: SeniorPage) -> [String] {
 /// The label (a `Localizable.xcstrings` key) of each name in `missing`. A name a later server adds
 /// shows as it is.
 let MISSING_LABELS = [
-    "street": "field_street", "street_number": "field_street_number", "caregiver": "missing_caregiver",
+    "street": "field_street", "street_number": "field_street_number",
+    "caregiver": "missing_caregiver",
 ]

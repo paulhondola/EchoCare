@@ -26,7 +26,10 @@ struct ScreenTests {
     @Test func homeListsEveryKnownRoleInOrder() {
         // The profile page lists them to switch between (design 2026-11-13 medic home)
         let home = screenFor(me("caregiver", "medic", "das", "pilot", "medic"), saved: "medic")
-        #expect(home == .home(role: "medic", displayName: "Ana Pop", roles: ["das", "medic", "caregiver"]))
+        #expect(
+            home
+                == .home(
+                    role: "medic", displayName: "Ana Pop", roles: ["das", "medic", "caregiver"]))
         #expect(home.canSwitch)
         #expect(!Screen.home(role: "das", displayName: "Ana Pop", roles: ["das"]).canSwitch)
     }

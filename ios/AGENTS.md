@@ -2,7 +2,7 @@
 
 One Xcode project, two apps: the iPhone and iPad app for the senior, caregiver, medic and DAS roles, and the watchOS app for the senior's watch, embedded in it. Swift 6, SwiftUI, Xcode 27.2, deployment targets iOS 26.0 and watchOS 26.0. Setup, devices and troubleshooting: [README.md](README.md).
 
-**`ios/` is demo-only** ([ADR-007](../docs/adr/ADR-007-ios-demo-clients.md)). It ports `android/` for a demo on Apple devices, signed with a free Personal Team: no App Store, no TestFlight, no CI, no push. The Android source is the behavioural spec: each Swift screen ports the Kotlin file of the same name, with the same spec IDs in comments and the same Romanian copy. Never change `android/`, `backend/` or an API contract to make iOS easier.
+**`ios/` is demo-only** ([ADR-007](../docs/adr/ADR-007-ios-demo-clients.md)). It ports `android/` for a demo on Apple devices, signed with a free Personal Team: no App Store, no TestFlight, no push. CI ([ios.yml](../.github/workflows/ios.yml)) and the `pre-push` hook run `Shared` tests and build `EchoCare` (+ `EchoCareTests`) and `EchoCareWatch` for the simulator with `CODE_SIGNING_ALLOWED=NO`. The Android source is the behavioural spec: each Swift screen ports the Kotlin file of the same name, with the same spec IDs in comments and the same Romanian copy. Never change `android/`, `backend/` or an API contract to make iOS easier.
 
 ## Layout
 
@@ -40,6 +40,7 @@ From the repository root. The simulator commands need the iOS 27.2 and watchOS 2
 | App tests on the simulator | `xcodebuild test -project ios/EchoCare.xcodeproj -scheme EchoCare -destination 'platform=iOS Simulator,name=iPhone 17'` |
 | Build the watch app | `xcodebuild build -project ios/EchoCare.xcodeproj -scheme EchoCareWatch -destination 'generic/platform=watchOS Simulator'` |
 | Test the shared logic (also the pre-commit hook) | `swift test --package-path ios/Shared` |
+| Format and lint Swift sources (also the pre-commit hook) | `swift format format --in-place --parallel --recursive --configuration ios/.swift-format ios/EchoCare ios/EchoCareWatch ios/EchoCareTests ios/Shared` / `swift format lint --strict --parallel --recursive --configuration ios/.swift-format ios/EchoCare ios/EchoCareWatch ios/EchoCareTests ios/Shared` |
 | List devices and their UDIDs | `xcrun devicectl list devices` |
 | Build for the iPhone, signing on the fly | `xcodebuild build -project ios/EchoCare.xcodeproj -scheme EchoCare -configuration Debug -destination 'id=<iphone-udid>' -allowProvisioningUpdates -allowProvisioningDeviceRegistration -derivedDataPath ios/build` |
 | Install the app on the iPhone | `xcrun devicectl device install app --device <iphone-udid> ios/build/Build/Products/Debug-iphoneos/EchoCare.app` |

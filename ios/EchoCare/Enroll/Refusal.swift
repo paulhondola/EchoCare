@@ -28,7 +28,9 @@ func refusalOf(status: Int?, body: String?) -> Refusal {
     case 422:
         if let list = detail as? [Any] {
             var fields: [String] = []
-            for name in list.compactMap(fieldOf) where !fields.contains(name) { fields.append(name) }
+            for name in list.compactMap(fieldOf) where !fields.contains(name) {
+                fields.append(name)
+            }
             return .invalid(fields)
         }
         if reason == "incomplete" {
@@ -36,7 +38,9 @@ func refusalOf(status: Int?, body: String?) -> Refusal {
         }
         return .invalid([])
     case 409:
-        if reason == "already_done" { return .alreadyDone(takenByName: ours?["taken_by_name"] as? String) }
+        if reason == "already_done" {
+            return .alreadyDone(takenByName: ours?["taken_by_name"] as? String)
+        }
         if reason == "phone_taken" { return .phoneTaken }
         // wrong_state, or a reason a later server adds: the senior is read again
         return .wrongState

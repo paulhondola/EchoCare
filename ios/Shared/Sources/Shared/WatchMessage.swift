@@ -42,7 +42,9 @@ public struct EventSnapshot: Codable, Equatable, Sendable {
     public static let empty = EventSnapshot(
         pulse: nil, restingBaseline: nil, moving: nil, minutesWithoutSteps: nil, battery: nil)
 
-    public init(pulse: Int?, restingBaseline: Int?, moving: Bool?, minutesWithoutSteps: Int?, battery: Int?) {
+    public init(
+        pulse: Int?, restingBaseline: Int?, moving: Bool?, minutesWithoutSteps: Int?, battery: Int?
+    ) {
         self.pulse = pulse
         self.restingBaseline = restingBaseline
         self.moving = moving
@@ -82,7 +84,8 @@ public enum WatchMessage {
         return [jsonKey: String(decoding: data, as: UTF8.self)]
     }
 
-    public static func decode<T: Decodable>(_ type: T.Type, from message: [String: Any]) throws -> T {
+    public static func decode<T: Decodable>(_ type: T.Type, from message: [String: Any]) throws -> T
+    {
         guard let json = message[jsonKey] as? String else {
             throw DecodingError.dataCorrupted(
                 .init(codingPath: [], debugDescription: "message has no \"json\" string"))

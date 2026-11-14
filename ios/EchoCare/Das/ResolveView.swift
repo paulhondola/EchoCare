@@ -11,7 +11,8 @@ struct ResolveView: View {
 
     init(
         id: String, onBack: @escaping () -> Void, onDone: @escaping () -> Void,
-        onSessionEnd: @escaping (Failure) -> Void, api: ApiClient = ApiClient(tokens: FirebaseTokenSource())
+        onSessionEnd: @escaping (Failure) -> Void,
+        api: ApiClient = ApiClient(tokens: FirebaseTokenSource())
     ) {
         self.onBack = onBack
         self.onDone = onDone
@@ -27,15 +28,20 @@ struct ResolveView: View {
                         SectionLabel("resolve_outcome")
                         VStack(spacing: 8) {
                             ForEach(OUTCOMES, id: \.value) { outcome in
-                                OutcomeRow(label: outcome.label, picked: model.outcome == outcome.value) {
+                                OutcomeRow(
+                                    label: outcome.label, picked: model.outcome == outcome.value
+                                ) {
                                     model.outcome = outcome.value
                                 }
                             }
                         }
                         SnTextField(
                             // A paste past the limit is cut, as the dashboard's maxlength
-                            text: Binding(get: { model.note }, set: { model.note = String($0.prefix(NOTE_MAX)) }),
-                            label: "resolve_note", mono: false, multiline: true, capitalization: .sentences
+                            text: Binding(
+                                get: { model.note },
+                                set: { model.note = String($0.prefix(NOTE_MAX)) }),
+                            label: "resolve_note", mono: false, multiline: true,
+                            capitalization: .sentences
                         )
                         .padding(.top, 12)
                         Text(verbatim: localized("note_count", model.note.count, NOTE_MAX))
@@ -50,8 +56,10 @@ struct ResolveView: View {
                 .scrollDismissesKeyboard(.interactively)
                 if let notice = model.notice { NoticeBanner(notice: notice) }
                 ActionBar {
-                    SnButton("send", kind: .success, fullWidth: true) { Task { await model.submit() } }
-                        .disabled(!canSend(model.outcome, model.note) || model.sending)
+                    SnButton("send", kind: .success, fullWidth: true) {
+                        Task { await model.submit() }
+                    }
+                    .disabled(!canSend(model.outcome, model.note) || model.sending)
                 }
             }
         }
@@ -76,7 +84,9 @@ private struct OutcomeRow: View {
                 Rectangle()
                     .fill(picked ? Theme.link : .clear)
                     .frame(width: 14, height: 14)
-                    .overlay(Rectangle().strokeBorder(picked ? Theme.link : Theme.lineStrong, lineWidth: 2))
+                    .overlay(
+                        Rectangle().strokeBorder(
+                            picked ? Theme.link : Theme.lineStrong, lineWidth: 2))
                 Text(LocalizedStringKey(label)).textStyle(Theme.bodyLarge).foregroundStyle(Theme.fg)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

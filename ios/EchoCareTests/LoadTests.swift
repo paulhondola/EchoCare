@@ -26,7 +26,9 @@ struct LoadTests {
 
     @Test func reasonIsReadFromARefusalBody() {
         #expect(reasonOf(#"{"detail": {"reason": "not_registered"}}"#) == "not_registered")
-        #expect(reasonOf(#"{"detail": {"reason": "already_done", "taken_by_name": "Ana"}}"#) == "already_done")
+        #expect(
+            reasonOf(#"{"detail": {"reason": "already_done", "taken_by_name": "Ana"}}"#)
+                == "already_done")
     }
 
     @Test func anyOtherBodyHasNoReason() {
@@ -75,11 +77,15 @@ struct LoadTests {
         #expect(
             await answer { () throws -> [String] in throw ApiError.http(status: 404, body: "{}") }
                 == .no(.notFound))
-        #expect(await answer { () throws -> [String] in throw URLError(.timedOut) } == .no(.noConnection))
-        // A body this build cannot read is treated as no answer, never as a crash.
-        let unreadable = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "unexpected JSON"))
         #expect(
-            await answer { () throws -> [String] in throw ApiError.decoding(unreadable) } == .no(.noConnection))
+            await answer { () throws -> [String] in throw URLError(.timedOut) }
+                == .no(.noConnection))
+        // A body this build cannot read is treated as no answer, never as a crash.
+        let unreadable = DecodingError.dataCorrupted(
+            .init(codingPath: [], debugDescription: "unexpected JSON"))
+        #expect(
+            await answer { () throws -> [String] in throw ApiError.decoding(unreadable) }
+                == .no(.noConnection))
     }
 
     @Test func offlineIsOffByDefault() {

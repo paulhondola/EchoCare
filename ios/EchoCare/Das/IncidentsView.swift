@@ -20,7 +20,10 @@ struct IncidentsView: View {
 
     var body: some View {
         Frame(String(localized: "role_das")) {
-            LoadBody(load: model.incidents, onRetry: { Task { await model.load() } }, onSessionEnd: onSessionEnd) {
+            LoadBody(
+                load: model.incidents, onRetry: { Task { await model.load() } },
+                onSessionEnd: onSessionEnd
+            ) {
                 rows in
                 IncidentList(rows: rows, now: model.now, onOpen: onOpen)
             }
@@ -55,7 +58,8 @@ struct IncidentList: View {
         if !rows.isEmpty {
             SectionLabel(verbatim: localized(key, rows.count)).padding(.top, 8).padding(.bottom, 4)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 8)], spacing: 8) {
-                ForEach(rows, id: \.id) { row in IncidentCard(row: row, now: now) { onOpen(row.id) } }
+                ForEach(rows, id: \.id) { row in IncidentCard(row: row, now: now) { onOpen(row.id) }
+                }
             }
         }
     }
@@ -70,12 +74,14 @@ private struct IncidentCard: View {
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: row.seniorName).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
+                Text(verbatim: row.seniorName).textStyle(Theme.titleMedium).foregroundStyle(
+                    Theme.fg)
                 Text(verbatim: row.reason).textStyle(Theme.bodyMedium).foregroundStyle(Theme.fgSoft)
                 // Whole chips wrap to a second line on a narrow phone, never their words
                 WrappingRow(spacing: 8, lineSpacing: 6) {
                     if let since = ago(row.openedAt, now: now) {
-                        Text(verbatim: agoText(since)).textStyle(Theme.bodySmall).foregroundStyle(Theme.fgMuted)
+                        Text(verbatim: agoText(since)).textStyle(Theme.bodySmall).foregroundStyle(
+                            Theme.fgMuted)
                     }
                     StatusChip(status: row.status, takenByName: row.takenByName)
                     HandoverChip(answered: row.handoverAnswered)
@@ -86,7 +92,9 @@ private struct IncidentCard: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.card)
-            .overlay(alignment: .leading) { Rectangle().fill(statusTone(row.status).dot).frame(width: 3) }
+            .overlay(alignment: .leading) {
+                Rectangle().fill(statusTone(row.status).dot).frame(width: 3)
+            }
             .overlay(Rectangle().strokeBorder(Theme.line, lineWidth: 1))
             .contentShape(Rectangle())
         }
@@ -104,7 +112,8 @@ struct StatusChip: View {
             switch status {
             case OPEN: String(localized: "status_open")
             // As the dashboard: a taker it cannot name is „un dispecer”
-            case IN_PROGRESS: localized("status_taken_by", takenByName ?? String(localized: "a_dispatcher"))
+            case IN_PROGRESS:
+                localized("status_taken_by", takenByName ?? String(localized: "a_dispatcher"))
             case "resolved": String(localized: "status_resolved")
             default: status
             }

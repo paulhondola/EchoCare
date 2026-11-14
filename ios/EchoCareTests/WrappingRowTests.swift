@@ -21,7 +21,10 @@ struct WrappingRowTests {
 
     @Test func shortPiecesSitSideBySideAndWrapWhenFull() {
         func row(_ width: CGFloat) -> CGFloat {
-            height(of: WrappingRow { Color.red.frame(width: 80, height: 20); Color.blue.frame(width: 80, height: 20) }, width: width)
+            height(
+                of: WrappingRow {
+                    Color.red.frame(width: 80, height: 20); Color.blue.frame(width: 80, height: 20)
+                }, width: width)
         }
         #expect(row(200) == 20)
         #expect(row(120) > 20)

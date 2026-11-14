@@ -123,7 +123,8 @@ struct FormTests {
         keyHolder: "vecina de la ap. 10", landmark: "lângă farmacie", callWindow: "9-12",
         medic: Medic(displayName: "Dr. Ion Pop"),
         caregivers: [
-            Caregiver(userId: "u1", displayName: "Ioana Pop", relation: "fiică", phone: "+40700000004")
+            Caregiver(
+                userId: "u1", displayName: "Ioana Pop", relation: "fiică", phone: "+40700000004")
         ])
 
     @Test func `a saved senior fills the form`() {
@@ -159,7 +160,9 @@ struct FormTests {
             .caregiverName: " Ioana Pop ", .relation: "fiică ", .caregiverPhone: "0700 000 004",
         ]
         #expect(
-            caregiverOf(typed) == CaregiverForm(displayName: "Ioana Pop", relation: "fiică", phone: "+40700000004"))
+            caregiverOf(typed)
+                == CaregiverForm(displayName: "Ioana Pop", relation: "fiică", phone: "+40700000004")
+        )
         #expect(problems(typed, Step.caregivers.fields, draft: true).isEmpty)
         #expect(
             Set(problems([:], Step.caregivers.fields, draft: true).keys) == [
@@ -184,7 +187,9 @@ struct FormTests {
 
     @Test func `the steps are in order`() {
         #expect(
-            Step.allCases.map(\.title) == ["step_senior", "step_address", "step_caregivers", "step_review"])
+            Step.allCases.map(\.title) == [
+                "step_senior", "step_address", "step_caregivers", "step_review",
+            ])
         #expect(Step.senior.next == .address)
         #expect(Step.address.previous == .senior)
     }
@@ -192,10 +197,12 @@ struct FormTests {
     // Every label the form shows is in the catalog
     @Test func `every field label and step title is a Romanian string`() {
         for field in Field.allCases {
-            #expect(String(localized: String.LocalizationValue(field.label)) != field.label, "\(field)")
+            #expect(
+                String(localized: String.LocalizationValue(field.label)) != field.label, "\(field)")
         }
         for step in Step.allCases {
-            #expect(String(localized: String.LocalizationValue(step.title)) != step.title, "\(step)")
+            #expect(
+                String(localized: String.LocalizationValue(step.title)) != step.title, "\(step)")
         }
     }
 }
