@@ -3,7 +3,7 @@ import SwiftUI
 /// „Help is coming” (design 2026-11-14, watch senior UI): shown after „Nu mă simt bine”, „Nu” or a
 /// prompt's timeout. It says the team is being told, „Încercăm din nou…” when the phone hasn't
 /// answered in 20 s, and ✓ only once the phone acks, which it does after FastAPI has recorded the
-/// event (04 §3). The ✓ goes home after a minute; a tap goes home at any time. The times live here, not in
+/// event (04 §3). The ✓ goes home after a minute; a tap goes home once retrying or received. The times live here, not in
 /// `Monitor.tick`, which stops while monitoring is paused.
 struct HelpComingView: View {
     let alert: Alert
@@ -11,7 +11,8 @@ struct HelpComingView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let phase = alert.phase(nowMs: Int64(context.date.timeIntervalSince1970 * 1_000))
+            let nowMs = Int64(context.date.timeIntervalSince1970 * 1_000)
+            let phase = alert.phase(nowMs: nowMs)
             ScrollView {
                 VStack(spacing: 8) {
                     if phase == .received {
@@ -37,9 +38,10 @@ struct HelpComingView: View {
                 .frame(maxWidth: .infinity)
             }
             .contentShape(Rectangle())
-            // Any phase: with no ack (phone off, no network) the senior must not be stuck here. The
-            // event stays queued and is resent either way
-            .onTapGesture { dismiss() }
+            // With no ack (phone off, no network) the senior must not be stuck here; the event stays
+            // queued and is resent either way. Not while sending: see `Alert.canDismiss`
+            .onTapGesture { if alert.canDismiss(nowMs: nowMs) { dismiss() } }
+            .accessibilityAction { if alert.canDismiss(nowMs: nowMs) { dismiss() } }
         }
         .task(id: alert.receivedAtMs) {
             guard alert.receivedAtMs != nil else { return }

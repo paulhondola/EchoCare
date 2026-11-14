@@ -95,6 +95,12 @@ struct Alert: Equatable {
         if receivedAtMs != nil { return .received }
         return nowMs - sentAtMs >= Timings.helpRetryingMs ? .retrying : .sending
     }
+
+    /// Not while sending: a second, panicked tap on the help button lands on this screen. Once
+    /// retrying, the senior can leave, as the event stays queued; once received, they can too.
+    func canDismiss(nowMs: Int64) -> Bool {
+        phase(nowMs: nowMs) != .sending
+    }
 }
 
 /// The watch's monitoring (G14, UC-09, UC-13), ported from `MonitoringService.kt` and the prompt's
