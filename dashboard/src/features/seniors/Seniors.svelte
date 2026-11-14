@@ -227,6 +227,15 @@
               <span class="text-xs text-fg-muted">{s.reason}</span>
             {/if}
           {/if}
+          {#if s.home_node_state === "offline"}
+            <span class="border border-galben px-1.5 py-0.5 text-[11px] text-galben-fg">
+              Senzor din casă deconectat
+            </span>
+          {:else if s.room_temperature != null}
+            <span class="border border-line px-1.5 py-0.5 font-mono text-[11px] text-fg-soft">
+              Cameră {s.room_temperature.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}°C
+            </span>
+          {/if}
         </div>
         <div role="cell" class="flex items-center px-3 py-2">
           <button
