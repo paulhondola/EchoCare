@@ -29,14 +29,17 @@ struct PhoneLinkTests {
     }
 
     @Test func otherKindsAckNothing() {
-        #expect(PhoneLink.ackedId(in: ["kind": WatchMessage.event, "json": #"{"id":"e1"}"#]) == nil)
+        #expect(
+            PhoneLink.ackedId(in: ["kind": WatchMessage.event, "json": #"{"id":"e1"}"#]) == nil)
         #expect(PhoneLink.ackedId(in: ["json": #"{"id":"e1"}"#]) == nil)
     }
 
     @Test func anEventGoesAsKindAndSnakeCaseJson() throws {
         let event = EventMessage(
             id: "e3", type: "high_pulse_at_rest", measuredAt: "2026-10-29T20:00:00.000Z",
-            snapshot: EventSnapshot(pulse: 125, restingBaseline: 66, moving: false, minutesWithoutSteps: 0, battery: 80))
+            snapshot: EventSnapshot(
+                pulse: 125, restingBaseline: 66, moving: false, minutesWithoutSteps: 0, battery: 80)
+        )
         let payload = try #require(PhoneLink.payload(WatchMessage.event, event))
         #expect(payload["kind"] as? String == "event")
         #expect((payload["json"] as? String)?.contains("\"resting_baseline\":66") == true)
@@ -77,7 +80,9 @@ private final class FakeSession: LinkSession {
         waitingTransfers.removeAll(where: match)
     }
 
-    func kinds(_ dictionaries: [[String: Any]]) -> [String?] { dictionaries.map { $0["kind"] as? String } }
+    func kinds(_ dictionaries: [[String: Any]]) -> [String?] {
+        dictionaries.map { $0["kind"] as? String }
+    }
 }
 
 @MainActor

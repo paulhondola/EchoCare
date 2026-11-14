@@ -65,6 +65,44 @@ struct Prompt: Equatable {
     var deadlineMs: Int64
 }
 
+extension Prompt {
+    /// What's left of the wait, for the draining ring: 1 when the prompt opens, 0 at `deadlineMs`.
+    func remainingFraction(nowMs: Int64) -> Double {
+        let left = Double(deadlineMs - nowMs) / Double(Timings.promptTimeoutMs)
+        return min(1, max(0, left))
+    }
+}
+
+extension Timings {
+    // „Help is coming” (design 2026-11-14, watch senior UI): „Încercăm din nou…” after this long
+    // without the phone's ack, and the ✓ screen goes home after this long
+    static let helpRetryingMs: Int64 = 20_000
+    static let helpShownMs: Int64 = 60_000
+}
+
+enum HelpPhase: Equatable {
+    case sending, retrying, received
+}
+
+/// The last event the senior sent, by „Nu mă simt bine”, „Nu” or silence, and when the phone acked
+/// it: the phone acks only once FastAPI has recorded it (04 §3), so ✓ means the team has it.
+struct Alert: Equatable {
+    var id: String
+    var sentAtMs: Int64
+    var receivedAtMs: Int64? = nil
+
+    func phase(nowMs: Int64) -> HelpPhase {
+        if receivedAtMs != nil { return .received }
+        return nowMs - sentAtMs >= Timings.helpRetryingMs ? .retrying : .sending
+    }
+
+    /// Not while sending: a second, panicked tap on the help button lands on this screen. Once
+    /// retrying, the senior can leave, as the event stays queued; once received, they can too.
+    func canDismiss(nowMs: Int64) -> Bool {
+        phase(nowMs: nowMs) != .sending
+    }
+}
+
 /// The watch's monitoring (G14, UC-09, UC-13), ported from `MonitoringService.kt` and the prompt's
 /// timeout from `AreYouOkScreen.kt`. Runs the four detectors from `Shared` while the workout session
 /// runs, raises „Sunteți bine?", sends a check-in every interval, and on „Nu" or silence queues the
@@ -73,6 +111,8 @@ struct Prompt: Equatable {
 final class Monitor {
     private(set) var running = false
     private(set) var prompt: Prompt?
+    /// The last event sent and whether the phone acked it, for „help is coming”.
+    private(set) var alert: Alert?
     /// The last valid heart rate, for the home screen.
     private(set) var lastHeartRate: Int?
     /// The last start failed, typically because Health access was refused (`permission_needed`).
@@ -195,8 +235,23 @@ final class Monitor {
 
     /// „Nu mă simt bine" (UC-10): a `manual_request`, queued and sent like any event.
     func callMe() {
-        enqueueAndSend(
-            EventMessage(id: UUID().uuidString, type: "manual_request", measuredAt: iso(clock())))
+        let msg = EventMessage(
+            id: UUID().uuidString, type: "manual_request", measuredAt: iso(clock()))
+        enqueueAndSend(msg)
+        alert = Alert(id: msg.id, sentAtMs: clock())
+    }
+
+    /// The phone's ack for an event. Only the current alert's id counts: an older, resent event's
+    /// ack, or a repeat, changes nothing.
+    func eventReceived(id: String) {
+        guard var alert, alert.id == id, alert.receivedAtMs == nil else { return }
+        alert.receivedAtMs = clock()
+        self.alert = alert
+        haptics(.success)
+    }
+
+    func dismissAlert(id: String) {
+        if alert?.id == id { alert = nil }
     }
 
     #if DEBUG
@@ -267,6 +322,8 @@ final class Monitor {
             return
         }
         let nowMs = clock()
+        // The prompt takes over from „help is coming”; „Da” on it must not bring that back
+        alert = nil
         prompt = Prompt(
             id: UUID().uuidString, type: type, measuredAt: iso(nowMs), snapshot: snapshot,
             deadlineMs: nowMs + Timings.promptTimeoutMs)
@@ -299,6 +356,7 @@ final class Monitor {
             EventMessage(
                 id: prompt.id, type: prompt.type, measuredAt: prompt.measuredAt,
                 snapshot: prompt.snapshot))
+        alert = Alert(id: prompt.id, sentAtMs: clock())
     }
 
     /// Queue first, then send: the phone's `received` clears it.

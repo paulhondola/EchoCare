@@ -15,13 +15,16 @@ struct EchoCareWatchApp: App {
     }
 }
 
-/// `MainActivity.kt`: „Sunteți bine?” over the home while a prompt is up.
+/// `MainActivity.kt`: „Sunteți bine?” over the home while a prompt is up, then „help is coming”
+/// while an alert shows (design 2026-11-14, watch senior UI). A new prompt takes over from it.
 private struct RootView: View {
     let monitor: Monitor
 
     var body: some View {
         if let prompt = monitor.prompt {
             AreYouOkView(prompt: prompt) { ok in monitor.answer(ok: ok) }
+        } else if let alert = monitor.alert {
+            HelpComingView(alert: alert) { monitor.dismissAlert(id: alert.id) }
         } else {
             HomeView(monitor: monitor)
         }
@@ -42,6 +45,7 @@ final class WatchDelegate: NSObject, WKApplicationDelegate {
         link = PhoneLink(queue: queue)
         monitor = Monitor(sensors: runner, link: link, queue: queue)
         super.init()
+        link.onAcked = { [monitor] id in monitor.eventReceived(id: id) }
     }
 
     func applicationDidFinishLaunching() {

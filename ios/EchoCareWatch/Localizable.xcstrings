@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ro",
   "strings" : {
+    "all_good" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Totul e în regulă"
+          }
+        }
+      }
+    },
     "app_name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8,17 +19,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "EchoCare"
-          }
-        }
-      }
-    },
-    "are_you_ok_countdown" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld s"
           }
         }
       }
@@ -63,17 +63,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nu mă simt bine"
-          }
-        }
-      }
-    },
-    "call_me_sending" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se trimite…"
           }
         }
       }
@@ -125,13 +114,13 @@
         }
       }
     },
-    "heart_rate" : {
+    "heart_rate_plain" : {
       "extractionState" : "manual",
       "localizations" : {
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Puls: %1$lld bpm"
+            "value" : "Puls %1$lld"
           }
         }
       }
@@ -147,13 +136,57 @@
         }
       }
     },
-    "monitor_active" : {
+    "help_answer_phone" : {
       "extractionState" : "manual",
       "localizations" : {
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Monitorizare activă"
+            "value" : "Vă sunăm imediat. Răspundeți la telefon."
+          }
+        }
+      }
+    },
+    "help_keep_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Țineți telefonul aproape"
+          }
+        }
+      }
+    },
+    "help_received" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echipa a fost anunțată"
+          }
+        }
+      }
+    },
+    "help_retrying" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încercăm din nou…"
+          }
+        }
+      }
+    },
+    "help_sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anunțăm echipa…"
           }
         }
       }

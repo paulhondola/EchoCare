@@ -56,6 +56,8 @@ final class PhoneLink: NSObject, PhoneSending {
     private let log = Logger(subsystem: "ro.echocare.watch", category: "link")
     // The newest check-in sent, so a late failure of an older one doesn't resend it
     private var lastCheckIn: CheckInMessage?
+    /// Each acked event id, for `Monitor`'s „help is coming”.
+    var onAcked: (@MainActor (String) -> Void)?
 
     init(queue: EventQueue) {
         self.queue = queue
@@ -175,6 +177,7 @@ final class PhoneLink: NSObject, PhoneSending {
     private func acked(_ id: String) {
         queue.ack(id: id)
         log.info("event acked id=\(id, privacy: .public)")
+        onAcked?(id)
     }
 
     /// `WatchMessage.encode` plus `"kind"`: what the phone's relay reads (Task 8).
