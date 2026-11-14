@@ -1,19 +1,17 @@
+import FirebaseAuth
 import FirebaseCore
 import SwiftUI
 
-// One app for the four roles (G3). Sign-in and role routing replace the placeholder (Task 5).
+// One app for the four roles (G3): sign-in, then the role's home (auth-layer §8.2).
 @main
 struct EchoCareApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    // Created before the delegate configures Firebase: AuthModel touches it only from start()
+    @State private var auth = AuthModel()
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                Theme.canvas.ignoresSafeArea()
-                Text("app_name")
-                    .textStyle(Theme.headlineLarge)
-                    .foregroundStyle(Theme.fg)
-            }
+            RootView(auth: auth)
         }
     }
 }
@@ -26,6 +24,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseApp.configure()
+        // Before the first auth call, as Android's Modules.kt. Affects only Firebase's test numbers
+        // (auth-layer §8.2, §9 step 1). REAL_SMS = YES leaves app verification on for real numbers:
+        // with no APNs, Firebase verifies the app with its reCAPTCHA page.
+        Auth.auth().settings?.isAppVerificationDisabledForTesting = !AppConfig.realSMS
         return true
     }
 }
