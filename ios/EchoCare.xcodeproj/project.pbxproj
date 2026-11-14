@@ -11,6 +11,7 @@
 		EC000000000000000000E601 /* Shared in Frameworks */ = {isa = PBXBuildFile; productRef = EC000000000000000000E810 /* Shared */; };
 		EC000000000000000000E602 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = EC000000000000000000E811 /* FirebaseAuth */; };
 		EC000000000000000000E603 /* Shared in Frameworks */ = {isa = PBXBuildFile; productRef = EC000000000000000000E812 /* Shared */; };
+		EC000000000000000000E604 /* Shared in Frameworks */ = {isa = PBXBuildFile; productRef = EC000000000000000000E813 /* Shared */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +28,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = EC000000000000000000E400;
 			remoteInfo = EchoCare;
+		};
+		EC000000000000000000E702 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EC000000000000000000EF00 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EC000000000000000000E401;
+			remoteInfo = EchoCareWatch;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -48,6 +56,7 @@
 		EC000000000000000000E200 /* EchoCare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EchoCare.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EC000000000000000000E201 /* EchoCareWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EchoCareWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EC000000000000000000E202 /* EchoCareTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EchoCareTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EC000000000000000000E203 /* EchoCareWatchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EchoCareWatchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EC000000000000000000E210 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		EC000000000000000000E211 /* EchoCare-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "EchoCare-Info.plist"; sourceTree = "<group>"; };
 		EC000000000000000000E212 /* EchoCareWatch-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "EchoCareWatch-Info.plist"; sourceTree = "<group>"; };
@@ -71,6 +80,11 @@
 		EC000000000000000000E302 /* EchoCareTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = EchoCareTests;
+			sourceTree = "<group>";
+		};
+		EC000000000000000000E303 /* EchoCareWatchTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = EchoCareWatchTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -100,6 +114,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EC000000000000000000E513 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EC000000000000000000E604 /* Shared in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -110,6 +132,7 @@
 				EC000000000000000000E300 /* EchoCare */,
 				EC000000000000000000E301 /* EchoCareWatch */,
 				EC000000000000000000E302 /* EchoCareTests */,
+				EC000000000000000000E303 /* EchoCareWatchTests */,
 				EC000000000000000000E220 /* Shared */,
 				EC000000000000000000E101 /* Products */,
 			);
@@ -121,6 +144,7 @@
 				EC000000000000000000E200 /* EchoCare.app */,
 				EC000000000000000000E201 /* EchoCareWatch.app */,
 				EC000000000000000000E202 /* EchoCareTests.xctest */,
+				EC000000000000000000E203 /* EchoCareWatchTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -211,6 +235,30 @@
 			productReference = EC000000000000000000E202 /* EchoCareTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		EC000000000000000000E403 /* EchoCareWatchTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EC000000000000000000E904 /* Build configuration list for PBXNativeTarget "EchoCareWatchTests" */;
+			buildPhases = (
+				EC000000000000000000E503 /* Sources */,
+				EC000000000000000000E513 /* Frameworks */,
+				EC000000000000000000E523 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EC000000000000000000E712 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				EC000000000000000000E303 /* EchoCareWatchTests */,
+			);
+			name = EchoCareWatchTests;
+			packageProductDependencies = (
+				EC000000000000000000E813 /* Shared */,
+			);
+			productName = EchoCareWatchTests;
+			productReference = EC000000000000000000E203 /* EchoCareWatchTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -230,6 +278,10 @@
 					EC000000000000000000E402 = {
 						CreatedOnToolsVersion = 27.2;
 						TestTargetID = EC000000000000000000E400;
+					};
+					EC000000000000000000E403 = {
+						CreatedOnToolsVersion = 27.2;
+						TestTargetID = EC000000000000000000E401;
 					};
 				};
 			};
@@ -254,6 +306,7 @@
 				EC000000000000000000E400 /* EchoCare */,
 				EC000000000000000000E401 /* EchoCareWatch */,
 				EC000000000000000000E402 /* EchoCareTests */,
+				EC000000000000000000E403 /* EchoCareWatchTests */,
 			);
 		};
 /* End PBXProject section */
@@ -274,6 +327,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		EC000000000000000000E522 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC000000000000000000E523 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -304,6 +364,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EC000000000000000000E503 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -316,6 +383,11 @@
 			isa = PBXTargetDependency;
 			target = EC000000000000000000E400 /* EchoCare */;
 			targetProxy = EC000000000000000000E701 /* PBXContainerItemProxy */;
+		};
+		EC000000000000000000E712 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EC000000000000000000E401 /* EchoCareWatch */;
+			targetProxy = EC000000000000000000E702 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -512,6 +584,38 @@
 			};
 			name = Release;
 		};
+		EC000000000000000000EA40 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = EC000000000000000000E210 /* Base.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID).watchkitapp.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EchoCareWatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EchoCareWatch";
+			};
+			name = Debug;
+		};
+		EC000000000000000000EA41 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = EC000000000000000000E210 /* Base.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID).watchkitapp.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EchoCareWatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EchoCareWatch";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -551,6 +655,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		EC000000000000000000E904 /* Build configuration list for PBXNativeTarget "EchoCareWatchTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EC000000000000000000EA40 /* Debug */,
+				EC000000000000000000EA41 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -583,6 +696,11 @@
 			productName = FirebaseAuth;
 		};
 		EC000000000000000000E812 /* Shared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EC000000000000000000E800 /* XCLocalSwiftPackageReference "Shared" */;
+			productName = Shared;
+		};
+		EC000000000000000000E813 /* Shared */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EC000000000000000000E800 /* XCLocalSwiftPackageReference "Shared" */;
 			productName = Shared;
