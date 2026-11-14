@@ -702,3 +702,20 @@ async def test_a_senior_with_no_result_has_no_code(client, add_user, add_active_
     await add_active_senior("+40700000101")
     row = (await client.get("/api/seniors", headers=signed_in(DAS))).json()[0]
     assert (row["code"], row["reason"], row["since"]) == (None, None, None)
+
+
+async def test_the_list_carries_an_approximate_location(client, staff):
+    # For the dashboard's map, from the street table (design 2026-11-14 §7)
+    await register(client, {**MARIA, "street": "Calea Aradului"})
+    await register(
+        client, {**MARIA, "phone": "0700 000 006", "street": "Str. Florilor"}
+    )
+
+    r = await get(client, "/api/seniors", MEDIC)
+
+    by_street = {s["full_name"] + s["phone_e164"]: s for s in r.json()}
+    on_table = by_street["Maria Pop+40700000005"]
+    off_table = by_street["Maria Pop+40700000006"]
+    assert 45.76 < on_table["latitude"] < 45.78
+    assert 21.22 < on_table["longitude"] < 21.24
+    assert (off_table["latitude"], off_table["longitude"]) == (None, None)

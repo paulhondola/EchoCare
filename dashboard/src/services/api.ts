@@ -350,6 +350,9 @@ export interface SeniorSummary {
   code?: "green" | "yellow" | "red" | null;
   reason?: string | null;
   since?: string | null;
+  // An approximate point on her street, for the map; null off the street table (design 2026-11-14 §7)
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors/service.py.

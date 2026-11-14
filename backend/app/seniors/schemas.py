@@ -202,6 +202,10 @@ class SeniorSummary(BaseModel):
     # else and when no record is attached (04 §1, design 2026-11-13). A plain string:
     # `seniors` sits below `medical` and may not import its enum (ADR-005).
     medical_record_state: str | None = None
+    # An approximate point on her street for the dashboard's map, null when the street is
+    # not in the table (design 2026-11-14 §7).
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class CaregiverView(CaregiverSummary):
