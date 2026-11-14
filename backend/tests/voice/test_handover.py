@@ -8,6 +8,7 @@ from xml.etree import ElementTree
 
 import pytest
 from sqlalchemy import select, update
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.settings import get_settings
 from app.models import (
@@ -221,13 +222,60 @@ async def test_answering_takes_the_incident(client, db, handed_over, on_duty_das
         query=f"&user={on_duty_das.id}",
     )
     root = twiml(r)
-    assert len(root) == 0  # nothing to say: Twilio connects the two
+    # DAS hears who is calling before Twilio connects the two (design 2026-11-14 §6)
+    [said] = [say.text for say in root.iter("Say")]
+    assert said.startswith("Predare EchoCare.")
     incident = await incident_of(db, handed_over)
     assert (incident.status, incident.taken_by) == (
         IncidentStatus.in_progress,
         on_duty_das.id,
     )
     assert (await stored(db, handed_over)).handover_answered is True
+
+
+async def test_a_failing_briefing_still_connects(
+    client, db, handed_over, on_duty_das, monkeypatch
+):
+    async def broken(*_):
+        raise RuntimeError("no briefing")
+
+    monkeypatch.setattr("app.voice.router.handover_briefing", broken)
+    r = await callback(
+        client,
+        "handoff-answered",
+        handed_over.id,
+        FIXTURES["handoff_answered"],
+        query=f"&user={on_duty_das.id}",
+    )
+    assert len(twiml(r)) == 0  # connects silently, as before the briefing
+    incident = await incident_of(db, handed_over)
+    assert incident.status == IncidentStatus.in_progress
+
+
+async def test_no_briefing_after_the_database_failed(
+    client, handed_over, on_duty_das, monkeypatch
+):
+    # A database that just failed is not asked again while DAS waits on the line
+    async def down(*_):
+        raise SQLAlchemyError("down")
+
+    asked = []
+
+    async def briefing(*args):
+        asked.append(args)
+        return "Predare EchoCare."
+
+    monkeypatch.setattr("app.voice.router.answer_handover", down)
+    monkeypatch.setattr("app.voice.router.handover_briefing", briefing)
+    r = await callback(
+        client,
+        "handoff-answered",
+        handed_over.id,
+        FIXTURES["handoff_answered"],
+        query=f"&user={on_duty_das.id}",
+    )
+    assert len(twiml(r)) == 0
+    assert asked == []
 
 
 async def test_an_incident_already_taken_stays_theirs(

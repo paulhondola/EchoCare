@@ -1,4 +1,5 @@
 import json
+import re
 from xml.sax.saxutils import escape, quoteattr
 
 from fastapi import Response
@@ -82,6 +83,35 @@ def wellbeing_greeting(
 def twiml(body: str) -> Response:
     xml = f'<?xml version="1.0" encoding="UTF-8"?><Response>{body}</Response>'
     return Response(xml, media_type="text/xml")
+
+
+# The briefing's summary sentence is cut to this many words: the senior waits while DAS
+# hears it (design 2026-11-14 §6).
+BRIEFING_SUMMARY_WORDS = 20
+
+
+def briefing(
+    form_of_address: str,
+    full_name: str,
+    address: str | None,
+    reason: str | None,
+    narrative: str | None,
+) -> str:
+    """What the on-duty phone hears before a hand-over connects: who, where, her words
+    (else the reason), the summary's first sentence (design 2026-11-14 §6). Missing parts
+    are skipped."""
+    parts = ["Predare EchoCare.", f"{form_of_address}, {full_name}"]
+    parts[-1] += f", {address}." if address else "."
+    words = re.search(r"«([^»]+)»", reason or "")
+    if words:
+        parts.append(f"A spus: «{words[1]}».")
+    elif reason:
+        parts.append(f"Motiv: {reason.rstrip('.')}.")
+    if narrative:
+        first = re.split(r"(?<=[.!?])\s", narrative.strip(), maxsplit=1)[0]
+        parts.append("Pe scurt: " + " ".join(first.split()[:BRIEFING_SUMMARY_WORDS]))
+    parts.append("Vă conectez.")
+    return " ".join(parts)
 
 
 def say(text: str) -> str:

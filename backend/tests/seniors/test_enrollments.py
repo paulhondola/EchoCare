@@ -105,6 +105,8 @@ async def test_from_draft_to_accepted(client, staff):
         "medical_record_state": None,  # only the list fills it (04 §1)
         "home_node_state": None,
         "room_temperature": None,
+        "latitude": None,  # only the list fills them (design 2026-11-14 §7)
+        "longitude": None,
     }
     assert [s["id"] for s in (await enrollments(client)).json()] == [maria]
     r = await client.get(f"/api/seniors/{maria}", headers=signed_in(DAS))
