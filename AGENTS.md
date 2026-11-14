@@ -11,13 +11,14 @@ EchoCare checks on seniors living alone with automated phone calls in Romanian, 
 | `backend/` | FastAPI service, the only part that touches the database | Python 3.14, uv, SQLAlchemy, Alembic | [backend/AGENTS.md](backend/AGENTS.md) |
 | `dashboard/` | DAS web dashboard | Svelte 5, SvelteKit 3, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
 | `android/` | Phone app `:app`, watch app `:wear`, plain-Kotlin `:shared` | Kotlin, Compose, Gradle | [android/AGENTS.md](android/AGENTS.md) |
+| `ios/` | SwiftUI iPhone and iPad app, watchOS app, `Shared` package; demo only ([ADR-007](docs/adr/ADR-007-ios-demo-clients.md)) | Swift 6, Xcode 27.2, SPM | [ios/AGENTS.md](ios/AGENTS.md) |
 | `.railway/` | Railway settings as code, staging and production | TypeScript, Railway CLI | [.railway/AGENTS.md](.railway/AGENTS.md) |
 | `docs/specs/echocare/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
 | `docs/adr/` | Architecture decisions | Markdown | |
 | `docs/specs/esti-bine-specificatii-v3.md`, `unihack.md` | The earlier v3 spec and the hackathon brief, in Romanian. History, not the current design | Markdown | |
 | `.github/workflows/` | One CI workflow per folder, path-filtered | GitHub Actions | |
 | `compose.yaml` | Local stack: Postgres 18, API, dashboard, optional ngrok tunnel | Docker Compose | |
-| `lefthook.yml` | Git hooks: each folder's checks on commit, Android's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
+| `lefthook.yml` | Git hooks: each folder's checks on commit (`ios/Shared` tests included), Android's on push ([ADR-002](docs/adr/ADR-002-git-hooks.md)) | lefthook | |
 
 Run each toolchain from its own folder. There is no root `package.json`, Makefile or task runner.
 
@@ -66,5 +67,5 @@ PR main → release, merged with a merge commit → Railway production
 - **Never commit secrets.** `.env` files, `android/local.properties` and `*.jks` are git-ignored; keep them that way. The Firebase web config is public and is written in plain text on purpose.
 - **Leave cloud environments alone.** Don't migrate, apply Railway config, set variables or deploy unless the user asks. `alembic` and the API refuse some of this from a laptop by design; never work around those checks.
 - **Old clients talk to new servers.** Installed APKs lag the API, and old and new API copies overlap during a deploy. API changes and migrations only add: new fields optional, nothing renamed or dropped in the same change (ADR-001 §2.3).
-- **Contract changes move together.** When an endpoint changes, update `04-interfaces.md`, the backend and the clients that call it (`android/app/.../Api.kt`, `dashboard/src/`) in one change.
+- **Contract changes move together.** When an endpoint changes, update `04-interfaces.md`, the backend and the clients that call it (`android/app/.../Api.kt`, `ios/EchoCare/Api/Api.swift` and `ApiClient.swift`, `dashboard/src/`) in one change.
 - **User-facing text is Romanian.** New phone and watch UI strings and the call script are written in Romanian; code, comments and docs stay in English.

@@ -1,0 +1,19 @@
+// Copy to Local.xcconfig (git-ignored) and fill in: cp Local.xcconfig.example Local.xcconfig
+// Plays the part of android/local.properties. Every line but DEVELOPMENT_TEAM is optional.
+
+// The signer's team ID: Xcode → Settings → Apple Accounts → the team, or
+// security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject (the OU field)
+DEVELOPMENT_TEAM = ABCDE12345
+
+// Another signer's own bundle ID. It then needs its own Firebase iOS app and GoogleService-Info.plist.
+// BUNDLE_ID = ro.echocare.ios.yourname
+
+// The laptop's Compose stack: localhost from the simulator, the Mac's Wi-Fi address from a device.
+// API_URL = http:/$()/localhost:8000
+// API_URL = http:/$()/192.168.1.20:8000
+
+// Seconds between re-reads of an open screen (no push on iOS).
+// REREAD_SECONDS = 30
+
+// YES signs in with real numbers and real SMS, through Firebase's reCAPTCHA page (the demo).
+// REAL_SMS = YES
