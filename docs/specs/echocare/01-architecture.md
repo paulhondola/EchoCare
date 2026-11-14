@@ -20,6 +20,8 @@ flowchart TB
         CA["Android app<br/>caregiver role"]
         MA["Android app<br/>medic role, tablet"]
         DA["Android app<br/>DAS role, red incidents"]
+        IA["iPhone and iPad app, demo only<br/>all four roles (ADR-007)"]
+        IW["watchOS app, demo only<br/>senior, optional"]
         WD["Web dashboard<br/>DAS desk, Svelte"]
         DP["On-duty DAS phone<br/>also runs the DAS role"]
     end
@@ -39,9 +41,10 @@ flowchart TB
     LLM["Model provider"]
 
     W <-->|"1 events, check-ins"| SA
+    IW <-->|"1 events, check-ins"| IA
     HN <-->|"12 readings, button, light"| SA
-    SA & CA & MA & DA & WD -->|"2 sign in"| AUTH
-    SA & CA & MA & DA & WD <-->|"3 HTTPS, JSON"| API
+    SA & CA & MA & DA & IA & WD -->|"2 sign in"| AUTH
+    SA & CA & MA & DA & IA & WD <-->|"3 HTTPS, JSON"| API
     API --> CORE
     CORE -->|"4 alert, refresh"| FCM
     FCM --> SA & CA & MA & DA
@@ -66,6 +69,8 @@ flowchart TB
 | Android app | One app, four roles | The roles granted to the signed-in number decide which screens appear. The medic layout targets a tablet and also works on a phone. The DAS role shows only red incidents (G15) |
 | Web dashboard | DAS at the desk | Svelte 5 and SvelteKit 3 (ADR-003), built into a static site. Everything a dispatcher does: all seniors, incidents, enrollment requests, campaigns, staff and on duty. Re-reads every few seconds instead of receiving pushes |
 | Wear OS app | Senior's watch | One screen and one background job. Talks only to the senior's phone app |
+| iPhone and iPad app **(demo only, ADR-007)** | The same four roles as the Android app | SwiftUI, in `ios/`. Signed with a free Personal Team and installed from Xcode. Receives no pushes: screens re-read on a timer |
+| watchOS app **(demo only, ADR-007)** | Senior's Apple Watch | Same behaviour as the Wear OS app. Monitors inside a workout session, about an hour at a time. Talks only to the senior's iPhone app |
 | Home node **(P20, proposed)** | Sensor box in the senior's home, optional | An ESP32 with a room temperature and humidity sensor, a motion sensor, an SOS button, a buzzer and a status light. Plugged into the mains, no battery. Talks only to the senior's phone app, over Bluetooth Low Energy. Measures and reports; FastAPI decides. Hardware in section 11 |
 | Twilio | Phone network edge | Places calls, turns speech into text and text into speech (ConversationRelay), runs the welcome call's key-and-voice questions, bridges the hand-over and transcribes it live, sends the caregiver notice SMS |
 | Model provider | The language model behind the agent and the summary agent | DeepInfra, an OpenAI-compatible endpoint (S4); see [04-interfaces.md](04-interfaces.md) section 5 |
@@ -74,7 +79,7 @@ flowchart TB
 
 | # | From → to | Means | Carries | Caller proves identity with |
 |---|---|---|---|---|
-| 1 | Watch ↔ senior's phone app | Wear OS Data Layer messages | Anomaly events, check-ins, acknowledgements | Same app, same signing key, paired devices |
+| 1 | Watch ↔ senior's phone app | Wear OS Data Layer messages; on Apple devices (ADR-007), WatchConnectivity | Anomaly events, check-ins, acknowledgements | Same app, same signing key, paired devices |
 | 2 | Apps and dashboard → Firebase sign-in | Firebase sign-in library, phone provider (with reCAPTCHA in the browser) | Phone number, SMS code, token renewal | The SMS code |
 | 3 | Apps and dashboard → FastAPI | Web requests, JSON over HTTPS. The API accepts browser requests only from the dashboard's own address | Reads, data entry, commands, the senior's events and check-ins | Firebase identity token |
 | 4 | FastAPI → Firebase push → Android app | Firebase server library for Python | Alert or refresh, with a senior id | Service credentials |
@@ -259,6 +264,7 @@ The rules and status engine has no dependencies on purpose: every rule and every
 | PostgreSQL | Railway, same project and region | Reached over the private network |
 | Web dashboard | Railway, a separate static-site service in the same project | Its own service, so that changing the dashboard never redeploys FastAPI and drops live calls. The API allows browser requests from this address only |
 | Android and Wear OS apps | Installed directly on the demo devices | n/a |
+| iPhone, iPad and watchOS apps | Installed from Xcode on the demo devices, demo only (ADR-007) | A free Personal Team: installs expire after 7 days |
 
 A new deploy starts before the old one stops, so for a few seconds two copies run. The scheduler's database lock keeps one of them idle. Calls live on the old copy drop, so nothing is deployed after the Sunday-morning freeze.
 
