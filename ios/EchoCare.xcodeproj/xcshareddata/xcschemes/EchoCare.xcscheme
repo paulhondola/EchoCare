@@ -55,13 +55,13 @@
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EC000000000000000000E400"
-               BuildableName = "EchoCare.app"
-               BlueprintName = "EchoCare"
-               ReferencedContainer = "container:EchoCare.xcodeproj">
-            </BuildableReference>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "EC000000000000000000E400"
+            BuildableName = "EchoCare.app"
+            BlueprintName = "EchoCare"
+            ReferencedContainer = "container:EchoCare.xcodeproj">
+         </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
@@ -72,13 +72,13 @@
       debugDocumentVersioning = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EC000000000000000000E400"
-               BuildableName = "EchoCare.app"
-               BlueprintName = "EchoCare"
-               ReferencedContainer = "container:EchoCare.xcodeproj">
-            </BuildableReference>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "EC000000000000000000E400"
+            BuildableName = "EchoCare.app"
+            BlueprintName = "EchoCare"
+            ReferencedContainer = "container:EchoCare.xcodeproj">
+         </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
