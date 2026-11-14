@@ -4,7 +4,7 @@ ending step and the status engine (03 §6, §8). Nothing here commits (ADR-005).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,4 +62,17 @@ def add_report(
             certainty=certainty,
             reason=reason,
         )
+    )
+
+
+async def erase_senior_codes(
+    session: AsyncSession, senior_id: uuid.UUID, call_ids: list[uuid.UUID]
+) -> None:
+    """The senior's status reports and current code, for an erasure (design
+    2026-11-14). Doesn't commit (ADR-005)."""
+    await session.execute(
+        delete(StatusReport).where(StatusReport.call_id.in_(call_ids))
+    )
+    await session.execute(
+        delete(SeniorStatus).where(SeniorStatus.senior_id == senior_id)
     )

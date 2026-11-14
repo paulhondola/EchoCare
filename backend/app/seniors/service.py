@@ -959,3 +959,16 @@ async def summary_for(
         log.info("refused not_found: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(404, "not_found")
     return summary_view(await latest_summary(session, senior_id))
+
+
+async def erase_senior_children(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """The senior's consents, summaries and watch data, for an erasure (design
+    2026-11-14). Doesn't commit (ADR-005)."""
+    for model in (Consent, SummaryVersion, WatchReading, WatchState):
+        await session.execute(delete(model).where(model.senior_id == senior_id))
+
+
+async def erase_senior_row(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """The senior's row, last; its grants go by ON DELETE CASCADE (design 2026-11-14).
+    Doesn't commit (ADR-005)."""
+    await session.execute(delete(Senior).where(Senior.id == senior_id))

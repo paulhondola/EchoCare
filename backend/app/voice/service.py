@@ -3,7 +3,17 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, exists, func, literal, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    and_,
+    delete,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as OrmSession
@@ -442,3 +452,42 @@ async def end_completed(call_id: uuid.UUID) -> None:
     goodbye (03 §9)."""
     async with Session() as session:
         await move_call(session, call_id, None, CallState.completed)
+
+
+async def call_live(session: AsyncSession, senior_id: uuid.UUID) -> bool:
+    """Whether a call for the senior is ringing, in progress, or handed to Twilio and
+    still queued: an erasure waits for it (design 2026-11-14). Test calls count,
+    unlike `call_in_progress`, since Twilio is running them too."""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Call.senior_id == senior_id,
+                    or_(
+                        Call.state.in_([CallState.ringing, CallState.in_progress]),
+                        and_(
+                            Call.state == CallState.queued, Call.dialed_at.is_not(None)
+                        ),
+                    ),
+                )
+            )
+        )
+    )
+
+
+async def senior_call_ids(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """Every call of the senior's, test calls included (design 2026-11-14)."""
+    return list(
+        await session.scalars(select(Call.id).where(Call.senior_id == senior_id))
+    )
+
+
+async def erase_calls(session: AsyncSession, call_ids: list[uuid.UUID]) -> None:
+    """The calls with their answers and turns, for an erasure (design 2026-11-14). One
+    DELETE for the calls, so `previous_call_id` links among them resolve inside it.
+    Doesn't commit (ADR-005)."""
+    await session.execute(delete(Answer).where(Answer.call_id.in_(call_ids)))
+    await session.execute(delete(CallTurn).where(CallTurn.call_id.in_(call_ids)))
+    await session.execute(delete(Call).where(Call.id.in_(call_ids)))

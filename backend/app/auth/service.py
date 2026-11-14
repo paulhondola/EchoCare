@@ -465,3 +465,28 @@ async def revoke_caregiver_grant(
             Grant.role == Role.caregiver,
         )
     )
+
+
+async def grant_holder_ids(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """The users holding a grant on this senior: the senior's own, caregivers."""
+    return list(
+        await session.scalars(
+            select(Grant.user_id).where(Grant.senior_id == senior_id).distinct()
+        )
+    )
+
+
+async def drop_users_without_grants(
+    session: AsyncSession, user_ids: list[uuid.UUID]
+) -> None:
+    """Deletes those of `user_ids` left with no grant, phone numbers included, after
+    an erasure (design 2026-11-14); their push tokens cascade. Doesn't commit
+    (ADR-005)."""
+    await session.execute(
+        delete(User).where(
+            User.id.in_(user_ids),
+            ~select(Grant.id).where(Grant.user_id == User.id).exists(),
+        )
+    )
