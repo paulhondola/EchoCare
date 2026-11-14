@@ -159,7 +159,11 @@ private fun Scan(context: Context, onPick: (FoundNode) -> Unit) {
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
-        if (scanner == null) scanning = false else scanner.startScan(listOf(filter), settings, callback)
+        if (scanner == null) {
+            scanning = false
+        } else {
+            scanner.startScan(listOf(filter), settings, callback)
+        }
         onDispose { scanner?.stopScan(callback) }
     }
     Text(stringResource(R.string.node_scan_hint))

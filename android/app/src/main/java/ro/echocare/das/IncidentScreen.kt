@@ -1,7 +1,5 @@
 package ro.echocare.das
 
-import java.util.Locale
-
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.compose.foundation.background
@@ -35,6 +33,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import ro.echocare.IncidentCall
 import ro.echocare.IncidentPage
 import ro.echocare.R

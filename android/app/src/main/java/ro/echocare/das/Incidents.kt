@@ -1,7 +1,5 @@
 package ro.echocare.das
 
-import ro.echocare.TriggerEvent
-
 import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
@@ -211,7 +209,6 @@ val OUTCOMES = listOf(
     "not_reached" to R.string.outcome_not_reached,
     "false_alarm" to R.string.outcome_false_alarm
 )
-
 
 /** Where the home node found someone lying (P24), from the robot's side of the room. */
 enum class Side { Left, Front, Right }

@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.location.Location
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ro.echocare.EchoCareApi
+import ro.echocare.EventForm
 import ro.echocare.R
 import ro.echocare.home.lastKnownLocation
 
@@ -94,12 +96,18 @@ class NodeService :
         scope.launch {
             when (characteristic) {
                 NodeUuids.ROOM_READING -> parseReading(text)?.let { relayReading(it) }
-                NodeUuids.SOS_PRESS -> parseSos(text)?.let { relay(it.id) { now, here ->
-                    it.toEventForm(now, here?.latitude, here?.longitude, here?.accuracy?.toDouble())
-                } }
-                NodeUuids.FALL -> parseFall(text)?.let { relay(it.id) { now, here ->
-                    it.toEventForm(now, here?.latitude, here?.longitude, here?.accuracy?.toDouble())
-                } }
+                NodeUuids.SOS_PRESS -> {
+                    val sos = parseSos(text) ?: return@launch
+                    relay(sos.id) { now, here ->
+                        sos.toEventForm(now, here?.latitude, here?.longitude, accuracy(here))
+                    }
+                }
+                NodeUuids.FALL -> {
+                    val fall = parseFall(text) ?: return@launch
+                    relay(fall.id) { now, here ->
+                        fall.toEventForm(now, here?.latitude, here?.longitude, accuracy(here))
+                    }
+                }
                 NodeUuids.MOTION -> Unit // FastAPI learns motion from the next reading (04 §3)
             }
         }
@@ -114,10 +122,12 @@ class NodeService :
         link?.write(NodeUuids.ROOM_STATE, answer.roomState)
     }
 
+    private fun accuracy(here: Location?): Double? = here?.accuracy?.toDouble()
+
     /** An event goes to FastAPI; once recorded, the node hears its id and stops resending. */
     private suspend fun relay(
         id: String,
-        form: (Instant, android.location.Location?) -> ro.echocare.EventForm
+        form: (Instant, Location?) -> EventForm
     ) {
         val here = lastKnownLocation(this)
         val sent = runCatching { api.sendEvent(form(Instant.now(), here)) }

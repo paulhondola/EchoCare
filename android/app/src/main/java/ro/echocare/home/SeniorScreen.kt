@@ -1,8 +1,5 @@
 package ro.echocare.home
 
-import java.util.Locale
-import ro.echocare.homenode.ROOM_STATE_LABELS
-
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.ZoneId
+import java.util.Locale
 import ro.echocare.CallAnswer
 import ro.echocare.CallRow
 import ro.echocare.IncidentCall
@@ -44,6 +42,7 @@ import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.das.Transcript
 import ro.echocare.enroll.ConsentSection
+import ro.echocare.homenode.ROOM_STATE_LABELS
 import ro.echocare.push.BackgroundPrompt
 import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton

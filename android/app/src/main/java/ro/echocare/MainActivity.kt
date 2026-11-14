@@ -1,7 +1,5 @@
 package ro.echocare
 
-import ro.echocare.homenode.NodeService
-
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -57,6 +55,7 @@ import ro.echocare.auth.ROLE_LABELS
 import ro.echocare.auth.Screen
 import ro.echocare.auth.toE164
 import ro.echocare.home.HomeNav
+import ro.echocare.homenode.NodeService
 import ro.echocare.push.PUSH_KEYS
 import ro.echocare.push.Push
 import ro.echocare.push.tappedFrom

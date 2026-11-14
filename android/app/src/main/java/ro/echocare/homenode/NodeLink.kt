@@ -64,7 +64,8 @@ class NodeLink(
     /** Writes a small text to one of the node's characteristics; false when it did not go. */
     suspend fun write(characteristic: UUID, text: String): Boolean {
         val g = gatt ?: return false
-        val char = g.getService(NodeUuids.SERVICE)?.getCharacteristic(characteristic) ?: return false
+        val service = g.getService(NodeUuids.SERVICE) ?: return false
+        val char = service.getCharacteristic(characteristic) ?: return false
         return run {
             g.writeCharacteristic(
                 char,
