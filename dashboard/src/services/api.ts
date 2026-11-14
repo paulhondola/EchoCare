@@ -219,6 +219,24 @@ export async function fetchTranscript(id: string, signal?: AbortSignal): Promise
   return (await r.json()) as IncidentCall;
 }
 
+// GET /calls/live (04 §1, design 2026-11-14 §4), DAS only: the calls ringing or talking now
+export interface LiveCall {
+  id: string;
+  senior_id: string;
+  senior_name: string;
+  trigger: string;
+  state: string;
+  starting_severity: "green" | "yellow" | "red";
+  started_at: string | null;
+  due_at: string;
+}
+
+export async function fetchLiveCalls(signal?: AbortSignal): Promise<LiveCall[]> {
+  const r = await apiFetch("/api/calls/live", { signal });
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as LiveCall[];
+}
+
 // 204 when the senior has no summary yet
 export async function fetchSummary(
   seniorId: string,

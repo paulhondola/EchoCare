@@ -4,15 +4,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.service import Caller, current_caller
+from app.auth.models import Role
+from app.auth.service import Caller, current_caller, require_roles
 from app.calls.mock import answer_mock_call, due_mock_call
 from app.calls.schemas import (
     CallSummary,
+    LiveCall,
     MockAnswerForm,
     MockCallView,
     TranscriptDetail,
 )
-from app.calls.service import call_history, transcript
+from app.calls.service import call_history, live_calls, transcript
 from app.core.db import get_session
 
 router = APIRouter()
@@ -26,6 +28,15 @@ async def list_calls(
 ) -> list[CallSummary]:
     """The senior's calls, newest first, for anyone who reaches her (04 §1)."""
     return await call_history(session, caller, senior_id)
+
+
+@router.get("/calls/live")
+async def get_live_calls(
+    _: Annotated[Caller, Depends(require_roles(Role.das))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[LiveCall]:
+    """The calls ringing or talking now, for the dashboard (design 2026-11-14 §4)."""
+    return await live_calls(session)
 
 
 @router.get("/calls/{call_id}/transcript")
