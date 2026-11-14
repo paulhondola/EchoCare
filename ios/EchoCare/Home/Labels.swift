@@ -24,7 +24,7 @@ let CODE_TONES: [String: Tone] = ["green": .verde, "yellow": .galben, "red": .ro
 /// What started each call (05 §1), as the dashboard names it. Unknown: shown as it is.
 let TRIGGER_LABELS = [
     "campaign": "trigger_campaign", "watch": "trigger_watch", "manual": "trigger_manual",
-    "welcome": "trigger_welcome",
+    "welcome": "trigger_welcome", "home_node": "trigger_home_node",
 ]
 
 /// A call's state (05 §1), for a call with no final code yet. Unknown: shown as it is.

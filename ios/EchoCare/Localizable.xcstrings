@@ -3642,6 +3642,17 @@
         }
       }
     },
+    "trigger_home_node" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senzor din casă"
+          }
+        }
+      }
+    },
     "trigger_manual" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -103,6 +103,8 @@ struct SeniorPage: Codable, Equatable, Sendable {
     // signed in; both nil from an older API (UC-13, design 2026-11-14).
     var equipment: [String]?
     var appSignedIn: Bool?
+    // Whether the home node has sent a room reading (04 §1, P20); this app shows only that much.
+    var hasRoom = false
     // The timeline of the registration and of her consent (04 §1, G7); all nil from an older API.
     var createdAt: String?
     var submittedAt: String?
@@ -121,6 +123,9 @@ struct SeniorPage: Codable, Equatable, Sendable {
         case watchState, lastPulse, createdAt, submittedAt, acceptedAt, consent, consentGivenAt
         case signedAt, equipment, appSignedIn
     }
+
+    // Read on its own: only whether it is there, so it stays out of the encoded keys
+    private enum RoomKey: String, CodingKey { case room }
 
     init(
         id: String, fullName: String, formOfAddress: String, phone: String, landline: Bool,
@@ -199,6 +204,8 @@ struct SeniorPage: Codable, Equatable, Sendable {
         signedAt = try c.decodeIfPresent(String.self, forKey: .signedAt)
         equipment = try c.decodeIfPresent([String].self, forKey: .equipment)
         appSignedIn = try c.decodeIfPresent(Bool.self, forKey: .appSignedIn)
+        let r = try decoder.container(keyedBy: RoomKey.self)
+        hasRoom = try r.contains(.room) && !r.decodeNil(forKey: .room)
     }
 }
 

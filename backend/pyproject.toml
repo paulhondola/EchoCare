@@ -106,6 +106,7 @@ containers = ["app"]
 layers = [
     "scheduler | notify",
     "calls | agent | system | memory | erasure | export",
+    "homenode",
     "campaigns | medical",
     "incidents",
     "voice",

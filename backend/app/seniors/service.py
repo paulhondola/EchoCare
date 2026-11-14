@@ -126,6 +126,8 @@ async def senior_summaries(
         "since",
         "watch_state",
         "medical_record_state",
+        "home_node_state",
+        "room_temperature",
         "latitude",
         "longitude",
     }
@@ -274,6 +276,7 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "watch_state",
         "last_pulse",
         "app_signed_in",
+        "room",
         "consent",
         "consent_given_at",
         "signed_at",

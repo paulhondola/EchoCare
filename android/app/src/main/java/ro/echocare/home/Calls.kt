@@ -5,6 +5,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import ro.echocare.CallRow
 import ro.echocare.R
+import ro.echocare.RoomInfo
 import ro.echocare.SeniorPage
 import ro.echocare.ui.Tone
 
@@ -64,9 +65,19 @@ fun deviceWarnings(senior: SeniorPage, forSenior: Boolean): List<Int> {
     if (kit == null || forSenior || senior.state !in setOf("accepted", "active")) return emptyList()
     return listOfNotNull(
         R.string.device_watch_never.takeIf { "watch" in kit && senior.watchState == null },
-        R.string.device_node_never.takeIf { "home_node" in kit },
+        R.string.device_node_never.takeIf { "home_node" in kit && senior.room == null },
         R.string.device_app_never.takeIf { "smartphone" in kit && senior.appSignedIn == false }
     )
+}
+
+/**
+ * The room chip on the senior's page (P20, P26): its tone, and whether the sensor is offline.
+ * Past a limit is yellow, like every sensor trigger (03 §2); about to be, or in range, is muted.
+ */
+fun roomTone(room: RoomInfo): Tone = when {
+    room.state == "offline" -> Tone.Galben
+    room.roomState == "cold" || room.roomState == "hot" -> Tone.Galben
+    else -> Tone.Muted
 }
 
 /** The "call in progress" badge (UC-12); an older API that does not say shows none. */

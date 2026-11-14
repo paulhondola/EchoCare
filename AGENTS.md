@@ -12,6 +12,7 @@ EchoCare checks on seniors living alone with automated phone calls in Romanian, 
 | `dashboard/` | DAS web dashboard | Svelte 5, SvelteKit 3, Vite, TypeScript, npm | [dashboard/AGENTS.md](dashboard/AGENTS.md) |
 | `android/` | Phone app `:app`, watch app `:wear`, plain-Kotlin `:shared` | Kotlin, Compose, Gradle | [android/AGENTS.md](android/AGENTS.md) |
 | `ios/` | SwiftUI iPhone and iPad app, watchOS app, `Shared` package; demo only ([ADR-007](docs/adr/ADR-007-ios-demo-clients.md)) | Swift 6, Xcode 27.2, SPM | [ios/AGENTS.md](ios/AGENTS.md) |
+| `ecou/` | Ecou, the home node as a robot on an Arduino UNO Q, for the hackathon ([08-ecou.md](docs/specs/echocare/08-ecou.md), proposed) | Arduino App Lab (Zephyr sketch, Python), no CI | [ecou/README.md](ecou/README.md) |
 | `.railway/` | Railway settings as code, staging and production | TypeScript, Railway CLI | [.railway/AGENTS.md](.railway/AGENTS.md) |
 | `docs/specs/echocare/` | The specification (MVP): architecture, use cases, status model, interfaces, data model, operations | Markdown | |
 | `docs/adr/` | Architecture decisions | Markdown | |

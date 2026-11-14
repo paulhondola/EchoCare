@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import Select, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -12,7 +13,13 @@ from app.auth.service import refuse
 from app.codes.models import StatusReport
 from app.core.changes import Change, ChangeKind, note
 from app.core.db import engine
-from app.incidents.models import UNRESOLVED, Event, Incident, IncidentStatus
+from app.incidents.models import (
+    UNRESOLVED,
+    Event,
+    EventType,
+    Incident,
+    IncidentStatus,
+)
 from app.incidents.schemas import (
     CallDetail,
     EventForm,
@@ -33,6 +40,9 @@ from app.voice.service import queue_calls, recent_call
 
 log = logging.getLogger("echocare.incidents")
 
+# The call an event queues, by the event's source (04 §3); the phone's is `manual`.
+TRIGGERS = {"watch": CallTrigger.watch, "home_node": CallTrigger.home_node}
+
 # An event measured longer ago than this starts no call (04 §3, 06 §3).
 STALE = timedelta(minutes=30)
 
@@ -40,26 +50,57 @@ STALE = timedelta(minutes=30)
 async def record_event(
     session: AsyncSession, senior_id: uuid.UUID, form: EventForm, now: datetime
 ) -> EventView:
-    """Stores the senior's „Sunați-mă” and applies the intake rules (UC-10, 04 §3): a
-    resent id is ignored; a stale event, or one for a senior who is not `active`, is
-    recorded and starts no call; otherwise the event joins the call queued, live or just
-    ended, or queues a yellow one.
+    """Stores an event the senior's phone sent: „Sunați-mă”, or one relayed from the
+    watch or the home node (UC-09, UC-10, UC-16, 04 §3), under the intake rules."""
+    view = await intake_event(
+        session,
+        senior_id,
+        event_id=form.id,
+        event_type=form.type,
+        measured_at=form.measured_at,
+        source=form.source,
+        snapshot=form.snapshot.model_dump(exclude_none=True) if form.snapshot else None,
+        now=now,
+        latitude=form.latitude,
+        longitude=form.longitude,
+        location_accuracy_m=form.location_accuracy_m,
+    )
+    await session.commit()
+    return view
+
+
+async def intake_event(
+    session: AsyncSession,
+    senior_id: uuid.UUID,
+    *,
+    event_id: uuid.UUID,
+    event_type: EventType,
+    measured_at: datetime,
+    source: str | None,
+    snapshot: dict[str, Any] | None,
+    now: datetime,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    location_accuracy_m: float | None = None,
+) -> EventView:
+    """The intake rules (04 §3): a resent id is ignored; a stale event, or one for a
+    senior who is not `active`, is recorded and starts no call; otherwise the event joins
+    the call queued, live or just ended, or queues a yellow one. Also for the events
+    FastAPI derives itself, such as a room out of range (P21). Doesn't commit (ADR-005).
     """
     stored = await session.scalar(
         insert(Event)
         .values(
-            id=form.id,
+            id=event_id,
             senior_id=senior_id,
-            type=form.type,
-            measured_at=form.measured_at,
-            source=form.source,
-            snapshot=(
-                form.snapshot.model_dump(exclude_none=True) if form.snapshot else None
-            ),
-            latitude=form.latitude,
-            longitude=form.longitude,
-            location_accuracy_m=form.location_accuracy_m,
-            located_at=now if form.latitude is not None else None,
+            type=event_type,
+            measured_at=measured_at,
+            source=source,
+            snapshot=snapshot,
+            latitude=latitude,
+            longitude=longitude,
+            location_accuracy_m=location_accuracy_m,
+            located_at=now if latitude is not None else None,
         )
         .on_conflict_do_nothing()
         .returning(Event.id)
@@ -67,7 +108,7 @@ async def record_event(
     if stored is None:
         call_id = await session.scalar(
             select(Event.call_id).where(
-                Event.id == form.id, Event.senior_id == senior_id
+                Event.id == event_id, Event.senior_id == senior_id
             )
         )
         return EventView(queued=False, call_id=call_id)
@@ -77,26 +118,23 @@ async def record_event(
     if (
         senior is not None
         and senior.enrollment_state is EnrollmentState.active
-        and now - form.measured_at <= STALE
+        and now - measured_at <= STALE
     ):
         call = await recent_call(session, senior_id, now)
         if call is None:
             await queue_calls(
                 session,
                 Senior.id == senior_id,
-                # The watch's own trigger, so the call says why it rings (04 §4.2)
-                trigger=(
-                    CallTrigger.watch if form.source == "watch" else CallTrigger.manual
-                ),
+                # The device's own trigger, so the call says why it rings (04 §4.2)
+                trigger=TRIGGERS.get(source, CallTrigger.manual),
                 due_at=now,
                 starting_severity=Severity.yellow,
             )
             call, queued = await recent_call(session, senior_id, now), True
         call_id = call.id
         await session.execute(
-            update(Event).where(Event.id == form.id).values(call_id=call_id)
+            update(Event).where(Event.id == event_id).values(call_id=call_id)
         )
-    await session.commit()
     return EventView(queued=queued, call_id=call_id)
 
 
@@ -285,10 +323,21 @@ async def load_incident(
         handover_answered=any(c.handover_answered for c in calls),
         senior=SeniorDetail.model_validate(senior, from_attributes=True),
         caregivers=[CaregiverSummary.model_validate(dict(c)) for c in caregivers],
-        event=event and TriggerEventView.model_validate(event, from_attributes=True),
+        event=event and trigger_event_view(event),
         calls=[call_detail(c, reports[c.id], turns[c.id]) for c in calls],
         summary=summary_view(await latest_summary(session, senior.id)),
     )
+
+
+def trigger_event_view(event: Event) -> TriggerEventView:
+    """The opening event, with the room map when the home node found a fall (P24)."""
+    view = TriggerEventView.model_validate(event, from_attributes=True)
+    snapshot = event.snapshot or {}
+    if event.source == "home_node" and event.type is EventType.fall:
+        view.object_angle_deg = snapshot.get("object_angle_deg")
+        view.object_distance_m = snapshot.get("object_distance_m")
+        view.scan = snapshot.get("scan")
+    return view
 
 
 def call_detail(

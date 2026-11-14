@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.echocare.Medic
 import ro.echocare.R
+import ro.echocare.RoomInfo
 import ro.echocare.SeniorPage
 
 // UC-13, design 2026-11-14: which devices a senior's page shows and what it warns about.
@@ -45,9 +46,11 @@ class DevicesTest {
     }
 
     @Test
-    fun aDeclaredHomeNodeAlwaysWarns() {
+    fun aDeclaredHomeNodeWarnsUntilItsFirstRoomReading() {
         val node = page.copy(equipment = listOf("smartphone", "home_node"), appSignedIn = true)
         assertEquals(listOf(R.string.device_node_never), deviceWarnings(node, forSenior = false))
+        val reporting = node.copy(room = RoomInfo(temperature = 21.5))
+        assertEquals(emptyList<Int>(), deviceWarnings(reporting, forSenior = false))
     }
 
     @Test

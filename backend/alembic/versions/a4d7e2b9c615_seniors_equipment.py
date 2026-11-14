@@ -4,7 +4,7 @@ The equipment the medic declared at registration: smartphone, watch, home node (
 design 2026-11-14). Null for every senior registered before, which reads as not stated.
 
 Revision ID: a4d7e2b9c615
-Revises: 620c34d28419
+Revises: a4f2c8e1b9d3
 Create Date: 2026-11-14 12:00:00.000000
 
 """
@@ -18,7 +18,8 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "a4d7e2b9c615"
-down_revision: str | Sequence[str] | None = "620c34d28419"
+# After main's home_node_states, which landed first: one chain, one head
+down_revision: str | Sequence[str] | None = "a4f2c8e1b9d3"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

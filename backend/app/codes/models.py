@@ -20,6 +20,8 @@ class ReportSource(StrEnum):
     request_human = "request_human"
     trigger = "trigger"
     unanswered = "unanswered"
+    # The home node's room made a "yes" to the shelter question worrying (P22)
+    home_temperature = "home_temperature"
 
 
 class SeniorStatus(Base):

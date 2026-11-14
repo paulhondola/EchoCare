@@ -27,6 +27,7 @@ class ChangeKind(StrEnum):
     call_moved = "call_moved"  # a call rang, was answered or ended (03 §9)
     caregivers = "caregivers"  # a caregiver grant made or removed
     watch = "watch"  # the watch's state moved (UC-13)
+    home_node = "home_node"  # the home node went offline or came back (UC-13)
     medical_record = "medical_record"  # a record's analysis is ready for review
 
 

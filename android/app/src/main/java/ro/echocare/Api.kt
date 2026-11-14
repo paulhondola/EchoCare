@@ -85,6 +85,9 @@ data class SeniorPage(
     // signed in; both null from an older API (UC-13, design 2026-11-14).
     val equipment: List<String>? = null,
     @SerialName("app_signed_in") val appSignedIn: Boolean? = null,
+    // The home node's latest reading, for every role; null without a node or from an older API
+    // (04 §1, P20)
+    val room: RoomInfo? = null,
     // The timeline of the registration and of her consent (04 §1, G7); all null from an older API.
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("submitted_at") val submittedAt: String? = null,
@@ -92,6 +95,18 @@ data class SeniorPage(
     val consent: ConsentState? = null,
     @SerialName("consent_given_at") val consentGivenAt: String? = null,
     @SerialName("signed_at") val signedAt: String? = null
+)
+
+// The home node's latest reading (04 §1, P20). [state] is ok or offline, [roomState] as
+// POST /me/room-readings answers it; both strings, since the server may add values.
+@Serializable
+data class RoomInfo(
+    val state: String = "ok",
+    val temperature: Double,
+    val humidity: Double? = null,
+    @SerialName("reading_at") val readingAt: String? = null,
+    @SerialName("last_motion_at") val lastMotionAt: String? = null,
+    @SerialName("room_state") val roomState: String = "ok"
 )
 
 // Her latest consent decision (04 §1). Decision and method stay strings: a later server may add
@@ -252,7 +267,31 @@ data class EventSnapshotForm(
     @SerialName("resting_baseline") val restingBaseline: Int? = null,
     val moving: Boolean? = null,
     @SerialName("minutes_without_steps") val minutesWithoutSteps: Int? = null,
-    val battery: Int? = null
+    val battery: Int? = null,
+    // A fall found by the home node's floor search (P24, 08-ecou.md §3.2)
+    @SerialName("object_angle_deg") val objectAngleDeg: Double? = null,
+    @SerialName("object_distance_m") val objectDistanceM: Double? = null,
+    @SerialName("seconds_still") val secondsStill: Double? = null,
+    val scan: List<Double>? = null
+)
+
+// POST /me/room-readings' body (04 §3, P21, P26): the home node's reading, timed by the phone.
+@Serializable
+data class RoomReadingForm(
+    @SerialName("measured_at") val measuredAt: String,
+    val temperature: Double,
+    val humidity: Double? = null,
+    @SerialName("last_motion_at") val lastMotionAt: String? = null,
+    @SerialName("forecast_60m") val forecast60m: Double? = null
+)
+
+// POST /me/room-readings' answer: the room state to write back to the node (P26), and whether
+// the reading queued a call. [roomState] stays a string: the server may add states later.
+@Serializable
+data class RoomReadingResult(
+    @SerialName("room_state") val roomState: String = "ok",
+    val queued: Boolean = false,
+    @SerialName("call_id") val callId: String? = null
 )
 
 // POST /me/events' answer: [queued] when this event queued a call, [callId] the call it started or
@@ -290,7 +329,9 @@ data class IncidentPage(
     val senior: IncidentSenior,
     val caregivers: List<IncidentCaregiver> = emptyList(),
     val event: TriggerEvent? = null,
-    val calls: List<IncidentCall> = emptyList()
+    val calls: List<IncidentCall> = emptyList(),
+    // The home node's latest reading, if the senior has one (04 §1, P20)
+    val room: RoomInfo? = null
 )
 
 @Serializable
@@ -325,7 +366,12 @@ data class TriggerEvent(
     @SerialName("measured_at") val measuredAt: String,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    @SerialName("location_accuracy_m") val accuracy: Double? = null
+    @SerialName("location_accuracy_m") val accuracy: Double? = null,
+    // A fall found by the home node: where it lay, from the robot (P24); null otherwise
+    val source: String? = null,
+    @SerialName("object_angle_deg") val objectAngleDeg: Double? = null,
+    @SerialName("object_distance_m") val objectDistanceM: Double? = null,
+    val scan: List<Double>? = null
 )
 
 // [handoverAnswered] is null when no hand-over was tried on this call.
@@ -456,6 +502,10 @@ interface EchoCareApi {
     suspend fun checkIn(@Body body: CheckInForm): Response<Unit>
 
     /** Senior only. 200 also for a duplicate; [EventResult.callId] is null when no call was queued (04 §3). */
+    /** The home node's room reading, relayed (04 §3, P21); answers with the room state (P26). */
+    @POST("me/room-readings")
+    suspend fun sendRoomReading(@Body body: RoomReadingForm): RoomReadingResult
+
     @POST("me/events")
     suspend fun sendEvent(@Body body: EventForm): EventResult
 

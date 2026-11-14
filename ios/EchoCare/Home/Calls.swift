@@ -72,7 +72,7 @@ func deviceWarnings(_ senior: SeniorPage, forSenior: Bool) -> [String] {
     else { return [] }
     var warnings: [String] = []
     if kit.contains("watch") && senior.watchState == nil { warnings.append("device_watch_never") }
-    if kit.contains("home_node") { warnings.append("device_node_never") }
+    if kit.contains("home_node") && !senior.hasRoom { warnings.append("device_node_never") }
     if kit.contains("smartphone") && senior.appSignedIn == false {
         warnings.append("device_app_never")
     }

@@ -138,9 +138,25 @@ struct CallsTests {
         #expect(deviceWarnings(devices(watch: "ok", signedIn: true), forSenior: false) == [])
     }
 
-    @Test func `a declared home node always warns`() {
-        let node = devices(["smartphone", "home_node"], signedIn: true)
+    @Test func `a declared home node warns until its first room reading`() {
+        var node = devices(["smartphone", "home_node"], signedIn: true)
         #expect(deviceWarnings(node, forSenior: false) == ["device_node_never"])
+        node.hasRoom = true
+        #expect(deviceWarnings(node, forSenior: false) == [])
+    }
+
+    @Test func `a room reading in the page is noticed`() throws {
+        func page(_ room: String) throws -> SeniorPage {
+            let json = """
+                {"id":"s1","full_name":"M","form_of_address":"d","phone_e164":"+40700000005",
+                 "phone_is_landline":false,"enrollment_state":"active",
+                 "medic":{"display_name":"D"}\(room)}
+                """
+            return try ApiClient.makeDecoder().decode(SeniorPage.self, from: Data(json.utf8))
+        }
+        #expect(try page(#","room":{"state":"ok","temperature":21.5,"room_state":"ok"}"#).hasRoom)
+        #expect(try !page(#","room":null"#).hasRoom)
+        #expect(try !page("").hasRoom)
     }
 
     @Test

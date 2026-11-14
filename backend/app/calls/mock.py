@@ -42,6 +42,7 @@ REQUIRES = {
     CallTrigger.welcome: EnrollmentState.accepted,
     CallTrigger.watch: EnrollmentState.active,
     CallTrigger.manual: EnrollmentState.active,
+    CallTrigger.home_node: EnrollmentState.active,
 }
 
 SIMULATED = "Apel simulat din aplicație, fără linie telefonică."

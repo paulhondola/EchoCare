@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.ZoneId
+import java.util.Locale
 import ro.echocare.CallAnswer
 import ro.echocare.CallRow
 import ro.echocare.IncidentCall
@@ -41,6 +42,7 @@ import ro.echocare.R
 import ro.echocare.SeniorPage
 import ro.echocare.das.Transcript
 import ro.echocare.enroll.ConsentSection
+import ro.echocare.homenode.ROOM_STATE_LABELS
 import ro.echocare.push.BackgroundPrompt
 import ro.echocare.ui.Banner
 import ro.echocare.ui.CallButton
@@ -393,6 +395,19 @@ fun SeniorDetails(
                         stringResource(label)
                     }
                     Chip(text, tone)
+                }
+                senior.room?.let { room ->
+                    val text = if (room.state == "offline") {
+                        stringResource(R.string.room_chip_offline)
+                    } else {
+                        stringResource(
+                            R.string.room_chip,
+                            String.format(Locale.forLanguageTag("ro"), "%.1f", room.temperature),
+                            ROOM_STATE_LABELS[room.roomState]?.let { stringResource(it) }
+                                ?: room.roomState
+                        )
+                    }
+                    Chip(text, roomTone(room))
                 }
             }
         }

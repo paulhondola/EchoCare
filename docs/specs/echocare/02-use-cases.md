@@ -45,6 +45,7 @@ flowchart LR
         UC09("UC-09 Watch anomaly starts a call")
         UC10("UC-10 Senior asks to be checked on")
         UC16("UC-16 Home node starts a call")
+        UC17("UC-17 Ecou finds someone on the floor")
     end
 
     subgraph FOLLOW["Following and responding"]
@@ -567,6 +568,10 @@ Variations:
 - **Phone out of range.** Readings are missed and the node is marked `offline` (UC-13). An SOS press waits on the node until the phone is back.
 
 The node never places a call and never reaches the internet. It tells the phone app, the phone app tells FastAPI, and FastAPI decides.
+
+### UC-17 Ecou finds someone on the floor
+
+**(P24, proposed)** With Ecou, the home node built as a robot ([08-ecou.md](08-ecou.md)): when it has lost track of everyone for the search delay, it sweeps the floor; an object lying still for the lying hold time makes it ask „BINE?” with a countdown. A wave cancels; a palm or no answer sends a `fall` with the sweep, which queues a yellow call with trigger `home_node`, and DAS sees where on a map. Steps, variations and the sequence diagram are in [08-ecou.md](08-ecou.md) §4.
 
 ## 5. Following and responding
 

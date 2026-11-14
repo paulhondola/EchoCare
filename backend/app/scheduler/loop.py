@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 
 from app.campaigns.service import cancel_lapsed
 from app.core.db import Session, engine
+from app.homenode.service import report_inactivity, silence_home_nodes
 from app.medical.service import start_analyses
 from app.memory.service import start_summaries
 from app.scheduler.dialer import dial_due
@@ -37,6 +38,16 @@ async def silence(now: datetime) -> int:
         return await silence_watches(session, now)
 
 
+async def silence_nodes(now: datetime) -> int:
+    async with Session() as session:
+        return await silence_home_nodes(session, now)
+
+
+async def node_inactivity(now: datetime) -> int:
+    async with Session() as session:
+        return await report_inactivity(session, now)
+
+
 async def prune(now: datetime) -> int:
     async with Session() as session:
         return await prune_watch_readings(session, now)
@@ -59,6 +70,8 @@ async def tick(now: datetime | None = None) -> bool:
                 ("dialed", dial_due),
                 ("swept", sweep),
                 ("silenced", silence),
+                ("nodes silenced", silence_nodes),
+                ("nodes inactive", node_inactivity),
                 ("pruned", prune),
                 ("summarized", start_summaries),
                 ("analyzed", start_analyses),

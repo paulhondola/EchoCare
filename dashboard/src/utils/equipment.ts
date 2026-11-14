@@ -6,6 +6,8 @@ type Declared = { equipment?: string[] | null };
 type Devices = Declared & {
   watch_state?: string | null;
   app_signed_in?: boolean | null;
+  // The home node's latest reading; null until its first one (P20)
+  room?: unknown;
   enrollment_state: string;
 };
 
@@ -23,7 +25,8 @@ export function deviceWarnings(s: Devices): string[] {
   if (kit == null || !WARNED_STATES.has(s.enrollment_state)) return [];
   const warnings: string[] = [];
   if (kit.includes("watch") && s.watch_state == null) warnings.push(WATCH_WARNING);
-  if (kit.includes("home_node")) warnings.push("Senzor din casă înregistrat, nu a trimis date");
+  if (kit.includes("home_node") && s.room == null)
+    warnings.push("Senzor din casă înregistrat, nu a trimis date");
   // `null` is an older API that does not say: no warning
   if (kit.includes("smartphone") && s.app_signed_in === false)
     warnings.push("Pacientul nu a deschis aplicația");

@@ -19,7 +19,7 @@ A senior with an old phone that can't install apps gets none of these. They only
 
 ## Non-goals
 
-- Building the home node (P20 stays proposed). It can be declared, and it warns until it exists.
+- Building the home node. It landed separately on main (P20–P27); a declared node warns until its first room reading.
 - Serial numbers, per-device history, or when a device was declared.
 - Gating anything else on equipment, such as calls, campaigns or "Sunați-mă". Every senior is still called.
 
@@ -80,7 +80,8 @@ Echipamente
 | no `"watch"` | any | no watch panel or chip |
 | `"watch"` | a `watch_state` row | today's watch panel |
 | `"watch"` | no `watch_state` row | device warning „Ceas înregistrat, nu a trimis date” |
-| `"home_node"` | (none exists yet) | device warning „Senzor din casă înregistrat, nu a trimis date” |
+| `"home_node"` | no `room` reading yet | device warning „Senzor din casă înregistrat, nu a trimis date” |
+| `"home_node"` | a `room` reading | nothing from this feature; the room chip as main shows it (P20) |
 | `"smartphone"` | `app_signed_in` false | device warning „Pacientul nu a deschis aplicația” |
 | `"smartphone"` | `app_signed_in` true | nothing |
 

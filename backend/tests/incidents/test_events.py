@@ -1,4 +1,5 @@
-"""POST /me/events: the senior's „Sunați-mă” request (UC-10, 04 §3)."""
+"""POST /me/events: the senior's „Sunați-mă” request and the devices' events (UC-09,
+UC-10, UC-16, 04 §3)."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -7,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
+from app.incidents.service import trigger_event_view
 from app.models import (
     Call,
     CallTrigger,
@@ -90,7 +92,11 @@ async def test_a_request_queues_a_yellow_manual_call(client, db, senior):
 
 @pytest.mark.parametrize(
     ("source", "trigger"),
-    [("watch", CallTrigger.watch), ("phone", CallTrigger.manual)],
+    [
+        ("watch", CallTrigger.watch),
+        ("phone", CallTrigger.manual),
+        ("home_node", CallTrigger.home_node),
+    ],
 )
 async def test_a_watch_event_queues_a_watch_call(client, db, senior, source, trigger):
     """The call says why it rings: the watch's own trigger for its events (04 §3)."""
@@ -198,3 +204,49 @@ def test_the_cooldown_is_30_seconds_in_demo_mode(monkeypatch):
             lambda demo=demo: SimpleNamespace(demo_mode=demo),
         )
         assert cooldown() == wait
+
+
+async def test_a_home_node_fall_keeps_its_scan(client, db, senior):
+    """A fall found by Ecou's floor search carries the sweep for the dashboard (P24)."""
+    scan = [2.5] * 20 + [2.1] * 4 + [2.5] * 13
+    r = await request(
+        client,
+        type="fall",
+        source="home_node",
+        snapshot={
+            "object_angle_deg": 105,
+            "object_distance_m": 2.1,
+            "seconds_still": 12,
+            "scan": scan,
+        },
+    )
+    assert r.json()["queued"] is True
+    [event] = await events(db)
+    assert event.snapshot["scan"] == scan
+    view = trigger_event_view(event)
+    assert (view.source, view.object_angle_deg, view.object_distance_m, view.scan) == (
+        "home_node",
+        105,
+        2.1,
+        scan,
+    )
+
+
+async def test_a_watch_fall_keeps_its_acceleration(client, db, senior):
+    """P19's fields are stored, and a watch event shows no room map."""
+    await request(
+        client,
+        type="fall",
+        source="watch",
+        snapshot={"peak_acceleration_g": 2.6, "seconds_of_stillness": 8},
+    )
+    [event] = await events(db)
+    assert event.snapshot == {"peak_acceleration_g": 2.6, "seconds_of_stillness": 8}
+    assert trigger_event_view(event).scan is None
+
+
+async def test_a_scan_out_of_range_is_refused(client, senior):
+    r = await request(
+        client, type="fall", source="home_node", snapshot={"scan": [50.0]}
+    )
+    assert r.status_code == 422

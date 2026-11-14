@@ -1,4 +1,5 @@
 import { expect, test } from "vite-plus/test";
+import type { SeniorView } from "../services/api";
 import { deviceWarnings, showsWatch } from "./equipment";
 
 const base = {
@@ -27,10 +28,12 @@ test("the warnings stop once the watch reports and the app is opened", () => {
   expect(deviceWarnings({ ...base, watch_state: "ok", app_signed_in: true })).toEqual([]);
 });
 
-test("a declared home node always warns, as none is built yet", () => {
-  expect(
-    deviceWarnings({ ...base, equipment: ["smartphone", "home_node"], app_signed_in: true }),
-  ).toEqual(["Senzor din casă înregistrat, nu a trimis date"]);
+test("a declared home node warns until its first room reading", () => {
+  const node = { ...base, equipment: ["smartphone", "home_node"], app_signed_in: true };
+  expect(deviceWarnings(node)).toEqual(["Senzor din casă înregistrat, nu a trimis date"]);
+  expect(deviceWarnings({ ...node, room: null })).toHaveLength(1);
+  const reading = { state: "ok", room_state: "ok" } as unknown as SeniorView["room"];
+  expect(deviceWarnings({ ...node, room: reading })).toEqual([]);
 });
 
 test("no warnings when not stated, before acceptance, or from an older API", () => {

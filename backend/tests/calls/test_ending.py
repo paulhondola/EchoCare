@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from app.calls.ending import (
     begin_handover,
     campaign_reason,
+    check_shelter,
     close_welcome,
     conclude,
     conclude_welcome,
@@ -28,8 +29,10 @@ from app.models import (
     Consent,
     ConsentMethod,
     EnrollmentState,
+    HomeNodeState,
     Incident,
     IncidentStatus,
+    NodeCondition,
     ReportSource,
     Senior,
     SeniorStatus,
@@ -763,3 +766,67 @@ async def test_key_9_after_a_red_answer_hands_over_red(db, live_call):
     ended = await db.get(Call, call.id)
     await db.refresh(ended)
     assert ended.final_severity is Severity.red
+
+
+async def add_room(db, senior_id, celsius: float, state=NodeCondition.ok) -> None:
+    db.add(
+        HomeNodeState(
+            senior_id=senior_id,
+            state=state,
+            last_reading_at=datetime.now(UTC),
+            temperature_c=celsius,
+        )
+    )
+    await db.commit()
+
+
+async def test_a_cold_room_overrules_a_yes_to_the_shelter_question(db, campaign_call):
+    """03 §7 case 14 (P22): fine, the right day, „da, am căldură” at 14°C is yellow."""
+    call = await campaign_call()
+    await add_room(db, call.senior_id, 14.2)
+    said = answers("ok", "joi", "yes")
+    assert await conclude(db, call, said) is Severity.yellow
+    await db.commit()
+    assert call.reason == "Spune că are căldură, senzorul arată 14°C"
+    assert said.answers[Question.shelter].words == "yes"  # the senior's words are kept
+    report = await db.scalar(
+        select(StatusReport).where(StatusReport.source == ReportSource.home_temperature)
+    )
+    assert (report.severity, report.reason) == (
+        Severity.yellow,
+        "Spune că are căldură, senzorul arată 14°C",
+    )
+
+
+async def test_unwell_with_a_cold_room_is_red(db, campaign_call):
+    """03 §7 case 15: unwell and „am căldură” at 14°C."""
+    call = await campaign_call()
+    await add_room(db, call.senior_id, 14.0)
+    assert await conclude(db, call, answers("unwell", "joi", "yes")) is Severity.red
+    assert call.reason == "Se simte rău și spune că are căldură, senzorul arată 14°C"
+
+
+@pytest.mark.parametrize(
+    ("celsius", "state"),
+    [(21.0, NodeCondition.ok), (14.0, NodeCondition.offline)],
+)
+async def test_a_room_in_range_or_an_offline_node_changes_nothing(
+    db, campaign_call, celsius, state
+):
+    call = await campaign_call()
+    await add_room(db, call.senior_id, celsius, state)
+    assert await conclude(db, call, answers("ok", "joi", "yes")) is Severity.green
+
+
+def test_a_sensor_never_makes_a_no_fine():
+    said = answers("ok", "joi", "no")
+    assert check_shelter(said, 22.0) is None
+    assert check_shelter(said, 14.0) is None
+    assert said.answers[Question.shelter].value == "no"
+
+
+def test_a_hot_room_names_a_cool_place():
+    said = answers("ok", "joi", "yes")
+    assert (
+        check_shelter(said, 33.4) == "spune că are un loc răcoros, senzorul arată 33°C"
+    )

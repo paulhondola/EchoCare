@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ro">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cablaj Ecou</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a bench sheet. Pin map first, then one schematic card per part, then the checks. */
+:root {
+  --bg: #f3f5f2; --surface: #ffffff; --ink: #18211d; --muted: #5d6b64; --line: #cdd6d1;
+  --board: #1f4f45; --board-ink: #e8f1ed; --pin: #c9d3ce; --copper: #a8642f;
+  --w5v: #d0342c; --w3v3: #d9831f; --wgnd: #3d4642; --wus: #2b6cd4; --wdht: #23905a;
+  --wservo: #b8860b; --wdisp: #8a45c9; --wdigit: #0f8b8d; --wlater: #8f9a95; --wavoid: #c7c2b5;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1513; --surface: #161e1b; --ink: #e4ece8; --muted: #95a49d; --line: #2a3632;
+  --board: #1d3b34; --board-ink: #dceae4; --pin: #3a4843; --copper: #d08a50;
+  --w5v: #ff6b5e; --w3v3: #f2a446; --wgnd: #b9c4bf; --wus: #6aa2ff; --wdht: #4fc98a;
+  --wservo: #e2b33c; --wdisp: #c08cf0; --wdigit: #39c3c5; --wlater: #6f7b76; --wavoid: #5a5a50;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1513; --surface: #161e1b; --ink: #e4ece8; --muted: #95a49d; --line: #2a3632;
+  --board: #1d3b34; --board-ink: #dceae4; --pin: #3a4843; --copper: #d08a50;
+  --w5v: #ff6b5e; --w3v3: #f2a446; --wgnd: #b9c4bf; --wus: #6aa2ff; --wdht: #4fc98a;
+  --wservo: #e2b33c; --wdisp: #c08cf0; --wdigit: #39c3c5; --wlater: #6f7b76; --wavoid: #5a5a50;
+  color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font-family: var(--display); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 36px; }
+header h1 { font-weight: 800; font-size: clamp(28px, 5vw, 42px); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+header p { color: var(--muted); max-width: 64ch; margin: 8px 0 0; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; margin-top: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 22px; height: 4px; border-radius: 2px; display: inline-block; }
+.scroll { overflow-x: auto; }
+.pinmap { width: 100%; min-width: 640px; height: auto; display: block; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 20px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.card h3 { margin: 0; font-size: 18px; font-weight: 800; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; }
+.card-svg { width: 100%; height: auto; display: block; }
+.wide { grid-column: 1 / -1; }
+.checks { display: grid; gap: 10px; counter-reset: c; padding: 0; margin: 0; list-style: none; }
+.checks li { counter-increment: c; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; }
+.checks li::before { content: counter(c); font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--bg); background: var(--ink); width: 24px; height: 24px; border-radius: 4px; display: grid; place-items: center; }
+.checks b { font-weight: 600; }
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+.warn { border-left: 3px solid var(--w5v); padding: 10px 14px; background: var(--surface); border-radius: 0 6px 6px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+td.mono { white-space: nowrap; }
+/* SVG */
+svg text { font-family: var(--mono); fill: var(--ink); }
+.board { fill: var(--board); }
+.boardname { fill: var(--board-ink); font-family: var(--display); font-weight: 800; font-size: 22px; }
+.boardsub { fill: var(--board-ink); opacity: .7; font-size: 12px; }
+.usb { fill: var(--pin); }
+.tiny { font-size: 9px; }
+.pin { fill: var(--pin); stroke: var(--board); stroke-width: 1; }
+.pinname { fill: var(--board-ink); font-size: 10px; }
+.pinlabel { font-size: 11px; font-weight: 600; }
+.k-disp { fill: var(--wdisp); } .k-digit { fill: var(--wdigit); } .k-us { fill: var(--wus); }
+.k-dht { fill: var(--wdht); } .k-servo { fill: var(--wservo); } .k-later { fill: none; stroke: var(--wlater); stroke-width: 2; stroke-dasharray: 3 2; }
+.k-p3 { fill: var(--w3v3); } .k-p5 { fill: var(--w5v); } .k-gnd { fill: var(--wgnd); } .k-avoid { fill: var(--wavoid); }
+.l-disp { fill: var(--wdisp); } .l-digit { fill: var(--wdigit); } .l-us { fill: var(--wus); } .l-dht { fill: var(--wdht); }
+.l-servo { fill: var(--wservo); } .l-later { fill: var(--wlater); } .l-p3 { fill: var(--w3v3); } .l-p5 { fill: var(--w5v); } .l-avoid { fill: var(--muted); }
+.part { fill: var(--bg); stroke: var(--line); }
+.parttitle { font-family: var(--display); font-weight: 800; font-size: 15px; }
+.pp { font-size: 12px; }
+.bp { font-size: 13px; font-weight: 600; }
+.wire { stroke-width: 3; stroke-linecap: round; fill: none; }
+.dot { stroke: none; }
+.res { fill: var(--surface); stroke: var(--copper); stroke-width: 2; }
+.rlabel { font-size: 11px; fill: var(--copper); font-weight: 600; }
+.bpin { fill: var(--bg); stroke-width: 2; }
+.w-5v { stroke: var(--w5v); fill: var(--w5v); } .w-5v-b { stroke: var(--w5v); }
+.w-3v3 { stroke: var(--w3v3); fill: var(--w3v3); } .w-3v3-b { stroke: var(--w3v3); }
+.w-gnd { stroke: var(--wgnd); fill: var(--wgnd); } .w-gnd-b { stroke: var(--wgnd); }
+.w-us { stroke: var(--wus); fill: var(--wus); } .w-us-b { stroke: var(--wus); }
+.w-dht { stroke: var(--wdht); fill: var(--wdht); } .w-dht-b { stroke: var(--wdht); }
+.w-servo { stroke: var(--wservo); fill: var(--wservo); } .w-servo-b { stroke: var(--wservo); }
+.w-disp { stroke: var(--wdisp); fill: var(--wdisp); } .w-disp-b { stroke: var(--wdisp); }
+.w-digit { stroke: var(--wdigit); fill: var(--wdigit); } .w-digit-b { stroke: var(--wdigit); }
+.w-none { stroke: var(--line); }
+line.wire.w-5v, line.wire.w-3v3, line.wire.w-gnd, line.wire.w-us, line.wire.w-dht, line.wire.w-servo, line.wire.w-disp, line.wire.w-digit { fill: none; }
+.dispbody { fill: var(--ink); }
+.seg { stroke: var(--wdisp); stroke-width: 6; stroke-linecap: round; opacity: .85; }
+.segdot { fill: var(--wdisp); }
+.seglbl { fill: var(--bg); font-size: 11px; font-weight: 600; }
+.pnum { font-size: 12px; font-weight: 600; }
+.pname { font-size: 11px; fill: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Cablaj Ecou</h1>
+    <p>Un Arduino UNO Q, un HC-SR04, un DHT11, două servo-uri SG90 și afișajul 5641AS. Pinii sunt cei din <span class="mono">ecou/app/sketch/sketch.ino</span>. Verifică numele pinilor pe serigrafia plăcii înainte să legi.</p>
+  </header>
+
+  <section>
+    <h2>Harta pinilor</h2>
+    <div class="scroll"><svg viewBox="0 0 680 330" class="pinmap" role="img" aria-label="Pinii folosiți pe Arduino UNO Q">
+<rect x="20" y="95" width="640" height="150" rx="10" class="board"/>
+<text x="340.0" y="165" class="boardname" text-anchor="middle">Arduino UNO Q</text>
+<text x="340.0" y="187" class="boardsub" text-anchor="middle">văzută de sus, USB-C în stânga</text>
+<rect x="8" y="148" width="34" height="44" rx="4" class="usb"/><text x="25" y="174" class="tiny" text-anchor="middle">USB-C</text>
+<rect x="61" y="99" width="18" height="18" rx="2" class="pin"/>
+<text x="70" y="134" class="pinname" text-anchor="middle">SCL</text>
+<rect x="91" y="99" width="18" height="18" rx="2" class="pin"/>
+<text x="100" y="134" class="pinname" text-anchor="middle">SDA</text>
+<rect x="121" y="99" width="18" height="18" rx="2" class="pin"/>
+<text x="130" y="134" class="pinname" text-anchor="middle">AREF</text>
+<rect x="151" y="99" width="18" height="18" rx="2" class="pin k-gnd"/>
+<text x="160" y="134" class="pinname" text-anchor="middle">GND</text>
+<rect x="181" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="190" y="134" class="pinname" text-anchor="middle">D13</text>
+<text x="190" y="92" class="pinlabel l-disp" transform="rotate(-55 190 92)">Seg F</text>
+<rect x="211" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="220" y="134" class="pinname" text-anchor="middle">D12</text>
+<text x="220" y="92" class="pinlabel l-disp" transform="rotate(-55 220 92)">Seg E</text>
+<rect x="241" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="250" y="134" class="pinname" text-anchor="middle">D11</text>
+<text x="250" y="92" class="pinlabel l-disp" transform="rotate(-55 250 92)">Seg D</text>
+<rect x="271" y="99" width="18" height="18" rx="2" class="pin k-servo"/>
+<text x="280" y="134" class="pinname" text-anchor="middle">D10</text>
+<text x="280" y="92" class="pinlabel l-servo" transform="rotate(-55 280 92)">Tilt</text>
+<rect x="301" y="99" width="18" height="18" rx="2" class="pin k-servo"/>
+<text x="310" y="134" class="pinname" text-anchor="middle">D9</text>
+<text x="310" y="92" class="pinlabel l-servo" transform="rotate(-55 310 92)">Pan</text>
+<rect x="331" y="99" width="18" height="18" rx="2" class="pin k-us"/>
+<text x="340" y="134" class="pinname" text-anchor="middle">D8</text>
+<text x="340" y="92" class="pinlabel l-us" transform="rotate(-55 340 92)">Echo ÷</text>
+<rect x="391" y="99" width="18" height="18" rx="2" class="pin k-us"/>
+<text x="400" y="134" class="pinname" text-anchor="middle">D7</text>
+<text x="400" y="92" class="pinlabel l-us" transform="rotate(-55 400 92)">Trig</text>
+<rect x="421" y="99" width="18" height="18" rx="2" class="pin k-later"/>
+<text x="430" y="134" class="pinname" text-anchor="middle">D6</text>
+<text x="430" y="92" class="pinlabel l-later" transform="rotate(-55 430 92)">Braț</text>
+<rect x="451" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="460" y="134" class="pinname" text-anchor="middle">D5</text>
+<text x="460" y="92" class="pinlabel l-disp" transform="rotate(-55 460 92)">Seg C</text>
+<rect x="481" y="99" width="18" height="18" rx="2" class="pin k-dht"/>
+<text x="490" y="134" class="pinname" text-anchor="middle">D4</text>
+<text x="490" y="92" class="pinlabel l-dht" transform="rotate(-55 490 92)">DHT11</text>
+<rect x="511" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="520" y="134" class="pinname" text-anchor="middle">D3</text>
+<text x="520" y="92" class="pinlabel l-disp" transform="rotate(-55 520 92)">Seg B</text>
+<rect x="541" y="99" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="550" y="134" class="pinname" text-anchor="middle">D2</text>
+<text x="550" y="92" class="pinlabel l-disp" transform="rotate(-55 550 92)">Seg A</text>
+<rect x="571" y="99" width="18" height="18" rx="2" class="pin k-avoid"/>
+<text x="580" y="134" class="pinname" text-anchor="middle">D1</text>
+<text x="580" y="92" class="pinlabel l-avoid" transform="rotate(-55 580 92)">Bridge</text>
+<rect x="601" y="99" width="18" height="18" rx="2" class="pin k-avoid"/>
+<text x="610" y="134" class="pinname" text-anchor="middle">D0</text>
+<text x="610" y="92" class="pinlabel l-avoid" transform="rotate(-55 610 92)">Bridge</text>
+<rect x="151" y="223" width="18" height="18" rx="2" class="pin"/>
+<text x="160" y="215" class="pinname" text-anchor="middle">IOREF</text>
+<rect x="181" y="223" width="18" height="18" rx="2" class="pin"/>
+<text x="190" y="215" class="pinname" text-anchor="middle">RESET</text>
+<rect x="211" y="223" width="18" height="18" rx="2" class="pin k-p3"/>
+<text x="220" y="215" class="pinname" text-anchor="middle">3V3</text>
+<text x="220" y="256" class="pinlabel l-p3" transform="rotate(55 220 256)">DHT11</text>
+<rect x="241" y="223" width="18" height="18" rx="2" class="pin k-p5"/>
+<text x="250" y="215" class="pinname" text-anchor="middle">5V</text>
+<text x="250" y="256" class="pinlabel l-p5" transform="rotate(55 250 256)">US, servo-uri</text>
+<rect x="271" y="223" width="18" height="18" rx="2" class="pin k-gnd"/>
+<text x="280" y="215" class="pinname" text-anchor="middle">GND</text>
+<rect x="301" y="223" width="18" height="18" rx="2" class="pin k-gnd"/>
+<text x="310" y="215" class="pinname" text-anchor="middle">GND</text>
+<rect x="331" y="223" width="18" height="18" rx="2" class="pin"/>
+<text x="340" y="215" class="pinname" text-anchor="middle">VIN</text>
+<rect x="421" y="223" width="18" height="18" rx="2" class="pin k-disp"/>
+<text x="430" y="215" class="pinname" text-anchor="middle">A0</text>
+<text x="430" y="256" class="pinlabel l-disp" transform="rotate(55 430 256)">Seg G</text>
+<rect x="451" y="223" width="18" height="18" rx="2" class="pin k-digit"/>
+<text x="460" y="215" class="pinname" text-anchor="middle">A1</text>
+<text x="460" y="256" class="pinlabel l-digit" transform="rotate(55 460 256)">Cifra 1</text>
+<rect x="481" y="223" width="18" height="18" rx="2" class="pin k-digit"/>
+<text x="490" y="215" class="pinname" text-anchor="middle">A2</text>
+<text x="490" y="256" class="pinlabel l-digit" transform="rotate(55 490 256)">Cifra 2</text>
+<rect x="511" y="223" width="18" height="18" rx="2" class="pin k-digit"/>
+<text x="520" y="215" class="pinname" text-anchor="middle">A3</text>
+<text x="520" y="256" class="pinlabel l-digit" transform="rotate(55 520 256)">Cifra 3</text>
+<rect x="541" y="223" width="18" height="18" rx="2" class="pin k-digit"/>
+<text x="550" y="215" class="pinname" text-anchor="middle">A4</text>
+<text x="550" y="256" class="pinlabel l-digit" transform="rotate(55 550 256)">Cifra 4</text>
+<rect x="571" y="223" width="18" height="18" rx="2" class="pin"/>
+<text x="580" y="215" class="pinname" text-anchor="middle">A5</text>
+</svg></div>
+    <div class="legend">
+      <span><i style="background:var(--wus)"></i>Ultrasonic</span>
+      <span><i style="background:var(--wdht)"></i>DHT11</span>
+      <span><i style="background:var(--wservo)"></i>Servo</span>
+      <span><i style="background:var(--wdisp)"></i>Segmente, prin 1 kΩ</span>
+      <span><i style="background:var(--wdigit)"></i>Cifre, direct</span>
+      <span><i style="background:var(--w5v)"></i>5V</span>
+      <span><i style="background:var(--w3v3)"></i>3V3</span>
+      <span><i style="background:var(--wgnd)"></i>GND</span>
+      <span><i style="background:var(--wlater);"></i>Pentru brațul de mai târziu</span>
+      <span><i style="background:var(--wavoid)"></i>Liberi, dar nu-i folosi</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Piesă cu piesă</h2>
+    <div class="cards">
+      <article class="card">
+        <h3>HC-SR04, ochii</h3>
+        <p>Echo scoate 5 V, iar pinii plăcii suportă 3,3 V. Divizorul de 1 kΩ și 2 kΩ aduce semnalul la 3,3 V. Două rezistențe de 1 kΩ în serie fac 2 kΩ.</p>
+        <svg viewBox="0 0 640 262" class="card-svg" role="img" aria-label="HC-SR04">
+<rect x="16" y="14" width="150" height="234" rx="6" class="part"/>
+<text x="28" y="34" class="parttitle">HC-SR04</text>
+<text x="152" y="67.0" class="pp" text-anchor="end">VCC</text>
+<circle cx="166" cy="63.0" r="3.5" class="dot w-5v"/>
+<line x1="166" y1="63.0" x2="486" y2="63.0" class="wire w-5v"/>
+<rect x="486" y="51.0" width="120" height="24" rx="4" class="bpin w-5v-b"/>
+<text x="546" y="68.0" class="bp" text-anchor="middle">5V</text>
+<text x="152" y="105.0" class="pp" text-anchor="end">Trig</text>
+<circle cx="166" cy="101.0" r="3.5" class="dot w-us"/>
+<line x1="166" y1="101.0" x2="486" y2="101.0" class="wire w-us"/>
+<rect x="486" y="89.0" width="120" height="24" rx="4" class="bpin w-us-b"/>
+<text x="546" y="106.0" class="bp" text-anchor="middle">D7</text>
+<text x="152" y="143.0" class="pp" text-anchor="end">Echo</text>
+<circle cx="166" cy="139.0" r="3.5" class="dot w-us"/>
+<line x1="166" y1="139.0" x2="486" y2="139.0" class="wire w-us"/>
+<rect x="308" y="132.0" width="44" height="14" rx="2" class="res"/><text x="330" y="127.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="127.0" width="120" height="24" rx="4" class="bpin w-us-b"/>
+<text x="546" y="144.0" class="bp" text-anchor="middle">D8</text>
+<circle cx="410" cy="139.0" r="3.5" class="dot w-us"/>
+<line x1="410" y1="139.0" x2="410" y2="209.0" class="wire w-gnd"/>
+<rect x="403" y="154.0" width="14" height="40" rx="2" class="res"/>
+<text x="424" y="178.0" class="rlabel">2 kΩ</text>
+<line x1="410" y1="209.0" x2="486" y2="209.0" class="wire w-gnd"/>
+<rect x="486" y="197.0" width="120" height="24" rx="4" class="bpin w-gnd-b"/>
+<text x="546" y="214.0" class="bp" text-anchor="middle">GND</text>
+<text x="400" y="127.0" class="rlabel" text-anchor="end">3,3 V aici</text>
+<text x="152" y="251.0" class="pp" text-anchor="end">GND</text>
+<circle cx="166" cy="247.0" r="3.5" class="dot w-gnd"/>
+<line x1="166" y1="247.0" x2="486" y2="247.0" class="wire w-gnd"/>
+<rect x="486" y="235.0" width="120" height="24" rx="4" class="bpin w-gnd-b"/>
+<text x="546" y="252.0" class="bp" text-anchor="middle">GND</text>
+</svg>
+      </article>
+      <article class="card">
+        <h3>DHT11, temperatura</h3>
+        <p>Modulul cu 3 pini are rezistența de pull-up pe el. Dacă ai senzorul gol, cu 4 pini, pune 10 kΩ între VCC și DATA, iar pinul 3 rămâne nelegat.</p>
+        <svg viewBox="0 0 640 154" class="card-svg" role="img" aria-label="DHT11">
+<rect x="16" y="14" width="150" height="126" rx="6" class="part"/>
+<text x="28" y="34" class="parttitle">DHT11</text>
+<text x="152" y="67.0" class="pp" text-anchor="end">+ / VCC</text>
+<circle cx="166" cy="63.0" r="3.5" class="dot w-3v3"/>
+<line x1="166" y1="63.0" x2="486" y2="63.0" class="wire w-3v3"/>
+<rect x="486" y="51.0" width="120" height="24" rx="4" class="bpin w-3v3-b"/>
+<text x="546" y="68.0" class="bp" text-anchor="middle">3V3</text>
+<text x="152" y="105.0" class="pp" text-anchor="end">S / DATA</text>
+<circle cx="166" cy="101.0" r="3.5" class="dot w-dht"/>
+<line x1="166" y1="101.0" x2="486" y2="101.0" class="wire w-dht"/>
+<rect x="486" y="89.0" width="120" height="24" rx="4" class="bpin w-dht-b"/>
+<text x="546" y="106.0" class="bp" text-anchor="middle">D4</text>
+<text x="152" y="143.0" class="pp" text-anchor="end">− / GND</text>
+<circle cx="166" cy="139.0" r="3.5" class="dot w-gnd"/>
+<line x1="166" y1="139.0" x2="486" y2="139.0" class="wire w-gnd"/>
+<rect x="486" y="127.0" width="120" height="24" rx="4" class="bpin w-gnd-b"/>
+<text x="546" y="144.0" class="bp" text-anchor="middle">GND</text>
+</svg>
+      </article>
+      <article class="card">
+        <h3>Două SG90, gâtul</h3>
+        <p>Pan (stânga-dreapta) pe D9, tilt (sus-jos) pe D10. Firele roșii și maro ale ambelor merg împreună pe 5V și GND. Pune un condensator de 100–470 µF între 5V și GND lângă ele, dacă ai. Dacă placa se resetează când se mișcă amândouă, servo-urile trec pe o sursă de 5 V separată, cu GND-ul legat la GND-ul plăcii.</p>
+        <svg viewBox="0 0 640 192" class="card-svg" role="img" aria-label="2 × SG90">
+<rect x="16" y="14" width="150" height="164" rx="6" class="part"/>
+<text x="28" y="34" class="parttitle">2 × SG90</text>
+<text x="152" y="67.0" class="pp" text-anchor="end">roșu, ambele</text>
+<circle cx="166" cy="63.0" r="3.5" class="dot w-5v"/>
+<line x1="166" y1="63.0" x2="486" y2="63.0" class="wire w-5v"/>
+<rect x="486" y="51.0" width="120" height="24" rx="4" class="bpin w-5v-b"/>
+<text x="546" y="68.0" class="bp" text-anchor="middle">5V</text>
+<text x="152" y="105.0" class="pp" text-anchor="end">portocaliu, pan</text>
+<circle cx="166" cy="101.0" r="3.5" class="dot w-servo"/>
+<line x1="166" y1="101.0" x2="486" y2="101.0" class="wire w-servo"/>
+<rect x="486" y="89.0" width="120" height="24" rx="4" class="bpin w-servo-b"/>
+<text x="546" y="106.0" class="bp" text-anchor="middle">D9</text>
+<text x="152" y="143.0" class="pp" text-anchor="end">portocaliu, tilt</text>
+<circle cx="166" cy="139.0" r="3.5" class="dot w-servo"/>
+<line x1="166" y1="139.0" x2="486" y2="139.0" class="wire w-servo"/>
+<rect x="486" y="127.0" width="120" height="24" rx="4" class="bpin w-servo-b"/>
+<text x="546" y="144.0" class="bp" text-anchor="middle">D10</text>
+<text x="152" y="181.0" class="pp" text-anchor="end">maro, ambele</text>
+<circle cx="166" cy="177.0" r="3.5" class="dot w-gnd"/>
+<line x1="166" y1="177.0" x2="486" y2="177.0" class="wire w-gnd"/>
+<rect x="486" y="165.0" width="120" height="24" rx="4" class="bpin w-gnd-b"/>
+<text x="546" y="182.0" class="bp" text-anchor="middle">GND</text>
+</svg>
+      </article>
+      <article class="card wide">
+        <h3>5641AS, afișajul</h3>
+        <p>Catod comun, 12 pini. Ține-l cu fața la tine și punctele zecimale jos: pinii 1–6 sunt jos, de la stânga; 7–12 sunt sus, de la dreapta. Segmentele trec prin câte o rezistență de 1 kΩ; cifrele merg direct. Punctul zecimal (pinul 3) rămâne nelegat.</p>
+        <div class="scroll"><svg viewBox="0 0 640 250" class="card-svg" role="img" aria-label="5641AS, pinii văzuți din față">
+<rect x="120" y="60" width="400" height="130" rx="6" class="dispbody"/>
+<line x1="158" y1="80" x2="190" y2="80" class="seg"/>
+<line x1="194" y1="84" x2="194" y2="120" class="seg"/>
+<line x1="194" y1="128" x2="194" y2="164" class="seg"/>
+<line x1="158" y1="168" x2="190" y2="168" class="seg"/>
+<line x1="154" y1="128" x2="154" y2="164" class="seg"/>
+<line x1="154" y1="84" x2="154" y2="120" class="seg"/>
+<line x1="158" y1="124" x2="190" y2="124" class="seg"/>
+<circle cx="206" cy="170" r="3" class="segdot"/>
+<line x1="250" y1="80" x2="282" y2="80" class="seg"/>
+<line x1="286" y1="84" x2="286" y2="120" class="seg"/>
+<line x1="286" y1="128" x2="286" y2="164" class="seg"/>
+<line x1="250" y1="168" x2="282" y2="168" class="seg"/>
+<line x1="246" y1="128" x2="246" y2="164" class="seg"/>
+<line x1="246" y1="84" x2="246" y2="120" class="seg"/>
+<line x1="250" y1="124" x2="282" y2="124" class="seg"/>
+<circle cx="298" cy="170" r="3" class="segdot"/>
+<line x1="342" y1="80" x2="374" y2="80" class="seg"/>
+<line x1="378" y1="84" x2="378" y2="120" class="seg"/>
+<line x1="378" y1="128" x2="378" y2="164" class="seg"/>
+<line x1="342" y1="168" x2="374" y2="168" class="seg"/>
+<line x1="338" y1="128" x2="338" y2="164" class="seg"/>
+<line x1="338" y1="84" x2="338" y2="120" class="seg"/>
+<line x1="342" y1="124" x2="374" y2="124" class="seg"/>
+<circle cx="390" cy="170" r="3" class="segdot"/>
+<line x1="434" y1="80" x2="466" y2="80" class="seg"/>
+<line x1="470" y1="84" x2="470" y2="120" class="seg"/>
+<line x1="470" y1="128" x2="470" y2="164" class="seg"/>
+<line x1="434" y1="168" x2="466" y2="168" class="seg"/>
+<line x1="430" y1="128" x2="430" y2="164" class="seg"/>
+<line x1="430" y1="84" x2="430" y2="120" class="seg"/>
+<line x1="434" y1="124" x2="466" y2="124" class="seg"/>
+<circle cx="482" cy="170" r="3" class="segdot"/>
+<text x="150" y="88" class="seglbl">A</text>
+<line x1="160" y1="60" x2="160" y2="44" class="wire w-digit"/>
+<text x="160" y="38" class="pnum" text-anchor="middle">12</text>
+<text x="160" y="22" class="pname" text-anchor="middle">Cifra 1 → A1</text>
+<line x1="224" y1="60" x2="224" y2="44" class="wire w-disp"/>
+<text x="224" y="38" class="pnum" text-anchor="middle">11</text>
+<text x="224" y="22" class="pname" text-anchor="middle">A → D2</text>
+<line x1="288" y1="60" x2="288" y2="44" class="wire w-disp"/>
+<text x="288" y="38" class="pnum" text-anchor="middle">10</text>
+<text x="288" y="22" class="pname" text-anchor="middle">F → D13</text>
+<line x1="352" y1="60" x2="352" y2="44" class="wire w-digit"/>
+<text x="352" y="38" class="pnum" text-anchor="middle">9</text>
+<text x="352" y="22" class="pname" text-anchor="middle">Cifra 2 → A2</text>
+<line x1="416" y1="60" x2="416" y2="44" class="wire w-digit"/>
+<text x="416" y="38" class="pnum" text-anchor="middle">8</text>
+<text x="416" y="22" class="pname" text-anchor="middle">Cifra 3 → A3</text>
+<line x1="480" y1="60" x2="480" y2="44" class="wire w-disp"/>
+<text x="480" y="38" class="pnum" text-anchor="middle">7</text>
+<text x="480" y="22" class="pname" text-anchor="middle">B → D3</text>
+<line x1="160" y1="190" x2="160" y2="206" class="wire w-disp"/>
+<text x="160" y="222" class="pnum" text-anchor="middle">1</text>
+<text x="160" y="240" class="pname" text-anchor="middle">E → D12</text>
+<line x1="224" y1="190" x2="224" y2="206" class="wire w-disp"/>
+<text x="224" y="222" class="pnum" text-anchor="middle">2</text>
+<text x="224" y="240" class="pname" text-anchor="middle">D → D11</text>
+<line x1="288" y1="190" x2="288" y2="206" class="wire w-none"/>
+<text x="288" y="222" class="pnum" text-anchor="middle">3</text>
+<text x="288" y="240" class="pname" text-anchor="middle">DP → —</text>
+<line x1="352" y1="190" x2="352" y2="206" class="wire w-disp"/>
+<text x="352" y="222" class="pnum" text-anchor="middle">4</text>
+<text x="352" y="240" class="pname" text-anchor="middle">C → D5</text>
+<line x1="416" y1="190" x2="416" y2="206" class="wire w-disp"/>
+<text x="416" y="222" class="pnum" text-anchor="middle">5</text>
+<text x="416" y="240" class="pname" text-anchor="middle">G → A0</text>
+<line x1="480" y1="190" x2="480" y2="206" class="wire w-digit"/>
+<text x="480" y="222" class="pnum" text-anchor="middle">6</text>
+<text x="480" y="240" class="pname" text-anchor="middle">Cifra 4 → A4</text>
+</svg></div>
+        <svg viewBox="0 0 640 458" class="card-svg" role="img" aria-label="5641AS">
+<rect x="16" y="14" width="150" height="430" rx="6" class="part"/>
+<text x="28" y="34" class="parttitle">5641AS</text>
+<text x="152" y="67.0" class="pp" text-anchor="end">11 · A</text>
+<circle cx="166" cy="63.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="63.0" x2="486" y2="63.0" class="wire w-disp"/>
+<rect x="308" y="56.0" width="44" height="14" rx="2" class="res"/><text x="330" y="51.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="51.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="68.0" class="bp" text-anchor="middle">D2</text>
+<text x="152" y="105.0" class="pp" text-anchor="end">7 · B</text>
+<circle cx="166" cy="101.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="101.0" x2="486" y2="101.0" class="wire w-disp"/>
+<rect x="308" y="94.0" width="44" height="14" rx="2" class="res"/><text x="330" y="89.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="89.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="106.0" class="bp" text-anchor="middle">D3</text>
+<text x="152" y="143.0" class="pp" text-anchor="end">4 · C</text>
+<circle cx="166" cy="139.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="139.0" x2="486" y2="139.0" class="wire w-disp"/>
+<rect x="308" y="132.0" width="44" height="14" rx="2" class="res"/><text x="330" y="127.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="127.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="144.0" class="bp" text-anchor="middle">D5</text>
+<text x="152" y="181.0" class="pp" text-anchor="end">2 · D</text>
+<circle cx="166" cy="177.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="177.0" x2="486" y2="177.0" class="wire w-disp"/>
+<rect x="308" y="170.0" width="44" height="14" rx="2" class="res"/><text x="330" y="165.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="165.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="182.0" class="bp" text-anchor="middle">D11</text>
+<text x="152" y="219.0" class="pp" text-anchor="end">1 · E</text>
+<circle cx="166" cy="215.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="215.0" x2="486" y2="215.0" class="wire w-disp"/>
+<rect x="308" y="208.0" width="44" height="14" rx="2" class="res"/><text x="330" y="203.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="203.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="220.0" class="bp" text-anchor="middle">D12</text>
+<text x="152" y="257.0" class="pp" text-anchor="end">10 · F</text>
+<circle cx="166" cy="253.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="253.0" x2="486" y2="253.0" class="wire w-disp"/>
+<rect x="308" y="246.0" width="44" height="14" rx="2" class="res"/><text x="330" y="241.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="241.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="258.0" class="bp" text-anchor="middle">D13</text>
+<text x="152" y="295.0" class="pp" text-anchor="end">5 · G</text>
+<circle cx="166" cy="291.0" r="3.5" class="dot w-disp"/>
+<line x1="166" y1="291.0" x2="486" y2="291.0" class="wire w-disp"/>
+<rect x="308" y="284.0" width="44" height="14" rx="2" class="res"/><text x="330" y="279.0" class="rlabel" text-anchor="middle">1 kΩ</text>
+<rect x="486" y="279.0" width="120" height="24" rx="4" class="bpin w-disp-b"/>
+<text x="546" y="296.0" class="bp" text-anchor="middle">A0</text>
+<text x="152" y="333.0" class="pp" text-anchor="end">12 · Cifra 1</text>
+<circle cx="166" cy="329.0" r="3.5" class="dot w-digit"/>
+<line x1="166" y1="329.0" x2="486" y2="329.0" class="wire w-digit"/>
+<rect x="486" y="317.0" width="120" height="24" rx="4" class="bpin w-digit-b"/>
+<text x="546" y="334.0" class="bp" text-anchor="middle">A1</text>
+<text x="152" y="371.0" class="pp" text-anchor="end">9 · Cifra 2</text>
+<circle cx="166" cy="367.0" r="3.5" class="dot w-digit"/>
+<line x1="166" y1="367.0" x2="486" y2="367.0" class="wire w-digit"/>
+<rect x="486" y="355.0" width="120" height="24" rx="4" class="bpin w-digit-b"/>
+<text x="546" y="372.0" class="bp" text-anchor="middle">A2</text>
+<text x="152" y="409.0" class="pp" text-anchor="end">8 · Cifra 3</text>
+<circle cx="166" cy="405.0" r="3.5" class="dot w-digit"/>
+<line x1="166" y1="405.0" x2="486" y2="405.0" class="wire w-digit"/>
+<rect x="486" y="393.0" width="120" height="24" rx="4" class="bpin w-digit-b"/>
+<text x="546" y="410.0" class="bp" text-anchor="middle">A3</text>
+<text x="152" y="447.0" class="pp" text-anchor="end">6 · Cifra 4</text>
+<circle cx="166" cy="443.0" r="3.5" class="dot w-digit"/>
+<line x1="166" y1="443.0" x2="486" y2="443.0" class="wire w-digit"/>
+<rect x="486" y="431.0" width="120" height="24" rx="4" class="bpin w-digit-b"/>
+<text x="546" y="448.0" class="bp" text-anchor="middle">A4</text>
+</svg>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ce mai trebuie pe masă</h2>
+    <table>
+      <thead><tr><th>Piesă</th><th>Câte</th><th>Pentru</th></tr></thead>
+      <tbody>
+        <tr><td>Rezistență 1 kΩ</td><td class="mono">10</td><td>7 segmente, plus 3 pentru divizor (1 kΩ, și 2 × 1 kΩ în serie ca 2 kΩ)</td></tr>
+        <tr><td>Breadboard și fire jumper</td><td class="mono">1 + ~25</td><td>Afișajul singur ia 11 fire</td></tr>
+        <tr><td>Condensator 100–470 µF</td><td class="mono">1</td><td>Opțional, lângă servo</td></tr>
+        <tr><td>Multimetru</td><td class="mono">1</td><td>Verificările de mai jos</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Înainte să pornești</h2>
+    <ol class="checks">
+      <li><div><b>Fără alimentare, pe continuitate:</b> fiecare fir de la pinul piesei la pinul plăcii. Între 5V și GND nu trebuie să sune.</div></li>
+      <li><div><b>Divizorul, fără alimentare:</b> între Echo și firul care merge la D8 măsori ~1 kΩ, iar între acel fir și GND ~2 kΩ. Dacă sunt inversate, pe D8 ajung peste 3,3 V.</div></li>
+      <li><div><b>Cu servo-urile:</b> tensiunea pe 5V cât timp se mișcă amândouă. Sub ~4,5 V placa se poate reseta; atunci servo-ul trece pe o sursă separată, cu GND comun.</div></li>
+      <li><div><b>Afișajul:</b> pe modul diodă, + pe pinul 11 (A) și − pe pinul 12 (cifra 1) aprinde segmentul A al primei cifre. Dacă nu, verifică orientarea.</div></li>
+      <li><div><b>Apoi testul de pornire</b> din App Lab, și trimite ce scrie în consolă.</div></li>
+    </ol>
+    <p class="warn">D0 și D1 sunt liberi, dar nu-i folosi: placa îi poate folosi pentru legătura dintre microcontroler și Linux.</p>
+  </section>
+</div>
+
+</html>
