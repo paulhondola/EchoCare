@@ -41,7 +41,13 @@ private struct SignInView: View {
             ScrollView {
                 Group {
                     if auth.screen == .loading {
-                        ProgressView().tint(Theme.fgMuted).controlSize(.large)
+                        VStack(spacing: 24) {
+                            ProgressView().tint(Theme.fgMuted).controlSize(.large)
+                            // Only while a code is sent or checked, not during GET /me
+                            if auth.signingIn {
+                                SnButton("back", kind: .outline, action: auth.abandonSignIn)
+                            }
+                        }
                     } else {
                         SignInPanel { step }
                     }

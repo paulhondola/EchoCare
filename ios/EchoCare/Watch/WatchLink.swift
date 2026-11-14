@@ -1,6 +1,7 @@
 import CoreLocation
 import HealthKit
 import Shared
+import Synchronization
 import UIKit
 import WatchConnectivity
 import os
@@ -20,9 +21,8 @@ struct WatchSeen: Equatable, Sendable {
 }
 
 /// The phone's end of the watch link (04 §3, design 2026-11-14-ios-port "Watch ↔ phone"), the
-/// counterpart of the watch's PhoneLink.swift. Events arrive with `sendMessage` or
-/// `transferUserInfo`, check-ins with `transferUserInfo`, each `WatchMessage.encode` plus `"kind"`;
-/// `Relay` posts them. An accepted event is answered with `kind: "received"` and `{"id": …}`, by
+/// counterpart of the watch's PhoneLink.swift. Events and check-ins arrive with `sendMessage` or
+/// `transferUserInfo`, each `WatchMessage.encode` plus `"kind"`; `Relay` posts them. An accepted event is answered with `kind: "received"` and `{"id": …}`, by
 /// `sendMessage` when the watch is reachable, else `transferUserInfo`.
 ///
 /// WatchConnectivity relaunches the app in the background before any view exists (Spike results),
@@ -33,16 +33,14 @@ struct WatchSeen: Equatable, Sendable {
 final class WatchLink: NSObject {
     static let shared = WatchLink()
 
-    /// The watch's check-in interval (06 §3; the watch's `Timings.checkInMinutes`).
-    #if DEMO
-    nonisolated static let checkInInterval: TimeInterval = 60
-    #else
-    nonisolated static let checkInInterval: TimeInterval = 15 * 60
-    #endif
+    /// The watch's check-in interval (06 §3), the value the watch's `Timings.checkInMinutes` reads.
+    nonisolated static let checkInInterval: TimeInterval = CheckInInterval.seconds(demo: AppConfig.isDemo)
 
     private(set) var seen = WatchSeen()
 
     private let session: WCSession?
+    // For the relay's background task, begun off the main actor (UIKit's begin and end are nonisolated)
+    nonisolated private let application: UIApplication
     private let store = HKHealthStore()
     // The fix the system holds; the senior's home asks for access (LocationHelper.prepare)
     private let location = LocationHelper()
@@ -52,8 +50,10 @@ final class WatchLink: NSObject {
         location: { [location] in location.lastKnown() },
         ack: { [weak self] id in self?.sendAck(id) })
 
+    /// First touched from `application(_:didFinishLaunchingWithOptions:)`, so the application exists.
     override init() {
         session = WCSession.isSupported() ? WCSession.default : nil
+        application = UIApplication.shared
         super.init()
     }
 
@@ -106,13 +106,19 @@ final class WatchLink: NSObject {
         var id: String
     }
 
+    /// The two strings of a watch message, `"kind"` and `"json"` (`WatchMessage`), copied out of the
+    /// dictionary before the hop to the main actor: the dictionary isn't Sendable. Nil without them.
+    nonisolated static func split(_ payload: [String: Any]) -> (kind: String, json: String)? {
+        guard let kind = payload["kind"] as? String, let json = payload["json"] as? String else { return nil }
+        return (kind, json)
+    }
+
     // MARK: Private
 
-    /// Posts one watch message. A background relaunch could be suspended mid-request, so the post
-    /// runs inside a background task.
-    private func relay(kind: String, json: String) {
+    /// Posts one watch message inside the background task `received(_:)` began, and ends it when
+    /// the post is done.
+    private func relay(kind: String, json: String, background: BackgroundTask) {
         if kind == WatchMessage.event || kind == WatchMessage.checkIn { seen.lastHeard = Date() }
-        let background = BackgroundTask(name: "relay \(kind)")
         let relay = relay
         Task {
             await relay.handle(kind: kind, json: json)
@@ -154,29 +160,36 @@ final class WatchLink: NSObject {
     }
 
     nonisolated private func received(_ payload: [String: Any]) {
-        // Copied out here: the dictionary isn't Sendable
-        guard let kind = payload["kind"] as? String, let json = payload["json"] as? String else {
+        guard let (kind, json) = Self.split(payload) else {
             Logger(subsystem: "ro.echocare.ios", category: "watch").error("watch message ignored: no kind or json")
             return
         }
-        Task { @MainActor in self.relay(kind: kind, json: json) }
+        // Begun here, before the hop: a background relaunch could be suspended in between, or
+        // mid-request
+        let background = BackgroundTask(name: "relay \(kind)", application: application)
+        Task { @MainActor in self.relay(kind: kind, json: json, background: background) }
     }
 }
 
-/// `UIApplication.beginBackgroundTask` for one relay, ended when the post is done or iOS says time
-/// is up.
-@MainActor
-private final class BackgroundTask {
-    private var id = UIBackgroundTaskIdentifier.invalid
+/// `UIApplication.beginBackgroundTask` for one relay, ended once: when the post is done or when
+/// iOS says time is up, whichever comes first. UIKit's begin and end are thread-safe.
+private final class BackgroundTask: Sendable {
+    private let application: UIApplication
+    private let id = Mutex(UIBackgroundTaskIdentifier.invalid)
 
-    init(name: String) {
-        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in self?.end() }
+    init(name: String, application: UIApplication) {
+        self.application = application
+        let begun = application.beginBackgroundTask(withName: name) { [weak self] in self?.end() }
+        id.withLock { $0 = begun }
     }
 
     func end() {
-        guard id != .invalid else { return }
-        UIApplication.shared.endBackgroundTask(id)
-        id = .invalid
+        let current = id.withLock { id in
+            defer { id = .invalid }
+            return id
+        }
+        guard current != .invalid else { return }
+        application.endBackgroundTask(current)
     }
 }
 

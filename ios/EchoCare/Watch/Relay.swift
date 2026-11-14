@@ -62,18 +62,7 @@ actor Relay {
         self.ack = ack
     }
 
-    /// One WatchConnectivity dictionary, `"kind"` plus `"json"` (`WatchMessage`). Runs on the
-    /// caller's executor (`nonsending`): the dictionary isn't Sendable, so only its two strings
-    /// cross into the actor.
-    nonisolated(nonsending) func handle(_ payload: [String: Any]) async {
-        guard let kind = payload["kind"] as? String, let json = payload["json"] as? String else {
-            log.error("watch message ignored: no kind or json")
-            return
-        }
-        await handle(kind: kind, json: json)
-    }
-
-    /// The two strings of a watch message: what WatchLink's delegate copies out of the dictionary
+    /// The two strings of a watch message: what `WatchLink.split` copies out of the dictionary
     /// before it hops here.
     func handle(kind: String, json: String) async {
         guard signedIn() else {

@@ -95,16 +95,22 @@ struct RelayTests {
         return payload
     }
 
+    /// The production path: WatchLink's delegate splits the dictionary, the relay takes the strings.
+    private func deliver(_ payload: [String: Any], to relay: Relay) async throws {
+        let (kind, json) = try #require(WatchLink.split(payload))
+        await relay.handle(kind: kind, json: json)
+    }
+
     @Test func relayAcksOnlyAfterAccepted() async throws {
         let refused = StubURLProtocol.replying(.init(500))
         let none = Acks()
-        await relay(refused, acks: none).handle(try eventPayload())
+        try await deliver(try eventPayload(), to: relay(refused, acks: none))
         #expect(refused.requests.count == 1)
         #expect(none.ids.isEmpty)
 
         let accepted = StubURLProtocol.replying(.init(200, #"{"queued": true, "call_id": "c1"}"#))
         let one = Acks()
-        await relay(accepted, acks: one).handle(try eventPayload(id: "e7"))
+        try await deliver(try eventPayload(id: "e7"), to: relay(accepted, acks: one))
         #expect(one.ids == ["e7"])
         let sent = try #require(accepted.requests.first)
         #expect(sent.method == "POST")
@@ -119,8 +125,8 @@ struct RelayTests {
         let stub = StubURLProtocol.replying(.init(200, #"{"queued": false}"#))
         let acks = Acks()
         let relay = relay(stub, acks: acks)
-        await relay.handle(try eventPayload(id: "e1"))
-        await relay.handle(try eventPayload(id: "e1"))
+        try await deliver(try eventPayload(id: "e1"), to: relay)
+        try await deliver(try eventPayload(id: "e1"), to: relay)
         #expect(acks.ids == ["e1", "e1"])
     }
 
@@ -128,14 +134,14 @@ struct RelayTests {
     @Test func aRefusedEventIsNotAcked() async throws {
         let stub = StubURLProtocol.replying(.init(422, #"{"detail":"invalid"}"#))
         let acks = Acks()
-        await relay(stub, acks: acks).handle(try eventPayload())
+        try await deliver(try eventPayload(), to: relay(stub, acks: acks))
         #expect(acks.ids.isEmpty)
     }
 
     @Test func relayIgnoresWhenSignedOut() async throws {
         let stub = StubURLProtocol.replying(.init(200, #"{"queued": true}"#))
         let acks = Acks()
-        await relay(stub, acks: acks, signedIn: false).handle(try eventPayload())
+        try await deliver(try eventPayload(), to: relay(stub, acks: acks, signedIn: false))
         #expect(stub.requests.isEmpty)
         #expect(acks.ids.isEmpty)
     }
@@ -145,10 +151,9 @@ struct RelayTests {
         let acks = Acks()
         let relay = relay(stub, acks: acks)
         // No "type": Swift's decoder is strict where Kotlin's defaulted
-        await relay.handle(["kind": WatchMessage.event, "json": #"{"id": "e1", "measured_at": "t"}"#])
-        await relay.handle(["kind": WatchMessage.event])
-        await relay.handle(["json": "{}"])
-        await relay.handle(["kind": "something-else", "json": "{}"])
+        await relay.handle(kind: WatchMessage.event, json: #"{"id": "e1", "measured_at": "t"}"#)
+        await relay.handle(kind: WatchMessage.event, json: "not json")
+        await relay.handle(kind: "something-else", json: "{}")
         #expect(stub.requests.isEmpty)
         #expect(acks.ids.isEmpty)
     }
@@ -159,13 +164,33 @@ struct RelayTests {
         var payload = try WatchMessage.encode(
             CheckInMessage(measuredAt: "2026-11-12T19:00:00Z", battery: 42, worn: true, lastPulse: 70))
         payload["kind"] = WatchMessage.checkIn
-        await relay(stub, acks: acks).handle(payload)
+        try await deliver(payload, to: relay(stub, acks: acks))
         let sent = try #require(stub.requests.first)
         #expect(sent.url.path == "/api/me/check-ins")
         let body = try ApiClient.makeDecoder().decode(CheckInForm.self, from: sent.body)
         #expect(body.battery == 42)
         #expect(body.worn == true)
         #expect(acks.ids.isEmpty)
+    }
+
+    // MARK: WatchLink.split, the copy-out before the hop
+
+    @Test func splitTakesKindAndJson() throws {
+        let split = try #require(WatchLink.split(try eventPayload(id: "e1")))
+        #expect(split.kind == WatchMessage.event)
+        #expect(split.json.contains(#""id":"e1""#))
+    }
+
+    @Test func splitNeedsBothStrings() {
+        #expect(WatchLink.split(["json": "{}"]) == nil)
+        #expect(WatchLink.split(["kind": WatchMessage.event]) == nil)
+        #expect(WatchLink.split([:]) == nil)
+    }
+
+    @Test func splitRefusesOtherTypes() {
+        #expect(WatchLink.split(["kind": 1, "json": "{}"]) == nil)
+        #expect(WatchLink.split(["kind": WatchMessage.event, "json": Data("{}".utf8)]) == nil)
+        #expect(WatchLink.split(["kind": WatchMessage.event, "json": ["id": "e1"]]) == nil)
     }
 
     // MARK: The ack the watch reads (PhoneLink.ackedId)

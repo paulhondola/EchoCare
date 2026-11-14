@@ -21,6 +21,10 @@ final class AuthModel {
     /// The E.164 number the code went to. iOS has no resend token: a resend verifies it again.
     private(set) var phone = ""
 
+    /// The spinner is a sign-in step (sending the code, or checking it) rather than GET /me, so
+    /// *Înapoi* under it can abandon the attempt.
+    private(set) var signingIn = false
+
     /// The number Firebase signed in, for the profile page; nil hides it.
     var signedInPhone: String? { Auth.auth().currentUser?.phoneNumber }
 
@@ -56,7 +60,18 @@ final class AuthModel {
     /// Back from the phone or code step, before anyone is signed in.
     func backToLanding() {
         attempt += 1
+        signingIn = false
         screen = .landing
+    }
+
+    /// *Înapoi* under the spinner while a code is sent or checked: Firebase may never answer (a
+    /// reCAPTCHA page left open, no network). Starts a new attempt, so the late answer is dropped,
+    /// and opens the phone form again. Android has no such way back; iOS's reCAPTCHA flow needs it.
+    func abandonSignIn() {
+        guard signingIn else { return }
+        attempt += 1
+        signingIn = false
+        screen = .phone()
     }
 
     /// *Trimite codul*. With app verification on (REAL_SMS = YES) Firebase opens its reCAPTCHA page
@@ -65,15 +80,18 @@ final class AuthModel {
     func sendCode(phone: String) async {
         self.phone = phone
         screen = .loading
+        signingIn = true
         attempt += 1
         let current = attempt
         do {
             let id = try await PhoneAuthProvider.provider().verifyPhoneNumber(phone, uiDelegate: nil)
             guard current == attempt else { return }
+            signingIn = false
             verificationID = id
             codeSent()
         } catch {
             guard current == attempt else { return }
+            signingIn = false
             logFailure("Sending the code", error)
             screen = .phone(error: sendError(error))
         }
@@ -87,16 +105,27 @@ final class AuthModel {
     /// *Confirmă* with the code from the SMS.
     func verify(code: String) async {
         screen = .loading
+        signingIn = true
+        let current = attempt
         let credential = PhoneAuthProvider.provider().credential(
             withVerificationID: verificationID, verificationCode: code)
         do {
             _ = try await Auth.auth().signIn(with: credential)
         } catch {
+            guard current == attempt else { return }
+            signingIn = false
             logFailure("Signing in with the code", error)
             let wrong = [.invalidVerificationCode, .sessionExpired].contains(authCode(of: error))
             screen = .code(error: wrong ? "wrong_code" : "unavailable")
             return
         }
+        guard current == attempt else {
+            // Abandoned, then signed in after all: don't stay signed in behind the phone form
+            if screen != .loading { signOutOfFirebase() }
+            return
+        }
+        signingIn = false
+        // GET /me has no way back, as on Android
         await loadMe()
     }
 
@@ -159,11 +188,7 @@ final class AuthModel {
         switch next {
         // auth-layer §3.2: not_registered and a second 401 sign out of Firebase.
         case .phone, .notRegistered, .landing:
-            do {
-                try Auth.auth().signOut()
-            } catch {
-                log.warning("Signing out failed: \(error.localizedDescription, privacy: .public)")
-            }
+            signOutOfFirebase()
             defaults.removeObject(forKey: savedRole)
         // A saved role that is no longer among the grants is dropped (auth-layer §8.2).
         case .pickRole:
@@ -172,6 +197,14 @@ final class AuthModel {
             break
         }
         screen = next
+    }
+
+    private func signOutOfFirebase() {
+        do {
+            try Auth.auth().signOut()
+        } catch {
+            log.warning("Signing out failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func sendError(_ error: Error) -> String {
