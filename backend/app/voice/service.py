@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import (
     ColumnElement,
-    and_,
     delete,
     exists,
     func,
@@ -457,21 +456,24 @@ async def end_completed(call_id: uuid.UUID) -> None:
 async def call_live(session: AsyncSession, senior_id: uuid.UUID) -> bool:
     """Whether a call for the senior is ringing, in progress, or handed to Twilio and
     still queued: an erasure waits for it (design 2026-11-14). Test calls count,
-    unlike `call_in_progress`, since Twilio is running them too."""
-    return bool(
-        await session.scalar(
-            select(
-                exists().where(
-                    Call.senior_id == senior_id,
-                    or_(
-                        Call.state.in_([CallState.ringing, CallState.in_progress]),
-                        and_(
-                            Call.state == CallState.queued, Call.dialed_at.is_not(None)
-                        ),
-                    ),
-                )
-            )
+    unlike `call_in_progress`, since Twilio is running them too.
+
+    Locks the senior's unfinished calls until the caller's transaction ends, so the
+    scheduler's `take_for_dialing` either committed first and is seen here, or waits
+    and then finds its call gone. Doesn't commit."""
+    calls = await session.execute(
+        select(Call.state, Call.dialed_at)
+        .where(
+            Call.senior_id == senior_id,
+            Call.state.in_(
+                [CallState.queued, CallState.ringing, CallState.in_progress]
+            ),
         )
+        .with_for_update()
+    )
+    return any(
+        state is not CallState.queued or dialed_at is not None
+        for state, dialed_at in calls
     )
 
 

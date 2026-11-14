@@ -4,7 +4,7 @@ Internal. What helps us, what hurts us, and how to answer when a judge asks. Eve
 
 ## The 30-second answer
 
-> EchoCare handles health data about vulnerable people, so we designed for that from day one. There is one door to the data: only our server touches the database, and it checks on every request who you are and whether you may see this senior. Nobody picks their own role. A medic or DAS grants it. We store as little as we can: no audio ever, watch readings for 24 hours, location only with an alarm. Everything runs in the EU. Consent is the senior's own, recorded with exactly what they agreed to. And if a senior or their family asks, one button erases everything we hold about them. What we haven't done yet is the paperwork a real pilot needs: processor agreements, a DPIA, retention periods. We know exactly what's on that list.
+> EchoCare handles health data about vulnerable people, so we designed for that from day one. There is one door to the data: only our server touches the database, and it checks on every request who you are and whether you may see this senior. Nobody picks their own role. A medic or DAS grants it. We store as little as we can: no audio ever, watch readings for 24 hours, location only with an alarm. Everything runs in the EU. Consent is the senior's own, recorded with exactly what they agreed to. And if a senior or their family asks, one button erases everything about them from our database and file store. What we haven't done yet is the paperwork a real pilot needs: processor agreements, a DPIA, retention periods. We know exactly what's on that list.
 
 The last two sentences matter. Judges who ask about GDPR are checking whether we know the gaps, not whether there are none.
 
@@ -41,7 +41,7 @@ The last two sentences matter. Judges who ask about GDPR are checking whether we
 | Demonstrable consent (7(1)) | Consent is a history, never overwritten: each row stores the text version agreed to and the evidence (the key press, or the words and Twilio's confidence) (05 §2). Refusal and withdrawal are recorded the same way |
 | No automated decisions about the person (22) | The summary briefs the medic and DAS; it never sets a code, a call or a recipient. A red alert goes to a human dispatcher |
 | EU hosting (Chapter V) | API, database and file storage on Railway EU West; Twilio processes the calls in Ireland (IE1) |
-| Right to erasure (17) | DAS or the registering medic erases a senior and everything about them in one action, the medical PDF included. Only a log line with the senior's ID and who erased it remains |
+| Right to erasure (17) | DAS or the registering medic erases a senior and everything about them in one action, the medical PDF included. In our database and file store, only a log line with the senior's ID and who erased it remains. Twilio's call logs, backups and the Firebase sign-in account sit outside it |
 | Accuracy (5(1)(d)) | Every quote in a summary is checked to be the senior's own words; medical items need verbatim evidence |
 | Audit trail | Status reports record every severity reached, with its source and the senior's words, so every code can be explained (05 §2) |
 
@@ -106,7 +106,7 @@ TLS everywhere in transit (Railway HTTPS, Twilio WSS). At rest it's whatever Rai
 Migrations only add; old and new copies share the schema. A database advisory lock keeps one scheduler running.
 
 **"GDPR erasure?"**
-Yes: DAS or the medic presses one button, and everything about the senior goes, the PDF included. Each table's owner deletes its own rows in one transaction, children first, and a test fills every table and checks nothing is left. The Firebase sign-in record is the one thing we can't delete yet: the API deliberately holds no Firebase credential.
+Yes: DAS or the medic presses one button, and everything about the senior goes, the PDF included. Each table's owner deletes its own rows in one transaction, children first, and a test fills every table and checks nothing is left. That covers our database and file store. Three things sit outside it: Twilio's call logs (numbers and times), database backups until they rotate, and the Firebase sign-in record, which we can't delete because the API deliberately holds no Firebase credential. A pilot sets retention on the first two and adds the third. Say this before the judge asks.
 
 ## Candidate fixes
 

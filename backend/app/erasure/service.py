@@ -24,6 +24,7 @@ from app.seniors.service import (
     editable_senior,
     erase_senior_children,
     erase_senior_row,
+    lock_for_erasure,
 )
 from app.voice.service import call_live, erase_calls, senior_call_ids
 
@@ -37,7 +38,8 @@ async def erase_senior(
     record PDF's key, if any, for the caller to delete from the file store after the
     commit. Refused while a call is live or an incident unresolved; a refusal changes
     nothing."""
-    await editable_senior(session, caller, senior_id)  # access, and the row lock
+    await editable_senior(session, caller, senior_id)  # access
+    await lock_for_erasure(session, senior_id)  # no insert for the senior from here on
     if await call_live(session, senior_id):
         log.info("refused call_live: user %s, senior %s", caller.user.id, senior_id)
         raise refuse(409, "call_live")

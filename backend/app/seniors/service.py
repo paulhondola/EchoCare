@@ -961,6 +961,16 @@ async def summary_for(
     return summary_view(await latest_summary(session, senior_id))
 
 
+async def lock_for_erasure(session: AsyncSession, senior_id: uuid.UUID) -> None:
+    """A full row lock on the senior, past `editable_senior`'s FOR NO KEY UPDATE: it
+    also waits for, and then blocks, every insert that points at the senior (a
+    check-in, an event, a call), so none lands between an erasure's guards and its
+    deletes (design 2026-11-14)."""
+    await session.execute(
+        select(Senior.id).where(Senior.id == senior_id).with_for_update()
+    )
+
+
 async def erase_senior_children(session: AsyncSession, senior_id: uuid.UUID) -> None:
     """The senior's consents, summaries and watch data, for an erasure (design
     2026-11-14). Doesn't commit (ADR-005)."""

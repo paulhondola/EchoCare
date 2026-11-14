@@ -1,5 +1,6 @@
 """Erasing a senior through each table's owner (design 2026-11-14, ADR-005)."""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import Grant, Role, User
 from app.auth.service import Caller
 from app.codes.models import ReportSource, SeniorStatus, StatusReport
+from app.core.db import Session
 from app.erasure.service import erase_senior
 from app.incidents.models import (
     Event,
@@ -33,6 +35,7 @@ from app.seniors.models import (
 from app.status.engine import Question, Severity
 from app.voice.calls import CallState
 from app.voice.models import Answer, Call, CallTrigger, CallTurn, Speaker, TurnKind
+from app.voice.service import take_for_dialing
 
 NOW = datetime(2026, 11, 14, 12, tzinfo=UTC)
 
@@ -291,3 +294,45 @@ async def test_erase_keeps_caregiver_of_another_senior(
         )
         == 1
     )
+
+
+# Races (final review, issue 1): a writer that commits between the guards and the deletes.
+# `other` holds an uncommitted write while the erasure runs, then commits.
+
+
+async def erase_racing(db, caller, senior_id, other_commits):
+    task = asyncio.create_task(erase_senior(db, caller, senior_id))
+    await asyncio.sleep(0.3)  # the erasure is now waiting on, or past, the other write
+    await other_commits()
+    return await asyncio.wait_for(task, timeout=5)
+
+
+async def test_erase_waits_for_a_check_in_being_written(
+    db: AsyncSession, add_active_senior, das: User
+):
+    """A check-in insert in flight must not turn the erasure into a foreign-key 500."""
+    senior = await add_active_senior("+40700000101")
+    senior_id, caller = senior.id, await caller_for(db, das)
+    async with Session() as other:
+        other.add(WatchReading(senior_id=senior_id, measured_at=NOW))
+        await other.flush()  # holds a key-share lock on the senior until it commits
+        await erase_racing(db, caller, senior_id, other.commit)
+    assert await count(db, WatchReading, WatchReading.senior_id == senior_id) == 0
+    assert await count(db, Senior, Senior.id == senior_id) == 0
+
+
+async def test_erase_refuses_a_call_being_dialed(
+    db: AsyncSession, add_active_senior, das: User
+):
+    """The scheduler claiming a queued call mid-erasure: the call is live, so 409."""
+    senior = await add_active_senior("+40700000101")
+    call = add_call(db, senior, state=CallState.queued)
+    await db.commit()
+    senior_id, call_id, caller = senior.id, call.id, await caller_for(db, das)
+    async with Session() as other:
+        assert await take_for_dialing(other, call_id, NOW)  # row-locked, uncommitted
+        with pytest.raises(HTTPException) as refused:
+            await erase_racing(db, caller, senior_id, other.commit)
+    assert refused.value.detail == {"reason": "call_live"}
+    await db.rollback()
+    assert await count(db, Call, Call.id == call_id) == 1
