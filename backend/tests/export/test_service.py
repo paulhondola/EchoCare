@@ -350,6 +350,7 @@ EXPORTED_TABLES = {
     "status_reports",
     "senior_statuses",
     "medical_records",
+    "health_readings",  # shortcut: read in Task 3
 }
 
 

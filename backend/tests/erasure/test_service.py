@@ -401,6 +401,7 @@ ERASED_TABLES = {
     "status_reports",
     "senior_statuses",
     "medical_records",
+    "health_readings",
 }
 
 

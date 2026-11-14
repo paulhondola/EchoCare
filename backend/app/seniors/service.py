@@ -39,6 +39,7 @@ from app.seniors.models import (
     ConsentDecision,
     ConsentMethod,
     EnrollmentState,
+    HealthReading,
     Senior,
     SummaryVersion,
     WatchCondition,
@@ -51,6 +52,7 @@ from app.seniors.schemas import (
     CaregiverForm,
     CaregiverView,
     CheckInForm,
+    HealthReadingForm,
     MedicView,
     SeniorForm,
     SeniorSummary,
@@ -809,6 +811,28 @@ async def record_check_in(
     await session.commit()
 
 
+async def record_health_reading(
+    session: AsyncSession, senior_id: uuid.UUID, body: HealthReadingForm, now: datetime
+) -> None:
+    """Stores one Apple Health sample (design 2026-11-14). A time ahead of `now` is
+    stored as `now`; one older than `READINGS_KEPT` is dropped; a re-sent id changes
+    nothing, since the phone re-sends the last day on every launch."""
+    if body.measured_at < now - READINGS_KEPT:
+        return
+    await session.execute(
+        insert(HealthReading)
+        .values(
+            {
+                **body.model_dump(),
+                "senior_id": senior_id,
+                "measured_at": min(body.measured_at, now),
+            }
+        )
+        .on_conflict_do_nothing(index_elements=["senior_id", "id"])
+    )
+    await session.commit()
+
+
 def sees_watch(caller: Caller, senior_id: uuid.UUID, medic_id: uuid.UUID) -> bool:
     """Whether the caller looks after this senior, as her registering medic, as a
     caregiver (UC-12) or as DAS (ADR-006), or is the senior herself on her own page
@@ -1009,7 +1033,13 @@ async def summary_for(
 async def erase_senior_children(session: AsyncSession, senior_id: uuid.UUID) -> None:
     """The senior's consents, summaries and watch data, for an erasure (design
     2026-11-14). Doesn't commit (ADR-005)."""
-    for model in (Consent, SummaryVersion, WatchReading, WatchState):
+    for model in (
+        Consent,
+        HealthReading,
+        SummaryVersion,
+        WatchReading,
+        WatchState,
+    ):
         await session.execute(delete(model).where(model.senior_id == senior_id))
 
 

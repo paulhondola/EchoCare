@@ -21,6 +21,7 @@ from app.seniors.schemas import (
     CaregiverForm,
     CaregiverView,
     CheckInForm,
+    HealthReadingForm,
     SeniorForm,
     SeniorSummary,
     SeniorView,
@@ -40,6 +41,7 @@ from app.seniors.service import (
     grant_caregiver,
     reach_senior,
     record_check_in,
+    record_health_reading,
     register,
     revoke_caregiver,
     save_signature,
@@ -292,6 +294,18 @@ async def check_in(
     the latest; an older one than the stored is ignored."""
     senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
     await record_check_in(session, senior_id, body, datetime.now(UTC))
+
+
+@router.post("/me/health-readings", status_code=204)
+async def health_reading(
+    body: HealthReadingForm,
+    caller: Annotated[Caller, Depends(require_roles(Role.senior))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """One Apple Health blood oxygen or ECG sample, relayed by the senior's phone. A
+    re-sent sample answers 204 and changes nothing."""
+    senior_id = next(g.senior_id for g in caller.grants if g.role == Role.senior)
+    await record_health_reading(session, senior_id, body, datetime.now(UTC))
 
 
 @router.get(
