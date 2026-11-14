@@ -46,6 +46,8 @@ struct PatientPane: View {
     // „Retragere consimțământ” asks first; „Semnătură” opens the consent text under the actions
     @State private var withdrawing = false
     @State private var signing = false
+    /// A stroke is being drawn on the pad: the page holds still.
+    @State private var drawing = false
 
     var body: some View {
         LoadBody(load: model.page, onRetry: { Task { await load() } }, onSessionEnd: onSessionEnd) { senior in
@@ -78,6 +80,7 @@ struct PatientPane: View {
                     .frame(maxWidth: 600)
                     .frame(maxWidth: .infinity)
                 }
+                .scrollDisabled(drawing)
             }
             .alert(Text(verbatim: localized("withdraw_title", senior.formOfAddress)), isPresented: $withdrawing) {
                 Button(role: .destructive) {
@@ -116,7 +119,7 @@ struct PatientPane: View {
             }
             // Stays open after the save, showing „Semnat” with the date (G7)
             if signing && showsConsent(senior) {
-                ConsentSection(signedAt: senior.signedAt, busy: model.busy) { form in
+                ConsentSection(signedAt: senior.signedAt, busy: model.busy, drawing: $drawing) { form in
                     Task { await model.sign(id: senior.id, form: form, onChanged: onChanged) }
                 }
                 .padding(.top, 16)

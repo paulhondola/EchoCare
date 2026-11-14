@@ -1,9 +1,9 @@
 import Foundation
 
 // The medic's commands on her patient, „Sună din nou” and the withdrawal (UC-04, UC-12, 04 §2), and
-// what each answer means for the page. Ported from android/app/.../home/Commands.kt. Android's
-// `command(call)` runs a call through the enrollment form's `send`; here `command(_:)` turns what
-// the API client threw into the status and body `commandOutcome` reads.
+// what each answer means for the page. Ported from android/app/.../home/Commands.kt: `command(_:)`
+// runs a call through the enrollment form's `send` (Enroll/Refusal.swift), the one place an error
+// becomes an answer, and `outcomeOf` says what that answer means for the page.
 
 /// What a command answered. The page rereads after `done` and `refused`; `offline` keeps the page
 /// as it is.
@@ -19,39 +19,35 @@ enum CommandOutcome: Equatable {
 /// The outcome of HTTP `status` with `body`; a nil status is no answer at all.
 func commandOutcome(status: Int?, body: String?) -> CommandOutcome {
     if let status, (200...299).contains(status) { return .done }
-    let reason = reasonOf(body)
-    switch status {
-    case 422:
-        // The body is FastAPI's list of fields, or `incomplete` with what is missing
-        return .refused("invalid")
-    case 409:
-        // wrong_state, or a reason a later server adds: the senior is read again
-        return .refused(["already_done", "phone_taken"].contains(reason) ? reason : "wrong_state")
-    default:
-        switch failureOf(status: status, reason: reason) {
-        case .noConnection: return .offline
-        case .notFound: return .refused("not_found")
-        default: return .refused(nil)
+    return outcomeOf(refusalOf(status: status, body: body))
+}
+
+/// What `refusal` means for the page, as `send` reads it for the form (seniors §9.3).
+func outcomeOf(_ refusal: Refusal) -> CommandOutcome {
+    switch refusal {
+    // refusalOf reads wrong_state and a 409 reason this build does not know alike
+    case .wrongState: .refused("wrong_state")
+    case .alreadyDone: .refused("already_done")
+    case .phoneTaken: .refused("phone_taken")
+    case .failed(let failure):
+        switch failure {
+        case .noConnection: .offline
+        case .notFound: .refused("not_found")
+        default: .refused(nil)
         }
+    // The body is FastAPI's list of fields, or `incomplete` with what is missing
+    case .invalid, .incomplete: .refused("invalid")
     }
 }
 
-/// Runs `call`: a refusal is read from its status and body, an unreadable body or no answer at all
-/// is no connection, and the timed reread shows where the senior stands.
+/// Runs `call` through the form's `send`, so both read an answer alike: an unreadable body is no
+/// connection, and the timed reread shows where the senior stands.
 func command(
     isolation: isolated (any Actor)? = #isolation, _ call: () async throws -> Void
 ) async -> CommandOutcome {
-    do {
-        try await call()
-        return .done
-    } catch ApiError.http(let status, let body) {
-        return commandOutcome(status: status, body: body)
-    } catch TokenError.signedOut {
-        // Android sends no header then, and the API answers 401
-        return commandOutcome(status: 401, body: nil)
-    } catch {
-        // A URLError, a cancel, or a 2xx that is not the expected type
-        return commandOutcome(status: nil, body: nil)
+    switch await send(call) {
+    case .ok: .done
+    case .no(let refusal): outcomeOf(refusal)
     }
 }
 

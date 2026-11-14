@@ -59,4 +59,43 @@ struct SignatureTests {
         #expect(thin.count == 3)
         #expect(thin.map(\.count).reduce(0, +) <= 7)
     }
+
+    // A touch the scroll view or the system took never reaches onEnded (SignaturePad.swift)
+    @Test func `a touch continues the stroke it began`() {
+        let start = Point(x: 0.1, y: 0.1)
+        var (strokes, inProgress) = drawn([], inProgress: nil, touchStart: start, at: start)
+        (strokes, inProgress) = drawn(
+            strokes, inProgress: inProgress, touchStart: start, at: Point(x: 0.2, y: 0.2))
+        (strokes, inProgress) = drawn(
+            strokes, inProgress: inProgress, touchStart: start, at: Point(x: 0.3, y: 0.3))
+        #expect(strokes == [[start, Point(x: 0.2, y: 0.2), Point(x: 0.3, y: 0.3)]])
+        #expect(inProgress == start)
+    }
+
+    @Test func `a touch after a cancelled one starts a new stroke`() {
+        let first = Point(x: 0.1, y: 0.1)
+        let second = Point(x: 0.9, y: 0.9)
+        // The first touch was cancelled: inProgress is still its start
+        let (strokes, inProgress) = drawn(
+            [[first, Point(x: 0.2, y: 0.2)]], inProgress: first, touchStart: second, at: second)
+        #expect(strokes == [[first, Point(x: 0.2, y: 0.2)], [second]])
+        #expect(inProgress == second)
+        // And no line joins them in what is posted
+        let form = signatureForm(strokes, width: 1, height: 1)
+        #expect(form.strokes.count == 2)
+    }
+
+    @Test func `a touch after an ended one starts a new stroke even at the same place`() {
+        let at = Point(x: 0.5, y: 0.5)
+        // onEnded clears inProgress, so two taps on one spot are two dots
+        var (strokes, _) = drawn([], inProgress: nil, touchStart: at, at: at)
+        (strokes, _) = drawn(strokes, inProgress: nil, touchStart: at, at: at)
+        #expect(strokes == [[at], [at]])
+    }
+
+    @Test func `a cleared pad starts fresh`() {
+        let at = Point(x: 0.5, y: 0.5)
+        let (strokes, _) = drawn([], inProgress: at, touchStart: at, at: at)
+        #expect(strokes == [[at]])
+    }
 }

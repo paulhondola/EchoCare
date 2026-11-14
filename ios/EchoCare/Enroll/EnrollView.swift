@@ -53,6 +53,8 @@ private struct Steps: View {
     let onSessionEnd: (Failure) -> Void
 
     @State private var wide = false
+    /// A stroke is being drawn on the pad: the page holds still.
+    @State private var drawing = false
 
     var body: some View {
         ScrollViewReader { scroll in
@@ -63,7 +65,7 @@ private struct Steps: View {
                     case .senior, .address:
                         Fields(model: model, fields: model.step.fields, values: model.values)
                     case .caregivers: CaregiversStep(model: model)
-                    case .review: ReviewStep(model: model, onSessionEnd: onSessionEnd)
+                    case .review: ReviewStep(model: model, drawing: $drawing, onSessionEnd: onSessionEnd)
                     }
                     if let notice = model.notice { NoticeLine(notice: notice) }
                     Buttons(model: model, onDone: onDone)
@@ -74,6 +76,7 @@ private struct Steps: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollDisabled(drawing)
             .onChange(of: model.step) { scroll.scrollTo("top", anchor: .top) }
         }
         .onGeometryChange(for: Bool.self) { $0.size.width >= 600 } action: { wide = $0 }
@@ -196,6 +199,7 @@ private struct CaregiverRow: View {
 /// Step 4: the senior as GET seniors/{id} has them, and what submitting still needs.
 private struct ReviewStep: View {
     let model: EnrollModel
+    let drawing: Binding<Bool>
     let onSessionEnd: (Failure) -> Void
 
     var body: some View {
@@ -209,7 +213,7 @@ private struct ReviewStep: View {
                 SeniorDetails(senior: senior, callSenior: false, calls: false)
                 MedicalUpload(model: model)
                 if showsConsent(senior) {
-                    ConsentSection(signedAt: senior.signedAt, busy: model.busy) { form in
+                    ConsentSection(signedAt: senior.signedAt, busy: model.busy, drawing: drawing) { form in
                         Task { await model.sign(form) }
                     }
                 }

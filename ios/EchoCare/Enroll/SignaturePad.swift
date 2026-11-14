@@ -7,6 +7,8 @@ import SwiftUI
 struct ConsentSection: View {
     let signedAt: String?
     let busy: Bool
+    /// True while a stroke is being drawn: the enclosing ScrollView stops scrolling meanwhile.
+    var drawing: Binding<Bool> = .constant(false)
     let onSave: (SignatureForm) -> Void
 
     var body: some View {
@@ -18,7 +20,7 @@ struct ConsentSection: View {
                 Text(verbatim: localized("signed_on", shortDate(signedAt, year: true)))
                     .textStyle(Theme.titleMedium).foregroundStyle(Theme.verdeFg)
             } else {
-                Pad(busy: busy, onSave: onSave)
+                Pad(busy: busy, drawing: drawing, onSave: onSave)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -29,10 +31,15 @@ struct ConsentSection: View {
 /// it keeps the drawing; finger and Apple Pencil both arrive as the drag.
 private struct Pad: View {
     let busy: Bool
+    let drawing: Binding<Bool>
     let onSave: (SignatureForm) -> Void
 
     @State private var strokes: [[Point]] = []
-    @State private var drawing = false
+    /// Where the stroke being drawn began; see `drawn`.
+    @State private var inProgress: Point?
+    /// True while a touch is down. A GestureState goes back to false when the touch ends or is
+    /// cancelled, so a scroll view that takes the touch never leaves the page unscrollable.
+    @GestureState private var touching = false
     @State private var size = CGSize(width: 1, height: 1)
 
     var body: some View {
@@ -72,15 +79,21 @@ private struct Pad: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                    .onChanged { draw($0.location) }
-                    .onEnded { _ in drawing = false }
+                    .updating($touching) { _, touching, _ in touching = true }
+                    .onChanged { draw($0.location, from: $0.startLocation) }
+                    .onEnded { _ in inProgress = nil }
             )
+            .onChange(of: touching) { _, now in drawing.wrappedValue = now }
+            .onDisappear { drawing.wrappedValue = false }
             .accessibilityElement()
             .accessibilityLabel(Text("sign_here"))
             .accessibilityAddTraits(.allowsDirectInteraction)
 
             WrappingRow(spacing: 8, lineSpacing: 8) {
-                SnButton("clear_signature", kind: .outline) { strokes = [] }
+                SnButton("clear_signature", kind: .outline) {
+                    strokes = []
+                    inProgress = nil
+                }
                     .disabled(strokes.isEmpty || busy)
                 // Already shares: a pad of 1 by 1
                 SnButton("save_signature", kind: .success) {
@@ -92,13 +105,8 @@ private struct Pad: View {
     }
 
     /// The first point is kept even when the finger never moves: a tap is a dot.
-    private func draw(_ at: CGPoint) {
-        let point = Point(x: Float(at.x / size.width), y: Float(at.y / size.height))
-        if drawing, !strokes.isEmpty {
-            strokes[strokes.count - 1].append(point)
-        } else {
-            strokes.append([point])
-            drawing = true
-        }
+    private func draw(_ at: CGPoint, from start: CGPoint) {
+        func share(_ p: CGPoint) -> Point { Point(x: Float(p.x / size.width), y: Float(p.y / size.height)) }
+        (strokes, inProgress) = drawn(strokes, inProgress: inProgress, touchStart: share(start), at: share(at))
     }
 }

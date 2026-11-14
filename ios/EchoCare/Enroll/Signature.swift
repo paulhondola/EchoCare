@@ -55,3 +55,20 @@ func signatureForm(_ strokes: [[Point]], width: Float, height: Float) -> Signatu
         strokes: thinned(normalised(strokes.filter { !$0.isEmpty }, width: width, height: height))
             .map { stroke in stroke.map { [$0.x, $0.y] } })
 }
+
+/// What a touch on the pad adds. `inProgress` is where the touch being drawn began (its
+/// `startLocation` as shares), nil between touches; `touchStart` is where the touch just reported
+/// began. A touch continues the last stroke only when it is the one in progress: SwiftUI never
+/// calls `onEnded` for a gesture the scroll view or the system cancelled, and the next touch must
+/// not be joined to the old stroke by a straight line that would be posted with the signature.
+func drawn(
+    _ strokes: [[Point]], inProgress: Point?, touchStart: Point, at point: Point
+) -> (strokes: [[Point]], inProgress: Point?) {
+    var strokes = strokes
+    if inProgress == touchStart, !strokes.isEmpty {
+        strokes[strokes.count - 1].append(point)
+    } else {
+        strokes.append([point])
+    }
+    return (strokes, touchStart)
+}
