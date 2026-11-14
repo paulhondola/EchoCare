@@ -23,17 +23,6 @@
         }
       }
     },
-    "are_you_ok_countdown" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld s"
-          }
-        }
-      }
-    },
     "are_you_ok_no" : {
       "extractionState" : "manual",
       "localizations" : {
