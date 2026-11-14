@@ -422,3 +422,18 @@ async def erase_record(session: AsyncSession, senior_id: uuid.UUID) -> str | Non
         .where(MedicalRecord.senior_id == senior_id)
         .returning(MedicalRecord.storage_key)
     )
+
+
+async def export_record(
+    session: AsyncSession,
+    senior_id: uuid.UUID,
+    storage: StorageService,
+    *,
+    full: bool,
+) -> MedicalRecordView | None:
+    """The senior's medical record view for a GDPR export (`full` for the registering
+    medic, confirmed-only items and PDF URL for DAS; 01 §6, design 2026-11-14)."""
+    record = await current_record(session, senior_id)
+    if record is None:
+        return None
+    return await view_of(record, storage, full=full)
