@@ -1,8 +1,8 @@
 # ADR-007: Demo-only iOS and watchOS clients, signed from one Mac
 
-**Status:** Accepted
+**Status:** Accepted, 2026-11-14; built on branch `ios-port` ([design](../superpowers/specs/2026-11-14-ios-port-design.md))
 **Date:** 2026-11-14
-**Deciders:** the team of four (owners of backend, dashboard, Android, Wear OS)
+**Deciders:** Paul picked approach A, a plain Swift port ([design, Approaches considered](../superpowers/specs/2026-11-14-ios-port-design.md#approaches-considered)); the team settled on Alex's Mac as the one signer, as Paul's watch never offered to trust a Mac ([design, The demo setup](../superpowers/specs/2026-11-14-ios-port-design.md#the-demo-setup))
 **Builds on:** [ADR-001](ADR-001-monorepo-and-delivery.md) (one native toolchain per folder), [01-architecture.md](../specs/echocare/01-architecture.md) (G5, the watch talks only to the phone)
 
 ## Context
