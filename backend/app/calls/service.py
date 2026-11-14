@@ -1,14 +1,14 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role
 from app.auth.service import Caller, refuse
-from app.calls.schemas import AnswerView, CallSummary, TranscriptDetail
+from app.calls.schemas import AnswerView, CallSummary, LiveCall, TranscriptDetail
 from app.campaigns.models import Campaign, CampaignKind
 from app.codes.models import StatusReport
 from app.incidents.schemas import ReportView, TurnView
@@ -22,6 +22,47 @@ from app.voice.models import WELLBEING, Answer, Call, CallTrigger, CallTurn
 from app.voice.service import cancel_queued, queue_calls
 
 log = logging.getLogger("echocare.calls")
+
+# A hand-over ends the senior's call (`ended_at` is set) while DAS is still talking with
+# her; it stays live while its newest turn is this fresh: the briefing, the ring and DAS's
+# first sentence can pass a minute without a turn (design 2026-11-14 §4).
+HANDOVER_LIVE = timedelta(seconds=90)
+
+
+async def live_calls(session: AsyncSession) -> list[LiveCall]:
+    """Calls ringing or in progress, and hand-overs still talking, newest first; test
+    calls left out. For DAS, who reaches every senior a call exists for (04 §1)."""
+    newest_turn = (
+        select(func.max(CallTurn.at))
+        .where(CallTurn.call_id == Call.id)
+        .scalar_subquery()
+    )
+    rows = await session.execute(
+        select(Call, Senior.full_name)
+        .join(Senior, Senior.id == Call.senior_id)
+        .where(
+            Call.trigger != CallTrigger.test,
+            or_(
+                Call.state.in_([CallState.ringing, CallState.in_progress]),
+                (Call.state == CallState.handed_over)
+                & (newest_turn >= datetime.now(UTC) - HANDOVER_LIVE),
+            ),
+        )
+        .order_by(Call.due_at.desc(), Call.id.desc())
+    )
+    return [
+        LiveCall(
+            id=call.id,
+            senior_id=call.senior_id,
+            senior_name=name,
+            trigger=call.trigger,
+            state=call.state,
+            starting_severity=call.starting_severity.name,
+            started_at=call.started_at,
+            due_at=call.due_at,
+        )
+        for call, name in rows
+    ]
 
 
 async def call_history(

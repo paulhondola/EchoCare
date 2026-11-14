@@ -28,6 +28,7 @@
   import CallTranscript from "../calls/CallTranscript.svelte";
   import Briefing from "../seniors/Briefing.svelte";
   import { refusalMessage } from "./commands";
+  import WhyRed from "./WhyRed.svelte";
 
   let {
     incident,
@@ -314,6 +315,7 @@
         {@const s = d.senior}
 
         {#if tab === "access"}
+          <WhyRed detail={d} events={EVENTS} />
           <div class="flex flex-col">
             <div
               class="grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line pb-3.5"

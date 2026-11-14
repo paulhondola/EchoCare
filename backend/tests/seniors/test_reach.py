@@ -108,23 +108,28 @@ async def test_one_row(client, seniors):
     r = await client.get("/api/seniors", headers=signed_in(SENIOR_DRAFT))
     [row] = r.json()
     assert row.pop("created_at")  # 04 §1; a draft has neither of the other two
-    assert [row] == [
-        {
-            "id": str(seniors["draft"]),
-            "full_name": "draft",
-            "form_of_address": "doamna Maria",
-            "phone_e164": "+40256000001",
-            "phone_is_landline": False,
-            "enrollment_state": "draft",
-            "code": None,  # no code until active (Q17)
-            "reason": None,
-            "since": None,
-            "submitted_at": None,
-            "accepted_at": None,
-            "watch_state": None,
-            "medical_record_state": None,
-        }
-    ]
+    assert (
+        [row]
+        == [
+            {
+                "id": str(seniors["draft"]),
+                "full_name": "draft",
+                "form_of_address": "doamna Maria",
+                "phone_e164": "+40256000001",
+                "phone_is_landline": False,
+                "enrollment_state": "draft",
+                "code": None,  # no code until active (Q17)
+                "reason": None,
+                "since": None,
+                "submitted_at": None,
+                "accepted_at": None,
+                "watch_state": None,
+                "medical_record_state": None,
+                "latitude": None,  # her street is not in the map's table (design 2026-11-14 §7)
+                "longitude": None,
+            }
+        ]
+    )
 
 
 @pytest.mark.parametrize(

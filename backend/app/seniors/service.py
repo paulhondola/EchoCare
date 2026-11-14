@@ -45,6 +45,7 @@ from app.seniors.models import (
     WatchReading,
     WatchState,
 )
+from app.seniors.places import approx_location
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -125,19 +126,26 @@ async def senior_summaries(
         "since",
         "watch_state",
         "medical_record_state",
+        "latitude",
+        "longitude",
     }
-    return [
-        SeniorSummary(
-            **{name: getattr(senior, name) for name in fields},
-            code=code,
-            reason=reason,
-            since=since,
-            watch_state=watch
-            if sees_watch(caller, senior.id, senior.medic_id)
-            else None,
+    rows = []
+    for senior, code, reason, since, watch in await session.execute(query):
+        point = approx_location(senior.id, senior.street)
+        rows.append(
+            SeniorSummary(
+                **{name: getattr(senior, name) for name in fields},
+                code=code,
+                reason=reason,
+                since=since,
+                watch_state=watch
+                if sees_watch(caller, senior.id, senior.medic_id)
+                else None,
+                latitude=point[0] if point else None,
+                longitude=point[1] if point else None,
+            )
         )
-        for senior, code, reason, since, watch in await session.execute(query)
-    ]
+    return rows
 
 
 async def reach_senior(

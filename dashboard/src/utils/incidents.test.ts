@@ -1,6 +1,14 @@
 import { expect, test } from "vite-plus/test";
 import type { Incident } from "../services/api";
-import { columns, fold, initials, matchesIncident, shortId, since } from "./incidents";
+import {
+  columns,
+  decidingCall,
+  fold,
+  initials,
+  matchesIncident,
+  shortId,
+  since,
+} from "./incidents";
 
 const NOW = Date.parse("2026-10-14T12:00:00Z");
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
@@ -65,4 +73,21 @@ test("columns put the longest wait first and the latest resolved first", () => {
   expect(c.open.map((i) => i.id)).toEqual(["b", "a"]);
   expect(c.in_progress.map((i) => i.id)).toEqual(["d", "c"]);
   expect(c.resolved.map((i) => i.id)).toEqual(["f", "e"]);
+});
+
+// The call „De ce cod roșu?” explains (design 2026-11-14 §5)
+const at = (final_severity: string | null, started_at: string) => ({ final_severity, started_at });
+
+test("the red call decides over a newer green one", () => {
+  const red = at("red", ago(30));
+  expect(decidingCall([red, at("green", ago(5))])).toBe(red);
+});
+
+test("with no red, the newest call decides", () => {
+  const newest = at("yellow", ago(5));
+  expect(decidingCall([at("green", ago(30)), newest])).toBe(newest);
+});
+
+test("no calls, nothing to explain", () => {
+  expect(decidingCall([])).toBeNull();
 });
