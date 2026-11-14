@@ -169,7 +169,14 @@
             aria-label="SpO2 în ultimele 24 de ore, între {spo2.lo} și {spo2.hi}%"
           >
             {#each spo2.dots as d, i (i)}
-              <circle cx={d.x} cy={d.y} r="2.5" fill="currentColor" />
+              <path
+                d="M{d.x} {d.y}h0"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="5"
+                stroke-linecap="round"
+                vector-effect="non-scaling-stroke"
+              />
             {/each}
           </svg>
           <span class="font-mono text-xs text-fg-muted">min {spo2.lo} · max {spo2.hi} %</span>
