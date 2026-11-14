@@ -17,6 +17,7 @@ erDiagram
     SENIOR ||--o| WATCH_STATE : "wears"
     SENIOR ||--o| MEDICAL_RECORD : "has"
     SENIOR ||--o{ WATCH_READING : "checked in, last 24 h"
+    SENIOR ||--o{ HEALTH_READING : "Apple Health, last 24 h"
     SENIOR ||--o| HOME_NODE_STATE : "has at home"
     SENIOR ||--o| SENIOR_STATUS : "has current, once active"
     SENIOR ||--o{ INCIDENT : "has, one per red"
@@ -115,6 +116,18 @@ erDiagram
         int steps_today
         int battery
         boolean worn
+    }
+    HEALTH_READING {
+        uuid senior_id PK
+        uuid id PK "the HealthKit sample's UUID"
+        string kind "spo2, ecg"
+        datetime measured_at
+        datetime received_at
+        int spo2 "kind spo2, 50 to 100"
+        string ecg_classification "kind ecg: sinus_rhythm, atrial_fibrillation, inconclusive_low_heart_rate, inconclusive_high_heart_rate, inconclusive_poor_reading, inconclusive_other, unrecognized"
+        int ecg_heart_rate "average bpm"
+        json ecg_trace "microvolts, at most 1280 points"
+        int ecg_trace_hz
     }
     HOME_NODE_STATE {
         uuid senior_id PK
@@ -254,6 +267,7 @@ erDiagram
 | MedicalRecord | A senior's medical record PDF and the check questions drawn from it, one current row per senior; a new upload replaces its content and resets `state` (`pending`, `review`, `confirmed`, `failed`). `items` is a JSONB list of `{condition, question, worrying, evidence, included}`; `source_text` is the extracted text, kept for re-analysis and never logged or served (design `2026-11-13-medical-record-profile` §5.1) |
 | WatchState | The watch's latest check-in, one row per senior |
 | WatchReading | One check-in, kept 24 hours for the dashboard's pulse line (ADR-006) |
+| HealthReading | One Apple Health blood oxygen or ECG sample relayed by the senior's iPhone, kept 24 hours for the dashboard's watch card (ADR-008). The key is the senior and the HealthKit sample's UUID, so a re-sent sample is kept once and a phone moved between seniors gives each its own copy |
 | HomeNodeState | The home node's latest room reading and when the room went out of range, one row per senior with a node **(P20, proposed)** |
 | Event | A watch anomaly, a fall, a button press on the watch or the home node, a room out of range, or a "Sunați-mă" request, with its source and the phone's last known location if it had one |
 | Campaign | One press of the weather-warning button, and the active-warning period it opens: 24 hours from the press, cut short when DAS ends the campaign |
@@ -303,7 +317,7 @@ Several rules from the other files are enforced by the database itself, so they 
 
 **Consent is a history, not a field.** A withdrawal is a new row, and the text version shows exactly what was agreed to.
 
-**The latest check-in, plus 24 hours of readings.** The watch state holds the latest check-in; `watch_readings` keeps each check-in for 24 hours, so DAS can see the pulse trend behind an alert ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)), and the scheduler deletes older ones. Nothing older is kept; the system stores the minimum health data that serves its purpose. The home node keeps only its latest room reading, and a room event keeps the reading that caused it as its snapshot.
+**The latest check-in, plus 24 hours of readings.** The watch state holds the latest check-in; `watch_readings` keeps each check-in for 24 hours, so DAS can see the pulse trend behind an alert ([ADR-006](../../adr/ADR-006-das-sees-watch-health.md)), and the scheduler deletes older ones. Nothing older is kept; the system stores the minimum health data that serves its purpose. `health_readings` keeps the Apple Health blood oxygen and ECG readings the senior's iPhone sends, for 24 hours too ([ADR-008](../../adr/ADR-008-ios-apple-health-oxygen-and-ecg.md)): health data is special category (GDPR Art. 9), so the scheduler deletes older rows beside the check-ins, and a reading measured more than 24 hours ago is not stored. The home node keeps only its latest room reading, and a room event keeps the reading that caused it as its snapshot.
 
 **Location is stored only with an event.** There is no location history apart from the moments the senior's phone reported an event.
 
@@ -326,6 +340,6 @@ Several rules from the other files are enforced by the database itself, so they 
 
 **Declared equipment** (design 2026-11-14). `seniors.equipment` holds what the medic ticked at registration (UC-01): `smartphone` (the EchoCare app on the senior's own phone, not merely a mobile), `watch` and `home_node`, in that order. `[]` means the senior only takes calls. `null` means not stated, for seniors registered before the field existed, and every screen treats it as before. An edit that leaves it out or sends null keeps it, so a senior never goes back to `null`.
 
-**Erasure** (GDPR Art. 17, design 2026-11-14). `POST /seniors/{id}/erase` ([04-interfaces.md](04-interfaces.md) §2) deletes the senior and every row about them in one transaction, each table through its owner (ADR-005), children first: status reports and the code, events and incidents, consents, summaries and watch data, calls with their turns and answers, the medical record, the senior, and the users of the senior and caregivers left with no grant, unless another row still names them (a former medic or DAS employee). The medical record's PDF is deleted from the file store after the commit. In our database and file store, only a log line with the senior's id and who erased it remains. Outside our database and file store, Twilio's call logs (numbers and times), database backups until they rotate, and the Firebase sign-in account (auth-layer AL11) are not touched; a pilot needs a retention setting or a deletion request for each. It is refused while a call is live or an incident unresolved.
+**Erasure** (GDPR Art. 17, design 2026-11-14). `POST /seniors/{id}/erase` ([04-interfaces.md](04-interfaces.md) §2) deletes the senior and every row about them in one transaction, each table through its owner (ADR-005), children first: status reports and the code, events and incidents, consents, summaries and watch data (check-ins and Apple Health readings), calls with their turns and answers, the medical record, the senior, and the users of the senior and caregivers left with no grant, unless another row still names them (a former medic or DAS employee). The medical record's PDF is deleted from the file store after the commit. In our database and file store, only a log line with the senior's id and who erased it remains. Outside our database and file store, Twilio's call logs (numbers and times), database backups until they rotate, and the Firebase sign-in account (auth-layer AL11) are not touched; a pilot needs a retention setting or a deletion request for each. It is refused while a call is live or an incident unresolved.
 
 The demo uses fictitious people only. Retention periods for a real pilot are out of scope here and need a decision with DAS as data controller.
