@@ -1,1 +1,3 @@
 bless==0.3.0
+# Optional, only with a trained model at models/gestures.eim (S15):
+# edge_impulse_linux

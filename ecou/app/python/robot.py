@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 import faces
 from body import Body
+from gesture_model import GestureModel
 from node_ble import NodeServer
 from puiul_link import PuiulLink
 from sensing import (
@@ -27,7 +28,6 @@ from sensing import (
     LyingWatch,
     Tracker,
     candidates,
-    classify,
     find_lying,
     or_far,
     side_of,
@@ -50,6 +50,7 @@ READING_EVERY = 5.0 if DEMO else 60.0  # room reading to the phone (06 §3)
 SEARCH_AFTER = 10.0 if DEMO else 120.0  # nobody seen for this long: search
 LYING_HOLD = 8.0 if DEMO else 30.0
 ASK_TIMEOUT = 15.0 if DEMO else 30.0
+ASK_LOOK_EVERY = 5.0  # during Ask, look up this often for someone walking (UC-17)
 QUIET_SWEEP_EVERY = 600.0
 PALM_HOLD = 3.0  # seconds of a still palm for an SOS (P25)
 FORECAST = (
@@ -81,6 +82,7 @@ class Ecou:
         self.room_state = "ok"  # the Room state characteristic (P26)
         self.palm_since: float | None = None
         self.asking: dict | None = None
+        self.gestures = GestureModel()
         body.on_temperature(lambda t, c: self.forecast.add(t, c))
 
         self.ble = NodeServer(NAME, self._on_light, self._on_room_state, self._on_ack)
@@ -243,8 +245,8 @@ class Ecou:
             self.palm_since = None
 
     def _gesture(self, now: float) -> None:
-        window = self.body.stream(1.0)
-        kind = classify(window)
+        window = self.body.stream(2.0)
+        kind = self.gestures.classify(window)
         if kind == "palm":
             self.palm_since = self.palm_since or now
             if now - self.palm_since >= PALM_HOLD:
@@ -284,6 +286,7 @@ class Ecou:
             "deadline": now + ASK_TIMEOUT,
             "frames": list(faces.scroll_frames("BINE?")),
             "frame": 0,
+            "checked": now,
         }
         self.body.look(lying.angle, TILT_FLOOR)
         self.body.start_stream(50)
@@ -298,12 +301,21 @@ class Ecou:
         self.body.draw(a["frames"][a["frame"] % len(a["frames"])])
         a["frame"] += 1
         window = self.body.take_stream()
-        kind = classify(window[-40:]) if len(window) >= 20 else "none"
+        kind = self.gestures.classify(window[-40:]) if len(window) >= 20 else "none"
         if kind == "wave":
             log("waved: fine, nothing sent")
             self._forget_object(a)
             self._end_ask("green")
             return
+        # Without tilt, the level sweep sees the lying object itself: no such check
+        if HAS_TILT and now - a["checked"] > ASK_LOOK_EVERY:
+            a["checked"] = now
+            if self._someone_walking():
+                log("someone is walking: not lying, nothing sent")
+                self._end_ask("green")
+                return
+            self.body.look(a["angle"], TILT_FLOOR)
+            self.body.start_stream(50)
         if kind == "palm" or left <= 0:
             payload = {
                 "seconds_still": int(now - a["since"]),
@@ -316,6 +328,14 @@ class Ecou:
             self._end_ask("yellow")
             return
         time.sleep(0.08)
+
+    def _someone_walking(self) -> bool:
+        """A quick level sweep during Ask: a person moving in view is not lying (UC-17)."""
+        self.body.stop()
+        level = self.body.sweep(0, 180, STEP * 2, TILT_LEVEL)
+        before = self.tracker.track
+        track = self.tracker.update(time.monotonic(), candidates(level, self.room))
+        return track is not None and (before is None or track.moved_at == track.last_seen)
 
     def _forget_object(self, a: dict) -> None:
         """A wave over a coat: that spot becomes floor, so it is not asked about again."""

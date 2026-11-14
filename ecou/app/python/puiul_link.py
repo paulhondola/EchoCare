@@ -1,14 +1,22 @@
 """Ecou's side of the link with Puiul, the R4 WiFi in the kitchen (P27, 08-ecou.md §2.6).
 
-Puiul sends small JSON datagrams to UDP port 4210: `{"id": 17, "type": "pass"}`,
+Puiul sends small JSON datagrams to UDP port 4210: `{"id": 17, "type": "pass", "key": …}`,
 `"sos"` or `"alive"`. Ecou answers each with the room state and the code, so Puiul
 learns where to send without any setup beyond the network.
+
+The network is Ecou's own WPA2 hotspot, with no internet. On top of that every message
+carries the shared key from ECOU_PUIUL_KEY (Puiul's arduino_secrets.h): a message without
+it is dropped unanswered, so a stranger who got onto the network can neither raise an SOS
+nor read the room. The key travels in clear inside the encrypted Wi-Fi; that is enough
+for a demo, not for a pilot, which would sign each message instead.
 """
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
+import os
 import socket
 import threading
 import time
@@ -18,6 +26,7 @@ log = logging.getLogger("ecou.puiul")
 
 PORT = 4210
 SILENT_AFTER_S = 120.0  # no `alive` for this long: kitchen motion stops counting
+KEY = os.environ.get("ECOU_PUIUL_KEY", "")
 
 
 class PuiulLink:
@@ -30,6 +39,9 @@ class PuiulLink:
         self._seen: set[tuple[str, int]] = set()
 
     def start(self) -> bool:
+        if not KEY:
+            log.warning("no ECOU_PUIUL_KEY: Puiul is not listened to")
+            return False
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.bind(("0.0.0.0", PORT))
@@ -50,13 +62,16 @@ class PuiulLink:
             try:
                 msg = json.loads(data)
                 kind, msg_id = str(msg["type"]), int(msg.get("id", 0))
+                key = str(msg.get("key", ""))
             except (ValueError, KeyError, TypeError):
                 continue
+            if not hmac.compare_digest(key.encode(), KEY.encode()):
+                continue  # not Puiul: no state goes back either
             self.last_heard = time.monotonic()
             # Puiul repeats an SOS until answered; act on each id once
-            key = (addr[0], msg_id)
-            if kind in ("pass", "sos") and key not in self._seen:
-                self._seen.add(key)
+            seen = (addr[0], msg_id)
+            if kind in ("pass", "sos") and seen not in self._seen:
+                self._seen.add(seen)
                 if len(self._seen) > 500:
                     self._seen.clear()
                 (self.on_pass if kind == "pass" else self.on_sos)()

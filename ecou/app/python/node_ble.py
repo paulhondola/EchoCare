@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 import uuid
@@ -32,6 +33,10 @@ ROOM_STATE = BASE.format(0x0007)
 NOTIFY_CHARS = (ROOM_READING, MOTION, SOS_PRESS, FALL)
 WRITE_CHARS = (ACKNOWLEDGE, LIGHT, ROOM_STATE)
 RESEND_S = 5.0  # an unacknowledged press or fall goes again this often
+# Only a paired phone reads or writes the node (P20): every characteristic needs an encrypted
+# link. ECOU_PAIRING=0 drops that for a demo where BlueZ cannot pair (spike S14); then any
+# phone in range could read the room and write the light, so never in a senior's home.
+REQUIRE_PAIRING = os.environ.get("ECOU_PAIRING", "1") != "0"
 
 
 class NodeServer:
@@ -88,17 +93,18 @@ class NodeServer:
         server.write_request_func = self._on_write
         await server.add_new_service(SERVICE)
         notify = GATTCharacteristicProperties.read | GATTCharacteristicProperties.notify
+        readable = GATTAttributePermissions.readable
+        writable = GATTAttributePermissions.writable
+        if REQUIRE_PAIRING:
+            readable |= GATTAttributePermissions.read_encryption_required
+            writable |= GATTAttributePermissions.write_encryption_required
+        else:
+            log.warning("ECOU_PAIRING=0: the node accepts any phone in range")
         for char in NOTIFY_CHARS:
-            await server.add_new_characteristic(
-                SERVICE, char, notify, None, GATTAttributePermissions.readable
-            )
+            await server.add_new_characteristic(SERVICE, char, notify, None, readable)
         for char in WRITE_CHARS:
             await server.add_new_characteristic(
-                SERVICE,
-                char,
-                GATTCharacteristicProperties.write,
-                None,
-                GATTAttributePermissions.writable,
+                SERVICE, char, GATTCharacteristicProperties.write, None, writable
             )
         await server.start()
         self._server = server

@@ -1,6 +1,7 @@
 // Puiul, Ecou's companion in the kitchen, on an Arduino UNO R4 WiFi (P27, 08-ecou.md §2.6).
 //
-// It talks only to Ecou, over Ecou's own Wi-Fi, in small JSON datagrams to UDP 4210:
+// It talks only to Ecou, over Ecou's own Wi-Fi, in small JSON datagrams to UDP 4210, each with
+// the shared key from arduino_secrets.h (Ecou drops any message without it):
 //   {"id":17,"type":"sos"}    the foil pad held for 2 s; resent until Ecou answers
 //   {"id":18,"type":"pass"}   someone crossed the doorway (only with an HC-SR04 fitted)
 //   {"id":19,"type":"alive"}  every 30 s
@@ -75,8 +76,9 @@ const char* BLANK[8] = {"............", "............", "............", ".......
 // --- network ---------------------------------------------------------------------------
 
 void send(const char* type, uint32_t id) {
-  char msg[48];
-  snprintf(msg, sizeof msg, "{\"id\":%lu,\"type\":\"%s\"}", (unsigned long)id, type);
+  char msg[160];
+  snprintf(msg, sizeof msg, "{\"id\":%lu,\"type\":\"%s\",\"key\":\"%s\"}", (unsigned long)id,
+           type, SECRET_LINK_KEY);
   udp.beginPacket(ECOU_IP, ECOU_PORT);
   udp.write((const uint8_t*)msg, strlen(msg));
   udp.endPacket();

@@ -73,12 +73,12 @@ If the Linux side cannot advertise or serve, the fallback is in 08 §6: the R4 W
 
 `ECOU_DEMO=0` switches to the real timers (06 §3); the default is demo mode. Set `TILT_FLOOR` at the top of `robot.py` once Ecou sits on its shelf: the tilt at which the beam meets the floor 1.5–2.5 m away. `HAS_TILT = False` is the one-servo build.
 
-`requirements.txt` asks for `bless`, the BLE server. If App Lab cannot reach Bluetooth from its container (S14), Ecou runs without a phone and shows the asleep face.
+`requirements.txt` asks for `bless`, the BLE server. Every characteristic needs an encrypted, paired link, so only the senior's paired phone reads the room or writes the light (P20). If BlueZ cannot pair from App Lab (S14), `ECOU_PAIRING=0` drops that for the demo table only: any phone in range could then read and write the node. If App Lab cannot reach Bluetooth from its container (S14), Ecou runs without a phone and shows the asleep face.
 
 ## Puiul
 
 1. Ecou serves the network: on the UNO Q, `nmcli device wifi hotspot ifname wlan0 ssid Ecou password 'ecou-acasa'`.
-2. Copy `puiul/arduino_secrets.example.h` to `puiul/arduino_secrets.h` with that name and password.
+2. Copy `puiul/arduino_secrets.example.h` to `puiul/arduino_secrets.h` with that name and password, and a long random `SECRET_LINK_KEY`. Give Ecou the same value as `ECOU_PUIUL_KEY` in its app environment; without it Ecou does not listen to Puiul.
 3. Install the `Arduino_CapacitiveTouch` library, glue the foil pad to a wire on D2, and upload `puiul/puiul.ino` to the R4 WiFi.
 
 The pad's resting value is read at power-on: don't touch it then. Without a second HC-SR04, Puiul only does the SOS pad and the matrix.
