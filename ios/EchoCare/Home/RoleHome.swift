@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Each role's home (`homeFor`, Routes.swift). DAS's is a placeholder, the role's title in a
-/// `Frame`, until Task 11 replaces its case. `open` pushes a page over the home.
+/// Each role's home (`homeFor`, Routes.swift). `open` pushes a page over the home.
 struct RoleHome: View {
     let role: String
     /// A read refused as signed out or not registered ends the session (seniors §8.2).
@@ -25,15 +24,7 @@ struct RoleHome: View {
         case .own:
             SeniorHome(onSessionEnd: onSessionEnd)
         case .incidents:
-            Placeholder(title: String(localized: "role_das"))
+            IncidentsView(onOpen: { open(.incident(id: $0)) }, onSessionEnd: onSessionEnd)
         }
-    }
-}
-
-private struct Placeholder: View {
-    let title: String
-
-    var body: some View {
-        Frame(title) { EmptyView() }
     }
 }

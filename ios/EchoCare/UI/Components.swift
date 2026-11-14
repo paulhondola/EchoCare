@@ -194,12 +194,18 @@ struct ErrorText: View {
 /// A full-width strip over a screen: no connection, a request sent (android Components.kt `Banner`).
 /// VoiceOver reads it out when it appears, as Compose's polite live region.
 struct Banner: View {
-    /// A `Localizable.xcstrings` key.
-    let key: String
+    /// The words, from a `Localizable.xcstrings` key or already filled in.
+    let text: String
     let tone: Tone
 
     init(_ key: String, tone: Tone) {
-        self.key = key
+        self.text = String(localized: String.LocalizationValue(key))
+        self.tone = tone
+    }
+
+    /// Words already filled in, such as „Preluat deja de …”.
+    init(verbatim text: String, tone: Tone) {
+        self.text = text
         self.tone = tone
     }
 
@@ -207,7 +213,7 @@ struct Banner: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Rectangle().fill(tone.dot).frame(width: 8, height: 8).accessibilityHidden(true)
-                Text(LocalizedStringKey(key)).textStyle(Theme.labelLarge).foregroundStyle(tone.text)
+                Text(verbatim: text).textStyle(Theme.labelLarge).foregroundStyle(tone.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 16)
@@ -216,7 +222,7 @@ struct Banner: View {
             Rectangle().fill(tone.dot).frame(height: 2).accessibilityHidden(true)
         }
         .accessibilityElement(children: .combine)
-        .onAppear { AccessibilityNotification.Announcement(String(localized: .init(key))).post() }
+        .onAppear { AccessibilityNotification.Announcement(text).post() }
     }
 }
 

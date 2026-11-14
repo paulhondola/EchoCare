@@ -9,6 +9,10 @@ enum HomeRoute: Hashable {
     case senior(id: String)
     /// „Pacient nou”: the medic's form, empty, or filled from the senior `id` (seniors §9.1).
     case enroll(id: String?)
+    /// One incident, for DAS (UC-11).
+    case incident(id: String)
+    /// „Rezolvare caz”, for one incident (UC-11 step 4).
+    case resolve(id: String)
 }
 
 /// The signed-in app: the role's home and what opens from it (seniors §8.2), ported from
@@ -66,6 +70,21 @@ struct HomeNav: View {
                                 path.removeAll()
                             },
                             onDone: { toPage($0, from: route) },
+                            onSessionEnd: sessionEnded
+                        )
+                    case .incident(let id):
+                        IncidentView(
+                            id: id,
+                            onBack: { pop(route) },
+                            onResolve: { path.append(.resolve(id: $0)) },
+                            onSessionEnd: sessionEnded
+                        )
+                    case .resolve(let id):
+                        ResolveView(
+                            id: id,
+                            onBack: { pop(route) },
+                            // Resolved incidents leave the list: back to it, past the incident's page
+                            onDone: { path.removeAll() },
                             onSessionEnd: sessionEnded
                         )
                     }
