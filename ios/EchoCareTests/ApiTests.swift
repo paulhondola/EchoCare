@@ -366,15 +366,30 @@ extension ApiTests {
         }
     }
 
-    @Test func noContentAnswersNilAnd404OnRecordsToo() async throws {
+    @Test func medicalRecordIsNilOn204Only() async throws {
         let none = StubURLProtocol.replying(.init(204))
         #expect(try await client(none).medicalRecord(id: "s1") == nil)
-        #expect(try await client(none).mockCall() == nil)
-        let missing = StubURLProtocol.replying(.init(404, #"{"detail":"not_found"}"#))
-        #expect(try await client(missing).mockCall() == nil)
         let record = StubURLProtocol.replying(
             .init(200, #"{"state": "pending", "uploaded_at": "2026-11-14T10:00:00Z"}"#))
         #expect(try await client(record).medicalRecord(id: "s1")?.state == "pending")
+    }
+
+    @Test func medicalRecord404Throws() async throws {
+        let missing = StubURLProtocol.replying(.init(404, #"{"detail":"not_found"}"#))
+        do {
+            _ = try await client(missing).medicalRecord(id: "s1")
+            Issue.record("expected a throw")
+        } catch let ApiError.http(status, body) {
+            #expect(status == 404)
+            #expect(body.contains("not_found"))
+        }
+    }
+
+    @Test func mockCallIsNilOn204And404() async throws {
+        let none = StubURLProtocol.replying(.init(204))
+        #expect(try await client(none).mockCall() == nil)
+        let missing = StubURLProtocol.replying(.init(404, #"{"detail":"not_found"}"#))
+        #expect(try await client(missing).mockCall() == nil)
     }
 
     @Test func voidCallsAcceptNoContent() async throws {

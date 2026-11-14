@@ -110,9 +110,11 @@ actor ApiClient {
 
     // MARK: Medical record
 
-    /// 200 with the record; nil for 204, none attached (design §5.7), or 404.
+    /// 200 with the record; nil for 204, none attached (design §5.7). Only a 204 is "none": a 404
+    /// throws like any other non-2xx, so a caller keeps its previous record, as Android's
+    /// SeniorViewModel.kt does (it clears `medical` on 204 alone).
     func medicalRecord(id: String) async throws -> MedicalRecord? {
-        try await optional("GET", "seniors/\(seg(id))/medical-record")
+        try await optional("GET", "seniors/\(seg(id))/medical-record", nilOn: [204])
     }
 
     /// The raw PDF, `application/pdf`, at most 10 MB (design §5.7).
@@ -132,7 +134,9 @@ actor ApiClient {
     // MARK: Mock call (demo)
 
     /// The due call; nil for 204, none due, or 404, production (design §4.2).
-    func mockCall() async throws -> MockCall? { try await optional("GET", "profile/mock-call") }
+    func mockCall() async throws -> MockCall? {
+        try await optional("GET", "profile/mock-call", nilOn: [204, 404])
+    }
 
     /// 204; a 409 means the call is no longer due (design §4.2), thrown as `ApiError.http`.
     func mockAnswer(id: String, body: MockAnswer) async throws {
@@ -185,10 +189,12 @@ actor ApiClient {
         try await decoded(send("POST", path, json: body))
     }
 
-    /// The decoded body of a 2xx; nil for 204 and 404.
-    private func optional<T: Decodable>(_ method: String, _ path: String) async throws -> T? {
+    /// The decoded body of a 2xx; nil for a status in [nilOn].
+    private func optional<T: Decodable>(
+        _ method: String, _ path: String, nilOn: Set<Int>
+    ) async throws -> T? {
         let (data, status) = try await raw(method, path)
-        if status == 204 || status == 404 { return nil }
+        if nilOn.contains(status) { return nil }
         return try decoded(check(data, status))
     }
 
