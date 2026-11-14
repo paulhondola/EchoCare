@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
 from app.calls.router import router as calls_router
 from app.campaigns.router import router as campaigns_router
-from app.core.settings import check_environment, cors_origins, get_settings
+from app.core.settings import AppEnv, check_environment, cors_origins, get_settings
 from app.erasure.router import router as erasure_router
 from app.incidents.router import router as incidents_router
 from app.medical.router import router as medical_router
@@ -37,6 +37,18 @@ if not settings.deepinfra_api_key:
 install(sender_from(settings.firebase_push_credentials))
 
 
+def docs_urls(env: AppEnv) -> dict[str, str | None]:
+    """Swagger, ReDoc and the schema, except in production, where they would list the
+    whole API surface to anyone (design 2026-11-14)."""
+    if env is AppEnv.production:
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {
+        "docs_url": "/api/docs",
+        "redoc_url": "/api/redoc",
+        "openapi_url": "/api/openapi.json",
+    }
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """The scheduler loop (06 §1) lives as long as the app does; pushes under way
@@ -53,13 +65,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 # Everything under /api, docs included, so the API and the dashboard can share one domain.
-app = FastAPI(
-    title="EchoCare",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
-    lifespan=lifespan,
-)
+app = FastAPI(title="EchoCare", lifespan=lifespan, **docs_urls(settings.app_env))
 # Browser requests only from the dashboard's own address (01 §4, channel 3).
 app.add_middleware(
     CORSMiddleware,
