@@ -6,6 +6,27 @@ enum Monitoring: Equatable {
     case idle, starting, started, failed
 }
 
+/// The banner after what the phone last heard from the watch. An event or check-in within two
+/// check-in intervals means the watch is monitoring, however it was started (the phone or the
+/// watch's own button); `.started` with nothing heard for two intervals since the last message or
+/// the start, or with the watch app gone, goes back to idle, so the button invites a new start.
+/// A start in flight is left alone.
+func monitoringAfter(
+    _ state: Monitoring, seen: WatchSeen, startedAt: Date?, now: Date, interval: TimeInterval
+) -> Monitoring {
+    if state == .starting { return state }
+    if seen.appInstalled == false { return state == .started ? .idle : state }
+    let window = 2 * interval
+    if let heard = seen.lastHeard, now.timeIntervalSince(heard) <= window { return .started }
+    guard state == .started else { return state }
+    if let freshest = [seen.lastHeard, startedAt].compactMap({ $0 }).max(),
+        now.timeIntervalSince(freshest) <= window
+    {
+        return .started
+    }
+    return .idle
+}
+
 /// The senior's own home: GET /seniors/{id} for the one senior their grant names (seniors §3.3),
 /// ported from android/app/.../home/SeniorViewModel.kt, its own-home half. The senior's page is
 /// also the home of the iPhone app that relays the watch (G5), so it holds „Pornește monitorizarea”.
@@ -31,17 +52,27 @@ final class SeniorModel {
     private let api: ApiClient
     private let location: LocationHelper
     private let startWatch: @MainActor () async throws -> Void
+    private let watchSeen: @MainActor () -> WatchSeen
+    private let now: @MainActor () -> Date
+    private let checkInInterval: TimeInterval
+    private var startedAt: Date?
     private var reading: Task<Void, Never>?
     private var answering = false
 
     init(
         api: ApiClient = ApiClient(tokens: FirebaseTokenSource()),
         location: LocationHelper = LocationHelper(),
-        startWatch: @escaping @MainActor () async throws -> Void = { try await WatchLink.shared.startMonitoring() }
+        startWatch: @escaping @MainActor () async throws -> Void = { try await WatchLink.shared.startMonitoring() },
+        watchSeen: @escaping @MainActor () -> WatchSeen = { WatchLink.shared.seen },
+        now: @escaping @MainActor () -> Date = { Date() },
+        checkInInterval: TimeInterval = WatchLink.checkInInterval
     ) {
         self.api = api
         self.location = location
         self.startWatch = startWatch
+        self.watchSeen = watchSeen
+        self.now = now
+        self.checkInInterval = checkInInterval
     }
 
     /// „Sunați-mă”. No retry: a failed tap shows `.notSent` and the senior taps again, with a new
@@ -65,6 +96,7 @@ final class SeniorModel {
     /// left running, it could land after this one.
     func load() async {
         location.prepare()
+        refreshMonitoring()
         reading?.cancel()
         let read = Task { await readAll() }
         reading = read
@@ -106,16 +138,24 @@ final class SeniorModel {
     }
 
     /// „Pornește monitorizarea”: asks the watch to start (design, Monitoring runs inside an
-    /// HKWorkoutSession).
+    /// HKWorkoutSession). `.started` only once `startWatchApp` succeeded. Tappable again once
+    /// started or failed.
     func startMonitoring() async {
         guard monitoring != .starting else { return }
         monitoring = .starting
         do {
             try await startWatch()
+            startedAt = now()
             monitoring = .started
         } catch {
             monitoring = .failed
         }
+    }
+
+    /// The banner after what the phone heard from the watch; run on each reread of the home.
+    func refreshMonitoring() {
+        monitoring = monitoringAfter(
+            monitoring, seen: watchSeen(), startedAt: startedAt, now: now(), interval: checkInInterval)
     }
 
     /// The one senior the grant names: the first of the senior's own list (04 §1).

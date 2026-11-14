@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // (auth-layer §8.2, §9 step 1). REAL_SMS = YES leaves app verification on for real numbers:
         // with no APNs, Firebase verifies the app with its reCAPTCHA page.
         Auth.auth().settings?.isAppVerificationDisabledForTesting = !AppConfig.realSMS
+        // Here, not in a view: a watch message relaunches the app with no UI (Spike results)
+        WatchLink.shared.activate()
         return true
     }
 }
