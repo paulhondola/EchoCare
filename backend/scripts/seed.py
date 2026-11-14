@@ -317,6 +317,34 @@ PAST_CAMPAIGN_ID = seed_id("campaign", "cold-earlier")
 SEEDED = func.uuid_extract_version(Senior.id) == 5
 
 
+# What the medic declared (design 2026-11-14), so the dashboard shows each case: a watch
+# that reports, none, a watch that never reported (aurelia), a home node (gheorghe),
+# the app alone (silvia). Seniors not named stay null, as if registered before.
+WATCH = ["smartphone", "watch"]
+EQUIPMENT: dict[str, list[str]] = {
+    **dict.fromkeys(
+        (
+            "maria",
+            "elena",
+            "ana",
+            "vasile",
+            "florica",
+            "dumitru",
+            "viorica",
+            "gavril",
+            "margareta",
+            "aurelia",
+        ),
+        WATCH,
+    ),
+    "gheorghe": [*WATCH, "home_node"],
+    "ion": [],
+    "constantin": [],
+    "teodor": [],
+    "silvia": ["smartphone"],
+}
+
+
 def people() -> list[Person]:
     """Staff and caregivers; sync_senior_grant makes the seniors' own users."""
     found = {p.phone: p for p, _ in STAFF_GRANTS}
@@ -408,6 +436,7 @@ class History:
             submitted_at=created + timedelta(hours=2) if past_draft else None,
             accepted_at=created + timedelta(hours=20) if past_submitted else None,
             accepted_by=self.users[DAS.phone] if past_submitted else None,
+            equipment=EQUIPMENT.get(spec.key),
             **spec.address,
         )
         self.seniors[spec.key] = senior

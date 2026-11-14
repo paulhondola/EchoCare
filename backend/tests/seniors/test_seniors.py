@@ -95,7 +95,7 @@ async def test_the_medic_registers_a_draft(client, staff):
     assert maria["medic"] == {"display_name": "Dr. Pop", "practice": None}
     r = await get(client, f"/api/seniors/{maria['id']}", MEDIC)
     # Only the read says whether a call is live (04 §1)
-    assert r.json() == {**maria, "call_in_progress": False}
+    assert r.json() == {**maria, "call_in_progress": False, "app_signed_in": False}
 
 
 async def test_a_mobile_senior_signs_in_as_herself(client, staff):
@@ -767,3 +767,28 @@ async def test_landline_edit_without_equipment_keeps_the_list(client, staff):
     )
     assert r.status_code == 200, r.text
     assert r.json()["equipment"] == ["smartphone"]
+
+
+async def page_of(client, senior_id, token=MEDIC) -> dict:
+    r = await client.get(f"/api/seniors/{senior_id}", headers=signed_in(token))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_app_signed_in_after_the_senior_signs_in(client, staff):
+    s = await register(client)
+    assert (await page_of(client, s["id"]))["app_signed_in"] is False
+    await client.get("/api/profile", headers=signed_in(SENIOR))  # sets firebase_uid
+    assert (await page_of(client, s["id"]))["app_signed_in"] is True
+
+
+async def test_app_signed_in_is_false_for_a_landline(client, staff):
+    s = await register(client, {**MARIA, "phone": LANDLINE})
+    assert (await page_of(client, s["id"]))["app_signed_in"] is False
+
+
+async def test_the_senior_sees_her_own_app_signed_in(client, staff):
+    s = await register(client)
+    await client.get("/api/profile", headers=signed_in(SENIOR))
+    # The senior on her own page sees it, as she sees her watch (UC-03)
+    assert (await page_of(client, s["id"], SENIOR))["app_signed_in"] is True

@@ -277,6 +277,9 @@ class SeniorView(SeniorDetail):
     # The watch's latest pulse, alongside `watch_state` (UC-03). Null before the first
     # check-in that carried one, or for callers who can't see the watch.
     last_pulse: int | None = Field(None, ge=0, le=300)
+    # Whether her own phone's app has ever signed in, for the device warning (design
+    # 2026-11-14). Set by GET /seniors/{id} only, for who sees the watch; else null.
+    app_signed_in: bool | None = None
     medic: MedicView
     caregivers: list[CaregiverView]
 

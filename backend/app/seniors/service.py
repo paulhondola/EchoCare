@@ -265,6 +265,7 @@ async def senior_view(session: AsyncSession, senior: Senior) -> SeniorView:
         "call_in_progress",
         "watch_state",
         "last_pulse",
+        "app_signed_in",
         "consent",
         "consent_given_at",
         "signed_at",
@@ -826,6 +827,23 @@ async def watch_state(
         )
     ).one_or_none()
     return (row.state, row.last_pulse) if row else (None, None)
+
+
+async def app_signed_in(
+    session: AsyncSession, caller: Caller, senior: Senior
+) -> bool | None:
+    """Whether the user holding her senior grant has ever signed in, for the „Pacientul nu
+    a deschis aplicația” warning (design 2026-11-14); null for who can't see her watch.
+    shortcut: a sign-in in any role counts; add a "signed in as senior" time if that
+    misleads in a pilot."""
+    if not sees_watch(caller, senior.id, senior.medic_id):
+        return None
+    signed = await session.scalar(
+        select(User.firebase_uid.is_not(None))
+        .join(Grant, Grant.user_id == User.id)
+        .where(Grant.senior_id == senior.id, Grant.role == Role.senior)
+    )
+    return bool(signed)  # no senior grant (a landline, AL7) is False
 
 
 READINGS_KEPT = timedelta(hours=24)
