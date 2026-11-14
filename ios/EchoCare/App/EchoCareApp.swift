@@ -32,4 +32,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         WatchLink.shared.activate()
         return true
     }
+
+    // Phone sign-in first sends a fake notification through this method and waits for it to reach
+    // Auth (FirebaseAuth's notification-forwarding check); without the method every code request
+    // fails with FIRAuthErrorDomain 17054. SwiftUI's own app delegate forwards only what this class
+    // implements, so Firebase's swizzling can't add it. No APNs: the prober is a local call.
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        _ = Auth.auth().canHandleNotification(userInfo)
+        completionHandler(.noData)
+    }
 }
