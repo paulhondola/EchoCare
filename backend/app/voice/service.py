@@ -23,8 +23,10 @@ from app.core.changes import Change, ChangeKind, note
 from app.core.db import Session
 from app.core.settings import get_settings
 from app.seniors.models import Senior
+from app.seniors.service import latest_summary, read_content
 from app.status.engine import Certainty, Question, Severity
 from app.voice.calls import ANSWERED, ENDED, LIVE, CallState, advance, after_callback
+from app.voice.dialogue import briefing
 from app.voice.models import (
     Answer,
     Call,
@@ -501,3 +503,62 @@ async def erase_calls(session: AsyncSession, call_ids: list[uuid.UUID]) -> None:
     await session.execute(delete(Answer).where(Answer.call_id.in_(call_ids)))
     await session.execute(delete(CallTurn).where(CallTurn.call_id.in_(call_ids)))
     await session.execute(delete(Call).where(Call.id.in_(call_ids)))
+
+
+async def handover_briefing(session: AsyncSession, call_id: uuid.UUID) -> str | None:
+    """The briefing for the call's hand-over, None for an unknown call (design 2026-11-14
+    §6). The senior's words come from the call's reason, which the hand-over writes."""
+    row = (
+        await session.execute(
+            select(Call, Senior)
+            .join(Senior, Senior.id == Call.senior_id)
+            .where(Call.id == call_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    call, senior = row
+    street = " ".join(p for p in (senior.street, senior.street_number) if p)
+    address = ", ".join(
+        p for p in (street, f"bloc {senior.block}" if senior.block else None) if p
+    )
+    version = await latest_summary(session, senior.id)
+    content = read_content(version) if version else None
+    return briefing(
+        senior.form_of_address,
+        senior.full_name,
+        address or None,
+        call.reason,
+        content.narrative if content else None,
+    )
+
+
+async def export_calls(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> tuple[list[Call], dict[uuid.UUID, list[CallTurn]], dict[uuid.UUID, list[Answer]]]:
+    """Every call of the senior's with its turns and answers, for a GDPR export (04 §1,
+    design 2026-11-14)."""
+    calls = list(
+        await session.scalars(
+            select(Call)
+            .where(Call.senior_id == senior_id)
+            .order_by(Call.due_at, Call.id)
+        )
+    )
+    call_ids = [c.id for c in calls]
+    turns: dict[uuid.UUID, list[CallTurn]] = {i: [] for i in call_ids}
+    answers: dict[uuid.UUID, list[Answer]] = {i: [] for i in call_ids}
+    if call_ids:
+        for t in await session.scalars(
+            select(CallTurn)
+            .where(CallTurn.call_id.in_(call_ids))
+            .order_by(CallTurn.call_id, CallTurn.position)
+        ):
+            turns[t.call_id].append(t)
+        for a in await session.scalars(
+            select(Answer)
+            .where(Answer.call_id.in_(call_ids))
+            .order_by(Answer.at, Answer.id)
+        ):
+            answers[a.call_id].append(a)
+    return calls, turns, answers

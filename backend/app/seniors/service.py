@@ -45,6 +45,7 @@ from app.seniors.models import (
     WatchReading,
     WatchState,
 )
+from app.seniors.places import approx_location
 from app.seniors.schemas import (
     CaregiverEditForm,
     CaregiverForm,
@@ -125,19 +126,26 @@ async def senior_summaries(
         "since",
         "watch_state",
         "medical_record_state",
+        "latitude",
+        "longitude",
     }
-    return [
-        SeniorSummary(
-            **{name: getattr(senior, name) for name in fields},
-            code=code,
-            reason=reason,
-            since=since,
-            watch_state=watch
-            if sees_watch(caller, senior.id, senior.medic_id)
-            else None,
+    rows = []
+    for senior, code, reason, since, watch in await session.execute(query):
+        point = approx_location(senior.id, senior.street)
+        rows.append(
+            SeniorSummary(
+                **{name: getattr(senior, name) for name in fields},
+                code=code,
+                reason=reason,
+                since=since,
+                watch_state=watch
+                if sees_watch(caller, senior.id, senior.medic_id)
+                else None,
+                latitude=point[0] if point else None,
+                longitude=point[1] if point else None,
+            )
         )
-        for senior, code, reason, since, watch in await session.execute(query)
-    ]
+    return rows
 
 
 async def reach_senior(
@@ -1006,3 +1014,33 @@ async def erase_senior_row(session: AsyncSession, senior_id: uuid.UUID) -> None:
     """The senior's row, last; its grants go by ON DELETE CASCADE (design 2026-11-14).
     Doesn't commit (ADR-005)."""
     await session.execute(delete(Senior).where(Senior.id == senior_id))
+
+
+async def export_senior_children(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> tuple[list[Consent], list[SummaryVersion], WatchState | None, list[WatchReading]]:
+    """The senior's consents, summaries and watch data, for a GDPR export (04 §1,
+    design 2026-11-14)."""
+    consents = list(
+        await session.scalars(
+            select(Consent)
+            .where(Consent.senior_id == senior_id)
+            .order_by(Consent.at, Consent.id)
+        )
+    )
+    summaries = list(
+        await session.scalars(
+            select(SummaryVersion)
+            .where(SummaryVersion.senior_id == senior_id)
+            .order_by(SummaryVersion.created_at, SummaryVersion.id)
+        )
+    )
+    watch = await session.get(WatchState, senior_id)
+    readings = list(
+        await session.scalars(
+            select(WatchReading)
+            .where(WatchReading.senior_id == senior_id)
+            .order_by(WatchReading.measured_at, WatchReading.id)
+        )
+    )
+    return consents, summaries, watch, readings

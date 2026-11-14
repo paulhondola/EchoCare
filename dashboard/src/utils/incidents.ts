@@ -64,3 +64,13 @@ export function columns(list: Incident[]): Record<IncidentStatus, Incident[]> {
     ),
   };
 }
+
+/** The call that decided an incident: its red call, else the newest (design 2026-11-14 §5) */
+export function decidingCall<
+  T extends { final_severity: string | null; started_at: string | null },
+>(calls: T[]): T | null {
+  const red = calls.find((c) => c.final_severity === "red");
+  if (red) return red;
+  const started = (c: T) => (c.started_at ? Date.parse(c.started_at) : 0);
+  return calls.reduce<T | null>((a, c) => (a === null || started(c) > started(a) ? c : a), null);
+}

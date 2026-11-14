@@ -58,6 +58,17 @@ export function enrollment(state: string): { label: string; tone: Tone } {
   return ENROLLMENT[state] ?? { label: state, tone: "muted" };
 }
 
+// What raised a status report (05 §2), for „De ce cod roșu?” (design 2026-11-14 §5)
+export const REPORT_SOURCES: Record<string, string> = {
+  rules: "Reguli fixe",
+  raise_concern: "Modelul a ridicat nivelul",
+  alarm_tier1: "Frază de alarmă, nivel 1",
+  alarm_tier2: "Frază de alarmă, nivel 2",
+  request_human: "A cerut un operator",
+  trigger: "Declanșator",
+  unanswered: "Fără răspuns",
+};
+
 // The codes of 03 §8 as the dashboard shows them
 export const CODES: Record<string, { label: string; tone: Tone }> = {
   green: { label: "Cod verde", tone: "verde" },

@@ -26,6 +26,19 @@ class CallSummary(BaseModel):
     summary: str | None
 
 
+class LiveCall(BaseModel):
+    """One row of GET /calls/live, for the dashboard's live strip (design 2026-11-14 §4)."""
+
+    id: uuid.UUID
+    senior_id: uuid.UUID
+    senior_name: str
+    trigger: str
+    state: str
+    starting_severity: str
+    started_at: datetime | None
+    due_at: datetime
+
+
 class AnswerView(BaseModel):
     """What the model extracted for one of the three questions (05 §2)."""
 

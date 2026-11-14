@@ -792,3 +792,20 @@ async def test_the_senior_sees_her_own_app_signed_in(client, staff):
     await client.get("/api/profile", headers=signed_in(SENIOR))
     # The senior on her own page sees it, as she sees her watch (UC-03)
     assert (await page_of(client, s["id"], SENIOR))["app_signed_in"] is True
+
+
+async def test_the_list_carries_an_approximate_location(client, staff):
+    # For the dashboard's map, from the street table (design 2026-11-14 §7)
+    await register(client, {**MARIA, "street": "Calea Aradului"})
+    await register(
+        client, {**MARIA, "phone": "0700 000 006", "street": "Str. Florilor"}
+    )
+
+    r = await get(client, "/api/seniors", MEDIC)
+
+    by_street = {s["full_name"] + s["phone_e164"]: s for s in r.json()}
+    on_table = by_street["Maria Pop+40700000005"]
+    off_table = by_street["Maria Pop+40700000006"]
+    assert 45.76 < on_table["latitude"] < 45.78
+    assert 21.22 < on_table["longitude"] < 21.24
+    assert (off_table["latitude"], off_table["longitude"]) == (None, None)

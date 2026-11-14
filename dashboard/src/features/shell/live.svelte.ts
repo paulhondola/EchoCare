@@ -3,6 +3,7 @@ import {
   ApiError,
   fetchEnrollments,
   fetchIncidents,
+  fetchLiveCalls,
   fetchSeniors,
   fetchStaff,
   fetchSystemHealth,
@@ -15,6 +16,8 @@ const INCIDENTS_MS = 15_000;
 const LISTS_MS = 30_000;
 // The whole registry, mostly for a sidebar counter: the Seniors page reads it again on opening
 const SENIORS_MS = 120_000;
+// The live strip and the map's rings: a call shows within 2 s of ringing (design 2026-11-14 §4)
+const LIVE_MS = 2_000;
 
 function describe(what: string, missing: string) {
   return (e: unknown) =>
@@ -43,6 +46,11 @@ export class Live {
     LISTS_MS,
     describe("cererile", "API-ul nu oferă încă cererile de înrolare."),
   );
+  liveCalls = poll(
+    fetchLiveCalls,
+    LIVE_MS,
+    describe("apelurile în curs", "API-ul nu oferă încă apelurile în curs."),
+  );
   staff = poll(fetchStaff, LISTS_MS, describe("lista de personal", "API-ul nu oferă încă lista."));
   health = poll(fetchSystemHealth, LISTS_MS, (e) => (e instanceof Error ? e.message : String(e)));
 
@@ -53,6 +61,9 @@ export class Live {
 
   /** The incident dossier on screen, over whichever page is open */
   dossier = $state<{ id: string; tab: DossierTab } | null>(null);
+
+  /** The live call open in its view, by call id */
+  liveCall = $state<string | null>(null);
 
   /** Alerte sonore: off until the dispatcher turns it on, since browsers need a click to play sound */
   sound = $state(false);
