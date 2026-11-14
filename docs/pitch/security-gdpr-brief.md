@@ -4,7 +4,7 @@ Internal. What helps us, what hurts us, and how to answer when a judge asks. Eve
 
 ## The 30-second answer
 
-> EchoCare handles health data about vulnerable people, so we designed for that from day one. There is one door to the data: only our server touches the database, and it checks on every request who you are and whether you may see this senior. Nobody picks their own role. A medic or DAS grants it. We store as little as we can: no audio ever, watch readings for 24 hours, location only with an alarm. Everything runs in the EU. Consent is the senior's own, recorded with exactly what they agreed to. And if a senior or their family asks, one button erases everything about them from our database and file store. What we haven't done yet is the paperwork a real pilot needs: processor agreements, a DPIA, retention periods. We know exactly what's on that list.
+> EchoCare handles health data about vulnerable people, so we designed for that from day one. There is one door to the data: only our server touches the database, and it checks on every request who you are and whether you may see this senior. Nobody picks their own role. A medic or DAS grants it. We store as little as we can: no audio ever, watch readings for 24 hours, location only with an alarm. Everything runs in the EU. Consent is the senior's own, recorded with exactly what they agreed to. And if a senior or their family asks, one button exports all of their data as JSON, and one button erases everything about them from our database and file store. What we haven't done yet is the paperwork a real pilot needs: processor agreements, a DPIA, retention periods. We know exactly what's on that list.
 
 The last two sentences matter. Judges who ask about GDPR are checking whether we know the gaps, not whether there are none.
 
@@ -28,6 +28,7 @@ The last two sentences matter. Judges who ask about GDPR are checking whether we
 | Browser access is pinned | CORS allows only the dashboard's own origin (`core/settings.py`) | |
 | Logs don't leak | Phone numbers masked (`+40700***009`), tokens never logged, medical text and summary quotes never logged; Pydantic AI instrumentation off and asserted by a test (06 §4) | |
 | Right to erasure, built properly | `POST /seniors/{id}/erase`: every table's owner deletes its own rows in one transaction, children first, then the medical PDF leaves the file store. Refused while a call is live or an incident is open, so an emergency can't be erased mid-handling. One test fills every table and checks that nothing is left | "Erasure isn't a promise in a policy. It's a button, and a test proves it leaves nothing." |
+| Right of access & portability, built properly | `GET /seniors/{id}/export`: walks the exact same table owners in one read transaction and downloads a single machine-readable JSON file (plus a 10-minute pre-signed PDF URL when visible), guarded by the same table-completeness test | "One button exports everything we hold; the button next to it erases it." |
 | No gotchas | API docs off in production; security headers on the dashboard (framing blocked, HSTS, no sniffing); Android backup and device transfer off, so a session can't be restored elsewhere; Dependabot and dependency audits in CI | |
 | Tested | Over 700 backend test functions (more cases with parametrisation), including the rule engine cell by cell, signature checks and access refusals; lint, import contracts and tests run in CI and on commit | |
 
@@ -42,6 +43,7 @@ The last two sentences matter. Judges who ask about GDPR are checking whether we
 | No automated decisions about the person (22) | The summary briefs the medic and DAS; it never sets a code, a call or a recipient. A red alert goes to a human dispatcher |
 | EU hosting (Chapter V) | API, database and file storage on Railway EU West; Twilio processes the calls in Ireland (IE1) |
 | Right to erasure (17) | DAS or the registering medic erases a senior and everything about them in one action, the medical PDF included. In our database and file store, only a log line with the senior's ID and who erased it remains. Twilio's call logs, backups and the Firebase sign-in account sit outside it |
+| Right of access and portability (15, 20) | DAS or the registering medic downloads a complete, machine-readable JSON export of the senior's data in one click from the dashboard, with a 10-minute pre-signed link to the medical PDF |
 | Accuracy (5(1)(d)) | Every quote in a summary is checked to be the senior's own words; medical items need verbatim evidence |
 | Audit trail | Status reports record every severity reached, with its source and the senior's words, so every code can be explained (05 §2) |
 
@@ -110,13 +112,12 @@ Yes: DAS or the medic presses one button, and everything about the senior goes, 
 
 ## Candidate fixes
 
-Done on 2026-11-14 (branch `security-erasure`): API docs off in production, Android backup off, the PDF deleted with a draft, Dependabot and audits, dashboard security headers, and erasure. What's left, grouped by cost:
+Done on 2026-11-14: API docs off in production, Android backup off, the PDF deleted with a draft, Dependabot and audits, dashboard security headers, right to erasure (`POST /seniors/{id}/erase`), and right of access/portability (`GET /seniors/{id}/export`). What's left, grouped by cost:
 
 **Minutes each**
 - Update the dependencies the audits flag: `certifi`, `opentelemetry-api`, `pyasn1` in the backend; 5 high-severity npm advisories in the dashboard
 
 **Hours (strong pitch value)**
-- **Export for any senior** (Art. 15, 20): the same walk over the owners as erasure, reading instead of deleting
 - **Access log**: who read which senior's transcript or medical record, and when. Visible in the dashboard, it's a demo moment in itself
 - **Retention job**: the scheduler already deletes 24-hour watch readings; extend it with a configurable period for transcripts and events
 - Rate limiting per caller

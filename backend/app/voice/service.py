@@ -531,3 +531,34 @@ async def handover_briefing(session: AsyncSession, call_id: uuid.UUID) -> str | 
         call.reason,
         content.narrative if content else None,
     )
+
+
+async def export_calls(
+    session: AsyncSession, senior_id: uuid.UUID
+) -> tuple[list[Call], dict[uuid.UUID, list[CallTurn]], dict[uuid.UUID, list[Answer]]]:
+    """Every call of the senior's with its turns and answers, for a GDPR export (04 §1,
+    design 2026-11-14)."""
+    calls = list(
+        await session.scalars(
+            select(Call)
+            .where(Call.senior_id == senior_id)
+            .order_by(Call.due_at, Call.id)
+        )
+    )
+    call_ids = [c.id for c in calls]
+    turns: dict[uuid.UUID, list[CallTurn]] = {i: [] for i in call_ids}
+    answers: dict[uuid.UUID, list[Answer]] = {i: [] for i in call_ids}
+    if call_ids:
+        for t in await session.scalars(
+            select(CallTurn)
+            .where(CallTurn.call_id.in_(call_ids))
+            .order_by(CallTurn.call_id, CallTurn.position)
+        ):
+            turns[t.call_id].append(t)
+        for a in await session.scalars(
+            select(Answer)
+            .where(Answer.call_id.in_(call_ids))
+            .order_by(Answer.at, Answer.id)
+        ):
+            answers[a.call_id].append(a)
+    return calls, turns, answers
