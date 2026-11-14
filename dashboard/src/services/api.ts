@@ -417,6 +417,13 @@ export async function acceptSenior(id: string): Promise<SeniorSummary> {
   return (await r.json()) as SeniorSummary;
 }
 
+/** Șterge toate datele: the senior and everything about them (04 §2, design 2026-11-14).
+ * Refused with `call_live` or `incident_open`; a repeat is `not_found`. */
+export async function eraseSenior(id: string): Promise<void> {
+  const r = await apiFetch(`/api/seniors/${id}/erase`, { method: "POST" });
+  if (!r.ok) throw await refused(r);
+}
+
 export interface DatabaseHealth {
   status: "ok" | "unreachable";
   latency_ms: number | null;
