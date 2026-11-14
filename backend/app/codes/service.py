@@ -76,3 +76,20 @@ async def erase_senior_codes(
     await session.execute(
         delete(SeniorStatus).where(SeniorStatus.senior_id == senior_id)
     )
+
+
+async def export_senior_codes(
+    session: AsyncSession, senior_id: uuid.UUID, call_ids: list[uuid.UUID]
+) -> tuple[SeniorStatus | None, dict[uuid.UUID, list[StatusReport]]]:
+    """The senior's current code and status reports per call, for a GDPR export (04 §1,
+    design 2026-11-14)."""
+    status = await session.get(SeniorStatus, senior_id)
+    reports: dict[uuid.UUID, list[StatusReport]] = {i: [] for i in call_ids}
+    if call_ids:
+        for r in await session.scalars(
+            select(StatusReport)
+            .where(StatusReport.call_id.in_(call_ids))
+            .order_by(StatusReport.at, StatusReport.id)
+        ):
+            reports[r.call_id].append(r)
+    return status, reports

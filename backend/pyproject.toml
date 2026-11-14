@@ -105,7 +105,7 @@ type = "layers"
 containers = ["app"]
 layers = [
     "scheduler | notify",
-    "calls | agent | system | memory | erasure",
+    "calls | agent | system | memory | erasure | export",
     "campaigns | medical",
     "incidents",
     "voice",
