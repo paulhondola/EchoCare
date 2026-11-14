@@ -26,7 +26,8 @@ struct EventQueueTests {
         let msg = EventMessage(
             id: "a", type: "high_pulse_at_rest", measuredAt: "t",
             snapshot: EventSnapshot(
-                pulse: 125, restingBaseline: 66, moving: false, minutesWithoutSteps: 0, battery: 80))
+                pulse: 125, restingBaseline: 66, moving: false, minutesWithoutSteps: 0, battery: 80)
+        )
         EventQueue(directory: dir).enqueue(msg)
         #expect(EventQueue(directory: dir).pending() == [msg])
     }

@@ -314,6 +314,87 @@ struct MonitorTests {
         #expect(queue.pending().count == 1)
     }
 
+    // „Help is coming” (design 2026-11-14, watch senior UI): the last event sent and the phone's ack
+
+    @Test func callMeSetsAnAlertForItsEvent() {
+        monitor.callMe()
+        #expect(monitor.alert?.id == link.events.last?.id)
+        #expect(monitor.alert?.sentAtMs == clock.now)
+        #expect(monitor.alert?.receivedAtMs == nil)
+    }
+
+    @Test func answeringNoSetsAnAlertForThePrompt() throws {
+        _ = raiseHighPulse()
+        let prompt = try #require(monitor.prompt)
+        monitor.answer(ok: false)
+        #expect(monitor.alert?.id == prompt.id)
+    }
+
+    @Test func aTimeoutSetsAnAlert() throws {
+        let at = raiseHighPulse()
+        let prompt = try #require(monitor.prompt)
+        tick(at: at + 15_000)
+        #expect(monitor.alert?.id == prompt.id)
+    }
+
+    @Test func answeringYesSetsNoAlert() {
+        _ = raiseHighPulse()
+        monitor.answer(ok: true)
+        #expect(monitor.alert == nil)
+    }
+
+    @Test func theMatchingAckMarksItReceived() throws {
+        monitor.callMe()
+        let alert = try #require(monitor.alert)
+        clock.now += 3_000
+        monitor.eventReceived(id: alert.id)
+        #expect(monitor.alert?.receivedAtMs == clock.now)
+        #expect(haptics.played.last?.type == .success)
+    }
+
+    @Test func anAckForAnotherEventIsIgnored() {
+        monitor.callMe()
+        monitor.eventReceived(id: "other")
+        #expect(monitor.alert?.receivedAtMs == nil)
+        #expect(!haptics.played.contains { $0.type == .success })
+    }
+
+    @Test func aRepeatedAckBuzzesOnce() throws {
+        monitor.callMe()
+        let alert = try #require(monitor.alert)
+        monitor.eventReceived(id: alert.id)
+        let receivedAt = monitor.alert?.receivedAtMs
+        clock.now += 60_000
+        monitor.eventReceived(id: alert.id)
+        #expect(haptics.played.filter { $0.type == .success }.count == 1)
+        #expect(monitor.alert?.receivedAtMs == receivedAt)
+    }
+
+    @Test func callMeWhilePausedStillAlerts() {
+        monitor.stop()
+        monitor.callMe()
+        #expect(link.events.count == 1)
+        #expect(monitor.alert != nil)
+    }
+
+    @Test func aNewPromptClearsTheConfirmation() {
+        monitor.callMe()
+        _ = raiseHighPulse()
+        #expect(monitor.prompt != nil)
+        #expect(monitor.alert == nil)
+        monitor.answer(ok: true)
+        #expect(monitor.alert == nil)
+    }
+
+    @Test func dismissAlertClearsOnlyTheSameId() throws {
+        monitor.callMe()
+        let alert = try #require(monitor.alert)
+        monitor.dismissAlert(id: "other")
+        #expect(monitor.alert == alert)
+        monitor.dismissAlert(id: alert.id)
+        #expect(monitor.alert == nil)
+    }
+
     @Test func monitorStateFollowsSessionEnd() {
         sensors.ended?()
         #expect(!monitor.running)
@@ -344,19 +425,20 @@ struct MonitorTests {
         let sensors = FakeSensors()
         sensors.failure = Denied()
         let clock = clock
-        let other = Monitor(sensors: sensors, link: link, queue: queue, clock: { clock.now }, ticking: false)
+        let other = Monitor(
+            sensors: sensors, link: link, queue: queue, clock: { clock.now }, ticking: false)
         await other.start()
         #expect(!other.running)
         #expect(other.startFailed)
     }
 
     #if DEBUG
-    @Test func aForcedAnomalyRaisesThePromptWithAFakeSnapshot() {
-        monitor.forceAnomaly(type: "inactivity")
-        #expect(monitor.prompt?.type == "inactivity")
-        #expect(monitor.prompt?.snapshot.minutesWithoutSteps == 240)
-        monitor.answer(ok: false)
-        #expect(link.events.map(\.type) == ["inactivity"])
-    }
+        @Test func aForcedAnomalyRaisesThePromptWithAFakeSnapshot() {
+            monitor.forceAnomaly(type: "inactivity")
+            #expect(monitor.prompt?.type == "inactivity")
+            #expect(monitor.prompt?.snapshot.minutesWithoutSteps == 240)
+            monitor.answer(ok: false)
+            #expect(link.events.map(\.type) == ["inactivity"])
+        }
     #endif
 }

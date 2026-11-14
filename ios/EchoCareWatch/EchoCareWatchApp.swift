@@ -42,6 +42,7 @@ final class WatchDelegate: NSObject, WKApplicationDelegate {
         link = PhoneLink(queue: queue)
         monitor = Monitor(sensors: runner, link: link, queue: queue)
         super.init()
+        link.onAcked = { [monitor] id in monitor.eventReceived(id: id) }
     }
 
     func applicationDidFinishLaunching() {
