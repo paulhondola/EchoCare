@@ -221,13 +221,34 @@ async def test_answering_takes_the_incident(client, db, handed_over, on_duty_das
         query=f"&user={on_duty_das.id}",
     )
     root = twiml(r)
-    assert len(root) == 0  # nothing to say: Twilio connects the two
+    # DAS hears who is calling before Twilio connects the two (design 2026-11-14 §6)
+    [said] = [say.text for say in root.iter("Say")]
+    assert said.startswith("Predare EchoCare.")
     incident = await incident_of(db, handed_over)
     assert (incident.status, incident.taken_by) == (
         IncidentStatus.in_progress,
         on_duty_das.id,
     )
     assert (await stored(db, handed_over)).handover_answered is True
+
+
+async def test_a_failing_briefing_still_connects(
+    client, db, handed_over, on_duty_das, monkeypatch
+):
+    async def broken(*_):
+        raise RuntimeError("no briefing")
+
+    monkeypatch.setattr("app.voice.router.handover_briefing", broken)
+    r = await callback(
+        client,
+        "handoff-answered",
+        handed_over.id,
+        FIXTURES["handoff_answered"],
+        query=f"&user={on_duty_das.id}",
+    )
+    assert len(twiml(r)) == 0  # connects silently, as before the briefing
+    incident = await incident_of(db, handed_over)
+    assert incident.status == IncidentStatus.in_progress
 
 
 async def test_an_incident_already_taken_stays_theirs(
