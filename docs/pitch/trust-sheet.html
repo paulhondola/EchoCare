@@ -1,0 +1,201 @@
+<title>EchoCare Trust Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one printed-sheet column; three promises, then who-sees-what, where data lives, what's next */
+:root {
+  --bg: #f4f7f7;
+  --surface: #ffffff;
+  --ink: #15292b;
+  --muted: #546769;
+  --line: #d6e0e0;
+  --accent: #0e6b6a;
+  --accent-soft: #e0efee;
+  --green: #23703c;
+  --amber: #8a5a10;
+  --red: #c2413a;
+  --display: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --body: "Public Sans", "Segoe UI", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1a1b; --surface: #162426; --ink: #e3eded; --muted: #9db1b2; --line: #2a3d3f;
+    --accent: #5cc4bf; --accent-soft: #1b3436; --green: #5cc27a; --amber: #e0a94a; --red: #ef7a72;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1a1b; --surface: #162426; --ink: #e3eded; --muted: #9db1b2; --line: #2a3d3f;
+  --accent: #5cc4bf; --accent-soft: #1b3436; --green: #5cc27a; --amber: #e0a94a; --red: #ef7a72;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 920px; margin: 0 auto; padding-block: 40px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.1; }
+h2 { font-size: 22px; }
+h3 { font-size: 17px; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 18px; color: var(--muted); max-width: 62ch; }
+header { display: grid; gap: 14px; }
+.codes { display: flex; gap: 6px; align-items: center; }
+.codes i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.section { display: grid; gap: 18px; }
+.section > p { color: var(--muted); max-width: 65ch; }
+
+.promises { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.promise { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 10px; align-content: start; }
+.promise ul { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 6px; font-size: 15px; }
+.ref { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+.never { display: flex; flex-wrap: wrap; gap: 8px; }
+.never span { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 16px; font-size: 14px; }
+.never span::before { content: "✕"; color: var(--red); font-weight: 600; margin-right: 8px; }
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 15px; }
+th, td { padding: 11px 16px; text-align: left; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+thead th { font-family: var(--display); font-weight: 600; font-size: 14px; background: var(--accent-soft); }
+td.c, th.c { text-align: center; width: 110px; }
+.yes, .no, .part { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.yes::before, .no::before, .part::before { content: ""; width: 9px; height: 9px; border-radius: 50%; }
+.yes::before { background: var(--green); }
+.part::before { background: var(--amber); }
+.no { color: var(--muted); }
+.no::before { background: transparent; border: 1.5px solid var(--muted); }
+
+.where { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.place { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 4px; }
+.place .tag { font-family: var(--mono); font-size: 12px; }
+.tag.eu { color: var(--green); }
+.tag.next { color: var(--amber); }
+.place p { color: var(--muted); font-size: 15px; }
+
+.tech { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+.tech div { padding: 12px 0; border-top: 1px solid var(--line); display: grid; gap: 2px; }
+.tech b { font-family: var(--display); font-weight: 600; }
+.tech span { color: var(--muted); font-size: 15px; }
+
+.next ol { margin: 0; padding-left: 22px; display: grid; gap: 8px; max-width: 70ch; }
+.next li::marker { font-family: var(--mono); color: var(--accent); }
+.next .note { font-size: 14px; color: var(--muted); }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 720px) {
+  .promises, .where, .tech { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="codes" aria-hidden="true"><i style="background:var(--green)"></i><i style="background:var(--amber)"></i><i style="background:var(--red)"></i></div>
+    <span class="eyebrow">EchoCare · security and privacy</span>
+    <h1>Health data about people living alone deserves a system built to protect it.</h1>
+    <p class="lede">EchoCare calls seniors, reads their watch and home sensor, and hands emergencies to a DAS dispatcher. Here is how we keep what we learn about them safe.</p>
+  </header>
+
+  <section class="section" aria-labelledby="promises">
+    <h2 id="promises">Three promises</h2>
+    <div class="promises">
+      <article class="promise">
+        <h3>Only the right people</h3>
+        <ul>
+          <li>Nobody can sign up. A medic or DAS adds each person by phone number.</li>
+          <li>Every request is checked on our server: who you are and whether this senior is yours.</li>
+          <li>Family see that she's OK and where she lives. Never what she said.</li>
+        </ul>
+        <span class="ref">GDPR Art. 5(1)(f), 25</span>
+      </article>
+      <article class="promise">
+        <h3>As little as possible</h3>
+        <ul>
+          <li>We never record a voice. Speech becomes text at the phone network.</li>
+          <li>Watch pulse readings are deleted after 24 hours.</li>
+          <li>Location is sent only with an alarm. No tracking.</li>
+        </ul>
+        <span class="ref">GDPR Art. 5(1)(c)</span>
+      </article>
+      <article class="promise">
+        <h3>People decide</h3>
+        <ul>
+          <li>The AI holds the conversation. Fixed, tested rules set green, yellow or red.</li>
+          <li>Every red goes to a human dispatcher who talks to the senior.</li>
+          <li>The medic confirms anything the AI reads from a medical record.</li>
+        </ul>
+        <span class="ref">GDPR Art. 22</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="never">
+    <h2 id="never">What we never keep</h2>
+    <div class="never">
+      <span>Voice recordings</span>
+      <span>Location history</span>
+      <span>Cameras or microphones at home</span>
+      <span>Health details in notifications</span>
+      <span>Secrets on the watch or sensor box</span>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="who">
+    <h2 id="who">Who sees what</h2>
+    <p>Each role sees what its job needs. The server enforces this; the app's screens are only a view of it.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">Information about a senior</th><th scope="col" class="c">Family</th><th scope="col" class="c">Medic</th><th scope="col" class="c">DAS</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Status code and its reason</td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td></tr>
+          <tr><td>Address and access details</td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td></tr>
+          <tr><td>Watch state, last 24 hours</td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td></tr>
+          <tr><td>Full call transcript</td><td class="c"><span class="no">No</span></td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td></tr>
+          <tr><td>Consent record</td><td class="c"><span class="no">No</span></td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="yes">Yes</span></td></tr>
+          <tr><td>Medical record (fișa medicală)</td><td class="c"><span class="no">No</span></td><td class="c"><span class="yes">Yes</span></td><td class="c"><span class="part">After medic confirms</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="where">
+    <h2 id="where">Where the data lives</h2>
+    <div class="where">
+      <div class="place"><span class="tag eu">EU · Railway, West Europe</span><h3>Database, server, files</h3><p>Only our server reaches the database, over a private network.</p></div>
+      <div class="place"><span class="tag eu">EU · Twilio, Ireland</span><h3>Phone calls</h3><p>Calls are placed and processed in Twilio's Irish region.</p></div>
+      <div class="place"><span class="tag next">Pilot step · EU model or signed DPA</span><h3>Language model</h3><p>Reads conversation text. One endpoint to switch to an EU-hosted model.</p></div>
+      <div class="place"><span class="tag next">Pilot step · signed DPA</span><h3>Phone sign-in</h3><p>Firebase checks the SMS code. It holds no health data and no roles.</p></div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="tech">
+    <h2 id="tech">For the technical reader</h2>
+    <div class="tech">
+      <div><b>One door to the data</b><span>All reads and writes go through one FastAPI service that checks grants per senior. Out-of-reach records answer "not found".</span></div>
+      <div><b>Signed telephony</b><span>Every Twilio callback and the live-call socket are verified by HMAC signature; the call link works once.</span></div>
+      <div><b>AI with no hands</b><span>The model can't place a call, set a code or pick who is alerted. Alarm phrases are matched before it reads a word.</span></div>
+      <div><b>Checked extraction</b><span>Every condition read from a medical record must quote it word for word, verified by the server, then confirmed by the medic.</span></div>
+      <div><b>Consent with proof</b><span>A versioned text and the deciding key press or words, kept as a history. Withdrawal stops all calls.</span></div>
+      <div><b>Guard rails in code</b><span>Demo shortcuts refuse to run in production; a laptop can't run against a cloud database. Hundreds of automated tests on every commit.</span></div>
+    </div>
+  </section>
+
+  <section class="section next" aria-labelledby="next">
+    <h2 id="next">Before a real pilot</h2>
+    <p>The demo uses fictitious people. Real seniors need these steps first, with DAS as data controller.</p>
+    <ol>
+      <li>Data-processing agreements with every processor, and an EU-hosted language model.</li>
+      <li>A data protection impact assessment and a record of processing activities.</li>
+      <li>Retention periods for transcripts and events, set by DAS.</li>
+      <li>Erasure and export of a senior's data on request.</li>
+      <li>A second sign-in factor for staff accounts.</li>
+    </ol>
+    <p class="note">The legal basis for a public social service is DAS's to confirm with its data protection officer. We ask every senior for consent on the first call either way.</p>
+  </section>
+
+  <footer>EchoCare · UniHack 2026. Every statement on this page reflects the running code, not only the plan.</footer>
+</div>
