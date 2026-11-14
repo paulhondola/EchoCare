@@ -192,7 +192,19 @@ export interface IncidentDetail {
     turns: { speaker: string; kind: string; content: string; at: string }[];
   }[];
   summary?: SummaryVersion | null;
+  // The home node's latest reading; absent from an older API copy (04 §1, P20)
+  room?: RoomReading | null;
 }
+
+/** The home node's latest reading, on the senior and the incident (04 §1, P20) */
+export type RoomReading = {
+  state: string; // ok | offline
+  temperature: number;
+  humidity: number | null;
+  reading_at: string;
+  last_motion_at: string | null;
+  room_state: string; // ok | cold_soon | cold | hot_soon | hot
+};
 
 /** One call as the incident page and the transcript show it */
 export type IncidentCall = IncidentDetail["calls"][number];
@@ -333,6 +345,9 @@ export interface SeniorSummary {
   code?: "green" | "yellow" | "red" | null;
   reason?: string | null;
   since?: string | null;
+  // The home node, for every role; null without one (04 §1, P20)
+  home_node_state?: string | null;
+  room_temperature?: number | null;
 }
 
 // GET /seniors/{id} (04 §1). Mirrors SeniorView in backend/app/seniors/service.py.
@@ -345,6 +360,7 @@ export type SeniorView = IncidentDetail["senior"] & {
   // True while one of her calls rings or is live (UC-12); only GET /seniors/{id} sets it
   call_in_progress?: boolean | null;
   watch_state?: string | null;
+  room?: RoomReading | null;
   last_pulse?: number | null;
   medic: { display_name: string; practice: string | null };
   caregivers: {

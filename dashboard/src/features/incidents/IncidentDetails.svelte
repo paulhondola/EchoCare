@@ -27,6 +27,7 @@
   import { formatPhone } from "../../utils/phone";
   import CallTranscript from "../calls/CallTranscript.svelte";
   import Briefing from "../seniors/Briefing.svelte";
+  import RoomMap from "./RoomMap.svelte";
   import { refusalMessage } from "./commands";
 
   let {
@@ -59,7 +60,29 @@
     sos_button: "Buton SOS",
     manual_request: "„Sunați-mă”",
     fall: "Cădere detectată",
+    room_cold: "Cameră prea rece",
+    room_heat: "Cameră prea caldă",
   };
+
+  // Where an event came from (04 §3); an unknown value shows as it is
+  const SOURCES: Record<string, string> = {
+    watch: "Ceas",
+    phone: "Telefon",
+    home_node: "Senzor din casă",
+  };
+
+  // The room as FastAPI last judged it (P26)
+  const ROOM_STATES: Record<string, string> = {
+    ok: "în limite",
+    cold_soon: "se răcește",
+    cold: "prea rece",
+    hot_soon: "se încălzește",
+    hot: "prea caldă",
+  };
+
+  function degrees(c: number): string {
+    return `${c.toLocaleString("ro-RO", { maximumFractionDigits: 1 })}°C`;
+  }
 
   type Load<T> = { kind: "loading" } | { kind: "ok"; data: T } | { kind: "error"; message: string };
 
@@ -417,7 +440,20 @@
           {:else}
             <div class="flex flex-col">
               {@render row("Tip", EVENTS[e.type] ?? e.type)}
+              {#if e.source}
+                {@render row("Sursa", SOURCES[e.source] ?? e.source)}
+              {/if}
               {@render row("Măsurat la", at(e.measured_at))}
+              {#if e.scan && e.scan.length > 1}
+                <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-b border-line py-3.5">
+                  <span class="sn-label">Unde</span>
+                  <RoomMap
+                    scan={e.scan}
+                    angleDeg={e.object_angle_deg ?? null}
+                    distanceM={e.object_distance_m ?? null}
+                  />
+                </div>
+              {/if}
               {#if e.latitude !== null && e.longitude !== null}
                 <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-3 border-b border-line py-3.5">
                   <span class="sn-label">Locație</span>
@@ -440,6 +476,20 @@
               {:else}
                 {@render row("Locație", "Fără locație în eveniment")}
               {/if}
+            </div>
+          {/if}
+          {#if d.room}
+            <div class="mt-4 flex flex-col">
+              {@render row(
+                "Camera acum",
+                `${degrees(d.room.temperature)} · ${ROOM_STATES[d.room.room_state] ?? d.room.room_state}` +
+                  (d.room.state === "offline" ? " · senzor deconectat" : ""),
+              )}
+              {@render row("Citit la", at(d.room.reading_at))}
+              {@render row(
+                "Ultima mișcare",
+                d.room.last_motion_at ? at(d.room.last_motion_at) : null,
+              )}
             </div>
           {/if}
         {:else if tab === "resolve"}
