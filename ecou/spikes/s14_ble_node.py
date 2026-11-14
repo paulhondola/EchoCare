@@ -175,7 +175,11 @@ async def run(name: str, interval: float) -> None:
         if pending and now >= next_resend:
             for event_id, (char, created) in list(pending.items()):
                 if char == SOS_PRESS:
-                    send(server, SOS_PRESS, {"id": event_id, "seconds_ago": age(created), "via": "button"})
+                    send(
+                        server,
+                        SOS_PRESS,
+                        {"id": event_id, "seconds_ago": age(created), "via": "button"},
+                    )
                 else:
                     send(server, FALL, fall_payload(event_id, created))
             next_resend = now + 3.0
@@ -184,16 +188,24 @@ async def run(name: str, interval: float) -> None:
     loop.remove_reader(sys.stdin)
     await server.stop()
 
-    log.info("summary: %d notifications, %d writes from the phone, %d events never acknowledged",
-             notified, len(written), len(pending))
+    log.info(
+        "summary: %d notifications, %d writes from the phone, %d events never acknowledged",
+        notified,
+        len(written),
+        len(pending),
+    )
     for t, char, text in written:
         log.info("  +%5.1fs  %s  %s", t - started, char, text)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--name", default="Ecou-TEST")
-    parser.add_argument("--interval", type=float, default=5.0, help="seconds between room readings (demo mode: 5)")
+    parser.add_argument(
+        "--interval", type=float, default=5.0, help="seconds between room readings (demo mode: 5)"
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(

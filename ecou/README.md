@@ -4,7 +4,12 @@ The home node built as a small robot on an Arduino UNO Q, for the hackathon. The
 
 | Path | What |
 |---|---|
-| `app/` | The App Lab app: `sketch/` runs on the UNO Q's STM32, `python/` on its Linux side. Today it is the bring-up test (08 §8, step 1) |
+| `app/` | The App Lab app: `sketch/` runs on the UNO Q's STM32, `python/` on its Linux side. `ECOU_RUN` picks the robot (default), the bring-up test or gesture recording |
+| `app/python/sensing.py` | The signal processing, testable on a laptop: echo to metres, the room baseline, the Kalman tracker, the gesture rules, the floor search, the cooling forecast |
+| `app/python/robot.py` | The mode machine: Look, Search, Ask, Quiet (08 §2.1) |
+| `app/python/node_ble.py`, `puiul_link.py` | The phone's GATT service (04 §3) and the UDP link with Puiul |
+| `puiul/` | Puiul, the R4 WiFi sketch: the foil SOS pad, the doorway, the matrix (P27) |
+| `tests/` | `sensing.py`'s tests |
 | `spikes/s14_ble_node.py` | Spike S14: the UNO Q's Linux side as the home node's BLE GATT server |
 | `docs/wiring.html` | The wiring diagram: pin map, one schematic per part, the multimeter checks. Open it in a browser |
 | `docs/assembly.html` | How the robot goes together: front, side and top views, and the build steps for the pan and tilt build |
@@ -55,3 +60,29 @@ Record in [spike-results.md](../docs/specs/echocare/spike-results.md):
 - and, with the App Lab app running at the same time, whether the Bridge still works.
 
 If the Linux side cannot advertise or serve, the fallback is in 08 §6: the R4 WiFi becomes the BLE node with `ArduinoBLE`.
+
+## Running the robot
+
+`ECOU_RUN` in the app's environment, or `DEFAULT_RUN` in `app/python/main.py`:
+
+| Value | What runs |
+|---|---|
+| `robot` | Ecou itself. It first calibrates for a few seconds: keep the room in front of it empty |
+| `test` | The bring-up test above |
+| `record` | Gesture samples for the model (S15): `data/gestures.csv`, one row per 2-second sample |
+
+`ECOU_DEMO=0` switches to the real timers (06 §3); the default is demo mode. Set `TILT_FLOOR` at the top of `robot.py` once Ecou sits on its shelf: the tilt at which the beam meets the floor 1.5–2.5 m away. `HAS_TILT = False` is the one-servo build.
+
+`requirements.txt` asks for `bless`, the BLE server. If App Lab cannot reach Bluetooth from its container (S14), Ecou runs without a phone and shows the asleep face.
+
+## Puiul
+
+1. Ecou serves the network: on the UNO Q, `nmcli device wifi hotspot ifname wlan0 ssid Ecou password 'ecou-acasa'`.
+2. Copy `puiul/arduino_secrets.example.h` to `puiul/arduino_secrets.h` with that name and password.
+3. Install the `Arduino_CapacitiveTouch` library, glue the foil pad to a wire on D2, and upload `puiul/puiul.ino` to the R4 WiFi.
+
+The pad's resting value is read at power-on: don't touch it then. Without a second HC-SR04, Puiul only does the SOS pad and the matrix.
+
+## Tests
+
+From the repository root, with uv: `uv run --no-project --with pytest python -m pytest ecou/tests`.
