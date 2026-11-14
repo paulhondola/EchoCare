@@ -314,12 +314,14 @@ Several rules from the other files are enforced by the database itself, so they 
 | Data | Kept | Reason |
 |---|---|---|
 | Audio | Never stored | Twilio handles speech; FastAPI receives text only |
-| Transcripts, answers, status reports and senior summaries | Kept | Medic and DAS review; audit of how a code was reached |
-| Consent records | Kept | Proof of what was agreed and when |
-| Incidents | Kept | What DAS did about each red, by whom, and the outcome |
-| Events, with any location | Kept | They explain why a call was placed and where the senior was |
+| Transcripts, answers, status reports and senior summaries | Kept until the senior is erased | Medic and DAS review; audit of how a code was reached |
+| Consent records | Kept until the senior is erased | Proof of what was agreed and when |
+| Incidents | Kept until the senior is erased | What DAS did about each red, by whom, and the outcome |
+| Events, with any location | Kept until the senior is erased | They explain why a call was placed and where the senior was |
 | Check-ins | Latest, plus 24 hours of readings (ADR-006) | Data minimisation |
 | Room readings | Latest only | Data minimisation |
 | Grants | Removed when revoked | A removed caregiver loses access at once |
+
+**Erasure** (GDPR Art. 17, design 2026-11-14). `POST /seniors/{id}/erase` ([04-interfaces.md](04-interfaces.md) §2) deletes the senior and every row about them in one transaction, each table through its owner (ADR-005), children first: status reports and the code, events and incidents, consents, summaries and watch data, calls with their turns and answers, the medical record, the senior, and the users of the senior and caregivers left with no grant. The medical record's PDF is deleted from the file store after the commit. Only a log line with the senior's id and who erased it remains. The Firebase sign-in account is not deleted, since the API holds no Firebase credential (auth-layer AL11). It is refused while a call is live or an incident unresolved.
 
 The demo uses fictitious people only. Retention periods for a real pilot are out of scope here and need a decision with DAS as data controller.

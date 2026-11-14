@@ -134,6 +134,10 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Browser requests | The API accepts browser requests only from the dashboard's own address |
 | The on-duty number | The on-duty DAS employee's own phone, read at hand-over time; only a DAS user can change who is on duty |
 | Logs | A refusal is logged with its reason and the user id, or a masked number (`+40700***009`). Tokens are never logged ([auth-layer.md](../auth-layer.md) AL15) |
+| API docs | Swagger, ReDoc and the OpenAPI schema are served locally and on staging, never in production (design 2026-11-14) |
+| Dashboard headers | Caddy sends `nosniff`, a strict referrer policy, framing blocked (`X-Frame-Options`, `frame-ancestors 'none'`), camera, microphone and location off, and HSTS. No script-restricting CSP, since Firebase phone sign-in loads reCAPTCHA from Google |
+| Android backup | Off in the phone and watch apps, cloud backup and device transfer included, so a signed-in session can't be restored onto another device |
+| Dependencies | Dependabot proposes weekly updates for every folder; CI audits the backend and dashboard dependencies and reports, without blocking a deploy |
 
 **Data**
 
@@ -146,6 +150,7 @@ All values are proposals. The 20-minute redial and the 3-minute call limit come 
 | Minimal home data | Only the latest room reading is kept; there is no history of temperature or motion. The node has no camera and no microphone |
 | Location only with events | The phone attaches its last known location when it sends an event; there is no tracking |
 | Push carries no health details | Generic text and an id (P18) |
+| Erasure | DAS, or the registering medic, erases a senior and everything about them in one action, the medical record's PDF included ([05-data-model.md](05-data-model.md) §5). Not while a call is live or an incident unresolved. The Firebase sign-in account stays (AL11) |
 | Region | Database and FastAPI on Railway, EU West. Twilio places and processes the calls in its Ireland region (IE1), by choice of `TWILIO_API_HOST` |
 | Demo data | Fictitious people only |
 | Medical record | The fișa medicală the medic attaches (design 2026-11-13). The PDF is stored in S3 under `medical-records/`, its extracted text and the profile in `medical_records`; the PDF and the profile are read by the registering medic, and by DAS only once the medic confirms (04 §1), never by a caregiver or the senior. Logs hold record ids and error types only, never its text. DeepInfra reads it for OCR and the analysis, as a processor, only for `accepted` and `active` seniors. Kept until the medic replaces it, also for a senior who refused or withdrew; the call asks only confirmed checks, never naming a condition or a medication in a reason or summary |
