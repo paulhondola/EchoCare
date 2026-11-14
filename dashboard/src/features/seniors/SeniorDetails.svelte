@@ -29,7 +29,7 @@
     TONE_DOT,
     TRIGGERS,
   } from "../../utils/labels";
-  import { eraseRefusalText } from "../../utils/erase";
+  import { downloadJson, eraseRefusalText } from "../../utils/erase";
   import { formatPhone } from "../../utils/phone";
   import { tabKeydown } from "../../utils/tabs";
   import CallTranscript from "../calls/CallTranscript.svelte";
@@ -55,13 +55,7 @@
     exportError = null;
     try {
       const data = await exportSenior(summary.id, reads.signal);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `echocare-senior-${summary.id}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadJson(`echocare-senior-${summary.id}.json`, data);
     } catch (err) {
       if (!reads.signal.aborted) exportError = failed("exportul datelor", err);
     } finally {
