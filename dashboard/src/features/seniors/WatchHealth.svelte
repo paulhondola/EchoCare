@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { fetchWatch, fetchWatchReadings } from "../../services/api";
+  import { fetchWatch, fetchWatchHealth, fetchWatchReadings } from "../../services/api";
   import Icon from "../../ui/Icon.svelte";
+  import { ecgLabel, tracePoints } from "../../utils/health";
   import { since } from "../../utils/incidents";
   import { TONE_CHIP, type Tone } from "../../utils/labels";
   import { poll } from "../../utils/poll.svelte";
@@ -13,6 +14,8 @@
   // A check-in lands every minute; the 24-hour line moves slower (ADR-006)
   const watch = poll((signal) => fetchWatch(id, signal), 30_000, failed);
   const readings = poll((signal) => fetchWatchReadings(id, signal), 60_000, failed);
+
+  const health = poll((signal) => fetchWatchHealth(id, signal), 30_000, failed);
 
   // UC-13's states; an unknown one shows as it is
   const STATES: Record<string, { label: string; tone: Tone }> = {
@@ -41,7 +44,25 @@
     };
   }
 
+  // Spot readings: the sparkline's gap rule leaves dots between them (design 2026-11-14)
+  function spo2Line() {
+    if (health.load.kind !== "ok" || !health.load.data) return null;
+    const to = health.load.at;
+    const from = to - 24 * 3_600_000;
+    const points = health.load.data.spo2_readings
+      .map((r) => ({ t: Date.parse(r.at), v: r.value }))
+      .filter((p) => p.t >= from && p.t <= to);
+    if (!points.length) return null;
+    const values = points.map((p) => p.v);
+    return {
+      path: sparkline(points, from, to, W, H),
+      lo: Math.min(...values),
+      hi: Math.max(...values),
+    };
+  }
+
   const line24h = $derived(windowLine(24 * 3_600_000));
+  const spo2 = $derived(spo2Line());
   const line1h = $derived(windowLine(3_600_000));
   const value = (n: number | null, unit = "") => (n === null ? "—" : `${n}${unit}`);
 </script>
@@ -50,6 +71,28 @@
   <div class="flex flex-col gap-0.5">
     <span class="sn-label">{label}</span>
     <span class="font-mono text-[15px] font-medium">{text}</span>
+  </div>
+{/snippet}
+
+{#snippet trace(label: string, path: string, ariaLabel: string, caption: string)}
+  <div class="flex flex-col gap-1 border-t border-line pt-3">
+    <span class="sn-label">{label}</span>
+    <svg
+      viewBox="0 0 {W} {H}"
+      preserveAspectRatio="none"
+      class="h-12 w-full text-link"
+      role="img"
+      aria-label={ariaLabel}
+    >
+      <path
+        d={path}
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        vector-effect="non-scaling-stroke"
+      />
+    </svg>
+    <span class="font-mono text-xs text-fg-muted">{caption}</span>
   </div>
 {/snippet}
 
@@ -106,6 +149,12 @@
       {@render stat("Baterie", value(w.battery, "%"))}
       {@render stat("Pași azi", value(w.steps_today))}
       {@render stat("Fără pași de", value(w.minutes_without_steps, " min"))}
+      {#if health.load.kind === "ok" && health.load.data?.spo2}
+        {@render stat(
+          "SpO2",
+          `${health.load.data.spo2.value}% · ${since(health.load.data.spo2.measured_at, health.load.at)}`,
+        )}
+      {/if}
     </div>
 
     {#if readings.load.kind === "error"}
@@ -126,6 +175,50 @@
         line1h,
         "Fără citiri de puls în ultima oră.",
       )}
+    {/if}
+    {#if health.load.kind === "error"}
+      <p role="alert" class="text-rosu-fg">{health.load.message}</p>
+    {:else if health.load.kind === "ok" && health.load.data}
+      {@const h = health.load.data}
+      {#if spo2}
+        {@render trace(
+          "SpO2, ultimele 24 h",
+          spo2.path,
+          `SpO2 în ultimele 24 de ore, între ${spo2.lo} și ${spo2.hi}%`,
+          `min ${spo2.lo} · max ${spo2.hi} %`,
+        )}
+      {/if}
+      {#if h.ecg}
+        {@const e = h.ecg}
+        {@const ecgPath =
+          e.trace && e.trace_hz ? sparkline(tracePoints(e.trace, e.trace_hz), 0, 10_000, W, H) : ""}
+        <div class="flex flex-col gap-1 border-t border-line pt-3">
+          <span class="sn-label">ECG · {since(e.measured_at, health.load.at)}</span>
+          <p class="font-mono text-[15px] font-medium">
+            Apple: {ecgLabel(e.classification)}{e.heart_rate === null
+              ? ""
+              : ` · ${e.heart_rate} bpm`}
+          </p>
+          {#if ecgPath}
+            <svg
+              viewBox="0 0 {W} {H}"
+              preserveAspectRatio="none"
+              class="h-12 w-full text-link"
+              role="img"
+              aria-label="ECG, primele 10 secunde"
+            >
+              <path
+                d={ecgPath}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                vector-effect="non-scaling-stroke"
+              />
+            </svg>
+            <span class="font-mono text-xs text-fg-muted">primele 10 s</span>
+          {/if}
+        </div>
+      {/if}
     {/if}
     {#if watch.load.error}<p role="alert" class="text-xs text-rosu-fg">{watch.load.error}</p>{/if}
   </section>

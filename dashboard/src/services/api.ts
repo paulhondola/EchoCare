@@ -462,6 +462,31 @@ export async function fetchWatchReadings(
   return (await r.json()) as WatchReading[];
 }
 
+// GET /seniors/{id}/watch/health (04 §1, ADR-008). Mirrors WatchHealthView in
+// backend/app/seniors/schemas.py. The classification stays a string, like `WatchView.state`.
+export interface WatchHealthView {
+  spo2: { value: number; measured_at: string } | null;
+  spo2_readings: { at: string; value: number }[];
+  ecg: {
+    classification: string;
+    heart_rate: number | null;
+    measured_at: string;
+    trace: number[] | null;
+    trace_hz: number | null;
+  } | null;
+}
+
+/** The watch's Apple Health readings of the last 24 hours; null when there are none (204). */
+export async function fetchWatchHealth(
+  id: string,
+  signal?: AbortSignal,
+): Promise<WatchHealthView | null> {
+  const r = await apiFetch(`/api/seniors/${id}/watch/health`, { signal });
+  if (r.status === 204) return null;
+  if (!r.ok) throw await refused(r);
+  return (await r.json()) as WatchHealthView;
+}
+
 /** Acceptă: submitted → accepted (04 §2). A second accept: `already_done`. */
 export async function acceptSenior(id: string): Promise<SeniorSummary> {
   const r = await apiFetch(`/api/seniors/${id}/accept`, { method: "POST" });
