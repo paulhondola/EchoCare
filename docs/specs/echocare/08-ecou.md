@@ -368,3 +368,82 @@ Each item can be taken alone, by anyone on the team. „Done when” is the chec
 Then run the 60 seconds of §7 three times and note what failed.
 
 **Done when.** Three runs in a row with no restart.
+
+## 10. Nice to have
+
+Not needed for the demo. Each item is a proposal like the rest of this file, additive under ADR-001 §2.3, and can be taken alone. Same shape as §9: why, what, done when.
+
+### N1. The room over 24 hours
+
+**Why.** A single reading says the room is cold now. A day of readings shows a heater that stops every night, or a room that bakes every afternoon. The medic and DAS see the pattern, as they already see the watch's pulse (ADR-006).
+
+**What.**
+- **Backend.** A `room_readings` table owned by `homenode`: senior, measured at, temperature, humidity. It keeps 24 hours, with `UNIQUE (senior_id, measured_at)` like `watch_readings`. The scheduler prunes older rows in the same step as the watch readings.
+- **API.** `GET /seniors/{id}/room/readings` returns 5-minute buckets (time, mean temperature, mean humidity). It is shown to the senior's medic, caregivers and DAS, as for the watch (04 §1).
+- **Dashboard.** In the senior's panel, a line chart beside `WatchHealth.svelte`, with the 16 and 30°C limits drawn as bands.
+- **Data.** Erasure and the GDPR export cover the new table; their table lists in the tests fail until they do.
+
+**Done when.**
+- Backend tests cover buckets, pruning, access, erasure and export.
+- The seeded senior (W1) shows a curve on the dashboard.
+
+### N2. Limits per senior
+
+**Why.** 16°C may be fine for one senior and dangerous for another, with heart disease or on diuretics. README open question 11 asks a medical mentor for the limits; this lets the medic set them per patient.
+
+**What.**
+- **Data.** Two nullable columns on `seniors`: `room_cold_below`, `room_heat_above`. Null means the 06 §3 defaults.
+- **API.** Optional fields in the medic's `PUT /seniors/{id}` (04 §2), within 10–22°C and 24–35°C.
+- **Rules.** `homenode.service.out_of_range` and the P22 shelter rule read the senior's limits.
+- **Clients.** The Android form and the dashboard panel show them with the defaults as placeholders.
+
+**Done when.** A senior with a cold limit of 18°C gets a `room_cold` event at 17°C after the hold time, and one with the defaults does not.
+
+### N3. Ecou speaks
+
+**Why.** „BINE?” on an 8×13 matrix asks a lot of a senior's eyes. A voice reaches someone on the floor who cannot see the robot.
+
+**What.**
+- **Hardware.** A small speaker with a PAM8302 amplifier on the R4 WiFi's DAC pin (A0), or a USB speaker on the UNO Q.
+- **Phrases.** About ten fixed phrases, recorded once as WAV in Romanian: „Sunteți bine? Faceți cu mâna dacă da.”, „Am anunțat pe cineva.”, „E frig în cameră. Închideți geamul?”. No speech synthesis on the board.
+- **Link.** Ecou sends Puiul `{"type":"say","phrase":3}` over the keyed UDP link (§2.6), or plays the phrase itself through the USB speaker.
+- **When.** At the start of Ask, after a fall is sent, and once per hour of `cold` or `hot`. Never at night (Quiet).
+
+**Done when.** In the demo's step 4, Ecou asks out loud and the dashboard still gets the fall when nobody waves.
+
+### N4. Hydration
+
+**Why.** Dehydration is the main risk in a heatwave. The agent asks about water on the call, and a sensor can tell it how much was drunk.
+
+**What.**
+- **Puiul.** With a second HC-SR04 pointed down into a jug, Puiul measures the water level. A drop of more than 1 cm that stays for a minute counts as a drink.
+- **Phone and API.** Puiul sends `{"type":"drink","ml":…}` to Ecou, which adds `drunk_today_ml` to the room reading (04 §3). The phone relays it, and FastAPI keeps it on `home_node_states`.
+- **The call.** During a heat warning the agent's instructions carry „a băut azi cam X ml” for the water question (03 §3). The model may only raise the level with it, never lower it, like P22.
+
+**Done when.**
+- Pouring 250 ml from the jug moves the count by 200–300 ml.
+- A heat campaign call's instructions show the number.
+
+### N5. The caregiver sees the room
+
+**Why.** The caregiver is the first to act on a yellow (P5). Today they see the code, but not that the room is cold or that the sensor went silent.
+
+**What.**
+- **Data.** `GET /seniors` and `GET /seniors/{id}` already carry the room for every role. The Android caregiver list and senior page only need to show it, with the chip from `home/Calls.kt`.
+- **Push.** When a node goes `offline` and stays so for 30 minutes during an active warning, the caregivers get a notice push (not an alert): „Senzorul din casă al doamnei Maria nu mai răspunde”. This is a new push type, `home_node_silent` (04 §6).
+
+**Done when.**
+- The caregiver's list shows „Cameră 14°C” for the seeded senior.
+- Unplugging the node during a demo-mode warning sends the notice once.
+
+### N6. More than one room
+
+**Why.** Many falls happen in the bathroom, where nobody puts a robot. A second Puiul at the bathroom door can tell how long someone has been inside.
+
+**What.**
+- **Several Puiuls.** Each has a name in its `arduino_secrets.h` (`baie`, `dormitor`) and sends it with each message.
+- **Door counting.** On a door, the HC-SR04 counts passes. An odd count means someone is inside.
+- **Event.** Ecou records the time of the last odd pass. Past a limit (45 minutes; 2 minutes in demo mode) it sends a new event type, `bathroom_too_long`, through the phone with source `home_node`. It is additive to `POST /me/events` (04 §3) and starts a yellow call like the other node events.
+- **Dashboard.** The incident names the room („Baie, de 52 de minute”).
+
+**Done when.** In demo mode, walking into the „bathroom” doorway and not out raises the event after 2 minutes; walking out first does not.
