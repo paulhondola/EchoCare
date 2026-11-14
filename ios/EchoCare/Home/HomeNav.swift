@@ -18,7 +18,7 @@ struct HomeNav: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            RoleHome(role: role)
+            RoleHome(role: role) { failure in auth.sessionEnded(notRegistered: failure == .notRegistered) }
                 .navigationDestination(for: HomeRoute.self) { route in
                     switch route {
                     case .profile:

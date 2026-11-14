@@ -74,16 +74,19 @@ struct SnButton: View {
     var kind: Kind = .neutral
     var fullWidth = false
     var systemImage: String?
+    /// 48pt, 56pt for what a senior presses (Android's `BUTTON_HEIGHT`).
+    var minHeight: CGFloat = 48
     let action: () -> Void
 
     init(
         _ text: LocalizedStringKey, kind: Kind = .neutral, fullWidth: Bool = false,
-        systemImage: String? = nil, action: @escaping () -> Void
+        systemImage: String? = nil, minHeight: CGFloat = 48, action: @escaping () -> Void
     ) {
         self.text = text
         self.kind = kind
         self.fullWidth = fullWidth
         self.systemImage = systemImage
+        self.minHeight = minHeight
         self.action = action
     }
 
@@ -101,7 +104,7 @@ struct SnButton: View {
             .foregroundStyle(colors.content)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .frame(minHeight: 48)
+            .frame(minHeight: minHeight)
             .frame(maxWidth: fullWidth ? .infinity : nil, alignment: .leading)
             .background(colors.fill)
             .overlay(Rectangle().strokeBorder(colors.border, lineWidth: 1))
@@ -165,6 +168,148 @@ struct ErrorText: View {
             .foregroundStyle(Theme.rosuFg)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onAppear { AccessibilityNotification.Announcement(String(localized: .init(key))).post() }
+    }
+}
+
+/// A full-width strip over a screen: no connection, a request sent (android Components.kt `Banner`).
+/// VoiceOver reads it out when it appears, as Compose's polite live region.
+struct Banner: View {
+    /// A `Localizable.xcstrings` key.
+    let key: String
+    let tone: Tone
+
+    init(_ key: String, tone: Tone) {
+        self.key = key
+        self.tone = tone
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Rectangle().fill(tone.dot).frame(width: 8, height: 8).accessibilityHidden(true)
+                Text(LocalizedStringKey(key)).textStyle(Theme.labelLarge).foregroundStyle(tone.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(tone.fill)
+            Rectangle().fill(tone.dot).frame(height: 2).accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
+        .onAppear { AccessibilityNotification.Announcement(String(localized: .init(key))).post() }
+    }
+}
+
+/// One labelled row of a page: label column, value, an optional action, and its rule.
+struct FieldRow<Value: View, Action: View>: View {
+    let label: LocalizedStringKey
+    var last = false
+    let action: Action
+    let value: Value
+
+    init(
+        _ label: LocalizedStringKey, last: Bool = false, @ViewBuilder action: () -> Action,
+        @ViewBuilder value: () -> Value
+    ) {
+        self.label = label
+        self.last = last
+        self.action = action()
+        self.value = value()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                SectionLabel(label).frame(width: 112, alignment: .leading)
+                // A value that does not fit beside the action wraps whole pieces, never letters
+                WrappingRow(spacing: 8, lineSpacing: 4) { value }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                action
+            }
+            .padding(.vertical, 12)
+            Rule(strong: last)
+        }
+    }
+}
+
+extension FieldRow where Action == EmptyView {
+    init(_ label: LocalizedStringKey, last: Bool = false, @ViewBuilder value: () -> Value) {
+        self.label = label
+        self.last = last
+        self.action = EmptyView()
+        self.value = value()
+    }
+}
+
+/// Lays its children out left to right, starting a new line where one does not fit (Compose's
+/// `FlowRow`).
+struct WrappingRow: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(proposal.width ?? .infinity, subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let arranged = arrange(bounds.width, subviews)
+        for (subview, origin) in zip(subviews, arranged.origins) {
+            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += lineHeight + lineSpacing
+                lineHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            widest = max(widest, x - spacing)
+            lineHeight = max(lineHeight, size.height)
+        }
+        return (CGSize(width: widest, height: y + lineHeight), origins)
+    }
+}
+
+/// A phone number in mono with its FIX or MOBIL tag.
+struct PhoneNumber: View {
+    let e164: String
+    let landline: Bool
+
+    var body: some View {
+        Text(verbatim: formatPhone(e164)).textStyle(Theme.mono).foregroundStyle(Theme.fg)
+            .lineLimit(1).fixedSize()
+        Text(landline ? "tag_landline" : "tag_mobile")
+            .textCase(.uppercase)
+            .textStyle(Theme.labelSmall)
+            .foregroundStyle(Theme.fgMuted)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .overlay(Rectangle().strokeBorder(Theme.line, lineWidth: 1))
+            .lineLimit(1).fixedSize()
+    }
+}
+
+/// *Apelează*: opens the dialler with the number, the person presses call.
+struct CallButton: View {
+    let e164: String
+
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        SnButton("call", kind: .link, systemImage: "phone.fill") {
+            // The number stays on screen to dial by hand where there is no dialler
+            if let url = URL(string: "tel:\(e164)") { openURL(url) }
+        }
     }
 }
 

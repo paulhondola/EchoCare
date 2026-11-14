@@ -2124,6 +2124,39 @@
         }
       }
     },
+    "monitoring_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceasul nu a putut fi pornit. Verificați că este lângă telefon și încercați din nou."
+          }
+        }
+      }
+    },
+    "monitoring_start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pornește monitorizarea"
+          }
+        }
+      }
+    },
+    "monitoring_started" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitorizarea a pornit pe ceas."
+          }
+        }
+      }
+    },
     "new_caregiver" : {
       "extractionState" : "manual",
       "localizations" : {
