@@ -380,6 +380,32 @@ class WatchReadingView(BaseModel):
     steps_today: int | None
 
 
+class Spo2View(BaseModel):
+    value: int
+    measured_at: datetime
+
+
+class Spo2PointView(BaseModel):
+    at: datetime
+    value: int
+
+
+class EcgView(BaseModel):
+    classification: EcgClassification
+    heart_rate: int | None
+    measured_at: datetime
+    trace: list[int] | None
+    trace_hz: int | None
+
+
+class WatchHealthView(BaseModel):
+    """GET /seniors/{id}/watch/health: the last day of Apple Health readings."""
+
+    spo2: Spo2View | None
+    spo2_readings: list[Spo2PointView]
+    ecg: EcgView | None
+
+
 class Citation(BaseModel):
     call_id: uuid.UUID
     quote: Annotated[str, Field(max_length=200)]

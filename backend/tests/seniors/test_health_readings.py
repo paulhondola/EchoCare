@@ -148,3 +148,82 @@ async def test_only_a_senior_may_post(client, add_user, senior):
     await add_user(MEDIC, Role.medic)
     r = await post(client, id=str(ID), kind="spo2", spo2=97, token=MEDIC)
     assert refusal(r) == NOT_ALLOWED
+
+
+# GET /seniors/{id}/watch/health
+
+DAS = "+40700000104"
+
+
+def health(client, senior, token=DAS):
+    return client.get(
+        f"/api/seniors/{senior.id}/watch/health", headers=signed_in(token)
+    )
+
+
+async def test_health_shows_the_latest_spo2_the_day_and_the_latest_ecg(
+    client, add_user, senior
+):
+    await add_user(DAS, Role.das)
+    now = datetime.now(UTC)
+    ecg = {"kind": "ecg", "ecg_classification": "sinus_rhythm", "ecg_trace_hz": 128}
+    await post(
+        client, now - timedelta(hours=2), id=str(uuid.uuid4()), kind="spo2", spo2=95
+    )
+    await post(
+        client, now - timedelta(hours=1), id=str(uuid.uuid4()), kind="spo2", spo2=97
+    )
+    await post(
+        client, now - timedelta(hours=3), id=str(uuid.uuid4()), ecg_trace=[1], **ecg
+    )
+    await post(
+        client,
+        now - timedelta(minutes=30),
+        id=str(uuid.uuid4()),
+        ecg_heart_rate=72,
+        ecg_trace=[4, 5],
+        **{**ecg, "ecg_classification": "atrial_fibrillation"},
+    )
+    r = await health(client, senior)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["spo2"]["value"] == 97
+    assert [p["value"] for p in body["spo2_readings"]] == [95, 97]
+    assert body["ecg"]["classification"] == "atrial_fibrillation"
+    assert (body["ecg"]["trace"], body["ecg"]["heart_rate"]) == ([4, 5], 72)
+
+
+async def test_health_is_204_with_no_readings(client, add_user, senior):
+    await add_user(DAS, Role.das)
+    assert (await health(client, senior)).status_code == 204
+
+
+async def test_health_is_out_of_reach_for_a_stranger(client, add_user, senior):
+    await add_user(MEDIC, Role.medic)
+    r = await health(client, senior, MEDIC)
+    watch = await client.get(
+        f"/api/seniors/{senior.id}/watch", headers=signed_in(MEDIC)
+    )
+    assert refusal(r) == refusal(watch) == (404, {"detail": {"reason": "not_found"}})
+
+
+async def test_the_senior_sees_their_own_health(client, senior):
+    await post(client, id=str(ID), kind="spo2", spo2=96)
+    r = await health(client, senior, SENIOR)
+    assert r.json()["spo2"]["value"] == 96
+    assert r.json()["ecg"] is None
+
+
+async def test_readings_past_a_day_are_not_served(client, db, add_user, senior):
+    await add_user(DAS, Role.das)
+    db.add(
+        HealthReading(
+            senior_id=senior.id,
+            id=ID,
+            kind=HealthReadingKind.spo2,
+            measured_at=datetime.now(UTC) - timedelta(hours=25),
+            spo2=90,
+        )
+    )
+    await db.commit()
+    assert (await health(client, senior)).status_code == 204

@@ -27,6 +27,7 @@ from app.seniors.schemas import (
     SeniorView,
     SignatureForm,
     SummaryVersionView,
+    WatchHealthView,
     WatchReadingView,
     WatchView,
 )
@@ -49,6 +50,7 @@ from app.seniors.service import (
     senior_view,
     submit,
     summary_for,
+    watch_health,
     watch_readings,
     watch_state,
     watch_view,
@@ -109,6 +111,24 @@ async def get_watch(
     """The watch's latest check-in (04 §1, ADR-006)."""
     senior = await reach_senior(session, caller, senior_id)
     view = await watch_view(session, caller, senior)
+    return view if view else Response(status_code=204)
+
+
+@router.get(
+    "/seniors/{senior_id}/watch/health",
+    response_model=WatchHealthView,
+    responses={
+        204: {"description": "No reading in the last day, or the watch is not shown"}
+    },
+)
+async def get_watch_health(
+    senior_id: uuid.UUID,
+    caller: Annotated[Caller, Depends(current_caller)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """The last day of Apple Health blood oxygen and ECG readings."""
+    senior = await reach_senior(session, caller, senior_id)
+    view = await watch_health(session, caller, senior, datetime.now(UTC))
     return view if view else Response(status_code=204)
 
 

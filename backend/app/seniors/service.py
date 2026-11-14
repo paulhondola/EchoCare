@@ -40,6 +40,7 @@ from app.seniors.models import (
     ConsentMethod,
     EnrollmentState,
     HealthReading,
+    HealthReadingKind,
     Senior,
     SummaryVersion,
     WatchCondition,
@@ -52,14 +53,18 @@ from app.seniors.schemas import (
     CaregiverForm,
     CaregiverView,
     CheckInForm,
+    EcgView,
     HealthReadingForm,
     MedicView,
     SeniorForm,
     SeniorSummary,
     SeniorView,
     SignatureForm,
+    Spo2PointView,
+    Spo2View,
     SummaryContent,
     SummaryVersionView,
+    WatchHealthView,
     WatchReadingView,
     WatchView,
 )
@@ -924,6 +929,45 @@ async def watch_readings(
         .order_by(BUCKET)
     )
     return [WatchReadingView.model_validate(r, from_attributes=True) for r in rows]
+
+
+async def watch_health(
+    session: AsyncSession, caller: Caller, senior: Senior, now: datetime
+) -> WatchHealthView | None:
+    """The last day of Apple Health readings: the latest blood oxygen, the day's
+    series and the latest ECG; None when the caller can't see the watch or there is
+    nothing."""
+    if not sees_watch(caller, senior.id, senior.medic_id):
+        return None
+    rows = (
+        await session.scalars(
+            select(HealthReading)
+            .where(
+                HealthReading.senior_id == senior.id,
+                HealthReading.measured_at >= now - READINGS_KEPT,
+            )
+            .order_by(HealthReading.measured_at)
+        )
+    ).all()
+    if not rows:
+        return None
+    spo2 = [r for r in rows if r.kind == HealthReadingKind.spo2]
+    ecg = next((r for r in reversed(rows) if r.kind == HealthReadingKind.ecg), None)
+    return WatchHealthView(
+        spo2=Spo2View(value=spo2[-1].spo2, measured_at=spo2[-1].measured_at)
+        if spo2
+        else None,
+        spo2_readings=[Spo2PointView(at=r.measured_at, value=r.spo2) for r in spo2],
+        ecg=EcgView(
+            classification=ecg.ecg_classification,
+            heart_rate=ecg.ecg_heart_rate,
+            measured_at=ecg.measured_at,
+            trace=ecg.ecg_trace,
+            trace_hz=ecg.ecg_trace_hz,
+        )
+        if ecg
+        else None,
+    )
 
 
 async def prune_watch_readings(session: AsyncSession, now: datetime) -> int:
