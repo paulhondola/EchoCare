@@ -639,6 +639,17 @@
         }
       }
     },
+    "coming_on_ios" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În curând și în aplicația pentru iPhone și iPad."
+          }
+        }
+      }
+    },
     "confirm" : {
       "extractionState" : "manual",
       "localizations" : {

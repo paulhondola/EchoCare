@@ -75,11 +75,20 @@ private struct MonitoringButton: View {
 
 /// One senior, laid out like the dashboard's dossier: labelled rows, 1pt between rows, 2pt under a
 /// group. `callSenior` is false on the senior's own page, since they do not need a button to call
-/// themselves; `calls` false hides every call button.
-struct SeniorDetails: View {
+/// themselves; `calls` false hides every call button. `below` goes under the name, over the rule:
+/// the medic's stages, consent and actions.
+struct SeniorDetails<Below: View>: View {
     let senior: SeniorPage
     let callSenior: Bool
     var calls = true
+    let below: Below?
+
+    init(senior: SeniorPage, callSenior: Bool, calls: Bool = true, @ViewBuilder below: () -> Below) {
+        self.senior = senior
+        self.callSenior = callSenior
+        self.calls = calls
+        self.below = below()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -90,9 +99,7 @@ struct SeniorDetails: View {
                 if showsCallBadge(senior) { Chip("call_live", tone: .galben) }
                 if let chip = watchChip(senior.watchState) {
                     if senior.watchState == "ok", let pulse = senior.lastPulse {
-                        Chip(
-                            LocalizedStringKey(String(format: String(localized: "watch_ok_pulse"), pulse)),
-                            tone: chip.tone)
+                        Chip(verbatim: localized("watch_ok_pulse", pulse), tone: chip.tone)
                     } else {
                         Chip(LocalizedStringKey(chip.label), tone: chip.tone)
                     }
@@ -100,7 +107,12 @@ struct SeniorDetails: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 16)
-            Rule()
+            if let below {
+                below
+                Rule().padding(.top, 16)
+            } else {
+                Rule()
+            }
 
             Group {
                 if calls && callSenior {
@@ -110,7 +122,12 @@ struct SeniorDetails: View {
                 } else {
                     FieldRow("label_phone") { PhoneNumber(e164: senior.phone, landline: senior.landline) }
                 }
-                FieldRow("label_address") { Value(text: Self.place(senior)) }
+                FieldRow("label_address") {
+                    Value(
+                        text: place(
+                            street: senior.street, streetNumber: senior.streetNumber, block: senior.block,
+                            staircase: senior.staircase, floor: senior.floor, apartment: senior.apartment))
+                }
                 if let code = senior.intercomCode {
                     FieldRow("label_intercom") {
                         Text(verbatim: code).textStyle(Theme.mono).foregroundStyle(Theme.fg)
@@ -147,21 +164,33 @@ struct SeniorDetails: View {
         }
     }
 
-    /// The street with block, staircase, floor and apartment (G13), from what was filled in.
-    static func place(_ senior: SeniorPage) -> String {
-        func part(_ key: String, _ value: String?) -> String? {
-            value.map { String(format: String(localized: .init(key)), $0) }
-        }
-        let street = [senior.street, senior.streetNumber].compactMap { $0 }.joined(separator: " ")
-        let parts = [
-            street.isEmpty ? nil : street,
-            part("address_block", senior.block),
-            part("address_staircase", senior.staircase),
-            part("address_floor", senior.floor),
-            part("address_apartment", senior.apartment),
-        ].compactMap { $0 }
-        return parts.isEmpty ? String(localized: "no_address") : parts.joined(separator: ", ")
+}
+
+extension SeniorDetails where Below == EmptyView {
+    init(senior: SeniorPage, callSenior: Bool, calls: Bool = true) {
+        self.senior = senior
+        self.callSenior = callSenior
+        self.calls = calls
+        self.below = nil
     }
+}
+
+/// The street with block, staircase, floor and apartment (G13), from what was filled in. The
+/// senior's page and the DAS incident page both show it.
+func place(
+    street: String?, streetNumber: String?, block: String?, staircase: String?, floor: String?,
+    apartment: String?
+) -> String {
+    func part(_ key: String, _ value: String?) -> String? { value.map { localized(key, $0) } }
+    let line = [street, streetNumber].compactMap { $0 }.joined(separator: " ")
+    let parts = [
+        line.trimmingCharacters(in: .whitespaces).isEmpty ? nil : line,
+        part("address_block", block),
+        part("address_staircase", staircase),
+        part("address_floor", floor),
+        part("address_apartment", apartment),
+    ].compactMap { $0 }
+    return parts.isEmpty ? String(localized: "no_address") : parts.joined(separator: ", ")
 }
 
 private struct Value: View {
@@ -196,19 +225,31 @@ struct CodeLabel: View {
     }
 }
 
-/// „Apeluri recente”: when, what started it, and the code it ended with or its state (UC-12).
+/// The medic's „Transcriere” on each call: what was read, and how to read one (04 §1).
+struct Transcripts {
+    let read: [String: Load<IncidentCall>]
+    let open: (String) -> Void
+}
+
+/// „Apeluri recente” or, for the medic, „Apeluri”: when, what started it, and the code it ended
+/// with or its state (UC-12). With `transcripts`, each row opens what was said under it.
 struct CallList: View {
     let calls: [CallRow]
+    var title = "section_recent_calls"
+    var transcripts: Transcripts?
+
+    /// The rows the medic unfolded; „Ascunde” folds one, and the transcript stays read
+    @State private var shown: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("section_recent_calls").padding(.top, 20).padding(.bottom, 4)
+            SectionLabel(LocalizedStringKey(title)).padding(.top, 20).padding(.bottom, 4)
             if calls.isEmpty {
                 Text("no_recent_calls").textStyle(Theme.bodyLarge).foregroundStyle(Theme.fgMuted)
                     .padding(.vertical, 12)
             }
             ForEach(Array(calls.enumerated()), id: \.element.id) { i, call in
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(verbatim: line(call)).textStyle(Theme.titleMedium).foregroundStyle(Theme.fg)
@@ -219,12 +260,25 @@ struct CallList: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         switch outcome(call) {
                         case .code(let code):
-                            Chip(LocalizedStringKey(CODE_LABELS[code] ?? code), tone: CODE_TONES[code] ?? .muted)
+                            Chip(verbatim: labelOf(code, in: CODE_LABELS), tone: CODE_TONES[code] ?? .muted)
                         case .state(let state):
-                            Chip(LocalizedStringKey(CALL_STATE_LABELS[state] ?? state), tone: stateTone(state))
+                            Chip(verbatim: labelOf(state, in: CALL_STATE_LABELS), tone: stateTone(state))
                         }
                     }
                     .padding(.vertical, 12)
+                    if let transcripts {
+                        let open = shown.contains(call.id)
+                        SnButton(open ? "hide" : "transcript", kind: .link) {
+                            if open {
+                                shown.remove(call.id)
+                            } else {
+                                shown.insert(call.id)
+                                transcripts.open(call.id)
+                            }
+                        }
+                        .padding(.bottom, 12)
+                        if open, let read = transcripts.read[call.id] { TranscriptOf(read: read) }
+                    }
                     Rule(strong: i == calls.count - 1)
                 }
             }
@@ -232,7 +286,6 @@ struct CallList: View {
     }
 
     private func line(_ call: CallRow) -> String {
-        let trigger = TRIGGER_LABELS[call.trigger].map { String(localized: .init($0)) } ?? call.trigger
-        return String(format: String(localized: "recent_call_line"), callTime(call), trigger)
+        localized("recent_call_line", callTime(call), labelOf(call.trigger, in: TRIGGER_LABELS))
     }
 }

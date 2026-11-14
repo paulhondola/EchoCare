@@ -20,22 +20,35 @@ struct OpenProfileAction {
     @MainActor func callAsFunction() { run() }
 }
 
-/// The frame every signed-in screen shares: a title, a back arrow or none, and the person's square.
-/// It hides the navigation bar: this top bar is the dashboard's, as on Android.
+/// The frame every signed-in screen shares: a title, a back arrow or none, the screen's own button
+/// (the medic home's „Pacient nou”, Android's menu slot) and the person's square. It hides the
+/// navigation bar: this top bar is the dashboard's, as on Android.
 struct Frame<Content: View>: View {
     let title: String
     let onBack: (() -> Void)?
+    let trailing: AnyView?
     @ViewBuilder let content: Content
 
     init(_ title: String, onBack: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
         self.onBack = onBack
+        self.trailing = nil
+        self.content = content()
+    }
+
+    init(
+        _ title: String, onBack: (() -> Void)? = nil, @ViewBuilder trailing: () -> some View,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.onBack = onBack
+        self.trailing = AnyView(trailing())
         self.content = content()
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            TopBar(title: title, onBack: onBack)
+            TopBar(title: title, onBack: onBack, trailing: trailing)
             content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         // Pinned to the top also when the content takes no room
@@ -49,6 +62,7 @@ struct Frame<Content: View>: View {
 private struct TopBar: View {
     let title: String
     let onBack: (() -> Void)?
+    let trailing: AnyView?
 
     @Environment(\.signedIn) private var signedIn
     @Environment(\.openProfile) private var openProfile
@@ -73,6 +87,7 @@ private struct TopBar: View {
                         .accessibilityAddTraits(.isHeader)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if let trailing { trailing }
                 let name = signedIn ?? ""
                 if openProfile != nil || !name.trimmingCharacters(in: .whitespaces).isEmpty {
                     SignedIn(name: name, wide: wide, onOpen: openProfile)

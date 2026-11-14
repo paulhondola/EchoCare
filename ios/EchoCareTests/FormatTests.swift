@@ -2,8 +2,8 @@ import Testing
 
 @testable import EchoCare
 
-// The two helpers the top bar and the profile page need, ported from Android's ui/FormatTest.kt.
-// Task 9 ports the rest of that file.
+// Ported from Android's ui/FormatTest.kt, case for case: the same cases as the dashboard's
+// phone.test.ts, so every client shows a number alike.
 struct FormatTests {
     @Test func romanianNumbersAreGroupedAsPeopleReadThem() {
         #expect(formatPhone("+40722111222") == "0722 111 222")

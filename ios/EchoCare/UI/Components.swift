@@ -2,7 +2,19 @@ import SwiftUI
 
 // The dashboard's pieces (spec 07, dashboard/src/styles.css), ported from android/app's
 // ui/Components.kt: flush-left square buttons, tinted chips, uppercase field labels, 2pt section
-// rules. Only what sign-in and the profile page use; Task 9 adds the rest of that file.
+// rules.
+
+/// A `Localizable.xcstrings` value with its format arguments filled in, as Android's
+/// `stringResource(id, args)`. `%lld` takes a Swift `Int` (64-bit on iPhone and iPad).
+func localized(_ key: String, _ args: CVarArg...) -> String {
+    String(format: String(localized: String.LocalizationValue(key)), arguments: args)
+}
+
+/// The words for a server value through one of the label maps (Labels.swift); a value this build
+/// does not know shows as it is (ADR-001 §2.3).
+func labelOf(_ value: String, in labels: [String: String]) -> String {
+    labels[value].map { String(localized: String.LocalizationValue($0)) } ?? value
+}
 
 /// The colour of a chip, a card's bar or a banner. The codes take their Romanian names (03).
 enum Tone {
@@ -33,18 +45,24 @@ enum Tone {
 
 /// A small tinted label with a square dot, like the dashboard's state chips.
 struct Chip: View {
-    let text: LocalizedStringKey
+    let text: Text
     let tone: Tone
 
     init(_ text: LocalizedStringKey, tone: Tone) {
-        self.text = text
+        self.text = Text(text)
+        self.tone = tone
+    }
+
+    /// Words already filled in, such as a count („Roșu: 2”) or a state this build does not know.
+    init(verbatim text: String, tone: Tone) {
+        self.text = Text(verbatim: text)
         self.tone = tone
     }
 
     var body: some View {
         HStack(spacing: 6) {
             Rectangle().fill(tone.dot).frame(width: 6, height: 6)
-            Text(text).textStyle(Theme.labelMedium).foregroundStyle(tone.text)
+            text.textStyle(Theme.labelMedium).foregroundStyle(tone.text)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
@@ -137,12 +155,14 @@ struct SquareIconButton: View {
 
 /// Small uppercase label over or beside a value.
 struct SectionLabel: View {
-    let text: LocalizedStringKey
+    let text: Text
 
-    init(_ text: LocalizedStringKey) { self.text = text }
+    init(_ text: LocalizedStringKey) { self.text = Text(text) }
+
+    init(verbatim text: String) { self.text = Text(verbatim: text) }
 
     var body: some View {
-        Text(text)
+        text
             .textCase(.uppercase)
             .textStyle(Theme.labelSmall)
             .foregroundStyle(Theme.fgMuted)
@@ -313,24 +333,28 @@ struct CallButton: View {
             // The number stays on screen to dial by hand where there is no dialler
             if let url = URL(string: "tel:\(e164)") { openURL(url) }
         }
+        // Never broken over two lines beside a long value: the value wraps instead
+        .fixedSize()
     }
 }
 
 /// The dashboard's inset field: square, dark, blue border while typing. `mono` for numbers and
-/// codes; names and places in Archivo.
+/// codes; names and places in Archivo. `multiline` for free text: four lines tall, growing to eight.
 struct SnTextField: View {
     @Binding var text: String
     let label: LocalizedStringKey
     var keyboard: UIKeyboardType = .default
     var content: UITextContentType?
     var mono = true
+    var multiline = false
 
     @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel(label)
-            TextField("", text: $text)
+            TextField("", text: $text, axis: multiline ? .vertical : .horizontal)
+                .lineLimit(multiline ? 4...8 : 1...1)
                 .keyboardType(keyboard)
                 .textContentType(content)
                 .autocorrectionDisabled()
@@ -340,6 +364,7 @@ struct SnTextField: View {
                 .foregroundStyle(Theme.fg)
                 .tint(Theme.link)
                 .padding(.horizontal, 14)
+                .padding(.vertical, multiline ? 12 : 0)
                 .frame(minHeight: 52)
                 .background(Theme.inset)
                 .overlay(

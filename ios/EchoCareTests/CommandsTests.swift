@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import EchoCare
@@ -59,5 +60,28 @@ struct CommandsTests {
     @Test func `the same number, or a senior not to resolve, is not`() {
         #expect(!isNewNumberToCall(before: "+40700000001", now: page(state: "unreachable", phone: "+40700000001")))
         #expect(!isNewNumberToCall(before: "+40700000001", now: page(state: "active", phone: "+40700000002")))
+    }
+
+    // Android's `command(call)`: what the API client threw becomes the status and body read above
+
+    @Test func `a call that returns is done`() async {
+        #expect(await command {} == .done)
+    }
+
+    @Test func `a refusal the client threw is read from its status and body`() async {
+        let wrong = await command { throw ApiError.http(status: 409, body: #"{"detail": {"reason": "wrong_state"}}"#) }
+        #expect(wrong == .refused("wrong_state"))
+        #expect(await command { throw ApiError.http(status: 404, body: "{}") } == .refused("not_found"))
+        #expect(await command { throw ApiError.http(status: 503, body: "") } == .offline)
+    }
+
+    @Test func `no answer or an unreadable one is offline`() async {
+        #expect(await command { throw URLError(.notConnectedToInternet) } == .offline)
+        let unreadable = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "x"))
+        #expect(await command { throw ApiError.decoding(unreadable) } == .offline)
+    }
+
+    @Test func `no token is the 401 the API would answer`() async {
+        #expect(await command { throw TokenError.signedOut } == .refused(nil))
     }
 }

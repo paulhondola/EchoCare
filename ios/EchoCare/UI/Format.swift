@@ -1,7 +1,6 @@
 import Foundation
 
-// Ported from android/app/.../ui/Format.kt: the helpers the top bar and the profile page need.
-// Task 9 adds the rest of that file.
+// Ported from android/app/.../ui/Format.kt, the whole file.
 
 /// A Romanian number grouped as people read it; any other number as it is.
 func formatPhone(_ e164: String) -> String {

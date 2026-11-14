@@ -1,7 +1,7 @@
 import Foundation
 
 // What a read answered and what a page shows, ported from android/app/.../home/Load.kt (seniors
-// §8.2). Task 9 adds the rest and ports LoadTest.kt.
+// §8.2). LoadTests.swift ports LoadTest.kt.
 
 /// What a refused or failed read means for the person (auth-layer §3.2, seniors §8.2).
 enum Failure: CaseIterable, Sendable {
@@ -83,3 +83,5 @@ enum Load<T: Sendable>: Sendable {
         }
     }
 }
+
+extension Load: Equatable where T: Equatable {}

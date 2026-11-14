@@ -33,3 +33,22 @@ let CALL_STATE_LABELS = [
     "unanswered": "call_unanswered", "failed": "call_failed", "completed": "call_completed",
     "handed_over": "call_handed_over", "dropped": "call_dropped", "canceled": "call_canceled",
 ]
+
+/// A transcript answer's question (05 §2) under the medic's transcript. Unknown: shown raw.
+let ANSWER_FIELDS = [
+    "feeling": "answer_feeling", "orientation": "answer_orientation", "shelter": "answer_shelter",
+    "identity": "answer_identity", "consent": "consent_label",
+]
+
+/// A transcript answer's value (03 §3): the codes in Romanian. The days are Romanian already; a
+/// value this build does not know shows raw.
+let ANSWER_VALUES = [
+    "ok": "answer_ok", "unwell": "answer_unwell", "yes": "answer_yes", "no": "answer_no",
+    "unknown": "answer_unknown",
+]
+
+/// The event behind an incident (05 §1), as the dashboard names it. Unknown: shown as it is.
+let EVENT_LABELS = [
+    "sos_button": "event_sos_button", "fall": "event_fall", "high_pulse_at_rest": "event_high_pulse_at_rest",
+    "inactivity": "event_inactivity", "manual_request": "event_manual_request",
+]
