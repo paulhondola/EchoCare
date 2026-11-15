@@ -222,9 +222,8 @@ async def test_answering_takes_the_incident(client, db, handed_over, on_duty_das
         query=f"&user={on_duty_das.id}",
     )
     root = twiml(r)
-    # DAS hears who is calling before Twilio connects the two (design 2026-11-14 §6)
-    [said] = [say.text for say in root.iter("Say")]
-    assert said.startswith("Predare EchoCare.")
+    # DAS is connected straight to the senior (design 2026-11-15)
+    assert len(root) == 0
     incident = await incident_of(db, handed_over)
     assert (incident.status, incident.taken_by) == (
         IncidentStatus.in_progress,
@@ -233,40 +232,14 @@ async def test_answering_takes_the_incident(client, db, handed_over, on_duty_das
     assert (await stored(db, handed_over)).handover_answered is True
 
 
-async def test_a_failing_briefing_still_connects(
-    client, db, handed_over, on_duty_das, monkeypatch
-):
-    async def broken(*_):
-        raise RuntimeError("no briefing")
-
-    monkeypatch.setattr("app.voice.router.handover_briefing", broken)
-    r = await callback(
-        client,
-        "handoff-answered",
-        handed_over.id,
-        FIXTURES["handoff_answered"],
-        query=f"&user={on_duty_das.id}",
-    )
-    assert len(twiml(r)) == 0  # connects silently, as before the briefing
-    incident = await incident_of(db, handed_over)
-    assert incident.status == IncidentStatus.in_progress
-
-
-async def test_no_briefing_after_the_database_failed(
+async def test_a_failed_database_still_connects(
     client, handed_over, on_duty_das, monkeypatch
 ):
-    # A database that just failed is not asked again while DAS waits on the line
+    # DAS is on the line: connect even when the answer can't be written
     async def down(*_):
         raise SQLAlchemyError("down")
 
-    asked = []
-
-    async def briefing(*args):
-        asked.append(args)
-        return "Predare EchoCare."
-
     monkeypatch.setattr("app.voice.router.answer_handover", down)
-    monkeypatch.setattr("app.voice.router.handover_briefing", briefing)
     r = await callback(
         client,
         "handoff-answered",
@@ -275,7 +248,6 @@ async def test_no_briefing_after_the_database_failed(
         query=f"&user={on_duty_das.id}",
     )
     assert len(twiml(r)) == 0
-    assert asked == []
 
 
 async def test_an_incident_already_taken_stays_theirs(

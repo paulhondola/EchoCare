@@ -62,7 +62,6 @@ from app.voice.service import (
     answer_handover,
     append_turn,
     form_of_address,
-    handover_briefing,
     live_call_for_update,
     move_call,
     save_answer,
@@ -373,7 +372,7 @@ async def handoff_answered(
     call: uuid.UUID, user: uuid.UUID, _: Params, session: Db
 ) -> Response:
     """The on-duty phone picked up (04 §4.4 step 5): the incident is taken by the one we
-    rang, they hear a short briefing, and Twilio connects the two (design 2026-11-14 §6)."""
+    rang, and Twilio connects the two straight away (design 2026-11-15)."""
     try:
         row = await answer_handover(session, call, True)
         if row is not None and not await take_for_handover(
@@ -382,16 +381,9 @@ async def handoff_answered(
             log.info("hand-over for call %s: no open incident to take", call)
         await session.commit()
     except SQLAlchemyError, OSError:
-        # Still connect them: DAS is on the line, and the database is not asked again
+        # Still connect them: DAS is on the line
         log.exception("hand-over answer for call %s: database unavailable", call)
-        return twiml("")
-    # The briefing is never worth a failed connect; its text is health data, never logged
-    try:
-        text = await handover_briefing(session, call)
-    except Exception:
-        log.exception("hand-over briefing for call %s failed", call)
-        return twiml("")
-    return twiml(say(text)) if text else twiml("")
+    return twiml("")
 
 
 @router.post("/voice/handoff-result")

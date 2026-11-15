@@ -24,8 +24,8 @@ from app.voice.service import cancel_queued, queue_calls
 log = logging.getLogger("echocare.calls")
 
 # A hand-over ends the senior's call (`ended_at` is set) while DAS is still talking with
-# her; it stays live while its newest turn is this fresh: the briefing, the ring and DAS's
-# first sentence can pass a minute without a turn (design 2026-11-14 §4).
+# her; it stays live while its newest turn is this fresh: the ring and DAS's first
+# sentence can pass a minute without a turn (design 2026-11-14 §4).
 HANDOVER_LIVE = timedelta(seconds=90)
 
 
