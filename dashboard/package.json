@@ -10,7 +10,7 @@
     "prepare": "svelte-kit sync || echo ''"
   },
   "dependencies": {
-    "firebase": "^13.0.0",
+    "firebase": "^13.4.0",
     "leaflet": "^1.9.4"
   },
   "devDependencies": {
