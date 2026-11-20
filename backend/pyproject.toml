@@ -34,7 +34,7 @@ dev = [
     "moto[s3]>=5.2.4",
     "pydantic-evals>=2.66.0",
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
+    "pytest-asyncio>=1.5.0",
     "ruff>=0.16.10",
 ]
 
