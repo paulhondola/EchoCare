@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -417,7 +417,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "boto3", specifier = ">=1.40.61" },
     { name = "fastapi", specifier = ">=0.143.0" },
-    { name = "firebase-admin", specifier = ">=7.7.0" },
+    { name = "firebase-admin", specifier = ">=7.8.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "phonenumbers", specifier = ">=9.0.41" },
     { name = "pillow", specifier = ">=13.0.0" },
@@ -459,19 +459,20 @@ wheels = [
 
 [[package]]
 name = "firebase-admin"
-version = "7.7.0"
+version = "7.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachecontrol" },
+    { name = "cryptography" },
     { name = "google-api-core", extra = ["grpc"], marker = "platform_python_implementation != 'PyPy'" },
     { name = "google-cloud-firestore", marker = "platform_python_implementation != 'PyPy'" },
     { name = "google-cloud-storage" },
     { name = "httpx", extra = ["http2"] },
     { name = "pyjwt", extra = ["crypto"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ee/7a/9f36b504fc6d941d032820460da5710163aff58d80ecaaa68d118353f5c8/firebase_admin-7.7.0.tar.gz", hash = "sha256:2e823cc1d2c8b74f41346fb33298b2e01fc8ad208ea144cd099938c32367f169", size = 208680, upload-time = "2026-09-23T20:35:06.62Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8e/d4/5f4c466a706679f6023094fe1f950f0519d43affa029935fa55d127dfbf6/firebase_admin-7.8.0.tar.gz", hash = "sha256:3560733698619f1d77e2e0babc20fc24d9dcedbb96823d0f03cf1f2d21a30868", size = 210469, upload-time = "2026-11-12T03:13:03.26Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/d3/fe159efc61e57acccabc582d6072be77db1534303d823642cccfd0cf51f6/firebase_admin-7.7.0-py3-none-any.whl", hash = "sha256:0a341ebbd1f80301fa11034f5e86ab0d0f00dde19253d2ee50cf98be2a7a2f33", size = 144495, upload-time = "2026-09-23T20:35:05.283Z" },
+    { url = "https://files.pythonhosted.org/packages/26/a9/856d4faf037db4dc84b0273b3d0ca785688b3117f1eb2d4b9b1a82a83727/firebase_admin-7.8.0-py3-none-any.whl", hash = "sha256:1cb353371ad14c3233a2ddf86c85b665341123b6c5df73b3cb84e7def45397dc", size = 145772, upload-time = "2026-11-12T03:13:01.702Z" },
 ]
 
 [[package]]
@@ -489,7 +490,7 @@ wheels = [
 
 [[package]]
 name = "google-api-core"
-version = "2.42.0"
+version = "2.44.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-auth" },
@@ -499,9 +500,9 @@ dependencies = [
     { name = "protobuf" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/aa/2aa84799e6920216f8aa2866d3b43daa20f7060dcb6efc8f0449e8be0ab0/google_api_core-2.42.0.tar.gz", hash = "sha256:82cf5daa2ef1b456d4e29ff1de1a5c2995c7be3ccf4fc608184326e03390c1ee", size = 273100, upload-time = "2026-10-08T18:12:37.477Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/ef/63d89cb580f3a42c51db53b3d151352aa61b9c87ea8cfdd8d24ee6caa09d/google_api_core-2.44.0.tar.gz", hash = "sha256:5ab9a396965c1227d7dea4581e562b7018aa2bca96d2de0be5eb70dc9c8ab3a1", size = 288859, upload-time = "2026-11-05T18:39:43.265Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/ca/fb2a5b38366bcb12990c80384b920f04b968fd834cf98be67d306c374612/google_api_core-2.42.0-py3-none-any.whl", hash = "sha256:b1bdf4f72dc4f910736ce4ba49038352effbbc309579215107649b22973a1317", size = 221364, upload-time = "2026-10-08T18:12:04.618Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/73/4068d4b123d206f42e44d476b6ed4de773d81efc4e88101ff82e318b9a7a/google_api_core-2.44.0-py3-none-any.whl", hash = "sha256:8cb9ad8af28de9bc75121686d69b697ce0937e21fad2ad80c9a7e89f22b26e1f", size = 225627, upload-time = "2026-11-05T18:39:01.342Z" },
 ]
 
 [package.optional-dependencies]
@@ -555,7 +556,7 @@ wheels = [
 
 [[package]]
 name = "google-cloud-storage"
-version = "3.17.0"
+version = "3.17.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core" },
@@ -565,9 +566,9 @@ dependencies = [
     { name = "google-resumable-media" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/55/e1/7460613a818ed8d38ee888e672ddb89966f8f92f751ba127c1bf57f4bec2/google_cloud_storage-3.17.0.tar.gz", hash = "sha256:4373aa6328e070c31c97aa236f1600a239dfd3c85e5870cdf3dc2a928dfe0bca", size = 17355535, upload-time = "2026-10-08T18:12:54.643Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/d8/9d6444c1bc301bd4bad36cc91306524e8aba670cbefcc0d2fc184c88fbea/google_cloud_storage-3.17.1.tar.gz", hash = "sha256:b24df37900f5e0a93518bd7d3a2a7b7b48d8a1e72add8eb57d53a38b8b2b0640", size = 17355234, upload-time = "2026-10-15T17:49:57.847Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/21/c6869b66d723d93d4e63fba0dc4b539debeaf03e8b9af53de906a9910ec7/google_cloud_storage-3.17.0-py3-none-any.whl", hash = "sha256:0b89283fccf84745bae75bbefdbda8393e5323471071a2ba24ab437407141171", size = 345704, upload-time = "2026-10-08T18:12:26.717Z" },
+    { url = "https://files.pythonhosted.org/packages/09/77/4376bb26f24966008a9522c61bae025d7030baabf443f20c4b795fb58308/google_cloud_storage-3.17.1-py3-none-any.whl", hash = "sha256:287c7919d7bcda710eae6f6b60c756e89140475d9a4daec01b6174e737488ca8", size = 345706, upload-time = "2026-10-15T17:49:27.497Z" },
 ]
 
 [[package]]
