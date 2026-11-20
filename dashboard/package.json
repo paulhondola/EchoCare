@@ -20,7 +20,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/leaflet": "^1.9.22",
     "@typescript/native": "npm:typescript@^7.0.0",
-    "daisyui": "^5.7.47",
+    "daisyui": "^5.8.1",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
     "tailwindcss": "^4.3.3",
