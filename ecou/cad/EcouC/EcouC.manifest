@@ -1,0 +1,10 @@
+{
+	"autodeskProduct": "Fusion360",
+	"type": "script",
+	"author": "EchoCare team",
+	"description": {
+		"": "Ecou, variant C: the case, head, arm and button knob (08-ecou.md §1.1)"
+	},
+	"supportedOS": "windows|mac",
+	"editEnabled": true
+}

@@ -13,6 +13,7 @@ The home node built as a small robot on an Arduino UNO Q, for the hackathon. The
 | `spikes/s14_ble_node.py` | Spike S14: the UNO Q's Linux side as the home node's BLE GATT server |
 | `docs/wiring.html` | The wiring diagram: pin map, one schematic per part, the multimeter checks. Open it in a browser |
 | `docs/assembly.html` | How the robot goes together: front, side and top views, and the build steps for the pan and tilt build |
+| `cad/EcouC/` | A Fusion script for the low build of 08 §1.1 with an arm: the case, the head, the arm and the button's knob, as STEP and STL |
 
 ## Bring-up test
 
@@ -82,6 +83,24 @@ If the Linux side cannot advertise or serve, the fallback is in 08 §6: the R4 W
 3. Install the `Arduino_CapacitiveTouch` library, glue the foil pad to a wire on D2, and upload `puiul/puiul.ino` to the R4 WiFi.
 
 The pad's resting value is read at power-on: don't touch it then. Without a second HC-SR04, Puiul only does the SOS pad and the matrix.
+
+## Printing the low build
+
+`cad/EcouC/EcouC.py` builds variant C: 2 SG90s (pan and arm), one HC-SR04 in the head, the 0.96" OLED and the MAX9814 in the front wall, the DHT11 in the back wall, a 6×6 tactile button under a printed knob, and the UNO Q lying flat under a window for its matrix.
+
+1. In Fusion: Utilities → Add-Ins → Scripts and Add-Ins → **+** next to My Scripts → pick `cad/EcouC` → Run.
+2. It opens a new design with one component per part, in assembled position, and writes `ecou_c.step` and `stl/<part>.stl` next to the script.
+3. Measure your parts first and change the values at the top of the script, then run it again: `HC_PITCH`, `OLED_HOLE_DX` and `OLED_HOLE_DZ`, `BTN_H`. Print `TestPlate` before anything else.
+
+| Part | On the bed | Supports |
+|---|---|---|
+| Tray | floor down | no |
+| Lid | top face down | no |
+| Head | its front face down | no |
+| HeadBack, ButtonPlate, Arm, TestPlate | flat | no |
+| Knob | cap down | no |
+
+PLA, 0.2 mm layers, 3 walls, 20 % infill. Screws: M3 for the lid and the head's back, self-tapping into PLA; the SG90s' own screws for their ears and horns; M2 for the OLED. Fit the arm servo with its shaft towards the back. Each part is under 175 mm, so any printer takes it.
 
 ## Tests
 
