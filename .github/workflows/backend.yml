@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # setup-uv publishes no moving major tag (v10), only full versions
-      - uses: astral-sh/setup-uv@v10.2.0 # installs the Python in backend/.python-version
+      - uses: astral-sh/setup-uv@v10.4.0 # installs the Python in backend/.python-version
         with:
           working-directory: backend
       - run: uv sync --locked
