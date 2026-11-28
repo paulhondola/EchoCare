@@ -163,6 +163,7 @@ class MonitoringService :
         thread.quitSafely()
         if (wakeLock.isHeld) wakeLock.release()
         running.value = false
+        heartRate.value = null
         log("stopped after minute=$minute battery=${battery()}%")
         super.onDestroy()
     }
@@ -173,6 +174,15 @@ class MonitoringService :
             val id = event.path.substringAfterLast('/').takeIf { it.isNotEmpty() } ?: return
             eventQueue.ack(id)
             log("event acked id=$id")
+            val before = alert.value
+            val after = before?.acked(id, System.currentTimeMillis())
+            if (after != before) {
+                alert.value = after
+                // The team has it (design 2026-11-14): a short double buzz, like iOS's .success
+                getSystemService(VibratorManager::class.java).defaultVibrator.vibrate(
+                    VibrationEffect.createWaveform(longArrayOf(0, 120, 80, 120), -1)
+                )
+            }
         }
     }
 
@@ -213,6 +223,7 @@ class MonitoringService :
                 if (bpm > 0) {
                     heartRateReadings++
                     lastHeartRate = bpm
+                    heartRate.value = bpm
                     onHeartRate(bpm)
                 }
             }
@@ -309,6 +320,8 @@ class MonitoringService :
         val id = UUID.randomUUID().toString()
         getSystemService(VibratorManager::class.java).defaultVibrator
             .vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
+        // The prompt takes over from „help is coming”; „Da” on it must not bring that back
+        alert.value = null
         // MainActivity observes this and shows „Sunteți bine?" — background service can't launch an activity on API 36
         fallPrompt.value = FallPrompt(id, Instant.now().toString(), type, snapshot)
         // A bright wake lock turns the screen on; the full-screen intent brings up MainActivity
@@ -497,6 +510,12 @@ class MonitoringService :
 
         val running = MutableStateFlow(false)
 
+        // The last valid pulse while monitoring runs, for the home's „Puls 72”
+        val heartRate = MutableStateFlow<Int?>(null)
+
+        // MainActivity shows „help is coming” while this is non-null (design 2026-11-14)
+        val alert = MutableStateFlow<Alert?>(null)
+
         // MainActivity observes this; non-null brings up the „Sunteți bine?" screen
         val fallPrompt = MutableStateFlow<FallPrompt?>(null)
 
@@ -539,8 +558,13 @@ class MonitoringService :
         const val ACTION_SEND_EVENT = "ro.echocare.wear.SEND_EVENT"
         const val EXTRA_EVENT_BYTES = "event_bytes"
 
-        /** The UI calls this to enqueue and send an event; the service handles retries. */
+        /**
+         * The UI calls this to enqueue and send an event; the service handles retries. Every UI
+         * event is the senior asking for help („Nu mă simt bine”, „Nu” or silence), so it becomes
+         * the [alert] the „help is coming” screen follows.
+         */
         fun sendEvent(context: Context, msg: ro.echocare.shared.EventMessage) {
+            alert.value = Alert(msg.id, System.currentTimeMillis())
             context.startService(
                 Intent(context, MonitoringService::class.java)
                     .setAction(ACTION_SEND_EVENT)

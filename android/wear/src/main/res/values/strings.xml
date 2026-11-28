@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">EchoCare</string>
     <string name="trial_title">Încercarea %1$d</string>
-    <string name="permission_needed">Sentinela are nevoie de acces la puls și la activitate.</string>
+    <string name="permission_needed">EchoCare are nevoie de acces la puls și la activitate.</string>
     <string name="grant_permission">Permite accesul</string>
     <string name="heart_rate">Puls: %1$d bpm</string>
     <string name="heart_rate_waiting">Puls: se măsoară…</string>
@@ -21,13 +21,18 @@
     <string name="fall_channel">Cădere</string>
     <string name="next_trial">Următoarea</string>
     <string name="are_you_ok_title">Sunteți bine?</string>
-    <string name="are_you_ok_countdown">%1$d s</string>
     <string name="are_you_ok_yes">Da, sunt bine</string>
     <string name="are_you_ok_no">Nu, ajutor!</string>
-    <string name="monitor_active">Monitorizare activă</string>
     <string name="monitor_off">Monitorizare oprită</string>
     <string name="call_me">Nu mă simt bine</string>
-    <string name="call_me_sending">Se trimite…</string>
+    <!-- Senior UI, as the Apple Watch (design 2026-11-14) -->
+    <string name="all_good">Totul e în regulă</string>
+    <string name="heart_rate_plain">Puls %1$d</string>
+    <string name="help_sending">Anunțăm echipa…</string>
+    <string name="help_keep_phone">Țineți telefonul aproape</string>
+    <string name="help_retrying">Încercăm din nou…</string>
+    <string name="help_received">Echipa a fost anunțată</string>
+    <string name="help_answer_phone">Vă sunăm imediat. Răspundeți la telefon.</string>
     <string name="force_high_pulse" translatable="false">Debug: puls mare</string>
     <string name="force_inactivity" translatable="false">Debug: inactivitate</string>
     <string name="force_fall" translatable="false">Debug: cădere</string>

@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.wear.compose.material3.AppScaffold
+import kotlinx.coroutines.flow.update
 import ro.echocare.wear.monitoring.MonitoringService
 import ro.echocare.wear.presentation.theme.EchoCareTheme
 
@@ -22,8 +23,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             EchoCareTheme {
                 AppScaffold {
+                    // „Sunteți bine?” first, then „help is coming”, then home (design 2026-11-14)
                     val fall by MonitoringService.fallPrompt.collectAsState()
+                    val alert by MonitoringService.alert.collectAsState()
                     val f = fall
+                    val a = alert
                     if (f != null) {
                         AreYouOkScreen(
                             fallId = f.id,
@@ -35,6 +39,10 @@ class MainActivity : ComponentActivity() {
                                 MonitoringService.dismissFallNotification(this@MainActivity)
                             }
                         )
+                    } else if (a != null) {
+                        HelpComingScreen(a) {
+                            MonitoringService.alert.update { if (it?.id == a.id) null else it }
+                        }
                     } else {
                         SeniorHomeScreen()
                     }

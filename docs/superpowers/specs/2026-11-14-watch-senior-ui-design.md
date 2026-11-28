@@ -15,7 +15,7 @@ For the UniHack judging on 2026-11-15. The judges should believe a real senior, 
 
 ## Non-goals and anti-goals
 
-- **Not on Wear OS.** This is a deliberate exception to the `ios/AGENTS.md` rule that each Swift screen ports its Kotlin file. `android/`, `backend/` and the API contract stay as they are.
+- **Not on Wear OS** at first. Ported to `android/wear` on 2026-11-28, with the same screens, strings, colours and timings; Wear OS has no double tap shortcut, so „Da” is a tap only. This was a deliberate exception to the `ios/AGENTS.md` rule that each Swift screen ports its Kotlin file. `android/`, `backend/` and the API contract stay as they are.
 - No complications, widgets or new targets. No change to the detectors, the timings, the event queue or the phone app.
 - **Anti-goal:** a ✓ that appears when the alert has not reached the team. Telling a senior help is coming when it isn't is worse than saying nothing.
 
